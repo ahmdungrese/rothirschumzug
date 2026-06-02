@@ -1,26 +1,53 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --color-primary: #8F1627;
+  --color-primary-hover: #a11a2d;
+  --color-background-dark: #0A0F13;
+  --color-background-panel: #131D26;
+  --color-structure: #2D4558;
+  --color-inactive: #273B4B;
+  --color-text-main: #FFFFFF;
+  --color-text-muted: #797979;
+  --color-doc-bg: #F1F1F1;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-bg-dark: var(--color-background-dark);
+  --color-bg-panel: var(--color-background-panel);
+  --color-structure: var(--color-structure);
+  --color-inactive: var(--color-inactive);
+  --color-text-main: var(--color-text-main);
+  --color-text-muted: var(--color-text-muted);
+  --color-doc-bg: var(--color-doc-bg);
+
+  --font-sans: var(--font-inter), Arial, sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+body {
+  background-color: var(--color-background-dark);
+  color: var(--color-text-main);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Base custom utilities */
+.btn-primary {
+  @apply bg-primary text-text-main font-semibold py-3 px-6 rounded-lg transition-colors duration-200 hover:bg-primary-hover flex items-center justify-center gap-2 shadow-lg shadow-black/20;
+}
+
+.btn-secondary {
+  @apply bg-structure text-text-main font-semibold py-3 px-6 rounded-lg transition-colors duration-200 hover:bg-inactive flex items-center justify-center gap-2;
+}
+
+.panel {
+  @apply bg-bg-panel rounded-xl border border-structure p-6 shadow-xl shadow-black/40;
+}
+
+.input-field {
+  @apply bg-bg-dark border border-structure text-text-main rounded-lg px-4 py-3 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all duration-200 w-full placeholder-text-muted/50;
 }
