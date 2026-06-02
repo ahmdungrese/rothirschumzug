@@ -34,10 +34,15 @@ export const EmployeeSheetPDF = ({ order, customer }: { order: any, customer: an
         <Text>{customer?.phone} (Kontakt vor Ort)</Text>
       </View>
       
-      <View style={styles.section}>
-        <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 11 }}>Ladeadresse:</Text>
-        <Text>{customer?.billingAddress?.street}</Text>
-        <Text>{customer?.billingAddress?.city}</Text>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
+        <View style={{ width: '48%' }}>
+          <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 11, marginBottom: 5, color: '#8F1627' }}>Beladestelle (Auszug):</Text>
+          <Text style={{ fontSize: 12 }}>{order?.logistics?.loadingAddress || 'Keine Angabe'}</Text>
+        </View>
+        <View style={{ width: '48%' }}>
+          <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 11, marginBottom: 5, color: '#8F1627' }}>Entladestelle (Einzug):</Text>
+          <Text style={{ fontSize: 12 }}>{order?.logistics?.unloadingAddress || 'Keine Angabe'}</Text>
+        </View>
       </View>
 
       <View style={styles.section}>
@@ -62,11 +67,26 @@ export const EmployeeSheetPDF = ({ order, customer }: { order: any, customer: an
         ))}
       </View>
 
-      {customer?.checklist && customer.checklist.length > 0 && (
+      {(customer?.checklist?.length > 0 || order?.logistics?.furnitureLift || order?.logistics?.noParkingZone) && (
         <View style={{ marginTop: 20 }}>
           <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 14, color: '#8F1627', marginBottom: 10 }}>Mitarbeiter Checkliste:</Text>
           <View style={{ backgroundColor: '#f9f9f9', padding: 10, borderLeftWidth: 3, borderLeftColor: '#8F1627' }}>
-            {customer.checklist.map((item: any, i: number) => (
+            {/* Automatisierte Logistik-Checks */}
+            {order?.logistics?.furnitureLift && (
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 }}>
+                <View style={{ width: 12, height: 12, borderWidth: 1, borderColor: '#666', marginRight: 8, marginTop: 1 }} />
+                <Text style={{ flex: 1, color: '#333', fontFamily: 'Helvetica-Bold' }}>Möbellift sicher aufbauen & bedienen (Gebucht!)</Text>
+              </View>
+            )}
+            {order?.logistics?.noParkingZone && (
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 }}>
+                <View style={{ width: 12, height: 12, borderWidth: 1, borderColor: '#666', marginRight: 8, marginTop: 1 }} />
+                <Text style={{ flex: 1, color: '#333', fontFamily: 'Helvetica-Bold' }}>Halteverbotsschilder einsammeln nach Umzug</Text>
+              </View>
+            )}
+            
+            {/* Manuelle Checks */}
+            {customer?.checklist?.map((item: any, i: number) => (
               <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 }}>
                 <View style={{ width: 12, height: 12, borderWidth: 1, borderColor: '#666', marginRight: 8, marginTop: 1, backgroundColor: item.done ? '#666' : 'transparent' }} />
                 <Text style={{ flex: 1, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? '#999' : '#333' }}>

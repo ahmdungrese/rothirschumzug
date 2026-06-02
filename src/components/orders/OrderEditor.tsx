@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useParams, useRouter } from 'next/navigation';
 
 export function OrderEditor({ orderId }: { orderId?: string }) {
@@ -29,11 +29,36 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   }, []);
   
   const [logistics, setLogistics] = useState({
+    loadingAddress: '',
+    unloadingAddress: '',
     noParkingZone: false,
     furnitureLift: false,
     floors: 0,
     walkingDistance: 0
   });
+
+  useEffect(() => {
+    if (orderId) {
+      getDoc(doc(db, 'orders', orderId)).then(docSnap => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setIsFlatRate(data.isFlatRate || false);
+          setFlatRateNet(data.flatRateNet || 0);
+          setServices(data.services || []);
+          if (data.logistics) {
+            setLogistics({
+              loadingAddress: data.logistics.loadingAddress || '',
+              unloadingAddress: data.logistics.unloadingAddress || '',
+              noParkingZone: data.logistics.noParkingZone || false,
+              furnitureLift: data.logistics.furnitureLift || false,
+              floors: data.logistics.floors || 0,
+              walkingDistance: data.logistics.walkingDistance || 0
+            });
+          }
+        }
+      });
+    }
+  }, [orderId]);
 
   const addService = () => {
     setServices([...services, { id: Date.now().toString(), name: '', quantity: 1, unitPrice: 0 }]);
@@ -71,7 +96,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const saveOrder = async (status: 'draft' | 'quote') => {
     setIsSaving(true);
     try {
-      await addDoc(collection(db, 'orders'), {
+      const payload = {
         customerId,
         status,
         isFlatRate,
@@ -79,10 +104,19 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         services,
         logistics,
         totals,
-        createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
-      });
-      alert(`Erfolgreich als ${status === 'draft' ? 'Entwurf' : 'Angebot'} gespeichert!`);
+      };
+
+      if (orderId) {
+        await updateDoc(doc(db, 'orders', orderId), payload);
+        alert(`Angebot erfolgreich aktualisiert!`);
+      } else {
+        await addDoc(collection(db, 'orders'), {
+          ...payload,
+          createdAt: serverTimestamp()
+        });
+        alert(`Erfolgreich als ${status === 'draft' ? 'Entwurf' : 'Angebot'} gespeichert!`);
+      }
       router.push(`/dashboard/customers/${customerId}`);
     } catch (error) {
       console.error("Fehler beim Speichern:", error);
@@ -100,6 +134,28 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         <h2 className="text-xl font-semibold mb-4 text-text-main flex items-center gap-2">
           🚚 Logistik & Hürden
         </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="p-4 border border-structure rounded-xl bg-bg-dark/50">
+            <label className="block text-sm font-medium text-text-muted mb-2">Beladestelle (Auszugsadresse)</label>
+            <input 
+              type="text" 
+              value={logistics.loadingAddress}
+              onChange={(e) => setLogistics({...logistics, loadingAddress: e.target.value})}
+              className="input-field py-2 px-3 bg-bg-dark"
+              placeholder="z.B. Musterstr. 1, 44787 Bochum"
+            />
+          </div>
+          <div className="p-4 border border-structure rounded-xl bg-bg-dark/50">
+            <label className="block text-sm font-medium text-text-muted mb-2">Entladestelle (Einzugsadresse)</label>
+            <input 
+              type="text" 
+              value={logistics.unloadingAddress}
+              onChange={(e) => setLogistics({...logistics, unloadingAddress: e.target.value})}
+              className="input-field py-2 px-3 bg-bg-dark"
+              placeholder="z.B. Zielstr. 10, 44801 Bochum"
+            />
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
           <label className="flex items-center gap-3 p-4 border border-structure rounded-xl cursor-pointer hover:bg-structure/30 transition-colors">
             <input 
@@ -119,23 +175,23 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             />
             <span className="font-medium text-text-main">Möbellift benötigt</span>
           </label>
-          <div className="p-4 border border-structure rounded-xl">
+          <div className="p-4 border border-structure rounded-xl bg-bg-dark/50">
             <label className="block text-sm font-medium text-text-muted mb-1">Etagen (Trageweg)</label>
             <input 
               type="number" 
               value={logistics.floors}
               onChange={(e) => setLogistics({...logistics, floors: parseInt(e.target.value) || 0})}
-              className="input-field py-1.5 px-3 bg-bg-dark/50"
+              className="input-field py-1.5 px-3 bg-bg-dark"
               min="0"
             />
           </div>
-          <div className="p-4 border border-structure rounded-xl">
+          <div className="p-4 border border-structure rounded-xl bg-bg-dark/50">
             <label className="block text-sm font-medium text-text-muted mb-1">Laufweg (Meter)</label>
             <input 
               type="number" 
               value={logistics.walkingDistance}
               onChange={(e) => setLogistics({...logistics, walkingDistance: parseInt(e.target.value) || 0})}
-              className="input-field py-1.5 px-3 bg-bg-dark/50"
+              className="input-field py-1.5 px-3 bg-bg-dark"
               min="0"
               step="5"
             />
@@ -168,76 +224,109 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           </label>
         </div>
 
-        <datalist id="preset-services">
-          {presetServices.map(s => <option key={s.id} value={s.name} />)}
-        </datalist>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[600px]">
-            <thead>
-              <tr className="border-b border-structure text-text-muted text-sm bg-bg-dark/30">
-                <th className="py-3 px-2 w-20 font-medium">Menge</th>
-                <th className="py-3 px-2 font-medium">Leistung / Beschreibung</th>
-                {!isFlatRate && <th className="py-3 px-2 w-32 font-medium">Einzelpreis (€)</th>}
-                <th className="py-3 px-2 w-32 text-right font-medium">Gesamt (€)</th>
-                <th className="py-3 w-12"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {services.map((item) => (
-                <tr key={item.id} className="border-b border-structure/30 group hover:bg-structure/10 transition-colors">
-                  <td className="py-2 px-2">
-                    <input 
-                      type="number" 
-                      value={item.quantity}
-                      onChange={(e) => updateService(item.id, 'quantity', parseFloat(e.target.value) || 0)}
-                      className="input-field py-2 px-1 text-center bg-transparent border-transparent hover:border-structure focus:bg-bg-dark focus:border-primary transition-all"
-                      min="1"
-                    />
-                  </td>
-                  <td className="py-2 px-2">
-                    <input 
-                      type="text" 
-                      value={item.name}
-                      onChange={(e) => updateService(item.id, 'name', e.target.value)}
-                      list="preset-services"
-                      className="input-field py-2 px-3 bg-transparent border-transparent hover:border-structure focus:bg-bg-dark focus:border-primary transition-all"
-                      placeholder="Bezeichnung eingeben oder wählen..."
-                    />
-                  </td>
-                  {!isFlatRate && (
-                    <td className="py-2 px-2">
-                      <input 
-                        type="number" 
-                        value={item.unitPrice}
-                        onChange={(e) => updateService(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
-                        className="input-field py-2 px-3 text-right bg-transparent border-transparent hover:border-structure focus:bg-bg-dark focus:border-primary transition-all"
-                        min="0"
-                        step="0.01"
-                      />
-                    </td>
-                  )}
-                  <td className="py-2 px-2 text-right font-medium text-text-muted">
-                    {isFlatRate ? (
-                      <span className="italic text-xs text-primary bg-primary/10 border border-primary/20 px-2 py-1 rounded">Inklusiv</span>
-                    ) : (
-                      (item.quantity * item.unitPrice).toFixed(2)
-                    )}
-                  </td>
-                  <td className="py-2 px-2 text-right">
-                    <button onClick={() => removeService(item.id)} className="text-text-muted hover:text-red-400 p-2 rounded-lg hover:bg-red-400/10 opacity-0 group-hover:opacity-100 transition-all">
-                      <TrashIcon className="w-5 h-5" />
-                    </button>
-                  </td>
-                </tr>
+        <div className="space-y-4">
+          {Array.from(new Set(presetServices.map(s => s.category || 'Sonstiges'))).map(category => {
+            const catServices = presetServices.filter(s => (s.category || 'Sonstiges') === category);
+            // Default first category to open, others closed initially
+            const isOpen = category.includes('Packmaterial') || true; 
+            // In a real app we'd use state, but native <details> is cleaner here
+            
+            return (
+              <details key={category} className="group bg-bg-dark border border-structure rounded-xl overflow-hidden" open={true}>
+                <summary className="flex items-center justify-between p-4 cursor-pointer font-semibold text-text-main hover:bg-structure/30 transition-colors list-none">
+                  <div className="flex items-center gap-2">
+                    {category}
+                  </div>
+                  <span className="text-primary transform group-open:rotate-180 transition-transform">
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </span>
+                </summary>
+                
+                <div className="p-4 border-t border-structure space-y-3 bg-bg-dark/30">
+                  {catServices.map(preset => {
+                    const activeItem = services.find(s => s.name === preset.name);
+                    const qty = activeItem?.quantity || 0;
+                    
+                    return (
+                      <div key={preset.id} className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg border transition-colors ${qty > 0 ? 'bg-primary/5 border-primary/30' : 'bg-bg-panel border-structure/50'}`}>
+                        <div className="mb-3 sm:mb-0">
+                          <div className={`font-medium ${qty > 0 ? 'text-white' : 'text-text-main'}`}>{preset.name}</div>
+                          {!isFlatRate && <div className="text-sm text-text-muted">€ {preset.defaultPrice.toFixed(2)} {preset.name.includes('Std') ? 'pro Std.' : 'pro Stk.'}</div>}
+                        </div>
+                        
+                        <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
+                          {!isFlatRate && qty > 0 && (
+                            <div className="text-primary font-semibold">
+                              € {(qty * preset.defaultPrice).toFixed(2)}
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center gap-3 bg-bg-dark border border-structure rounded-lg p-1">
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                if (qty > 1) {
+                                  updateService(activeItem!.id, 'quantity', qty - 1);
+                                } else if (qty === 1) {
+                                  removeService(activeItem!.id);
+                                }
+                              }}
+                              className={`w-8 h-8 flex items-center justify-center rounded-md transition-colors ${qty > 0 ? 'text-text-main hover:bg-structure hover:text-white' : 'text-text-muted opacity-50 cursor-not-allowed'}`}
+                              disabled={qty === 0}
+                            >
+                              -
+                            </button>
+                            <span className={`w-8 text-center font-bold ${qty > 0 ? 'text-white' : 'text-text-muted'}`}>{qty}</span>
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                if (qty === 0) {
+                                  setServices([...services, { id: Date.now().toString() + Math.random(), name: preset.name, quantity: 1, unitPrice: preset.defaultPrice }]);
+                                } else {
+                                  updateService(activeItem!.id, 'quantity', qty + 1);
+                                }
+                              }}
+                              className="w-8 h-8 flex items-center justify-center rounded-md text-text-main hover:bg-structure hover:text-white transition-colors"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
+            );
+          })}
+          
+          <details className="group bg-bg-dark border border-structure rounded-xl overflow-hidden mt-6" open>
+            <summary className="flex items-center justify-between p-4 cursor-pointer font-semibold text-text-muted hover:bg-structure/30 transition-colors list-none border-t-2 border-t-structure/50">
+              <div className="flex items-center gap-2">
+                ✏️ Individuelle Leistungen
+              </div>
+              <span className="text-text-muted transform group-open:rotate-180 transition-transform">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              </span>
+            </summary>
+            <div className="p-4 border-t border-structure bg-bg-dark/30">
+              {services.filter(s => !presetServices.some(p => p.name === s.name)).length === 0 && (
+                 <div className="text-sm text-text-muted italic mb-4">Keine individuellen Leistungen vorhanden.</div>
+              )}
+              {services.filter(s => !presetServices.some(p => p.name === s.name)).map(item => (
+                <div key={item.id} className="flex flex-col sm:flex-row gap-2 mb-3 items-start sm:items-center">
+                  <input type="number" value={item.quantity} onChange={e => updateService(item.id, 'quantity', parseFloat(e.target.value)||0)} className="input-field w-20 py-2" min="1" placeholder="Menge" />
+                  <input type="text" value={item.name} onChange={e => updateService(item.id, 'name', e.target.value)} className="input-field flex-1 py-2" placeholder="Bezeichnung..." />
+                  {!isFlatRate && <input type="number" value={item.unitPrice} onChange={e => updateService(item.id, 'unitPrice', parseFloat(e.target.value)||0)} className="input-field w-24 py-2 text-right" placeholder="Preis €" />}
+                  <button onClick={() => removeService(item.id)} className="text-text-muted hover:text-red-400 p-2"><TrashIcon className="w-5 h-5" /></button>
+                </div>
               ))}
-            </tbody>
-          </table>
+              <button onClick={addService} className="mt-2 flex items-center gap-2 text-primary hover:text-primary-hover font-medium text-sm px-2 py-2 rounded-lg hover:bg-primary/5">
+                <PlusIcon className="w-5 h-5" /> Individuelle Position hinzufügen
+              </button>
+            </div>
+          </details>
         </div>
-
-        <button onClick={addService} className="mt-4 flex items-center gap-2 text-primary hover:text-primary-hover font-medium text-sm transition-colors px-2 py-2 rounded-lg hover:bg-primary/5">
-          <PlusIcon className="w-5 h-5" /> Leistung hinzufügen
-        </button>
 
         {/* Summen */}
         <div className="mt-8 flex justify-end">

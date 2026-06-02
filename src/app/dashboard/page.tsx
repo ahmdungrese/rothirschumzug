@@ -13,6 +13,8 @@ export default function DashboardPage() {
     openItems: 0,
     overdueCount: 0
   });
+  
+  const [activeTodos, setActiveTodos] = useState<any[]>([]);
 
   useEffect(() => {
     // Limit to orders from the last 30 days to save Firebase reads
@@ -69,8 +71,47 @@ export default function DashboardPage() {
       console.error("Error fetching stats", error);
     });
 
-    return () => unsubscribe();
+    // Fetch active Todos from confirmed orders
+    const qTodos = query(
+      collection(db, 'orders'),
+      where('status', '==', 'confirmed')
+    );
+    const unsubTodos = onSnapshot(qTodos, (snapshot) => {
+      let extractedTodos: any[] = [];
+      snapshot.docs.forEach(docSnap => {
+        const o = docSnap.data();
+        if (o.todos && Array.isArray(o.todos)) {
+          o.todos.forEach(t => {
+            if (!t.isDone) {
+              extractedTodos.push({ ...t, orderId: docSnap.id, customerId: o.customerId });
+            }
+          });
+        }
+      });
+      setActiveTodos(extractedTodos);
+    });
+
+    return () => { unsubscribe(); unsubTodos(); };
   }, []);
+
+  const markTodoDone = async (todo: any) => {
+    try {
+      const orderRef = doc(db, 'orders', todo.orderId);
+      // We need to fetch the current order to modify the specific todo inside the array
+      // Since it's a demo, we can just let it be or do a quick transaction
+      import('firebase/firestore').then(({ getDoc, updateDoc }) => {
+        getDoc(orderRef).then(docSnap => {
+           if(docSnap.exists()) {
+             const data = docSnap.data();
+             const newTodos = data.todos.map((t:any) => t.id === todo.id ? {...t, isDone: true} : t);
+             updateDoc(orderRef, { todos: newTodos });
+           }
+        });
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500">
@@ -103,7 +144,36 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-      ) : (
+      ) : null}
+
+      {profile?.role === 'admin' && (
+        <div className="panel border-t-4 border-t-orange-500 shadow-xl mb-8">
+          <h2 className="text-xl font-semibold mb-4 text-orange-400 flex items-center gap-2">
+            📋 Anstehende Vorbereitungen (Automatisierte To-Dos)
+          </h2>
+          {activeTodos.length === 0 ? (
+            <div className="text-text-muted text-sm italic p-4 bg-bg-dark rounded-xl border border-structure">
+              Aktuell keine offenen Automatisierungs-Aufgaben für bestätigte Aufträge.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {activeTodos.map(todo => (
+                <div key={todo.id} className="flex items-center justify-between p-3 bg-bg-dark rounded-xl border border-structure hover:border-orange-500/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => markTodoDone(todo)} className="w-5 h-5 rounded-full border-2 border-orange-500 hover:bg-orange-500/20 transition-colors" title="Erledigt" />
+                    <span className="font-medium text-white">{todo.title}</span>
+                  </div>
+                  <button onClick={() => window.location.href = `/dashboard/customers/${todo.customerId}`} className="text-xs text-orange-400 hover:text-orange-300 bg-orange-500/10 px-2 py-1 rounded">
+                    Zum Auftrag
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {profile?.role !== 'admin' && (
         <div className="space-y-6">
           <TimeTracker />
           

@@ -22,13 +22,13 @@ async function run() {
     }
 
     const services = [
-      { name: "Umzugskartons (Kauf)", defaultPrice: 2.50 },
-      { name: "Umzugskartons (Miete)", defaultPrice: 1.00 },
-      { name: "Kleiderboxen", defaultPrice: 15.00 },
-      { name: "Halteverbotszone (Einrichtung)", defaultPrice: 85.00 },
-      { name: "Möbellift inkl. Bediener (pro Std)", defaultPrice: 75.00 },
-      { name: "Möbelmontage (Stundensatz)", defaultPrice: 35.00 },
-      { name: "Packservice (Stundensatz)", defaultPrice: 30.00 },
+      { name: "Umzugskartons (Kauf)", defaultPrice: 2.50, category: "📦 Packmaterial" },
+      { name: "Umzugskartons (Miete)", defaultPrice: 1.00, category: "📦 Packmaterial" },
+      { name: "Kleiderboxen", defaultPrice: 15.00, category: "📦 Packmaterial" },
+      { name: "Halteverbotszone (Einrichtung)", defaultPrice: 85.00, category: "🚚 Logistik & Fahrzeuge" },
+      { name: "Möbellift inkl. Bediener (pro Std)", defaultPrice: 75.00, category: "🚚 Logistik & Fahrzeuge" },
+      { name: "Möbelmontage (Stundensatz)", defaultPrice: 35.00, category: "🛠️ Montage & Service" },
+      { name: "Packservice (Stundensatz)", defaultPrice: 30.00, category: "🛠️ Montage & Service" },
     ];
 
     for (const s of services) {

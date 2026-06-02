@@ -2,8 +2,8 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, collection, query, where, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { PlusIcon, UserCircleIcon, PhoneIcon, MapPinIcon, DocumentTextIcon, XMarkIcon, EnvelopeIcon, StarIcon, PlayIcon, StopIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { doc, collection, query, where, onSnapshot, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { PlusIcon, UserCircleIcon, PhoneIcon, MapPinIcon, DocumentTextIcon, XMarkIcon, EnvelopeIcon, StarIcon, CheckCircleIcon, PencilIcon, TrashIcon, CheckIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 import { PDFGenerator } from '@/components/pdf/PDFGenerator';
 import { SignaturePad } from '@/components/ui/SignaturePad';
@@ -57,30 +57,37 @@ export default function CustomerProfilePage() {
     return <div className="text-center p-12 text-red-400">Kunde nicht gefunden.</div>;
   }
 
-  const handleToggleMoveTracking = async (order: any) => {
-    try {
-      const orderRef = doc(db, 'orders', order.id);
-      if (!order.moveStartTime) {
-        if(!confirm("Umzug jetzt starten? Die Zeitmessung beginnt serverseitig.")) return;
-        await updateDoc(orderRef, { moveStartTime: serverTimestamp() });
-      } else if (!order.moveEndTime) {
-        if(!confirm("Umzug jetzt beenden? Die Zeitmessung wird gestoppt.")) return;
-        await updateDoc(orderRef, { moveEndTime: serverTimestamp() });
-      }
-    } catch (error) {
-      console.error("Fehler beim Starten/Stoppen des Umzugs", error);
-      alert("Ein Fehler ist aufgetreten.");
+  const deleteOrder = async (orderId: string) => {
+    if(confirm("Angebot/Auftrag wirklich löschen?")) {
+      await deleteDoc(doc(db, 'orders', orderId));
     }
   };
 
-  const formatMoveDuration = (order: any) => {
-    if (!order.moveStartTime) return null;
-    const start = order.moveStartTime.toDate();
-    const end = order.moveEndTime ? order.moveEndTime.toDate() : new Date();
-    const diffMins = Math.round((end.getTime() - start.getTime()) / 60000);
-    const hours = Math.floor(diffMins / 60);
-    const mins = diffMins % 60;
-    return `${hours}h ${mins}m`;
+  const handleUpdateOrderStatus = async (order: any, newStatus: string) => {
+    try {
+      const payload: any = { status: newStatus, updatedAt: serverTimestamp() };
+      
+      // Automatisierung: Wenn Angebot bestätigt wird, To-Dos generieren
+      if (newStatus === 'confirmed') {
+        const todos = [];
+        if (order.logistics?.noParkingZone) {
+          todos.push({ id: 'todo_' + Date.now() + 1, title: 'Halteverbot beantragen', isDone: false });
+        }
+        if (order.logistics?.furnitureLift) {
+          todos.push({ id: 'todo_' + Date.now() + 2, title: 'Möbellift reservieren', isDone: false });
+        }
+        if (order.services?.some((s: any) => s.name.includes('karton'))) {
+          todos.push({ id: 'todo_' + Date.now() + 3, title: 'Umzugskartons ausliefern', isDone: false });
+        }
+        payload.todos = todos;
+        alert("Angebot bestätigt! Zugehörige To-Dos (z.B. Halteverbot) wurden generiert.");
+      }
+      
+      await updateDoc(doc(db, 'orders', order.id), payload);
+    } catch (error) {
+      console.error("Fehler beim Update des Status", error);
+      alert("Ein Fehler ist aufgetreten.");
+    }
   };
 
   const totalRevenue = orders.filter(o => o.status === 'quote').reduce((sum, o) => sum + (o.totals?.gross || 0), 0);
@@ -240,40 +247,58 @@ export default function CustomerProfilePage() {
                       </div>
                     </div>
                     <div className="flex flex-col sm:flex-row items-center gap-4">
-                      {/* Move Time Tracking UI */}
-                      {order.status !== 'draft' && (
-                        <div className="flex items-center gap-3 border-r border-structure pr-4 mr-2">
-                          <button 
-                            onClick={() => handleToggleMoveTracking(order)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                              order.moveEndTime ? 'bg-structure text-text-muted cursor-default' :
-                              order.moveStartTime ? 'bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20' : 
-                              'bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20'
-                            }`}
-                            disabled={!!order.moveEndTime}
-                          >
-                            {!order.moveStartTime && <><PlayIcon className="w-4 h-4" /> Umzug starten</>}
-                            {order.moveStartTime && !order.moveEndTime && <><StopIcon className="w-4 h-4" /> Umzug beenden</>}
-                            {order.moveEndTime && <><ClockIcon className="w-4 h-4" /> Abgeschlossen</>}
+                      {/* Workflow Actions */}
+                      <div className="flex flex-wrap items-center gap-2 border-r border-structure pr-4 mr-2">
+                        {order.status === 'draft' && (
+                          <button onClick={() => handleUpdateOrderStatus(order, 'quote')} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20">
+                            Entwurf abschließen
                           </button>
-                          {order.moveStartTime && (
-                            <div className={`text-xs font-bold ${order.moveEndTime ? 'text-text-main' : 'text-primary animate-pulse'}`}>
-                              Dauer: {formatMoveDuration(order)}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                        )}
+                        {order.status === 'quote' && (
+                          <button onClick={() => handleUpdateOrderStatus(order, 'confirmed')} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20">
+                            <CheckIcon className="w-4 h-4" /> Angebot bestätigt
+                          </button>
+                        )}
+                        {order.status === 'confirmed' && (
+                          <button onClick={() => handleUpdateOrderStatus(order, 'completed')} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20">
+                            Umzug abgeschlossen
+                          </button>
+                        )}
+                        {(order.status === 'completed' || order.status === 'invoice_open') && (
+                          <span className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-structure text-text-main">
+                            <CheckCircleIcon className="w-4 h-4" /> Finalisiert
+                          </span>
+                        )}
+                      </div>
                       
                       <div className="text-right hidden lg:block">
                         <div className="text-sm text-text-muted">Brutto</div>
                         <div className="font-bold text-white">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
                       </div>
-                      <button 
-                        onClick={() => setSelectedOrder(order)}
-                        className="btn-secondary text-sm shrink-0"
-                      >
-                        PDF ansehen
-                      </button>
+                      
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => setSelectedOrder(order)}
+                          className="btn-secondary text-sm shrink-0"
+                        >
+                          PDF
+                        </button>
+                        
+                        <button 
+                          onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/${order.id}`)}
+                          className="p-2 text-text-muted hover:text-primary transition-colors bg-bg-dark rounded-md border border-structure"
+                          title="Bearbeiten"
+                        >
+                          <PencilIcon className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => deleteOrder(order.id)}
+                          className="p-2 text-text-muted hover:text-red-400 transition-colors bg-bg-dark rounded-md border border-structure"
+                          title="Löschen"
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}

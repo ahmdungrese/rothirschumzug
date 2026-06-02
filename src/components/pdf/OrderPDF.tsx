@@ -113,7 +113,10 @@ export const OrderPDF = ({ order, customer }: { order: any, customer: any }) => 
       <Text style={styles.title}>Logistik & Rahmenbedingungen</Text>
       
       <View style={styles.section}>
-        <Text style={{ fontFamily: 'Helvetica-Bold', marginBottom: 10 }}>Logistische Parameter:</Text>
+        <Text style={{ fontFamily: 'Helvetica-Bold', marginBottom: 10 }}>Adressen & Logistische Parameter:</Text>
+        <Text style={{ marginBottom: 3 }}><Text style={{ fontFamily: 'Helvetica-Bold' }}>Beladestelle (Auszug):</Text> {order?.logistics?.loadingAddress || 'Keine Angabe'}</Text>
+        <Text style={{ marginBottom: 10 }}><Text style={{ fontFamily: 'Helvetica-Bold' }}>Entladestelle (Einzug):</Text> {order?.logistics?.unloadingAddress || 'Keine Angabe'}</Text>
+        
         <Text>Etagen (Trageweg): {order?.logistics?.floors || 0}</Text>
         <Text>Laufweg: {order?.logistics?.walkingDistance || 0} Meter</Text>
         <Text>Möbellift benötigt: {order?.logistics?.furnitureLift ? 'Ja' : 'Nein'}</Text>
