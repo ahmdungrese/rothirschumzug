@@ -52,8 +52,8 @@ export default function DashboardPage() {
   }, []);
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <h1 className="text-2xl font-bold tracking-tight text-white">Willkommen zurück, {profile?.firstName || 'Admin'}</h1>
+    <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500">
+      <h1 className="text-2xl font-bold tracking-tight text-white">Willkommen zurück, {profile?.displayName || 'Admin'}</h1>
       
       {profile?.role === 'admin' ? (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
