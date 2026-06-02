@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, deleteDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { PlusIcon, TrashIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 
 export default function SettingsPage() {
@@ -10,20 +10,17 @@ export default function SettingsPage() {
   const [newName, setNewName] = useState("");
   const [newPrice, setNewPrice] = useState("");
 
-  const fetchServices = async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'services'));
-      const fetched = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setServices(fetched);
-    } catch (error) {
-      console.error("Error fetching services", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchServices();
+    const unsubscribe = onSnapshot(collection(db, 'services'), (snapshot) => {
+      const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setServices(fetched);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching services", error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleAddService = async (e: React.FormEvent) => {
@@ -38,7 +35,6 @@ export default function SettingsPage() {
       });
       setNewName("");
       setNewPrice("");
-      fetchServices();
     } catch (error) {
       console.error("Error adding service", error);
     }
@@ -48,7 +44,6 @@ export default function SettingsPage() {
     if (!confirm("Leistung wirklich löschen?")) return;
     try {
       await deleteDoc(doc(db, 'services', id));
-      fetchServices();
     } catch (error) {
       console.error("Error deleting service", error);
     }
@@ -63,6 +58,41 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-white">Einstellungen</h1>
         <p className="text-text-muted mt-1">Verwalten Sie hier die Standardwerte für das System.</p>
+        
+        {services.length === 0 && (
+          <button 
+            onClick={async () => {
+              if(!confirm("Datenbank mit Testdaten (Kunde + Leistungen) befüllen?")) return;
+              try {
+                const stdServices = [
+                  { name: "Umzugskartons (Kauf)", defaultPrice: 2.50 },
+                  { name: "Umzugskartons (Miete)", defaultPrice: 1.00 },
+                  { name: "Kleiderboxen", defaultPrice: 15.00 },
+                  { name: "Halteverbotszone (Einrichtung)", defaultPrice: 85.00 },
+                  { name: "Möbellift inkl. Bediener (pro Std)", defaultPrice: 75.00 },
+                  { name: "Möbelmontage (Stundensatz)", defaultPrice: 35.00 },
+                  { name: "Packservice (Stundensatz)", defaultPrice: 30.00 },
+                ];
+                for (const s of stdServices) {
+                  await addDoc(collection(db, 'services'), { ...s, createdAt: serverTimestamp() });
+                }
+                const customerRef = await addDoc(collection(db, 'customers'), {
+                  firstName: "Max", lastName: "Mustermann", email: "max.mustermann@example.com", phone: "+49 151 12345678",
+                  billingAddress: { street: "Musterstraße 1", zip: "44787", city: "Bochum" },
+                  createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+                });
+                await addDoc(collection(db, 'orders'), {
+                  customerId: customerRef.id, status: "quote", totals: { net: 1000, tax: 190, gross: 1190 },
+                  createdAt: serverTimestamp(), updatedAt: serverTimestamp()
+                });
+                alert("Datenbank erfolgreich befüllt!");
+              } catch (e: any) { alert("Fehler: " + e.message); }
+            }}
+            className="mt-4 bg-blue-500/20 text-blue-400 border border-blue-500/30 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-500/30 transition"
+          >
+            🚀 Demo-Daten (Leistungen & Kunde) generieren
+          </button>
+        )}
       </div>
 
       <div className="panel border-t-4 border-t-primary shadow-xl">

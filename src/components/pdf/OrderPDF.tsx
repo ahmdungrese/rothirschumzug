@@ -89,6 +89,18 @@ export const OrderPDF = ({ order, customer }: { order: any, customer: any }) => 
           <Text>Gesamtbetrag:</Text>
           <Text>€ {order?.totals?.gross.toFixed(2)}</Text>
         </View>
+        {order?.payments && order.payments.length > 0 && (
+          <>
+            <View style={{ ...styles.totalRow, marginTop: 10, color: '#3b82f6' }}>
+              <Text>Bereits bezahlt:</Text>
+              <Text>€ {order.payments.reduce((sum: number, p: any) => sum + p.amount, 0).toFixed(2)}</Text>
+            </View>
+            <View style={{ ...styles.totalRowBold, color: '#8F1627', borderTopColor: '#8F1627' }}>
+              <Text>Offener Rechnungsbetrag:</Text>
+              <Text>€ {Math.max(0, (order?.totals?.gross || 0) - order.payments.reduce((sum: number, p: any) => sum + p.amount, 0)).toFixed(2)}</Text>
+            </View>
+          </>
+        )}
       </View>
       
       <View style={styles.footer}>
@@ -167,5 +179,30 @@ export const OrderPDF = ({ order, customer }: { order: any, customer: any }) => 
         </View>
       </View>
     </Page>
+
+    {/* Page 5 (Optional): Inventarliste (Jobcenter) */}
+    {customer?.appendInventoryToPDF && customer?.inventory && customer.inventory.length > 0 && (
+      <Page size="A4" style={styles.page}>
+        <Text style={styles.title}>Anhang: Umzugsgut / Inventarliste</Text>
+        <Text style={{ marginBottom: 20 }}>Die folgende Liste dokumentiert das erfasste Umzugsgut und ist verbindlicher Bestandteil dieses Angebots/Auftrags.</Text>
+        
+        <View style={styles.table}>
+          <View style={styles.tableHeader}>
+            <Text style={styles.col1}>Menge</Text>
+            <Text style={styles.col2}>Gegenstand</Text>
+          </View>
+          {customer.inventory.map((item: any, i: number) => (
+            <View key={i} style={styles.tableRow}>
+              <Text style={styles.col1}>{item.quantity}x</Text>
+              <Text style={styles.col2}>{item.name}</Text>
+            </View>
+          ))}
+        </View>
+        
+        <View style={styles.footer}>
+          <Text>{COMPANY_DETAILS.name} | Anhang: Inventarliste</Text>
+        </View>
+      </Page>
+    )}
   </Document>
 );

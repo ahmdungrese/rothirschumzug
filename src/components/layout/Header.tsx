@@ -14,9 +14,6 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
     <>
       <header className="h-16 bg-bg-panel border-b border-structure flex items-center justify-between px-4 lg:px-8 shadow-sm">
         <div className="flex items-center gap-4">
-          <button onClick={onMenuClick} className="md:hidden p-2 text-text-muted hover:text-text-main rounded-md hover:bg-structure">
-            <Bars3Icon className="w-6 h-6" />
-          </button>
           
           {/* Time Tracking Toggle (UI Only for now) */}
           <div className="hidden sm:flex items-center gap-2">

@@ -32,9 +32,9 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Hidden on mobile entirely now */}
       <aside className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-bg-panel border-r border-structure transform transition-transform duration-300 ease-in-out md:translate-x-0 md:static md:inset-0
+        hidden md:flex md:static md:inset-0 fixed inset-y-0 left-0 z-50 w-64 flex-col bg-bg-panel border-r border-structure transform transition-transform duration-300 ease-in-out md:translate-x-0
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex items-center justify-between h-16 px-4 border-b border-structure">

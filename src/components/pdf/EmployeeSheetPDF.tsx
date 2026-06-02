@@ -61,6 +61,22 @@ export const EmployeeSheetPDF = ({ order, customer }: { order: any, customer: an
           </View>
         ))}
       </View>
+
+      {customer?.checklist && customer.checklist.length > 0 && (
+        <View style={{ marginTop: 20 }}>
+          <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 14, color: '#8F1627', marginBottom: 10 }}>Mitarbeiter Checkliste:</Text>
+          <View style={{ backgroundColor: '#f9f9f9', padding: 10, borderLeftWidth: 3, borderLeftColor: '#8F1627' }}>
+            {customer.checklist.map((item: any, i: number) => (
+              <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 }}>
+                <View style={{ width: 12, height: 12, borderWidth: 1, borderColor: '#666', marginRight: 8, marginTop: 1, backgroundColor: item.done ? '#666' : 'transparent' }} />
+                <Text style={{ flex: 1, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? '#999' : '#333' }}>
+                  {item.text}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
       
       <View style={styles.footer}>
         <Text>Internes Dokument - NICHT zur Weitergabe an den Kunden bestimmt.</Text>

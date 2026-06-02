@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { collection, query, getDocs } from 'firebase/firestore';
+import { collection, query, onSnapshot, where, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { TimeTracker } from '@/components/dashboard/TimeTracker';
 
 export default function DashboardPage() {
   const { profile } = useAuth();
@@ -14,41 +15,61 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const q = query(collection(db, 'orders'));
-        const snapshot = await getDocs(q);
-        const orders = snapshot.docs.map(doc => doc.data());
+    // Limit to orders from the last 30 days to save Firebase reads
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const q = query(
+      collection(db, 'orders'),
+      where('createdAt', '>=', Timestamp.fromDate(thirtyDaysAgo))
+    );
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const orders = snapshot.docs.map((doc: any) => doc.data());
+      
+      let revenue = 0;
+      let openSum = 0;
+      let overdue = 0;
+
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      orders.forEach((o: any) => {
+        const orderDate = o.createdAt?.toDate() || new Date();
+        const isCurrentMonth = orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
         
-        let revenue = 0;
-        let openSum = 0;
-        let overdue = 0;
+        const totalGross = o.totals?.gross || 0;
+        let totalPaid = 0;
+        
+        if (o.payments && Array.isArray(o.payments)) {
+          o.payments.forEach((p: any) => {
+            const pDate = p.date?.toDate() || new Date();
+            if (pDate.getMonth() === currentMonth && pDate.getFullYear() === currentYear) {
+              revenue += p.amount;
+            }
+            totalPaid += p.amount;
+          });
+        } else if (o.status === 'invoice_paid' && isCurrentMonth) {
+          revenue += totalGross;
+          totalPaid = totalGross;
+        }
 
-        const now = new Date();
-        const currentMonth = now.getMonth();
-        const currentYear = now.getFullYear();
+        const remaining = Math.max(0, totalGross - totalPaid);
 
-        orders.forEach((o: any) => {
-          const orderDate = o.createdAt?.toDate() || new Date();
-          const isCurrentMonth = orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
+        if ((o.status === 'invoice_open' || o.status === 'invoice_overdue') && remaining > 0) {
+          openSum += remaining;
+        }
+        if (o.status === 'invoice_overdue') {
+          overdue++;
+        }
+      });
 
-          if (o.status === 'invoice_paid' && isCurrentMonth) {
-            revenue += (o.totals?.gross || 0);
-          }
-          if (o.status === 'invoice_open' || o.status === 'invoice_overdue') {
-            openSum += (o.totals?.gross || 0);
-          }
-          if (o.status === 'invoice_overdue') {
-            overdue++;
-          }
-        });
+      setStats({ monthlyRevenue: revenue, openItems: openSum, overdueCount: overdue });
+    }, (error) => {
+      console.error("Error fetching stats", error);
+    });
 
-        setStats({ monthlyRevenue: revenue, openItems: openSum, overdueCount: overdue });
-      } catch (error) {
-        console.error("Error fetching stats", error);
-      }
-    };
-    fetchStats();
+    return () => unsubscribe();
   }, []);
 
   return (
@@ -83,11 +104,15 @@ export default function DashboardPage() {
           </div>
         </div>
       ) : (
-        <div className="panel border-t-4 border-t-primary">
-          <h2 className="text-xl font-semibold mb-4 text-primary">Mein Tag (Heutige Route)</h2>
-          <div className="bg-bg-dark border border-structure rounded-lg p-6 text-center">
-            <p className="text-text-muted text-lg">Keine Einsätze für heute geplant.</p>
-            <p className="text-sm text-text-muted mt-2">Zeit für organisatorische Aufgaben im Lager.</p>
+        <div className="space-y-6">
+          <TimeTracker />
+          
+          <div className="panel border-t-4 border-t-primary">
+            <h2 className="text-xl font-semibold mb-4 text-primary">Mein Tag (Heutige Route)</h2>
+            <div className="bg-bg-dark border border-structure rounded-lg p-6 text-center">
+              <p className="text-text-muted text-lg">Keine Einsätze für heute geplant.</p>
+              <p className="text-sm text-text-muted mt-2">Zeit für organisatorische Aufgaben im Lager.</p>
+            </div>
           </div>
         </div>
       )}

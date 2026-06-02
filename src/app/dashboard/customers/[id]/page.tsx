@@ -2,11 +2,13 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
-import { PlusIcon, UserCircleIcon, PhoneIcon, MapPinIcon, DocumentTextIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { doc, collection, query, where, onSnapshot, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { PlusIcon, UserCircleIcon, PhoneIcon, MapPinIcon, DocumentTextIcon, XMarkIcon, EnvelopeIcon, StarIcon, PlayIcon, StopIcon, ClockIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 import { PDFGenerator } from '@/components/pdf/PDFGenerator';
 import { SignaturePad } from '@/components/ui/SignaturePad';
+import { CustomerChecklist } from '@/components/customers/CustomerChecklist';
+import { CustomerInventory } from '@/components/customers/CustomerInventory';
 
 export default function CustomerProfilePage() {
   const params = useParams();
@@ -19,29 +21,32 @@ export default function CustomerProfilePage() {
   const [pdfType, setPdfType] = useState<'order' | 'employee'>('order');
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch Customer
-        const docRef = doc(db, 'customers', customerId);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setCustomer({ id: docSnap.id, ...docSnap.data() });
-        }
-
-        // Fetch Orders
-        const q = query(collection(db, 'orders'), where('customerId', '==', customerId));
-        const querySnapshot = await getDocs(q);
-        const fetchedOrders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Sort manually since we didn't create a composite index yet
-        fetchedOrders.sort((a: any, b: any) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
-        setOrders(fetchedOrders);
-      } catch (error) {
-        console.error("Error fetching data", error);
-      } finally {
-        setLoading(false);
+    // Fetch Customer
+    const docRef = doc(db, 'customers', customerId);
+    const unsubCustomer = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        setCustomer({ id: docSnap.id, ...docSnap.data() });
       }
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching customer", error);
+      setLoading(false);
+    });
+
+    // Fetch Orders
+    const q = query(collection(db, 'orders'), where('customerId', '==', customerId));
+    const unsubOrders = onSnapshot(q, (querySnapshot) => {
+      const fetchedOrders = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      fetchedOrders.sort((a: any, b: any) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
+      setOrders(fetchedOrders);
+    }, (error) => {
+      console.error("Error fetching orders", error);
+    });
+
+    return () => {
+      unsubCustomer();
+      unsubOrders();
     };
-    fetchData();
   }, [customerId]);
 
   if (loading) {
@@ -51,6 +56,32 @@ export default function CustomerProfilePage() {
   if (!customer) {
     return <div className="text-center p-12 text-red-400">Kunde nicht gefunden.</div>;
   }
+
+  const handleToggleMoveTracking = async (order: any) => {
+    try {
+      const orderRef = doc(db, 'orders', order.id);
+      if (!order.moveStartTime) {
+        if(!confirm("Umzug jetzt starten? Die Zeitmessung beginnt serverseitig.")) return;
+        await updateDoc(orderRef, { moveStartTime: serverTimestamp() });
+      } else if (!order.moveEndTime) {
+        if(!confirm("Umzug jetzt beenden? Die Zeitmessung wird gestoppt.")) return;
+        await updateDoc(orderRef, { moveEndTime: serverTimestamp() });
+      }
+    } catch (error) {
+      console.error("Fehler beim Starten/Stoppen des Umzugs", error);
+      alert("Ein Fehler ist aufgetreten.");
+    }
+  };
+
+  const formatMoveDuration = (order: any) => {
+    if (!order.moveStartTime) return null;
+    const start = order.moveStartTime.toDate();
+    const end = order.moveEndTime ? order.moveEndTime.toDate() : new Date();
+    const diffMins = Math.round((end.getTime() - start.getTime()) / 60000);
+    const hours = Math.floor(diffMins / 60);
+    const mins = diffMins % 60;
+    return `${hours}h ${mins}m`;
+  };
 
   const totalRevenue = orders.filter(o => o.status === 'quote').reduce((sum, o) => sum + (o.totals?.gross || 0), 0);
 
@@ -82,6 +113,15 @@ export default function CustomerProfilePage() {
                   </a>
                 </div>
               )}
+              {customer.email && (
+                <div className="flex items-center gap-2 text-text-muted">
+                  <EnvelopeIcon className="w-5 h-5 text-primary" />
+                  <span>{customer.email}</span>
+                  <a href={`mailto:${customer.email}`} className="ml-3 bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs px-3 py-1 rounded-full font-semibold hover:bg-blue-500/20 transition-colors shadow-sm flex items-center gap-1">
+                    E-Mail schreiben
+                  </a>
+                </div>
+              )}
               {customer.billingAddress?.street && (
                 <div className="flex items-center gap-2 text-text-muted">
                   <MapPinIcon className="w-5 h-5 text-primary" />
@@ -90,13 +130,23 @@ export default function CustomerProfilePage() {
               )}
             </div>
           </div>
-          <div className="shrink-0 mt-4 md:mt-0">
+          <div className="shrink-0 mt-4 md:mt-0 flex flex-col gap-3">
             <button 
               onClick={() => router.push(`/dashboard/customers/${customerId}/new-order`)}
-              className="btn-primary shadow-lg shadow-primary/20"
+              className="btn-primary shadow-lg shadow-primary/20 w-full justify-center"
             >
               <PlusIcon className="w-5 h-5" /> Neues Angebot
             </button>
+            {customer.phone && (
+              <a 
+                href={`https://wa.me/${customer.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hallo ${customer.firstName}, wir hoffen, Ihr Umzug lief perfekt! Wir würden uns riesig über eine kleine Google-Bewertung freuen. Liebe Grüße vom Rothirsch-Team! \n\n[Hier Google-Link einfügen]`)}`}
+                target="_blank" 
+                rel="noreferrer"
+                className="btn-secondary w-full justify-center border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10"
+              >
+                <StarIcon className="w-5 h-5" /> Bewertung anfragen
+              </a>
+            )}
           </div>
         </div>
       </div>
@@ -189,14 +239,38 @@ export default function CustomerProfilePage() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-6">
-                      <div className="text-right hidden sm:block">
+                    <div className="flex flex-col sm:flex-row items-center gap-4">
+                      {/* Move Time Tracking UI */}
+                      {order.status !== 'draft' && (
+                        <div className="flex items-center gap-3 border-r border-structure pr-4 mr-2">
+                          <button 
+                            onClick={() => handleToggleMoveTracking(order)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                              order.moveEndTime ? 'bg-structure text-text-muted cursor-default' :
+                              order.moveStartTime ? 'bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20' : 
+                              'bg-green-500/10 text-green-400 border border-green-500/30 hover:bg-green-500/20'
+                            }`}
+                            disabled={!!order.moveEndTime}
+                          >
+                            {!order.moveStartTime && <><PlayIcon className="w-4 h-4" /> Umzug starten</>}
+                            {order.moveStartTime && !order.moveEndTime && <><StopIcon className="w-4 h-4" /> Umzug beenden</>}
+                            {order.moveEndTime && <><ClockIcon className="w-4 h-4" /> Abgeschlossen</>}
+                          </button>
+                          {order.moveStartTime && (
+                            <div className={`text-xs font-bold ${order.moveEndTime ? 'text-text-main' : 'text-primary animate-pulse'}`}>
+                              Dauer: {formatMoveDuration(order)}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      <div className="text-right hidden lg:block">
                         <div className="text-sm text-text-muted">Brutto</div>
                         <div className="font-bold text-white">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
                       </div>
                       <button 
                         onClick={() => setSelectedOrder(order)}
-                        className="btn-secondary text-sm"
+                        className="btn-secondary text-sm shrink-0"
                       >
                         PDF ansehen
                       </button>
@@ -224,6 +298,10 @@ export default function CustomerProfilePage() {
               </div>
             </div>
           </div>
+          
+          <CustomerInventory customer={customer} />
+          
+          <CustomerChecklist customer={customer} />
         </div>
       </div>
 

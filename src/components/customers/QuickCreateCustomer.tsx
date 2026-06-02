@@ -9,6 +9,7 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
   const [firstName, setFirstName] = useState("");
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
 
@@ -18,7 +19,12 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
 
     setIsSubmitting(true);
     try {
-      const docRef = await addDoc(collection(db, "customers"), {
+      // Add a 5 second timeout to prevent infinite hanging if Firestore network drops
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Firestore timeout")), 5000)
+      );
+
+      const addPromise = addDoc(collection(db, "customers"), {
         lastName,
         firstName,
         billingAddress: {
@@ -27,16 +33,22 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
           city: ""
         },
         phone,
+        email,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+
+      const docRef = await Promise.race([addPromise, timeoutPromise]) as any;
       
-      onClose();
-      // Navigates directly to the 360 profile
+      if (!docRef || !docRef.id) throw new Error("Document creation failed");
+
       router.push(`/dashboard/customers/${docRef.id}`);
-    } catch (error) {
+      onClose();
+    } catch (error: any) {
       console.error("Error adding document: ", error);
-      alert("Fehler beim Erstellen des Kunden.");
+      alert(error.message === "Firestore timeout" 
+        ? "Die Datenbank antwortet nicht. Bitte prüfen Sie Ihre Internetverbindung oder Firebase-Config."
+        : "Fehler beim Erstellen des Kunden.");
     } finally {
       setIsSubmitting(false);
     }
@@ -90,6 +102,16 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
             onChange={(e) => setPhone(e.target.value)}
             className="input-field" 
             placeholder="+49 177 4652154"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-text-muted mb-1">E-Mail (Optional)</label>
+          <input 
+            type="email" 
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="input-field" 
+            placeholder="kunde@beispiel.de"
           />
         </div>
       </div>

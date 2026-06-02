@@ -40,9 +40,25 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (currentUser) {
         try {
           const userDocRef = doc(db, "users", currentUser.uid);
-          const userDocSnap = await getDoc(userDocRef);
           
-          if (userDocSnap.exists()) {
+          // Use Promise.race to add a timeout to getDoc so it doesn't hang indefinitely if Firestore is not initialized
+          const timeoutPromise = new Promise((resolve) => 
+            setTimeout(() => resolve({ _isTimeout: true }), 300)
+          );
+          
+          const docPromise = getDoc(userDocRef);
+          docPromise.catch(() => {}); // prevent unhandled rejection if it fails later
+          
+          const userDocSnap = await Promise.race([
+            docPromise,
+            timeoutPromise
+          ]) as any;
+          
+          if (userDocSnap && userDocSnap._isTimeout) {
+            throw new Error("Firestore timeout");
+          }
+          
+          if (userDocSnap && userDocSnap.exists && userDocSnap.exists()) {
             setProfile(userDocSnap.data() as UserProfile);
           } else {
             // Fallback profile if not explicitly created in Firestore
@@ -53,9 +69,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               displayName: currentUser.displayName,
             });
           }
-        } catch (error) {
-          console.error("Error fetching user profile:", error);
-          setProfile(null);
+        } catch (error: any) {
+          if (error.message !== "Firestore timeout") {
+            console.error("Error fetching user profile:", error);
+          }
+          // Set fallback profile even on error to prevent being locked out
+          setProfile({
+            uid: currentUser.uid,
+            email: currentUser.email,
+            role: "employee",
+            displayName: currentUser.displayName,
+          });
         }
       } else {
         setProfile(null);
