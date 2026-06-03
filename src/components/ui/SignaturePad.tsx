@@ -3,6 +3,7 @@ import React, { useRef, useState } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { db } from '@/lib/firebase';
 import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { toast } from 'react-hot-toast';
 
 export function SignaturePad({ orderId, onSigned }: { orderId: string, onSigned: () => void }) {
   const sigPad = useRef<any>(null);
@@ -14,7 +15,7 @@ export function SignaturePad({ orderId, onSigned }: { orderId: string, onSigned:
 
   const save = async () => {
     if (sigPad.current?.isEmpty()) {
-      alert("Bitte unterschreiben Sie zuerst.");
+      toast.error("Bitte unterschreiben Sie zuerst.");
       return;
     }
     
@@ -30,7 +31,7 @@ export function SignaturePad({ orderId, onSigned }: { orderId: string, onSigned:
       onSigned();
     } catch (error) {
       console.error("Fehler beim Speichern der Unterschrift", error);
-      alert("Fehler beim Speichern.");
+      toast.error("Fehler beim Speichern.");
     } finally {
       setIsSaving(false);
     }

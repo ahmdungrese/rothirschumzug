@@ -3,6 +3,7 @@ import { useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
+import { toast } from 'react-hot-toast';
 
 export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
   const [lastName, setLastName] = useState("");
@@ -44,9 +45,10 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
 
       router.push(`/dashboard/customers/${docRef.id}`);
       onClose();
+      toast.success("Kunde erfolgreich erstellt!");
     } catch (error: any) {
       console.error("Error adding document: ", error);
-      alert(error.message === "Firestore timeout" 
+      toast.error(error.message === "Firestore timeout" 
         ? "Die Datenbank antwortet nicht. Bitte prüfen Sie Ihre Internetverbindung oder Firebase-Config."
         : "Fehler beim Erstellen des Kunden.");
     } finally {

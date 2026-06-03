@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useState } from 'react';
 import { SlideOver } from '@/components/ui/SlideOver';
 import { QuickCreateCustomer } from '@/components/customers/QuickCreateCustomer';
+import { NotificationBell } from '@/components/ui/NotificationBell';
 
 export function Header({ onMenuClick }: { onMenuClick: () => void }) {
   const { profile, logout } = useAuth();
@@ -44,8 +45,11 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
 
           <div className="hidden sm:block h-8 w-px bg-structure"></div>
 
+          {/* Anti-Vergess System (Glocke) */}
+          <NotificationBell />
+
           {/* User Menu */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 pl-2 border-l border-structure md:border-none">
             <div className="hidden md:block text-right">
               <div className="text-sm font-medium text-text-main">{profile?.displayName || profile?.email || 'Mitarbeiter'}</div>
               <div className="text-xs text-text-muted capitalize">{profile?.role || 'Lädt...'}</div>

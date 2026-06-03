@@ -1,15 +1,27 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot, doc, updateDoc, orderBy, where, Timestamp } from 'firebase/firestore';
-import { DocumentCheckIcon, DocumentTextIcon, DocumentIcon, BanknotesIcon } from '@heroicons/react/24/outline';
+import { collection, query, onSnapshot, doc, updateDoc, where, Timestamp } from 'firebase/firestore';
+import { DocumentCheckIcon, DocumentTextIcon, DocumentIcon, BanknotesIcon, TruckIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
+import { toast } from 'react-hot-toast';
 import { PaymentManager } from '@/components/orders/PaymentManager';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPaymentOrder, setSelectedPaymentOrder] = useState<any>(null);
+  const [invoiceConfirmOrder, setInvoiceConfirmOrder] = useState<any>(null);
+  
+  // Disposition Modal State
+  const [dispoOrder, setDispoOrder] = useState<any>(null);
+  const [dispoData, setDispoData] = useState({
+    helpers: 2,
+    koffer35t: 1,
+    lkw7t: 0,
+    movingDate: ''
+  });
 
   useEffect(() => {
     // Limit to orders from the last 30 days to save Firebase reads
@@ -35,12 +47,52 @@ export default function OrdersPage() {
 
   const fetchOrders = () => {}; // No-op for PaymentManager compatibility
 
-  const generateInvoice = async (order: any) => {
-    if (!confirm("Rechnung wirklich finalisieren? Eine feste Rechnungsnummer (RE-2026-XXXX) wird vergeben und das Dokument wird für Änderungen gesperrt.")) return;
-    
+  const confirmAndDispatch = async () => {
+    if (!dispoOrder) return;
     try {
-      // Very basic counter approach for Phase 5 prototype
-      // In production, you would use a Firestore transaction with a counter document
+      const todos = dispoOrder.todos || [];
+      
+      // Halteverbot
+      if (dispoOrder.logistics?.noParkingZone && !todos.some((t:any) => t.title === 'Halteverbot beantragen')) {
+        todos.push({ id: 'todo_' + Date.now() + 1, title: 'Halteverbot beantragen', isDone: false });
+      }
+      // Möbellift
+      if (dispoOrder.logistics?.furnitureLift && !todos.some((t:any) => t.title === 'Möbellift reservieren')) {
+        todos.push({ id: 'todo_' + Date.now() + 2, title: 'Möbellift reservieren', isDone: false });
+      }
+      // Kartons
+      if (dispoOrder.services?.some((s: any) => s.name.toLowerCase().includes('karton')) && !todos.some((t:any) => t.title === 'Umzugskartons ausliefern')) {
+        todos.push({ id: 'todo_' + Date.now() + 3, title: 'Umzugskartons ausliefern', isDone: false });
+      }
+      // Fahrzeuge
+      if ((dispoData.koffer35t > 0 || dispoData.lkw7t > 0) && !todos.some((t:any) => t.title.includes('Fahrzeug mieten'))) {
+        todos.push({ id: 'todo_' + Date.now() + 4, title: `Fahrzeug mieten (${dispoData.koffer35t}x 3,5t | ${dispoData.lkw7t}x 7,5t)`, isDone: false });
+      }
+      // Mitarbeiter
+      if (dispoData.helpers > 0 && !todos.some((t:any) => t.title === 'Mitarbeiter einteilen')) {
+        todos.push({ id: 'todo_' + Date.now() + 5, title: 'Mitarbeiter einteilen', isDone: false });
+      }
+
+      await updateDoc(doc(db, 'orders', dispoOrder.id), {
+        status: 'confirmed',
+        disposition: dispoData,
+        todos: todos
+      });
+      setDispoOrder(null);
+      toast.success("Auftrag erfolgreich bestätigt und disponiert!");
+    } catch (e) {
+      console.error(e);
+      toast.error("Fehler bei der Disposition.");
+    }
+  };
+
+  const generateInvoice = async (order: any) => {
+    setInvoiceConfirmOrder(order);
+  };
+
+  const confirmGenerateInvoice = async () => {
+    if (!invoiceConfirmOrder) return;
+    try {
       const currentInvoices = orders.filter(o => o.invoiceNumber).map(o => {
         const parts = o.invoiceNumber.split('-');
         return parseInt(parts[2] || '0', 10);
@@ -49,23 +101,21 @@ export default function OrdersPage() {
       const nextNumber = highestNumber + 1;
       const invoiceNumberString = `RE-2026-${nextNumber.toString().padStart(4, '0')}`;
 
-      await updateDoc(doc(db, 'orders', order.id), {
+      await updateDoc(doc(db, 'orders', invoiceConfirmOrder.id), {
         status: 'invoice_open',
         invoiceNumber: invoiceNumberString,
         invoiceDate: new Date()
       });
-      
-      fetchOrders();
+      toast.success("Rechnung erfolgreich finalisiert!");
     } catch (error) {
       console.error("Error generating invoice", error);
-      alert("Fehler bei der Rechnungserstellung");
+      toast.error("Fehler bei der Rechnungserstellung");
     }
   };
 
   const updateStatus = async (orderId: string, newStatus: string) => {
     try {
       await updateDoc(doc(db, 'orders', orderId), { status: newStatus });
-      fetchOrders();
     } catch (error) {
       console.error("Fehler beim Status-Update", error);
     }
@@ -75,6 +125,7 @@ export default function OrdersPage() {
     switch(status) {
       case 'draft': return <span className="px-2 py-1 bg-structure text-text-muted rounded text-xs font-semibold uppercase tracking-wider">Entwurf</span>;
       case 'quote': return <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs font-semibold uppercase tracking-wider">Angebot</span>;
+      case 'confirmed': return <span className="px-2 py-1 bg-primary/20 text-primary rounded text-xs font-semibold uppercase tracking-wider">Bestätigt (Aktiv)</span>;
       case 'invoice_open': return <span className="px-2 py-1 bg-orange-500/20 text-orange-400 rounded text-xs font-semibold uppercase tracking-wider">Offen</span>;
       case 'invoice_paid': return <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-semibold uppercase tracking-wider">Bezahlt</span>;
       case 'invoice_overdue': return <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs font-semibold uppercase tracking-wider">In Mahnung</span>;
@@ -90,8 +141,8 @@ export default function OrdersPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">Aufträge & Rechnungen</h1>
-        <p className="text-text-muted mt-1">Die zentrale Übersicht aller Angebote, Aufträge und finalisierten Rechnungen.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-white">Aufträge & Disposition</h1>
+        <p className="text-text-muted mt-1">Verwalten Sie Angebote, teilen Sie Fahrzeuge/Mitarbeiter ein und erstellen Sie Rechnungen.</p>
       </div>
 
       <div className="panel border-t-4 border-t-primary shadow-xl overflow-hidden">
@@ -141,22 +192,41 @@ export default function OrdersPage() {
                       </div>
                     </td>
                     <td className="block md:table-cell p-2 md:p-4 md:text-right font-medium text-white border-b border-structure md:border-none">
-                      <div className="flex justify-between md:justify-end">
-                        <span className="md:hidden text-text-muted text-sm">Summe:</span>
-                        <span>€ {order.totals?.gross?.toFixed(2) || '0.00'}</span>
+                      <div className="flex flex-col md:items-end gap-1">
+                        <div className="flex justify-between md:justify-end w-full">
+                          <span className="md:hidden text-text-muted text-sm">Summe:</span>
+                          <span>€ {order.totals?.gross?.toFixed(2) || '0.00'}</span>
+                        </div>
+                        {order.payments && order.payments.length > 0 && order.status !== 'invoice_paid' && (
+                          <div className="text-xs text-primary font-bold">
+                            Offen: € {Math.max(0, (order.totals?.gross || 0) - order.payments.reduce((sum: number, p: any) => sum + p.amount, 0)).toFixed(2)}
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td className="block md:table-cell p-2 md:p-4 md:text-right mt-2 md:mt-0">
                       <div className="flex flex-col sm:flex-row items-stretch md:items-center justify-end gap-2 w-full">
+                        
                         {order.status === 'quote' && (
                           <button 
-                            onClick={() => generateInvoice(order)}
+                            onClick={() => setDispoOrder(order)}
                             className="btn-primary py-2 px-3 text-xs w-full sm:w-auto flex justify-center"
                           >
-                            <DocumentCheckIcon className="w-4 h-4 mr-1" />
-                            Finalisieren
+                            <TruckIcon className="w-4 h-4 mr-1" />
+                            Bestätigen & Disponieren
                           </button>
                         )}
+                        
+                        {order.status === 'confirmed' && (
+                          <button 
+                            onClick={() => generateInvoice(order)}
+                            className="btn-secondary border-primary/50 text-primary py-2 px-3 text-xs w-full sm:w-auto flex justify-center"
+                          >
+                            <DocumentCheckIcon className="w-4 h-4 mr-1" />
+                            Finalisieren (Rechnung)
+                          </button>
+                        )}
+
                         {order.invoiceNumber && (
                           <div className="flex flex-col sm:flex-row items-stretch md:items-center gap-2 w-full sm:w-auto">
                             <select 
@@ -193,6 +263,69 @@ export default function OrdersPage() {
         </div>
       </div>
 
+      {/* Disposition Modal */}
+      {dispoOrder && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-bg-panel border border-structure rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-structure flex justify-between items-center bg-bg-dark">
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <TruckIcon className="w-6 h-6 text-primary" />
+                Disposition (Auftrag bestätigen)
+              </h2>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-text-muted mb-2">Umzugsdatum & Uhrzeit</label>
+                <input 
+                  type="datetime-local" 
+                  value={dispoData.movingDate}
+                  onChange={(e) => setDispoData({...dispoData, movingDate: e.target.value})}
+                  className="input-field py-2 px-3 w-full"
+                />
+                <p className="text-xs text-text-muted mt-1">Dieser Termin wird im Kalender blockiert.</p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 border border-structure rounded-xl bg-bg-dark">
+                  <label className="block text-sm font-medium text-text-muted mb-2">Umzugshelfer</label>
+                  <div className="flex items-center gap-3">
+                    <button type="button" onClick={() => setDispoData({...dispoData, helpers: Math.max(0, dispoData.helpers - 1)})} className="btn-secondary py-1 px-3 text-lg">-</button>
+                    <span className="font-bold text-xl w-8 text-center">{dispoData.helpers}</span>
+                    <button type="button" onClick={() => setDispoData({...dispoData, helpers: dispoData.helpers + 1})} className="btn-secondary py-1 px-3 text-lg">+</button>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-text-muted">Fahrzeuge einteilen</h3>
+                <div className="flex items-center justify-between p-3 border border-structure rounded-xl bg-bg-dark">
+                  <span className="font-medium">Koffer 3,5 Tonnen</span>
+                  <div className="flex items-center gap-3">
+                    <button type="button" onClick={() => setDispoData({...dispoData, koffer35t: Math.max(0, dispoData.koffer35t - 1)})} className="btn-secondary py-0.5 px-2">-</button>
+                    <span className="font-bold w-4 text-center">{dispoData.koffer35t}</span>
+                    <button type="button" onClick={() => setDispoData({...dispoData, koffer35t: dispoData.koffer35t + 1})} className="btn-secondary py-0.5 px-2">+</button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between p-3 border border-structure rounded-xl bg-bg-dark">
+                  <span className="font-medium">LKW 7 Tonnen</span>
+                  <div className="flex items-center gap-3">
+                    <button type="button" onClick={() => setDispoData({...dispoData, lkw7t: Math.max(0, dispoData.lkw7t - 1)})} className="btn-secondary py-0.5 px-2">-</button>
+                    <span className="font-bold w-4 text-center">{dispoData.lkw7t}</span>
+                    <button type="button" onClick={() => setDispoData({...dispoData, lkw7t: dispoData.lkw7t + 1})} className="btn-secondary py-0.5 px-2">+</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-structure bg-bg-dark flex justify-end gap-3">
+              <button onClick={() => setDispoOrder(null)} className="btn-secondary">Abbrechen</button>
+              <button onClick={confirmAndDispatch} className="btn-primary">Bestätigen & Speichern</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedPaymentOrder && (
         <PaymentManager 
           order={selectedPaymentOrder} 
@@ -200,6 +333,16 @@ export default function OrdersPage() {
           onClose={() => setSelectedPaymentOrder(null)} 
         />
       )}
+
+      <ConfirmModal 
+        isOpen={invoiceConfirmOrder !== null}
+        title="Rechnung finalisieren"
+        message="Möchten Sie dieses Dokument wirklich finalisieren? Es wird eine feste Rechnungsnummer (RE-2026-XXXX) vergeben und das Dokument wird für Änderungen gesperrt."
+        confirmText="Finalisieren"
+        isDestructive={false}
+        onConfirm={confirmGenerateInvoice}
+        onCancel={() => setInvoiceConfirmOrder(null)}
+      />
     </div>
   );
 }

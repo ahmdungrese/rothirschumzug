@@ -4,11 +4,14 @@ import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, collection, query, where, onSnapshot, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { PlusIcon, UserCircleIcon, PhoneIcon, MapPinIcon, DocumentTextIcon, XMarkIcon, EnvelopeIcon, StarIcon, CheckCircleIcon, PencilIcon, TrashIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { toast } from 'react-hot-toast';
 import Image from 'next/image';
 import { PDFGenerator } from '@/components/pdf/PDFGenerator';
 import { SignaturePad } from '@/components/ui/SignaturePad';
-import { CustomerChecklist } from '@/components/customers/CustomerChecklist';
-import { CustomerInventory } from '@/components/customers/CustomerInventory';
+import { ProtocolModal } from '@/components/customers/ProtocolModal';
+import { ClaimModal } from '@/components/customers/ClaimModal';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { calculateRoute } from '@/lib/routeCalculator';
 
 export default function CustomerProfilePage() {
   const params = useParams();
@@ -18,14 +21,26 @@ export default function CustomerProfilePage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [protocolOrder, setProtocolOrder] = useState<any>(null);
+  const [claims, setClaims] = useState<any[]>([]);
+  const [showClaimModal, setShowClaimModal] = useState(false);
   const [pdfType, setPdfType] = useState<'order' | 'employee'>('order');
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState<any>(null);
+  const [settings, setSettings] = useState<any>(null);
+  const [deleteConfirmOrder, setDeleteConfirmOrder] = useState<string | null>(null);
+  const [routeInfo, setRouteInfo] = useState<{ distanceKm: number, durationMinutes: number } | null>(null);
+  const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
 
   useEffect(() => {
     // Fetch Customer
     const docRef = doc(db, 'customers', customerId);
     const unsubCustomer = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
-        setCustomer({ id: docSnap.id, ...docSnap.data() });
+        const data = { id: docSnap.id, ...docSnap.data() };
+        setCustomer(data);
+        if (!editData) setEditData(data); // Init edit state
       }
       setLoading(false);
     }, (error) => {
@@ -43,11 +58,61 @@ export default function CustomerProfilePage() {
       console.error("Error fetching orders", error);
     });
 
+    // Fetch Settings for Datalist
+    const unsubSettings = onSnapshot(doc(db, 'system', 'settings'), (docSnap) => {
+      if (docSnap.exists()) {
+        setSettings(docSnap.data());
+      }
+    });
+
+    // Fetch Claims
+    const qClaims = query(collection(db, 'claims'), where('customerId', '==', customerId));
+    const unsubClaims = onSnapshot(qClaims, (querySnapshot) => {
+      const fetchedClaims = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      // Sortiere neu nach alt (da createdAt ein Timestamp ist)
+      fetchedClaims.sort((a: any, b: any) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+      setClaims(fetchedClaims);
+    });
+
     return () => {
       unsubCustomer();
       unsubOrders();
+      unsubSettings();
+      unsubClaims();
     };
   }, [customerId]);
+
+  const handleCalculateRoute = async () => {
+    if (orders.length > 0) {
+      const activeOrder = orders.find(o => o.status === 'confirmed' || o.status === 'quote') || orders[0];
+      if (activeOrder && activeOrder.logistics) {
+        const addressA = `${activeOrder.logistics.a_street || ''} ${activeOrder.logistics.a_houseNr || ''}, ${activeOrder.logistics.a_zip || ''} ${activeOrder.logistics.a_city || ''}`.trim();
+        const addressB = `${activeOrder.logistics.b_street || ''} ${activeOrder.logistics.b_houseNr || ''}, ${activeOrder.logistics.b_zip || ''} ${activeOrder.logistics.b_city || ''}`.trim();
+        
+        if (addressA.length > 5 && addressB.length > 5 && addressA !== addressB) {
+          setIsCalculatingRoute(true);
+          setRouteError(null);
+          try {
+            const res = await calculateRoute(addressA, addressB);
+            if (res) {
+              setRouteInfo(res);
+              setRouteError(null);
+            } else {
+              setRouteInfo(null);
+              setRouteError("Route konnte nicht automatisch berechnet werden.");
+            }
+          } catch(err) {
+            setRouteInfo(null);
+            setRouteError("Fehler bei der Anfrage.");
+          } finally {
+            setIsCalculatingRoute(false);
+          }
+        } else {
+          setRouteError("Unvollständige Adressen im Auftrag.");
+        }
+      }
+    }
+  };
 
   if (loading) {
     return <div className="flex justify-center p-12"><div className="animate-spin h-8 w-8 border-t-2 border-primary rounded-full"></div></div>;
@@ -58,8 +123,16 @@ export default function CustomerProfilePage() {
   }
 
   const deleteOrder = async (orderId: string) => {
-    if(confirm("Angebot/Auftrag wirklich löschen?")) {
-      await deleteDoc(doc(db, 'orders', orderId));
+    setDeleteConfirmOrder(orderId);
+  };
+
+  const confirmDeleteOrder = async () => {
+    if (!deleteConfirmOrder) return;
+    try {
+      await deleteDoc(doc(db, 'orders', deleteConfirmOrder));
+      toast.success("Dokument gelöscht!");
+    } catch (e) {
+      toast.error("Fehler beim Löschen.");
     }
   };
 
@@ -70,27 +143,60 @@ export default function CustomerProfilePage() {
       // Automatisierung: Wenn Angebot bestätigt wird, To-Dos generieren
       if (newStatus === 'confirmed') {
         const todos = [];
-        if (order.logistics?.noParkingZone) {
+        if (order.logistics?.noParkingZone && !order.todos?.some((t:any) => t.title === 'Halteverbot beantragen')) {
           todos.push({ id: 'todo_' + Date.now() + 1, title: 'Halteverbot beantragen', isDone: false });
         }
-        if (order.logistics?.furnitureLift) {
+        if (order.logistics?.furnitureLift && !order.todos?.some((t:any) => t.title === 'Möbellift reservieren')) {
           todos.push({ id: 'todo_' + Date.now() + 2, title: 'Möbellift reservieren', isDone: false });
         }
-        if (order.services?.some((s: any) => s.name.includes('karton'))) {
+        if (order.services?.some((s: any) => s.name.toLowerCase().includes('karton')) && !order.todos?.some((t:any) => t.title === 'Umzugskartons ausliefern')) {
           todos.push({ id: 'todo_' + Date.now() + 3, title: 'Umzugskartons ausliefern', isDone: false });
         }
-        payload.todos = todos;
-        alert("Angebot bestätigt! Zugehörige To-Dos (z.B. Halteverbot) wurden generiert.");
+        if (order.disposition && (order.disposition.koffer35t > 0 || order.disposition.lkw7t > 0) && !order.todos?.some((t:any) => t.title.includes('Fahrzeug mieten'))) {
+          todos.push({ id: 'todo_' + Date.now() + 4, title: `Fahrzeug mieten (${order.disposition.koffer35t}x 3,5t | ${order.disposition.lkw7t}x 7,5t)`, isDone: false });
+        }
+        if (order.disposition && order.disposition.helpers > 0 && !order.todos?.some((t:any) => t.title === 'Mitarbeiter einteilen')) {
+          todos.push({ id: 'todo_' + Date.now() + 5, title: 'Mitarbeiter einteilen', isDone: false });
+        }
+        payload.todos = [...(order.todos || []), ...todos];
+        toast.success("Angebot bestätigt! Zugehörige To-Dos wurden generiert.", { duration: 4000 });
       }
       
       await updateDoc(doc(db, 'orders', order.id), payload);
     } catch (error) {
       console.error("Fehler beim Update des Status", error);
-      alert("Ein Fehler ist aufgetreten.");
+      toast.error("Ein Fehler ist aufgetreten.");
     }
   };
 
-  const totalRevenue = orders.filter(o => o.status === 'quote').reduce((sum, o) => sum + (o.totals?.gross || 0), 0);
+  const totalRevenue = orders.filter(o => o.status === 'quote' || o.status === 'confirmed' || o.status === 'invoice_open' || o.status === 'invoice_paid').reduce((sum, o) => sum + (o.totals?.gross || 0), 0);
+  const openItems = orders.filter(o => o.status === 'invoice_open' || o.status === 'invoice_overdue' || o.status === 'confirmed').reduce((sum, o) => {
+    const gross = o.totals?.gross || 0;
+    const paid = o.payments?.reduce((pSum: number, p: any) => pSum + p.amount, 0) || 0;
+    return sum + Math.max(0, gross - paid);
+  }, 0);
+
+  const handleSaveCustomer = async () => {
+    try {
+      await updateDoc(doc(db, 'customers', customerId), {
+        firstName: editData.firstName,
+        lastName: editData.lastName,
+        email: editData.email,
+        phone: editData.phone,
+        street: editData.street || '',
+        houseNr: editData.houseNr || '',
+        zip: editData.zip || '',
+        city: editData.city || '',
+        source: editData.source || '',
+        type: editData.type || 'privat'
+      });
+      setIsEditing(false);
+      toast.success("Kundendaten gespeichert!");
+    } catch (error) {
+      console.error("Fehler beim Speichern der Kundendaten", error);
+      toast.error("Fehler beim Speichern");
+    }
+  };
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20">
@@ -105,37 +211,172 @@ export default function CustomerProfilePage() {
           <div className="shrink-0">
             <Image src="/5.png" alt="Customer Profile" width={100} height={100} className="rounded-full border-2 border-structure object-cover bg-bg-dark shadow-lg" />
           </div>
-          <div className="flex-1">
-            <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">
-              {customer.firstName} {customer.lastName}
-            </h1>
+          <div className="flex-1 w-full">
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              {customer.phone && (
-                <div className="flex items-center gap-2 text-text-muted">
-                  <PhoneIcon className="w-5 h-5 text-primary" />
-                  <span>{customer.phone}</span>
-                  <a href={`https://wa.me/${customer.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer" className="ml-3 bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] text-xs px-3 py-1 rounded-full font-semibold hover:bg-[#25D366]/20 transition-colors shadow-sm flex items-center gap-1">
-                    WhatsApp
-                  </a>
+            {isEditing ? (
+              <div className="space-y-4 bg-bg-dark/50 p-4 rounded-xl border border-structure w-full">
+                <div className="flex gap-4">
+                  <label className="flex items-center gap-2 text-white text-sm"><input type="radio" checked={editData.type === 'privat'} onChange={() => setEditData({...editData, type:'privat'})} className="accent-primary" /> Privatperson</label>
+                  <label className="flex items-center gap-2 text-white text-sm"><input type="radio" checked={editData.type === 'firma'} onChange={() => setEditData({...editData, type:'firma'})} className="accent-primary" /> Firma</label>
                 </div>
-              )}
-              {customer.email && (
-                <div className="flex items-center gap-2 text-text-muted">
-                  <EnvelopeIcon className="w-5 h-5 text-primary" />
-                  <span>{customer.email}</span>
-                  <a href={`mailto:${customer.email}`} className="ml-3 bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs px-3 py-1 rounded-full font-semibold hover:bg-blue-500/20 transition-colors shadow-sm flex items-center gap-1">
-                    E-Mail schreiben
-                  </a>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {editData.type === 'privat' ? (
+                    <>
+                      <div><label className="text-xs text-text-muted">Vorname</label><input type="text" value={editData.firstName} onChange={e => setEditData({...editData, firstName: e.target.value})} className="input-field w-full" /></div>
+                      <div><label className="text-xs text-text-muted">Nachname</label><input type="text" value={editData.lastName} onChange={e => setEditData({...editData, lastName: e.target.value})} className="input-field w-full" /></div>
+                    </>
+                  ) : (
+                    <>
+                      <div><label className="text-xs text-text-muted">Firmenname</label><input type="text" value={editData.lastName} onChange={e => setEditData({...editData, lastName: e.target.value})} className="input-field w-full" /></div>
+                      <div><label className="text-xs text-text-muted">Ansprechpartner (Vor- & Nachname)</label><input type="text" value={editData.firstName} onChange={e => setEditData({...editData, firstName: e.target.value})} className="input-field w-full" /></div>
+                    </>
+                  )}
+                  <div><label className="text-xs text-text-muted">Telefon</label><input type="text" value={editData.phone} onChange={e => setEditData({...editData, phone: e.target.value})} className="input-field w-full" /></div>
+                  <div><label className="text-xs text-text-muted">E-Mail</label><input type="text" value={editData.email} onChange={e => setEditData({...editData, email: e.target.value})} className="input-field w-full" /></div>
+                  
+                  <div className="col-span-1 md:col-span-2">
+                    <label className="text-xs text-text-muted">Kundenquelle</label>
+                    <input type="text" list="source-options" value={editData.source || ''} onChange={e => setEditData({...editData, source: e.target.value})} className="input-field w-full" placeholder="Auswählen oder tippen..." />
+                    <datalist id="source-options">
+                      {settings?.customerSources?.map((s: string) => <option key={s} value={s} />)}
+                    </datalist>
+                  </div>
+                  
+                  <div className="col-span-1 md:col-span-2 mt-2 border-t border-structure pt-2">
+                    <label className="text-xs font-semibold text-text-muted mb-2 block">Hauptadresse</label>
+                    <div className="grid grid-cols-4 gap-2">
+                      <div className="col-span-3"><input type="text" placeholder="Straße" value={editData.street || ''} onChange={e => setEditData({...editData, street: e.target.value})} className="input-field w-full" /></div>
+                      <div className="col-span-1"><input type="text" placeholder="Haus-Nr." value={editData.houseNr || ''} onChange={e => setEditData({...editData, houseNr: e.target.value})} className="input-field w-full" /></div>
+                      
+                      <div className="col-span-1"><input type="text" placeholder="PLZ" value={editData.zip || ''} onChange={async (e) => {
+                        const val = e.target.value;
+                        setEditData(prev => ({...prev, zip: val}));
+                        if (val.length === 5) {
+                          try {
+                            const res = await fetch(`https://api.zippopotam.us/de/${val}`);
+                            if (res.ok) {
+                              const data = await res.json();
+                              if (data.places && data.places.length > 0) {
+                                setEditData(prev => ({...prev, zip: val, city: data.places[0]['place name']}));
+                              }
+                            }
+                          } catch(err) {}
+                        }
+                      }} className="input-field w-full" /></div>
+                      <div className="col-span-3"><input type="text" placeholder="Ort" value={editData.city || ''} onChange={e => setEditData({...editData, city: e.target.value})} className="input-field w-full" /></div>
+                    </div>
+                  </div>
                 </div>
-              )}
-              {customer.billingAddress?.street && (
-                <div className="flex items-center gap-2 text-text-muted">
-                  <MapPinIcon className="w-5 h-5 text-primary" />
-                  <span>{customer.billingAddress.street}, {customer.billingAddress.city}</span>
+                <div className="flex gap-2 justify-end mt-2">
+                  <button onClick={() => { setIsEditing(false); setEditData(customer); }} className="btn-secondary py-1 text-sm">Abbrechen</button>
+                  <button onClick={handleSaveCustomer} className="btn-primary py-1 text-sm">Speichern</button>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-3 mb-2 flex-wrap">
+                  <h1 className="text-3xl font-bold text-white tracking-tight">
+                    {customer.type === 'firma' ? customer.lastName : `${customer.firstName} ${customer.lastName}`}
+                  </h1>
+                  {customer.source && (
+                    <span className="bg-primary/20 text-primary px-3 py-1 rounded-full text-sm font-semibold border border-primary/30 flex items-center gap-1 shadow-sm">
+                      <UserCircleIcon className="w-4 h-4" /> {customer.source}
+                    </span>
+                  )}
+                  <button onClick={() => setIsEditing(true)} className="p-1.5 bg-structure hover:bg-primary/20 text-text-muted hover:text-primary rounded-md transition-colors" title="Kunde bearbeiten">
+                    <PencilIcon className="w-5 h-5" />
+                  </button>
+                </div>
+                {customer.type === 'firma' && customer.firstName && (
+                  <p className="text-text-muted mb-4 font-medium flex items-center gap-2">
+                    <UserCircleIcon className="w-5 h-5 text-primary" /> Ansprechpartner: {customer.firstName}
+                  </p>
+                )}
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                  {customer.phone && (
+                    <div className="flex items-center gap-2 text-text-muted">
+                      <PhoneIcon className="w-5 h-5 text-primary" />
+                      <span>{customer.phone}</span>
+                      <a href={`https://wa.me/${customer.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer" className="ml-3 bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] text-xs px-3 py-1 rounded-full font-semibold hover:bg-[#25D366]/20 transition-colors shadow-sm flex items-center gap-1">
+                        WhatsApp
+                      </a>
+                    </div>
+                  )}
+                  {customer.email && (
+                    <div className="flex items-center gap-2 text-text-muted">
+                      <EnvelopeIcon className="w-5 h-5 text-primary" />
+                      <span>{customer.email}</span>
+                      <a href={`mailto:${customer.email}`} className="ml-3 bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs px-3 py-1 rounded-full font-semibold hover:bg-blue-500/20 transition-colors shadow-sm flex items-center gap-1">
+                        E-Mail
+                      </a>
+                    </div>
+                  )}
+                  {(customer.street || customer.zip) && (
+                    <div className="flex items-center gap-2 text-text-muted">
+                      <MapPinIcon className="w-5 h-5 text-primary shrink-0" />
+                      <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${customer.street} ${customer.houseNr || ''}, ${customer.zip || ''} ${customer.city || ''}`)}`} target="_blank" rel="noreferrer" className="hover:text-primary transition-colors hover:underline">
+                        {customer.street} {customer.houseNr}, {customer.zip} {customer.city}
+                      </a>
+                    </div>
+                  )}
+                  {(!customer.street && customer.address) && (
+                    <div className="flex items-center gap-2 text-text-muted">
+                      <MapPinIcon className="w-5 h-5 text-primary shrink-0" />
+                      <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address)}`} target="_blank" rel="noreferrer" className="hover:text-primary transition-colors hover:underline">
+                        {customer.address}
+                      </a>
+                    </div>
+                  )}
+
+                  {orders.length > 0 && (() => {
+                    const activeOrder = orders.find(o => o.status === 'confirmed' || o.status === 'quote') || orders[0];
+                    const hasLogistics = activeOrder && activeOrder.logistics;
+                    if (!hasLogistics) return null;
+                    
+                    const addressA = `${activeOrder.logistics.a_street || ''} ${activeOrder.logistics.a_houseNr || ''}, ${activeOrder.logistics.a_zip || ''} ${activeOrder.logistics.a_city || ''}`.trim();
+                    const addressB = `${activeOrder.logistics.b_street || ''} ${activeOrder.logistics.b_houseNr || ''}, ${activeOrder.logistics.b_zip || ''} ${activeOrder.logistics.b_city || ''}`.trim();
+                    
+                    return (
+                      <div className="col-span-1 md:col-span-2 mt-2 flex flex-wrap gap-2">
+                        <button 
+                          onClick={handleCalculateRoute} 
+                          disabled={isCalculatingRoute}
+                          className="btn-secondary py-1.5 px-3 text-xs flex items-center gap-2 border-primary/50 text-primary hover:bg-primary/10 shadow-lg"
+                        >
+                          🚚 {isCalculatingRoute ? "Berechne..." : "Route direkt berechnen"}
+                        </button>
+                        <a 
+                          href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(addressA)}&destination=${encodeURIComponent(addressB)}`}
+                          target="_blank" 
+                          rel="noreferrer" 
+                          className="btn-secondary py-1.5 px-3 text-xs flex items-center gap-2 border-primary/50 text-primary hover:bg-primary/10 shadow-lg"
+                          title="Google Maps Routenplanung öffnen"
+                        >
+                          📍 Auf Maps prüfen
+                        </a>
+                      </div>
+                    );
+                  })()}
+
+                  {(routeInfo || routeError) && (
+                    <div className={`col-span-1 md:col-span-2 border rounded-lg p-3 flex items-center justify-between text-sm animate-in fade-in duration-300 ${routeError ? 'bg-red-500/10 border-red-500/30' : 'bg-primary/10 border-primary/30'}`}>
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">🚚</span>
+                        <div>
+                          <span className="text-text-muted">Aktuelle Route: </span>
+                          {routeError ? (
+                            <span className="text-red-400 font-medium">{routeError}</span>
+                          ) : routeInfo ? (
+                            <span className="text-primary font-bold">{routeInfo.distanceKm} km <span className="text-text-muted font-normal">(Fahrzeit: ca. {Math.floor(routeInfo.durationMinutes/60)}h {routeInfo.durationMinutes%60}min)</span></span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
           <div className="shrink-0 mt-4 md:mt-0 flex flex-col gap-3">
             <button 
@@ -143,6 +384,12 @@ export default function CustomerProfilePage() {
               className="btn-primary shadow-lg shadow-primary/20 w-full justify-center"
             >
               <PlusIcon className="w-5 h-5" /> Neues Angebot
+            </button>
+            <button 
+              onClick={() => router.push(`/dashboard/customers/${customerId}/new-order?type=invoice`)}
+              className="btn-secondary border-primary/50 text-primary hover:bg-primary/10 w-full justify-center"
+            >
+              <DocumentTextIcon className="w-5 h-5" /> Neue Rechnung
             </button>
             {customer.phone && (
               <a 
@@ -199,9 +446,8 @@ export default function CustomerProfilePage() {
             <SignaturePad 
               orderId={selectedOrder.id} 
               onSigned={() => {
-                alert("Erfolgreich unterschrieben!");
+                toast.success("Erfolgreich unterschrieben!");
                 setSelectedOrder({...selectedOrder, customerSignature: 'pending'}); // Optimistic update to trigger refresh on close
-                // Ideally we refetch the order, but forcing close makes them reopen it to see the sig
               }} 
             />
           )}
@@ -213,7 +459,7 @@ export default function CustomerProfilePage() {
         <div className="lg:col-span-2 space-y-6">
           <div className="panel">
             <h3 className="text-lg font-semibold mb-4 border-b border-structure pb-3 text-text-main flex items-center gap-2">
-              📄 Historie (Angebote & Aufträge)
+              📄 Historie (Angebote, Aufträge, Rechnungen & Protokolle)
             </h3>
             
             {orders.length === 0 ? (
@@ -230,31 +476,46 @@ export default function CustomerProfilePage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {orders.map(order => (
-                  <div key={order.id} className="flex items-center justify-between p-4 rounded-xl border border-structure bg-bg-dark hover:border-primary/50 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className={`p-3 rounded-lg ${order.status === 'quote' ? 'bg-primary/20 text-primary' : 'bg-structure text-text-muted'}`}>
-                        <DocumentTextIcon className="w-6 h-6" />
+                {orders.map(order => {
+                  const isInvoice = order.status === 'invoice_open' || order.status === 'invoice_paid' || order.status === 'invoice_overdue';
+                  const isConfirmed = order.status === 'confirmed' || order.status === 'completed';
+                  const isQuote = order.status === 'quote';
+                  return (
+                  <div key={order.id} className="flex flex-col gap-4 p-4 rounded-xl border border-structure bg-bg-dark hover:border-primary/50 transition-colors">
+                    
+                    {/* Top Row: Info & Price */}
+                    <div className="flex flex-wrap md:flex-nowrap justify-between items-start gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className={`p-3 rounded-lg shrink-0 ${isInvoice ? 'bg-purple-500/20 text-purple-400' : isConfirmed ? 'bg-green-500/20 text-green-400' : isQuote ? 'bg-primary/20 text-primary' : 'bg-structure text-text-muted'}`}>
+                          <DocumentTextIcon className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-white">
+                            {isInvoice ? 'Rechnung' : isQuote ? 'Angebot' : isConfirmed ? 'Auftrag' : 'Entwurf'} 
+                            {order.orderNumber ? ` #${order.orderNumber}` : ''}
+                          </h4>
+                          <p className="text-sm text-text-muted">
+                            {new Date(order.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')} • {order.services?.length || 0} Leistungen
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-semibold text-white">
-                          {order.status === 'quote' ? 'Angebot' : 'Entwurf'} 
-                          {order.orderNumber ? ` #${order.orderNumber}` : ''}
-                        </h4>
-                        <p className="text-sm text-text-muted">
-                          {new Date(order.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')} • {order.services?.length || 0} Leistungen
-                        </p>
+                      
+                      <div className="text-right shrink-0">
+                        <div className="text-sm text-text-muted">Brutto</div>
+                        <div className="font-bold text-white text-lg">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
                       </div>
                     </div>
-                    <div className="flex flex-col sm:flex-row items-center gap-4">
+
+                    {/* Bottom Row: Workflow Actions & Button Controls */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mt-2 pt-4 border-t border-structure/50">
                       {/* Workflow Actions */}
-                      <div className="flex flex-wrap items-center gap-2 border-r border-structure pr-4 mr-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         {order.status === 'draft' && (
                           <button onClick={() => handleUpdateOrderStatus(order, 'quote')} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20">
                             Entwurf abschließen
                           </button>
                         )}
-                        {order.status === 'quote' && (
+                        {isQuote && (
                           <button onClick={() => handleUpdateOrderStatus(order, 'confirmed')} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20">
                             <CheckIcon className="w-4 h-4" /> Angebot bestätigt
                           </button>
@@ -264,44 +525,71 @@ export default function CustomerProfilePage() {
                             Umzug abgeschlossen
                           </button>
                         )}
-                        {(order.status === 'completed' || order.status === 'invoice_open') && (
+                        {(order.status === 'completed' || isInvoice) && (
                           <span className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-structure text-text-main">
                             <CheckCircleIcon className="w-4 h-4" /> Finalisiert
                           </span>
                         )}
                       </div>
                       
-                      <div className="text-right hidden lg:block">
-                        <div className="text-sm text-text-muted">Brutto</div>
-                        <div className="font-bold text-white">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-3">
                         <button 
-                          onClick={() => setSelectedOrder(order)}
-                          className="btn-secondary text-sm shrink-0"
+                          onClick={() => setProtocolOrder(order)}
+                          className="btn-secondary py-1.5 px-3 text-xs shrink-0 border-orange-500/50 text-orange-400 hover:bg-orange-500/10 flex items-center gap-1"
                         >
-                          PDF
+                          📝 Protokoll
                         </button>
                         
                         <button 
+                          onClick={() => setSelectedOrder(order)}
+                          className="btn-secondary py-1.5 px-3 text-xs shrink-0"
+                        >
+                          📄 PDF
+                        </button>
+                        
+                        <div className="h-6 w-px bg-structure mx-1 hidden sm:block"></div>
+                        
+                        <button 
                           onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/${order.id}`)}
-                          className="p-2 text-text-muted hover:text-primary transition-colors bg-bg-dark rounded-md border border-structure"
+                          className="p-1.5 text-text-muted hover:text-primary transition-colors bg-bg-panel rounded border border-structure"
                           title="Bearbeiten"
                         >
                           <PencilIcon className="w-4 h-4" />
                         </button>
                         <button 
                           onClick={() => deleteOrder(order.id)}
-                          className="p-2 text-text-muted hover:text-red-400 transition-colors bg-bg-dark rounded-md border border-structure"
+                          className="p-1.5 text-text-muted hover:text-red-400 transition-colors bg-bg-panel rounded border border-structure"
                           title="Löschen"
                         >
                           <TrashIcon className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
+                    
+                    {/* Protokolle anzeigen */}
+                    {order.protocols && order.protocols.length > 0 && (
+                      <div className="mt-2 pt-3 border-t border-structure/50">
+                        <h5 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Hinterlegte Protokolle</h5>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {order.protocols.map((proto: any) => (
+                            <div key={proto.id} className="bg-bg-panel border border-orange-500/20 rounded-lg p-3 flex items-start gap-3 shadow-inner">
+                              <DocumentTextIcon className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" />
+                              <div className="flex-1">
+                                <div className="font-medium text-sm text-white">{proto.type}</div>
+                                <div className="text-xs text-text-muted mt-1 italic">"{proto.text}"</div>
+                                {proto.signature && (
+                                  <div className="mt-2 flex items-center gap-2 text-xs text-green-400">
+                                    <CheckCircleIcon className="w-4 h-4" /> Unterschrieben
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ))}
+                );})}
               </div>
             )}
           </div>
@@ -319,17 +607,75 @@ export default function CustomerProfilePage() {
               </div>
               <div className="flex justify-between items-center p-3 bg-bg-dark rounded-lg border border-transparent">
                 <span className="text-text-muted">Offene Posten:</span>
-                <span className="font-semibold text-text-main text-base">€ 0,00</span>
+                <span className={`font-semibold text-base ${openItems > 0 ? 'text-primary' : 'text-text-main'}`}>€ {openItems.toFixed(2)}</span>
               </div>
             </div>
           </div>
-          
-          <CustomerInventory customer={customer} />
-          
-          <CustomerChecklist customer={customer} />
+
+          <div className="panel border-t-4 border-t-red-500 shadow-lg">
+            <div className="flex justify-between items-center mb-4 border-b border-structure pb-3">
+              <h3 className="text-lg font-semibold text-red-400">
+                🚨 Reklamationen & Schäden
+              </h3>
+              <button 
+                onClick={() => setShowClaimModal(true)}
+                className="btn-secondary py-1 px-3 text-xs border-red-500/50 text-red-400 hover:bg-red-500/10"
+              >
+                + Schaden melden
+              </button>
+            </div>
+            
+            <div className="space-y-3">
+              {claims.length === 0 ? (
+                <p className="text-sm text-text-muted italic text-center py-4">Keine gemeldeten Schäden.</p>
+              ) : (
+                claims.map(claim => (
+                  <div key={claim.id} className="bg-bg-dark border border-structure rounded-lg p-3">
+                    <div className="flex justify-between items-start mb-2">
+                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                        claim.status === 'Neu' ? 'bg-red-500/20 text-red-400' :
+                        claim.status === 'Erledigt' ? 'bg-green-500/20 text-green-400' :
+                        'bg-blue-500/20 text-blue-400'
+                      }`}>
+                        {claim.status}
+                      </span>
+                      <span className="text-xs text-text-muted">
+                        {new Date(claim.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')}
+                      </span>
+                    </div>
+                    <p className="text-sm text-white line-clamp-2">{claim.description}</p>
+                    {claim.insuranceId && (
+                      <p className="text-xs text-text-muted mt-2">Versicherung: {claim.insuranceId}</p>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
+      {showClaimModal && (
+        <ClaimModal 
+          customerId={customer.id} 
+          customerName={`${customer.firstName} ${customer.lastName}`} 
+          onClose={() => setShowClaimModal(false)} 
+        />
+      )}
+
+      {protocolOrder && (
+        <ProtocolModal order={protocolOrder} onClose={() => setProtocolOrder(null)} />
+      )}
+
+      <ConfirmModal 
+        isOpen={deleteConfirmOrder !== null}
+        title="Angebot/Auftrag löschen"
+        message="Möchten Sie dieses Dokument wirklich endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden."
+        confirmText="Endgültig löschen"
+        isDestructive={true}
+        onConfirm={confirmDeleteOrder}
+        onCancel={() => setDeleteConfirmOrder(null)}
+      />
     </div>
   );
 }

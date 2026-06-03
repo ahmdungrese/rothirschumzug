@@ -67,7 +67,7 @@ export const EmployeeSheetPDF = ({ order, customer }: { order: any, customer: an
         ))}
       </View>
 
-      {(customer?.checklist?.length > 0 || order?.logistics?.furnitureLift || order?.logistics?.noParkingZone) && (
+      {(order?.checklist?.length > 0 || order?.logistics?.furnitureLift || order?.logistics?.noParkingZone) && (
         <View style={{ marginTop: 20 }}>
           <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 14, color: '#8F1627', marginBottom: 10 }}>Mitarbeiter Checkliste:</Text>
           <View style={{ backgroundColor: '#f9f9f9', padding: 10, borderLeftWidth: 3, borderLeftColor: '#8F1627' }}>
@@ -86,7 +86,7 @@ export const EmployeeSheetPDF = ({ order, customer }: { order: any, customer: an
             )}
             
             {/* Manuelle Checks */}
-            {customer?.checklist?.map((item: any, i: number) => (
+            {order?.checklist?.map((item: any, i: number) => (
               <View key={i} style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 }}>
                 <View style={{ width: 12, height: 12, borderWidth: 1, borderColor: '#666', marginRight: 8, marginTop: 1, backgroundColor: item.done ? '#666' : 'transparent' }} />
                 <Text style={{ flex: 1, textDecoration: item.done ? 'line-through' : 'none', color: item.done ? '#999' : '#333' }}>

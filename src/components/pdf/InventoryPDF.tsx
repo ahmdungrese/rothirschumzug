@@ -43,7 +43,12 @@ export const InventoryPDF = ({ customer, items }: { customer: any, items: any[] 
         {items?.map((item: any, i: number) => (
           <View key={i} style={styles.tableRow}>
             <Text style={styles.col1}>{item.quantity}x</Text>
-            <Text style={styles.col2}>{item.name}</Text>
+            <View style={styles.col2}>
+              <Text>{item.name}</Text>
+              {item.note && item.showNoteInPdf !== false && (
+                <Text style={{ fontSize: 8, color: '#666', marginTop: 2 }}>Notiz: {item.note}</Text>
+              )}
+            </View>
           </View>
         ))}
       </View>

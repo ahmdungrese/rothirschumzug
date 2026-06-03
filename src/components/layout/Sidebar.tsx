@@ -7,15 +7,21 @@ import {
   DocumentTextIcon, 
   BanknotesIcon, 
   Cog6ToothIcon,
-  XMarkIcon
+  XMarkIcon,
+  ArchiveBoxIcon,
+  CalendarDaysIcon,
+  ShieldExclamationIcon
 } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
+  { name: 'Kalender', href: '/dashboard/calendar', icon: CalendarDaysIcon },
   { name: 'Kunden', href: '/dashboard/customers', icon: UsersIcon },
   { name: 'Aufträge', href: '/dashboard/orders', icon: DocumentTextIcon },
-  { name: 'Finanzen', href: '/dashboard/finances', icon: BanknotesIcon },
+  { name: 'Reklamationen', href: '/dashboard/claims', icon: ShieldExclamationIcon },
+  { name: 'Offene Rechnungen', href: '/dashboard/finances', icon: BanknotesIcon },
+  { name: 'Archiv', href: '/dashboard/archive', icon: ArchiveBoxIcon },
   { name: 'Einstellungen', href: '/dashboard/settings', icon: Cog6ToothIcon },
 ];
 
