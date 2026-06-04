@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { PaymentManager } from '@/components/orders/PaymentManager';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { getCol } from '@/lib/demoMode';
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -28,7 +29,7 @@ export default function OrdersPage() {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const q = query(
-      collection(db, 'orders'),
+      collection(db, getCol('orders')),
       where('createdAt', '>=', Timestamp.fromDate(thirtyDaysAgo))
     );
     
@@ -73,7 +74,7 @@ export default function OrdersPage() {
         todos.push({ id: 'todo_' + Date.now() + 5, title: 'Mitarbeiter einteilen', isDone: false });
       }
 
-      await updateDoc(doc(db, 'orders', dispoOrder.id), {
+      await updateDoc(doc(db, getCol('orders'), dispoOrder.id), {
         status: 'confirmed',
         disposition: dispoData,
         todos: todos
@@ -99,9 +100,10 @@ export default function OrdersPage() {
       });
       const highestNumber = currentInvoices.length > 0 ? Math.max(...currentInvoices) : 0;
       const nextNumber = highestNumber + 1;
-      const invoiceNumberString = `RE-2026-${nextNumber.toString().padStart(4, '0')}`;
+      const prefix = getInvoicePrefix();
+      const invoiceNumberString = `${prefix}${nextNumber.toString().padStart(4, '0')}`;
 
-      await updateDoc(doc(db, 'orders', invoiceConfirmOrder.id), {
+      await updateDoc(doc(db, getCol('orders'), invoiceConfirmOrder.id), {
         status: 'invoice_open',
         invoiceNumber: invoiceNumberString,
         invoiceDate: new Date()
@@ -115,7 +117,7 @@ export default function OrdersPage() {
 
   const updateStatus = async (orderId: string, newStatus: string) => {
     try {
-      await updateDoc(doc(db, 'orders', orderId), { status: newStatus });
+      await updateDoc(doc(db, getCol('orders'), orderId), { status: newStatus });
     } catch (error) {
       console.error("Fehler beim Status-Update", error);
     }

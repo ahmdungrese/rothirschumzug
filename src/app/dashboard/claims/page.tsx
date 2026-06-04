@@ -6,6 +6,7 @@ import { ShieldExclamationIcon, CheckCircleIcon, TrashIcon } from '@heroicons/re
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { getCol } from '@/lib/demoMode';
 
 export default function ClaimsPage() {
   const [claims, setClaims] = useState<any[]>([]);
@@ -13,7 +14,7 @@ export default function ClaimsPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
-    const q = query(collection(db, 'claims'));
+    const q = query(collection(db, getCol('claims')));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetched = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
       // Neu nach alt
@@ -30,7 +31,7 @@ export default function ClaimsPage() {
 
   const updateStatus = async (id: string, newStatus: string) => {
     try {
-      await updateDoc(doc(db, 'claims', id), { status: newStatus });
+      await updateDoc(doc(db, getCol('claims'), id), { status: newStatus });
       toast.success(`Status auf "${newStatus}" geändert.`);
     } catch (e) {
       toast.error("Fehler beim Ändern des Status.");
@@ -40,7 +41,7 @@ export default function ClaimsPage() {
   const deleteClaim = async () => {
     if (!deleteConfirmId) return;
     try {
-      await deleteDoc(doc(db, 'claims', deleteConfirmId));
+      await deleteDoc(doc(db, getCol('claims'), deleteConfirmId));
       toast.success("Schadensmeldung gelöscht.");
     } catch (e) {
       toast.error("Fehler beim Löschen.");

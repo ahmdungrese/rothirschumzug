@@ -37,20 +37,37 @@ export const EmployeeSheetPDF = ({ order, customer }: { order: any, customer: an
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
         <View style={{ width: '48%' }}>
           <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 11, marginBottom: 5, color: '#8F1627' }}>Beladestelle (Auszug):</Text>
-          <Text style={{ fontSize: 12 }}>{order?.logistics?.loadingAddress || 'Keine Angabe'}</Text>
+          <Text style={{ fontSize: 12 }}>
+            {order?.logistics?.a_street ? `${order.logistics.a_street} ${order.logistics.a_houseNr || ''}` : 'Keine Angabe'}
+          </Text>
+          <Text style={{ fontSize: 12 }}>
+            {order?.logistics?.a_zip ? `${order.logistics.a_zip} ${order.logistics.a_city || ''}` : ''}
+          </Text>
+          <Text style={{ fontSize: 10, marginTop: 5, color: '#666' }}>
+            Etage: {order?.logistics?.a_floor || '0'} | Laufweg: {order?.logistics?.a_distance || '0'}m
+          </Text>
         </View>
         <View style={{ width: '48%' }}>
           <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 11, marginBottom: 5, color: '#8F1627' }}>Entladestelle (Einzug):</Text>
-          <Text style={{ fontSize: 12 }}>{order?.logistics?.unloadingAddress || 'Keine Angabe'}</Text>
+          <Text style={{ fontSize: 12 }}>
+            {order?.logistics?.b_street ? `${order.logistics.b_street} ${order.logistics.b_houseNr || ''}` : 'Keine Angabe'}
+          </Text>
+          <Text style={{ fontSize: 12 }}>
+            {order?.logistics?.b_zip ? `${order.logistics.b_zip} ${order.logistics.b_city || ''}` : ''}
+          </Text>
+          <Text style={{ fontSize: 10, marginTop: 5, color: '#666' }}>
+            Etage: {order?.logistics?.b_floor || '0'} | Laufweg: {order?.logistics?.b_distance || '0'}m
+          </Text>
         </View>
       </View>
 
       <View style={styles.section}>
-        <Text style={{ fontFamily: 'Helvetica-Bold', marginBottom: 10 }}>Logistische Parameter:</Text>
-        <Text>Etagen (Trageweg): {order?.logistics?.floors || 0}</Text>
-        <Text>Laufweg: {order?.logistics?.walkingDistance || 0} Meter</Text>
-        <Text>Möbellift benötigt: {order?.logistics?.furnitureLift ? 'Ja' : 'Nein'}</Text>
-        <Text>Halteverbotszone: {order?.logistics?.noParkingZone ? 'Ja, wird eingerichtet' : 'Nein'}</Text>
+        <Text style={{ fontFamily: 'Helvetica-Bold', marginBottom: 10 }}>Logistische Parameter & Zahlung:</Text>
+        <Text>Möbellift benötigt: {(order?.logistics?.a_furnitureLift || order?.logistics?.b_furnitureLift) ? 'Ja' : 'Nein'}</Text>
+        <Text>Halteverbotszone: {(order?.logistics?.a_parking || order?.logistics?.b_parking) ? 'Ja, wird eingerichtet' : 'Nein'}</Text>
+        <Text style={{ marginTop: 5, fontFamily: 'Helvetica-Bold', color: '#8F1627' }}>
+          Zahlungsmethode: {order?.paymentMethod || 'Nicht angegeben'}
+        </Text>
       </View>
 
       <Text style={{ fontFamily: 'Helvetica-Bold', marginTop: 20, marginBottom: 10 }}>Zu erbringende Leistungen:</Text>
@@ -67,18 +84,18 @@ export const EmployeeSheetPDF = ({ order, customer }: { order: any, customer: an
         ))}
       </View>
 
-      {(order?.checklist?.length > 0 || order?.logistics?.furnitureLift || order?.logistics?.noParkingZone) && (
+      {(order?.checklist?.length > 0 || order?.logistics?.a_furnitureLift || order?.logistics?.b_furnitureLift || order?.logistics?.a_parking || order?.logistics?.b_parking) && (
         <View style={{ marginTop: 20 }}>
           <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 14, color: '#8F1627', marginBottom: 10 }}>Mitarbeiter Checkliste:</Text>
           <View style={{ backgroundColor: '#f9f9f9', padding: 10, borderLeftWidth: 3, borderLeftColor: '#8F1627' }}>
             {/* Automatisierte Logistik-Checks */}
-            {order?.logistics?.furnitureLift && (
+            {(order?.logistics?.a_furnitureLift || order?.logistics?.b_furnitureLift) && (
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 }}>
                 <View style={{ width: 12, height: 12, borderWidth: 1, borderColor: '#666', marginRight: 8, marginTop: 1 }} />
                 <Text style={{ flex: 1, color: '#333', fontFamily: 'Helvetica-Bold' }}>Möbellift sicher aufbauen & bedienen (Gebucht!)</Text>
               </View>
             )}
-            {order?.logistics?.noParkingZone && (
+            {(order?.logistics?.a_parking || order?.logistics?.b_parking) && (
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 }}>
                 <View style={{ width: 12, height: 12, borderWidth: 1, borderColor: '#666', marginRight: 8, marginTop: 1 }} />
                 <Text style={{ flex: 1, color: '#333', fontFamily: 'Helvetica-Bold' }}>Halteverbotsschilder einsammeln nach Umzug</Text>

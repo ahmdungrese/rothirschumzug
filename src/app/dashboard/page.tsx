@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { collection, query, onSnapshot, where, Timestamp, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { TimeTracker } from '@/components/dashboard/TimeTracker';
 import Link from 'next/link';
-import { PlusIcon, ClipboardDocumentListIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, ClipboardDocumentListIcon, ExclamationTriangleIcon, MapPinIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { getCol } from '@/lib/demoMode';
 
 export default function DashboardPage() {
   const { profile } = useAuth();
@@ -30,7 +30,7 @@ export default function DashboardPage() {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const q = query(
-      collection(db, 'orders'),
+      collection(db, getCol('orders')),
       where('createdAt', '>=', Timestamp.fromDate(thirtyDaysAgo))
     );
     
@@ -135,19 +135,6 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold tracking-tight text-white">Dashboard</h1>
           <p className="text-text-muted mt-1">Willkommen zurück, {profile?.displayName || 'Admin'}!</p>
         </div>
-        
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
-          {profile?.role !== 'admin' && <TimeTracker />}
-          
-          <Link href="/dashboard/orders/new" className="btn-primary flex items-center justify-center gap-2 py-3 px-6 text-sm font-semibold shadow-lg hover:shadow-xl transition-shadow w-full sm:w-auto">
-            <PlusIcon className="w-5 h-5" />
-            Neues Angebot
-          </Link>
-          <Link href="/dashboard/customers?action=new" className="bg-bg-dark border border-structure text-white hover:bg-structure/30 transition-colors rounded-xl flex items-center justify-center gap-2 py-3 px-6 text-sm font-semibold shadow-lg w-full sm:w-auto">
-            <PlusIcon className="w-5 h-5 text-text-muted" />
-            Neuer Kunde
-          </Link>
-        </div>
       </section>
 
       {/* Zone 2: Ampelsystem (Kritische Warnungen) */}
@@ -189,7 +176,7 @@ export default function DashboardPage() {
       {profile?.role === 'admin' ? (
         <section className="space-y-6">
           <h2 className="text-xl font-semibold text-white border-b border-structure pb-2">Chef-Übersicht (Live-Kennzahlen)</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="panel border-t-4 border-t-green-500">
               <h3 className="text-text-muted text-xs font-semibold uppercase tracking-wider">Bezahlt (Dieser Monat)</h3>
               <p className="text-3xl font-bold mt-2 text-white">€ {stats.monthlyRevenue.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</p>
@@ -197,13 +184,6 @@ export default function DashboardPage() {
             <div className="panel border-t-4 border-t-primary">
               <h3 className="text-text-muted text-xs font-semibold uppercase tracking-wider">Offene Posten (Gesamt)</h3>
               <p className="text-3xl font-bold mt-2 text-white">€ {stats.openItems.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</p>
-            </div>
-            <div className="panel border-t-4 border-t-blue-500">
-              <h3 className="text-text-muted text-xs font-semibold uppercase tracking-wider">Team-Status</h3>
-              <div className="mt-4 flex items-center justify-between text-sm">
-                <span className="text-text-muted">Eingestempelt:</span>
-                <span className="text-white font-medium bg-blue-500/20 px-2 py-0.5 rounded text-blue-400">0 Mitarbeiter</span>
-              </div>
             </div>
           </div>
         </section>
@@ -250,7 +230,7 @@ export default function DashboardPage() {
                             t.id === todo.id ? { ...t, isDone: true } : t
                           );
                           try {
-                            await updateDoc(doc(db, 'orders', todo.orderId), { todos: updatedTodos });
+                            await updateDoc(doc(db, getCol('orders'), todo.orderId), { todos: updatedTodos });
                           } catch (e) {
                             console.error("Fehler beim Abhaken", e);
                           }
@@ -258,7 +238,7 @@ export default function DashboardPage() {
                       }}
                       className="btn-secondary py-1 px-3 text-xs flex items-center gap-2 hover:bg-green-500/20 hover:text-green-400 hover:border-green-500/30"
                     >
-                      Als erledigt markieren ✓
+                      <CheckIcon className="w-4 h-4" /> Als erledigt markieren
                     </button>
                   </div>
                 </div>
@@ -271,7 +251,7 @@ export default function DashboardPage() {
       {/* Zone 4: Kanban Ticket-System (Auftrags-Pipeline) */}
       <section className="space-y-6 mt-8">
         <h2 className="text-xl font-semibold text-white border-b border-structure pb-2 flex items-center justify-between">
-          <span>📋 Ticket-System (Auftrags-Pipeline)</span>
+          <span className="flex items-center gap-2"><ClipboardDocumentListIcon className="w-6 h-6 text-text-muted" /> Ticket-System (Auftrags-Pipeline)</span>
           <span className="text-sm font-normal text-text-muted">Live-Übersicht aller laufenden Projekte</span>
         </h2>
         
@@ -332,7 +312,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="font-semibold text-white truncate">{order.customerName || 'Unbekannt'}</div>
                   <div className="text-xs text-text-muted mt-2 truncate flex items-center gap-1">
-                    📍 {order.logistics?.loadingAddress?.split(',')[0]} &rarr; {order.logistics?.unloadingAddress?.split(',')[0]}
+                    <MapPinIcon className="w-3 h-3 text-orange-400 shrink-0" /> {order.logistics?.loadingAddress?.split(',')[0]} &rarr; {order.logistics?.unloadingAddress?.split(',')[0]}
                   </div>
                 </Link>
               ))}

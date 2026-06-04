@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { BellIcon, ExclamationCircleIcon, ShieldExclamationIcon, TruckIcon, UsersIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
+import { getCol } from '@/lib/demoMode';
 
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
@@ -22,8 +23,8 @@ export function NotificationBell() {
   }, []);
 
   useEffect(() => {
-    // Wir holen alle bestätigten Aufträge
-    const q = query(collection(db, 'orders'), where('status', '==', 'confirmed'));
+    // Wir holen Angebote, bestätigte und abgeschlossene Aufträge
+    const q = query(collection(db, getCol('orders')), where('status', 'in', ['quote', 'confirmed', 'completed']));
     const unsub = onSnapshot(q, (snap) => {
       const orders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const newNotifications: any[] = [];
@@ -44,14 +45,61 @@ export function NotificationBell() {
         } else {
           moveDate = new Date(o.movingDate);
         }
+        
+        const customerName = o.customerName || 'Unbekannt';
 
-        // Wenn der Umzug in den nächsten 7 Tagen ist
-        if (moveDate >= now && moveDate <= sevenDaysFromNow) {
+        // --- ALARM: Abgelaufene Angebote (Nachfassen) ---
+        if (o.status === 'quote' && o.orderMeta?.validUntil) {
+          const validDate = new Date(o.orderMeta.validUntil);
+          const diffDays = Math.floor((validDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
+          
+          if (diffDays <= 2) {
+            newNotifications.push({
+              id: `${o.id}-quote`,
+              type: 'warning',
+              title: diffDays < 0 ? 'Angebot abgelaufen!' : 'Angebot läuft ab',
+              message: `Angebot für ${customerName} läuft ${diffDays < 0 ? 'ist abgelaufen' : 'in ' + diffDays + ' Tagen ab'}. Nachfassen!`,
+              link: `/dashboard/customers/${o.customerId}`,
+              urgency: diffDays < 0 ? 'high' : 'medium'
+            });
+          }
+        }
+
+        // --- ALARM: Fehlende Rechnung ---
+        if (o.status === 'completed' && !o.invoiceNumber) {
+          newNotifications.push({
+            id: `${o.id}-invoice`,
+            type: 'invoice',
+            title: 'Rechnung fehlt!',
+            message: `Umzug ${customerName} ist fertig, aber es gibt noch keine Rechnung!`,
+            link: `/dashboard/customers/${o.customerId}`,
+            urgency: 'high'
+          });
+        }
+
+        // --- ALARMS FOR CONFIRMED MOVES ---
+        if (o.status === 'confirmed') {
           const daysLeft = Math.floor((moveDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
           const timeText = daysLeft === 0 ? 'Heute' : daysLeft === 1 ? 'Morgen' : `in ${daysLeft} Tagen`;
-          const customerName = o.customerName || 'Unbekannt';
+          
+          // Karton-Alarm (< 28 Tage)
+          const needsBoxes = o.services?.some((s: any) => s.name.toLowerCase().includes('karton'));
+          const boxesDelivered = o.checklist?.find((c:any) => c.text.includes('Umzugskartons'))?.done;
+          
+          if (needsBoxes && !boxesDelivered && daysLeft <= 28 && daysLeft >= 0) {
+            newNotifications.push({
+              id: `${o.id}-boxes`,
+              type: 'boxes',
+              title: 'Kartons liefern',
+              message: `Umzug ${customerName} (${timeText}): Kartons wurden noch nicht geliefert!`,
+              link: `/dashboard/customers/${o.customerId}`,
+              urgency: daysLeft <= 10 ? 'high' : 'medium'
+            });
+          }
 
-          // 1. Personal-Check
+          // Wenn der Umzug in den nächsten 7 Tagen ist
+          if (moveDate >= now && moveDate <= sevenDaysFromNow) {
+            // 1. Personal-Check
           if (!o.disposition || !o.disposition.helpers || o.disposition.helpers === 0) {
             newNotifications.push({
               id: `${o.id}-staff`,
@@ -88,7 +136,8 @@ export function NotificationBell() {
               urgency: 'high'
             });
           }
-        }
+          } // End if moveDate within 7 days
+        } // End if confirmed
       });
 
       // Nach Dringlichkeit sortieren (High zuerst)
@@ -105,6 +154,8 @@ export function NotificationBell() {
       case 'staff': return <UsersIcon className={`w-5 h-5 ${color}`} />;
       case 'vehicle': return <TruckIcon className={`w-5 h-5 ${color}`} />;
       case 'parking': return <ShieldExclamationIcon className={`w-5 h-5 ${color}`} />;
+      case 'boxes': return <svg className={`w-5 h-5 ${color}`} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" /></svg>;
+      case 'invoice': return <svg className={`w-5 h-5 ${color}`} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
       default: return <ExclamationCircleIcon className={`w-5 h-5 ${color}`} />;
     }
   };
@@ -112,6 +163,7 @@ export function NotificationBell() {
   return (
     <div className="relative" ref={dropdownRef}>
       <button 
+        id="bell-icon"
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-text-muted hover:text-white hover:bg-structure/30 rounded-lg transition-colors"
       >

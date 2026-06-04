@@ -5,6 +5,7 @@ import { collection, query, onSnapshot, where, deleteDoc, doc, updateDoc } from 
 import { ArchiveBoxIcon, ArrowUturnLeftIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { getCol } from '@/lib/demoMode';
 
 export default function ArchivePage() {
   const [archivedCustomers, setArchivedCustomers] = useState<any[]>([]);
@@ -16,13 +17,13 @@ export default function ArchivePage() {
 
   useEffect(() => {
     // Fetch archived customers
-    const qCust = query(collection(db, 'customers'), where('archived', '==', true));
+    const qCust = query(collection(db, getCol('customers')), where('isArchived', '==', true));
     const unsubCust = onSnapshot(qCust, (snapshot) => {
       setArchivedCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
     // Fetch archived orders
-    const qOrd = query(collection(db, 'orders'), where('archived', '==', true));
+    const qOrd = query(collection(db, getCol('orders')), where('status', '==', 'archived'));
     const unsubOrd = onSnapshot(qOrd, (snapshot) => {
       setArchivedOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
@@ -36,7 +37,11 @@ export default function ArchivePage() {
 
   const handleRestore = async (collectionName: string, id: string) => {
     try {
-      await updateDoc(doc(db, collectionName, id), { archived: false });
+      if (collectionName === 'customers') {
+        await updateDoc(doc(db, collectionName, id), { isArchived: false });
+      } else {
+        await updateDoc(doc(db, collectionName, id), { status: 'draft' });
+      }
       toast.success("Erfolgreich wiederhergestellt!");
     } catch (error) {
       console.error("Fehler beim Wiederherstellen", error);

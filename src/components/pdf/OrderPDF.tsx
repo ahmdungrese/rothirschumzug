@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
   agbText: { fontSize: 7, lineHeight: 1.3 }
 });
 
-export const OrderPDF = ({ order, customer, settings }: { order: any, customer: any, settings: any }) => {
+export const OrderPDF = ({ order, customer, settings, isContract = false }: { order: any, customer: any, settings: any, isContract?: boolean }) => {
   const isFlat = order?.isFlatRate;
 
   return (
@@ -71,9 +71,9 @@ export const OrderPDF = ({ order, customer, settings }: { order: any, customer: 
             <Text style={styles.logoCity}>{settings?.city || 'Bochum'}</Text>
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.docType}>Angebot</Text>
-            <Text style={styles.docNumLabel}>Angebotsnummer</Text>
-            <Text style={styles.docNum}>{order?.orderNumber || 'Entwurf'}</Text>
+            <Text style={styles.docType}>{isContract ? 'Auftragsbestätigung' : 'Angebot'}</Text>
+            <Text style={styles.docNumLabel}>{isContract ? 'Auftragsnummer' : 'Angebotsnummer'}</Text>
+            <Text style={styles.docNum}>{isContract ? (order?.contractNumber || 'Entwurf') : (order?.orderNumber || 'Entwurf')}</Text>
           </View>
         </View>
 
@@ -116,7 +116,9 @@ export const OrderPDF = ({ order, customer, settings }: { order: any, customer: 
           </View>
         </View>
 
-        <Text style={styles.introText}>{order?.texts?.quoteIntro || settings?.texts?.quoteIntro}</Text>
+        <Text style={styles.introText}>
+          {isContract ? (order?.texts?.orderIntro || settings?.texts?.orderIntro) : (order?.texts?.quoteIntro || settings?.texts?.quoteIntro)}
+        </Text>
 
         <View style={styles.table}>
           <View style={styles.tableHeader}>
@@ -150,8 +152,13 @@ export const OrderPDF = ({ order, customer, settings }: { order: any, customer: 
           </View>
         </View>
 
-        <Text style={styles.textBlock}>{order?.texts?.paymentTerms}</Text>
-        <Text style={styles.textBlock}>{order?.texts?.quoteOutro}</Text>
+        <Text style={styles.textBlock}>
+          {isContract ? (order?.texts?.orderOutro || settings?.texts?.orderOutro) : (order?.texts?.quoteOutro || settings?.texts?.quoteOutro)}
+        </Text>
+        
+        <Text style={styles.textBlock}>
+          {isContract ? (order?.texts?.orderGreeting || settings?.texts?.orderGreeting) : (order?.texts?.quoteGreeting || settings?.texts?.quoteGreeting)}
+        </Text>
 
         <View style={styles.footer}>
           <View>

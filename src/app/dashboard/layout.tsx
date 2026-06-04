@@ -5,6 +5,7 @@ import { Header } from '@/components/layout/Header';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
+import { Tutorial } from '@/components/ui/Tutorial';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -27,6 +28,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen overflow-hidden bg-bg-dark">
+      <Tutorial />
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header onMenuClick={() => setSidebarOpen(true)} />

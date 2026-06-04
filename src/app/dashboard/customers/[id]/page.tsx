@@ -2,8 +2,8 @@
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, collection, query, where, onSnapshot, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { PlusIcon, UserCircleIcon, PhoneIcon, MapPinIcon, DocumentTextIcon, XMarkIcon, EnvelopeIcon, StarIcon, CheckCircleIcon, PencilIcon, TrashIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { doc, collection, query, where, onSnapshot, updateDoc, deleteDoc, serverTimestamp, getDoc, addDoc } from 'firebase/firestore';
+import { PlusIcon, UserCircleIcon, PhoneIcon, MapPinIcon, DocumentTextIcon, XMarkIcon, EnvelopeIcon, StarIcon, CheckCircleIcon, PencilIcon, TrashIcon, CheckIcon, TruckIcon, CheckBadgeIcon, ClipboardDocumentIcon, DocumentArrowDownIcon, BanknotesIcon, ExclamationTriangleIcon, ArchiveBoxIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import Image from 'next/image';
 import { PDFGenerator } from '@/components/pdf/PDFGenerator';
@@ -11,7 +11,9 @@ import { SignaturePad } from '@/components/ui/SignaturePad';
 import { ProtocolModal } from '@/components/customers/ProtocolModal';
 import { ClaimModal } from '@/components/customers/ClaimModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { PaymentModal } from '@/components/orders/PaymentModal';
 import { calculateRoute } from '@/lib/routeCalculator';
+import { getCol } from '@/lib/demoMode';
 
 export default function CustomerProfilePage() {
   const params = useParams();
@@ -29,13 +31,17 @@ export default function CustomerProfilePage() {
   const [editData, setEditData] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
   const [deleteConfirmOrder, setDeleteConfirmOrder] = useState<string | null>(null);
+  
+  // Payment Modal
+  const [paymentOrder, setPaymentOrder] = useState<any>(null);
+
   const [routeInfo, setRouteInfo] = useState<{ distanceKm: number, durationMinutes: number } | null>(null);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
 
   useEffect(() => {
     // Fetch Customer
-    const docRef = doc(db, 'customers', customerId);
+    const docRef = doc(db, getCol('customers'), customerId);
     const unsubCustomer = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {
         const data = { id: docSnap.id, ...docSnap.data() };
@@ -49,7 +55,7 @@ export default function CustomerProfilePage() {
     });
 
     // Fetch Orders
-    const q = query(collection(db, 'orders'), where('customerId', '==', customerId));
+    const q = query(collection(db, getCol('orders')), where('customerId', '==', customerId));
     const unsubOrders = onSnapshot(q, (querySnapshot) => {
       const fetchedOrders = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       fetchedOrders.sort((a: any, b: any) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
@@ -59,14 +65,14 @@ export default function CustomerProfilePage() {
     });
 
     // Fetch Settings for Datalist
-    const unsubSettings = onSnapshot(doc(db, 'system', 'settings'), (docSnap) => {
+    const unsubSettings = onSnapshot(doc(db, getCol('system'), 'settings'), (docSnap) => {
       if (docSnap.exists()) {
         setSettings(docSnap.data());
       }
     });
 
     // Fetch Claims
-    const qClaims = query(collection(db, 'claims'), where('customerId', '==', customerId));
+    const qClaims = query(collection(db, getCol('claims')), where('customerId', '==', customerId));
     const unsubClaims = onSnapshot(qClaims, (querySnapshot) => {
       const fetchedClaims = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       // Sortiere neu nach alt (da createdAt ein Timestamp ist)
@@ -129,18 +135,26 @@ export default function CustomerProfilePage() {
   const confirmDeleteOrder = async () => {
     if (!deleteConfirmOrder) return;
     try {
-      await deleteDoc(doc(db, 'orders', deleteConfirmOrder));
-      toast.success("Dokument gelöscht!");
+      await updateDoc(doc(db, getCol('orders'), deleteConfirmOrder), { status: 'archived', updatedAt: serverTimestamp() });
+      toast.success("Dokument wurde ins Archiv verschoben!");
     } catch (e) {
-      toast.error("Fehler beim Löschen.");
+      toast.error("Fehler beim Archivieren.");
     }
+    setDeleteConfirmOrder(null);
   };
 
   const handleUpdateOrderStatus = async (order: any, newStatus: string) => {
     try {
       const payload: any = { status: newStatus, updatedAt: serverTimestamp() };
       
-      // Automatisierung: Wenn Angebot bestätigt wird, To-Dos generieren
+      // Get latest settings to pull correct numbers safely
+      const settingsDoc = await getDoc(doc(db, getCol('system'), 'settings'));
+      const settingsData = settingsDoc.exists() ? settingsDoc.data() : null;
+
+      // 1. Wenn ein Entwurf zum Angebot wird (Nummer bleibt, da in OrderEditor generiert)
+      // Aber wir stellen sicher, dass das Datum gesetzt wird.
+      
+      // 2. Wenn das Angebot bestätigt wird -> Auftragsnummer (AUF-xxx) ziehen
       if (newStatus === 'confirmed') {
         const todos = [];
         if (order.logistics?.noParkingZone && !order.todos?.some((t:any) => t.title === 'Halteverbot beantragen')) {
@@ -159,13 +173,70 @@ export default function CustomerProfilePage() {
           todos.push({ id: 'todo_' + Date.now() + 5, title: 'Mitarbeiter einteilen', isDone: false });
         }
         payload.todos = [...(order.todos || []), ...todos];
-        toast.success("Angebot bestätigt! Zugehörige To-Dos wurden generiert.", { duration: 4000 });
+
+        if (!order.contractNumber && settingsData) {
+          const nextOrderNumber = settingsData.nextOrderNumber || 1;
+          payload.contractNumber = `AUF-${new Date().getFullYear()}-${nextOrderNumber.toString().padStart(3, '0')}`;
+          await updateDoc(doc(db, getCol('system'), 'settings'), { nextOrderNumber: nextOrderNumber + 1 });
+        }
+
+        toast.success("Angebot bestätigt! Auftragsnummer zugewiesen.", { duration: 4000 });
+      }
+
+      // 3. Wenn eine Rechnung generiert wird -> Rechnungsnummer (RE-xxx) ziehen
+      if ((newStatus === 'invoice_open' || newStatus === 'invoice_paid') && !order.invoiceNumber && settingsData) {
+        const nextInvoiceNumber = settingsData.nextInvoiceNumber || 1;
+        payload.invoiceNumber = `RE-${new Date().getFullYear()}-${nextInvoiceNumber.toString().padStart(3, '0')}`;
+        payload.invoiceDate = new Date().toISOString();
+        await updateDoc(doc(db, getCol('system'), 'settings'), { nextInvoiceNumber: nextInvoiceNumber + 1 });
+        toast.success(`Rechnung ${payload.invoiceNumber} generiert!`);
       }
       
-      await updateDoc(doc(db, 'orders', order.id), payload);
+      await updateDoc(doc(db, getCol('orders'), order.id), payload);
     } catch (error) {
       console.error("Fehler beim Update des Status", error);
       toast.error("Ein Fehler ist aufgetreten.");
+    }
+  };
+
+  const handleStorno = async (order: any) => {
+    try {
+      // 1. Original auf Storniert setzen
+      await updateDoc(doc(db, getCol('orders'), order.id), { status: 'invoice_cancelled', updatedAt: serverTimestamp() });
+      
+      // 2. Storno-Beleg erstellen (Minus-Beträge)
+      const stornoTotals = {
+        net: -(order.totals?.net || 0),
+        tax: -(order.totals?.tax || 0),
+        gross: -(order.totals?.gross || 0)
+      };
+      
+      const { id, customerSignature, ...orderDataWithoutId } = order;
+      
+      await addDoc(collection(db, getCol('orders')), {
+        ...orderDataWithoutId,
+        status: 'invoice_cancelled',
+        invoiceNumber: `${order.invoiceNumber}-STORNO`,
+        totals: stornoTotals,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      // 3. Neuen Entwurf als Korrekturrechnung erstellen
+      await addDoc(collection(db, getCol('orders')), {
+        ...orderDataWithoutId,
+        status: 'draft',
+        invoiceNumber: null,
+        contractNumber: null,
+        orderNumber: `${order.orderNumber}-KORR`,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      toast.success("Erfolgreich storniert! Storno-Beleg & neuer Entwurf wurden erstellt.");
+    } catch (error) {
+      console.error("Storno Error:", error);
+      toast.error("Fehler beim Stornieren.");
     }
   };
 
@@ -178,7 +249,7 @@ export default function CustomerProfilePage() {
 
   const handleSaveCustomer = async () => {
     try {
-      await updateDoc(doc(db, 'customers', customerId), {
+      await updateDoc(doc(db, getCol('customers'), customerId), {
         firstName: editData.firstName,
         lastName: editData.lastName,
         email: editData.email,
@@ -195,6 +266,35 @@ export default function CustomerProfilePage() {
     } catch (error) {
       console.error("Fehler beim Speichern der Kundendaten", error);
       toast.error("Fehler beim Speichern");
+    }
+  };
+
+  const handleArchiveCustomer = async () => {
+    // Check for open invoices
+    const hasOpenInvoices = orders.some(o => o.status === 'invoice_open' || o.status === 'invoice_overdue');
+    if (hasOpenInvoices) {
+      toast.error("Kunde kann nicht archiviert werden, da noch unbezahlte Rechnungen offen sind!");
+      return;
+    }
+
+    if (!confirm("Möchten Sie diesen Kunden und alle seine Angebote ins Archiv verschieben?")) return;
+
+    try {
+      // Archive customer
+      await updateDoc(doc(db, getCol('customers'), customerId), { isArchived: true, updatedAt: serverTimestamp() });
+      
+      // Archive all orders sequentially
+      for (const order of orders) {
+        if (order.status !== 'invoice_paid' && order.status !== 'invoice_cancelled') {
+          await updateDoc(doc(db, getCol('orders'), order.id), { status: 'archived', updatedAt: serverTimestamp() });
+        }
+      }
+      
+      toast.success("Kunde erfolgreich archiviert!");
+      router.push('/dashboard/customers');
+    } catch (e) {
+      console.error(e);
+      toast.error("Fehler beim Archivieren des Kunden.");
     }
   };
 
@@ -250,14 +350,14 @@ export default function CustomerProfilePage() {
                       
                       <div className="col-span-1"><input type="text" placeholder="PLZ" value={editData.zip || ''} onChange={async (e) => {
                         const val = e.target.value;
-                        setEditData(prev => ({...prev, zip: val}));
+                        setEditData((prev: any) => ({...prev, zip: val}));
                         if (val.length === 5) {
                           try {
                             const res = await fetch(`https://api.zippopotam.us/de/${val}`);
                             if (res.ok) {
                               const data = await res.json();
                               if (data.places && data.places.length > 0) {
-                                setEditData(prev => ({...prev, zip: val, city: data.places[0]['place name']}));
+                                setEditData((prev: any) => ({...prev, zip: val, city: data.places[0]['place name']}));
                               }
                             }
                           } catch(err) {}
@@ -285,6 +385,9 @@ export default function CustomerProfilePage() {
                   )}
                   <button onClick={() => setIsEditing(true)} className="p-1.5 bg-structure hover:bg-primary/20 text-text-muted hover:text-primary rounded-md transition-colors" title="Kunde bearbeiten">
                     <PencilIcon className="w-5 h-5" />
+                  </button>
+                  <button onClick={handleArchiveCustomer} className="p-1.5 bg-structure hover:bg-red-500/20 text-text-muted hover:text-red-400 rounded-md transition-colors ml-1" title="Kunde archivieren">
+                    <ArchiveBoxIcon className="w-5 h-5" />
                   </button>
                 </div>
                 {customer.type === 'firma' && customer.firstName && (
@@ -344,7 +447,7 @@ export default function CustomerProfilePage() {
                           disabled={isCalculatingRoute}
                           className="btn-secondary py-1.5 px-3 text-xs flex items-center gap-2 border-primary/50 text-primary hover:bg-primary/10 shadow-lg"
                         >
-                          🚚 {isCalculatingRoute ? "Berechne..." : "Route direkt berechnen"}
+                          <TruckIcon className="w-4 h-4" /> {isCalculatingRoute ? "Berechne..." : "Route direkt berechnen"}
                         </button>
                         <a 
                           href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(addressA)}&destination=${encodeURIComponent(addressB)}`}
@@ -353,7 +456,7 @@ export default function CustomerProfilePage() {
                           className="btn-secondary py-1.5 px-3 text-xs flex items-center gap-2 border-primary/50 text-primary hover:bg-primary/10 shadow-lg"
                           title="Google Maps Routenplanung öffnen"
                         >
-                          📍 Auf Maps prüfen
+                          <MapPinIcon className="w-4 h-4" /> Auf Maps prüfen
                         </a>
                       </div>
                     );
@@ -362,7 +465,7 @@ export default function CustomerProfilePage() {
                   {(routeInfo || routeError) && (
                     <div className={`col-span-1 md:col-span-2 border rounded-lg p-3 flex items-center justify-between text-sm animate-in fade-in duration-300 ${routeError ? 'bg-red-500/10 border-red-500/30' : 'bg-primary/10 border-primary/30'}`}>
                       <div className="flex items-center gap-3">
-                        <span className="text-2xl">🚚</span>
+                        <TruckIcon className="w-6 h-6 text-text-muted" />
                         <div>
                           <span className="text-text-muted">Aktuelle Route: </span>
                           {routeError ? (
@@ -412,18 +515,30 @@ export default function CustomerProfilePage() {
               Dokumenten-Vorschau: {selectedOrder.status === 'draft' ? 'Entwurf' : 'Angebot / Auftrag'}
             </h2>
             <div className="flex items-center gap-4">
-              <div className="flex bg-bg-dark rounded-lg p-1 border border-structure">
+              <div className="flex bg-bg-dark rounded-lg p-1 border border-structure overflow-x-auto">
                 <button 
                   onClick={() => setPdfType('order')} 
-                  className={`px-3 py-1 rounded-md text-sm transition-colors ${pdfType === 'order' ? 'bg-structure text-white' : 'text-text-muted hover:text-white'}`}
+                  className={`px-3 py-1 rounded-md text-sm whitespace-nowrap transition-colors ${pdfType === 'order' ? 'bg-structure text-white' : 'text-text-muted hover:text-white'}`}
                 >
-                  Kunden-PDF
+                  Angebot
+                </button>
+                <button 
+                  onClick={() => setPdfType('contract')} 
+                  className={`px-3 py-1 rounded-md text-sm whitespace-nowrap transition-colors ${pdfType === 'contract' ? 'bg-structure text-white' : 'text-text-muted hover:text-white'}`}
+                >
+                  Auftrag
                 </button>
                 <button 
                   onClick={() => setPdfType('employee')} 
-                  className={`px-3 py-1 rounded-md text-sm transition-colors ${pdfType === 'employee' ? 'bg-structure text-white' : 'text-text-muted hover:text-white'}`}
+                  className={`px-3 py-1 rounded-md text-sm whitespace-nowrap transition-colors ${pdfType === 'employee' ? 'bg-structure text-white' : 'text-text-muted hover:text-white'}`}
                 >
-                  Mitarbeiter-Laufzettel
+                  Laufzettel
+                </button>
+                <button 
+                  onClick={() => setPdfType('invoice')} 
+                  className={`px-3 py-1 rounded-md text-sm whitespace-nowrap transition-colors ${pdfType === 'invoice' ? 'bg-structure text-white' : 'text-text-muted hover:text-white'}`}
+                >
+                  Rechnung
                 </button>
               </div>
               <button 
@@ -438,7 +553,7 @@ export default function CustomerProfilePage() {
           
           {selectedOrder.customerSignature ? (
             <div className="mt-6 panel border border-green-500/30 bg-green-500/5">
-              <h3 className="font-semibold text-green-400 mb-2">✅ Dokument wurde digital unterschrieben</h3>
+              <h3 className="font-semibold text-green-400 mb-2 flex items-center gap-2"><CheckBadgeIcon className="w-5 h-5" /> Dokument wurde digital unterschrieben</h3>
               <p className="text-xs text-text-muted mb-4">Unterschrift vom: {new Date(selectedOrder.signatureDate?.toMillis()).toLocaleString('de-DE')}</p>
               <img src={selectedOrder.customerSignature} alt="Kundenunterschrift" className="bg-white rounded p-2 h-32 object-contain" />
             </div>
@@ -459,7 +574,7 @@ export default function CustomerProfilePage() {
         <div className="lg:col-span-2 space-y-6">
           <div className="panel">
             <h3 className="text-lg font-semibold mb-4 border-b border-structure pb-3 text-text-main flex items-center gap-2">
-              📄 Historie (Angebote, Aufträge, Rechnungen & Protokolle)
+              <DocumentTextIcon className="w-6 h-6" /> Historie (Angebote, Aufträge, Rechnungen & Protokolle)
             </h3>
             
             {orders.length === 0 ? (
@@ -533,18 +648,68 @@ export default function CustomerProfilePage() {
                       </div>
                       
                       <div className="flex flex-wrap items-center gap-3">
+                        {order.status === 'confirmed' && (
+                          <button 
+                            onClick={() => handleUpdateOrderStatus(order, 'quote')}
+                            className="btn-secondary py-1.5 px-3 text-xs shrink-0 text-text-muted hover:text-white"
+                            title="Status zurücksetzen auf 'Angebot'"
+                          >
+                            Zurücksetzen
+                          </button>
+                        )}
+                        {order.status === 'completed' && (
+                          <button 
+                            onClick={() => handleUpdateOrderStatus(order, 'confirmed')}
+                            className="btn-secondary py-1.5 px-3 text-xs shrink-0 text-text-muted hover:text-white"
+                            title="Status zurücksetzen auf 'Auftrag'"
+                          >
+                            Zurücksetzen
+                          </button>
+                        )}
+                        {isInvoice && (
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={() => setPaymentOrder(order)}
+                              className="btn-secondary py-1.5 px-3 text-xs shrink-0 border-green-500/50 text-green-400 hover:bg-green-500/10"
+                              title="Teilzahlung oder vollständige Zahlung erfassen"
+                            >
+                              Zahlung erfassen
+                            </button>
+                            <button 
+                              onClick={() => {
+                                if (confirm('Möchten Sie diese Rechnung wirklich stornieren? Es wird eine Minus-Rechnung und ein neuer Korrektur-Entwurf erstellt.')) {
+                                  handleStorno(order);
+                                }
+                              }}
+                              className="btn-secondary py-1.5 px-3 text-xs shrink-0 border-red-500/50 text-red-400 hover:bg-red-500/10"
+                              title="Rechnung stornieren (Stornorechnung erstellen)"
+                            >
+                              Stornieren
+                            </button>
+                          </div>
+                        )}
+                        
+                        <div className="h-6 w-px bg-structure mx-1 hidden sm:block"></div>
+
                         <button 
                           onClick={() => setProtocolOrder(order)}
                           className="btn-secondary py-1.5 px-3 text-xs shrink-0 border-orange-500/50 text-orange-400 hover:bg-orange-500/10 flex items-center gap-1"
                         >
-                          📝 Protokoll
+                          <ClipboardDocumentIcon className="w-4 h-4" /> Protokoll
                         </button>
                         
                         <button 
-                          onClick={() => setSelectedOrder(order)}
-                          className="btn-secondary py-1.5 px-3 text-xs shrink-0"
+                          onClick={() => { setSelectedOrder(order); setPdfType('order'); }}
+                          className="btn-secondary py-1.5 px-3 text-xs shrink-0 flex items-center gap-1"
                         >
-                          📄 PDF
+                          <DocumentArrowDownIcon className="w-4 h-4" /> PDFs
+                        </button>
+
+                        <button 
+                          onClick={() => { setSelectedOrder(order); setPdfType('employee'); }}
+                          className="btn-secondary py-1.5 px-3 text-xs shrink-0 border-primary/50 text-primary hover:bg-primary/10 flex items-center gap-1"
+                        >
+                          <DocumentTextIcon className="w-4 h-4" /> Laufzettel
                         </button>
                         
                         <div className="h-6 w-px bg-structure mx-1 hidden sm:block"></div>
@@ -598,7 +763,7 @@ export default function CustomerProfilePage() {
         <div className="space-y-6">
           <div className="panel border-t-4 border-t-structure shadow-lg">
             <h3 className="text-lg font-semibold mb-4 border-b border-structure pb-3 text-text-main">
-              💶 Finanzübersicht
+              <BanknotesIcon className="w-6 h-6" /> Finanzübersicht
             </h3>
             <div className="space-y-4 text-sm">
               <div className="flex justify-between items-center p-3 bg-bg-dark rounded-lg">
@@ -615,7 +780,7 @@ export default function CustomerProfilePage() {
           <div className="panel border-t-4 border-t-red-500 shadow-lg">
             <div className="flex justify-between items-center mb-4 border-b border-structure pb-3">
               <h3 className="text-lg font-semibold text-red-400">
-                🚨 Reklamationen & Schäden
+                <ExclamationTriangleIcon className="w-6 h-6" /> Reklamationen & Schäden
               </h3>
               <button 
                 onClick={() => setShowClaimModal(true)}
@@ -665,6 +830,10 @@ export default function CustomerProfilePage() {
 
       {protocolOrder && (
         <ProtocolModal order={protocolOrder} onClose={() => setProtocolOrder(null)} />
+      )}
+
+      {paymentOrder && (
+        <PaymentModal order={paymentOrder} onClose={() => setPaymentOrder(null)} />
       )}
 
       <ConfirmModal 

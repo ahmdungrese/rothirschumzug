@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, getDocs } from 'firebase/firestore';
+import { getCol } from '@/lib/demoMode';
 
 export async function GET() {
   try {
     // Only seed if empty
-    const servicesSnap = await getDocs(collection(db, 'services'));
+    const servicesSnap = await getDocs(collection(db, getCol('services')));
     if (!servicesSnap.empty) {
       return NextResponse.json({ success: true, message: "Already seeded." });
     }
@@ -21,13 +22,13 @@ export async function GET() {
     ];
 
     for (const s of services) {
-      await addDoc(collection(db, 'services'), {
+      await addDoc(collection(db, getCol('services')), {
         ...s,
         createdAt: serverTimestamp()
       });
     }
 
-    const customerRef = await addDoc(collection(db, 'customers'), {
+    const customerRef = await addDoc(collection(db, getCol('customers')), {
       firstName: "Max",
       lastName: "Mustermann",
       email: "max.mustermann@example.com",
@@ -41,7 +42,7 @@ export async function GET() {
       updatedAt: serverTimestamp()
     });
 
-    await addDoc(collection(db, 'orders'), {
+    await addDoc(collection(db, getCol('orders')), {
       customerId: customerRef.id,
       status: "quote",
       totals: { net: 1000, tax: 190, gross: 1190 },

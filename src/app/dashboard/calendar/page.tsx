@@ -1,19 +1,23 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot, where } from 'firebase/firestore';
-import { CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { collection, query, onSnapshot, where, getDoc, doc } from 'firebase/firestore';
+import { CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
+import { DispoModal } from './DispoModal';
+import { getCol } from '@/lib/demoMode';
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [orders, setOrders] = useState<any[]>([]);
+  const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
 
   useEffect(() => {
     // Fetch all confirmed or completed orders that have a movingDate
     const q = query(
-      collection(db, 'orders'),
+      collection(db, getCol('orders')),
       where('status', 'in', ['confirmed', 'completed', 'invoice_open', 'invoice_overdue', 'invoice_paid'])
     );
     
@@ -21,6 +25,13 @@ export default function CalendarPage() {
       const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setOrders(fetched);
       setLoading(false);
+    });
+
+    // Fetch Settings for vehicles and employees
+    getDoc(doc(db, getCol('system'), 'settings')).then(docSnap => {
+      if (docSnap.exists()) {
+        setSettings(docSnap.data());
+      }
     });
 
     return () => unsubscribe();
@@ -169,7 +180,11 @@ export default function CalendarPage() {
                 const isToday = new Date().toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toDateString();
                 
                 return (
-                  <div key={`day-${day}`} className={`min-h-[120px] p-2 border-b border-r border-structure/30 relative group hover:bg-structure/10 transition-colors ${isToday ? 'bg-primary/5' : ''}`}>
+                  <div 
+                    key={`day-${day}`} 
+                    onClick={() => setSelectedDateStr(dateStr)}
+                    className={`min-h-[120px] p-2 border-b border-r border-structure/30 relative group hover:bg-structure/10 transition-colors cursor-pointer ${isToday ? 'bg-primary/5' : ''}`}
+                  >
                     <div className={`text-right font-semibold text-sm mb-2 ${isToday ? 'text-primary' : 'text-text-muted'}`}>
                       {isToday && <span className="bg-primary text-white text-[10px] px-1.5 py-0.5 rounded mr-2 uppercase tracking-wider">Heute</span>}
                       {day}
@@ -194,6 +209,15 @@ export default function CalendarPage() {
           </div>
         )}
       </div>
+
+      {selectedDateStr && (
+        <DispoModal 
+          dateStr={selectedDateStr} 
+          orders={orders} 
+          settings={settings} 
+          onClose={() => setSelectedDateStr(null)} 
+        />
+      )}
     </div>
   );
 }

@@ -4,6 +4,8 @@ import SignatureCanvas from 'react-signature-canvas';
 import { db } from '@/lib/firebase';
 import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
+import { PencilIcon } from '@heroicons/react/24/outline';
+import { getCol } from '@/lib/demoMode';
 
 export function SignaturePad({ orderId, onSigned }: { orderId: string, onSigned: () => void }) {
   const sigPad = useRef<any>(null);
@@ -23,7 +25,7 @@ export function SignaturePad({ orderId, onSigned }: { orderId: string, onSigned:
     try {
       const signatureDataUrl = sigPad.current?.getTrimmedCanvas().toDataURL('image/png');
       
-      await updateDoc(doc(db, 'orders', orderId), {
+      await updateDoc(doc(db, getCol('orders'), orderId), {
         customerSignature: signatureDataUrl,
         signatureDate: serverTimestamp(),
       });
@@ -40,7 +42,7 @@ export function SignaturePad({ orderId, onSigned }: { orderId: string, onSigned:
   return (
     <div className="panel border-2 border-primary/20 bg-bg-dark mt-6">
       <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-        ✍️ Digitale Unterschrift (Kunde)
+        <PencilIcon className="w-5 h-5" /> Digitale Unterschrift (Kunde)
       </h3>
       <p className="text-xs text-text-muted mb-4">
         Unterschreiben Sie hier auf dem Tablet oder Smartphone, um den Auftrag (oder das "Keine Schäden"-Protokoll nach dem Umzug) zu bestätigen.

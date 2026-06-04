@@ -4,19 +4,27 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { useRouter } from "next/navigation";
 import { toast } from 'react-hot-toast';
+import { useAuth } from "@/context/AuthContext";
+import { logActivity } from "@/lib/activityLogger";
+import { getCol } from '@/lib/demoMode';
 
 export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
+  const [type, setType] = useState<"privat" | "firma">("privat");
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
-  const [address, setAddress] = useState("");
+  const [street, setStreet] = useState("");
+  const [houseNr, setHouseNr] = useState("");
+  const [zip, setZip] = useState("");
+  const [city, setCity] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+  const { profile } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!lastName || !address) return;
+    if (!lastName) return;
 
     setIsSubmitting(true);
     try {
@@ -25,23 +33,32 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
         setTimeout(() => reject(new Error("Firestore timeout")), 5000)
       );
 
-      const addPromise = addDoc(collection(db, "customers"), {
+      const addPromise = addDoc(collection(db, getCol('customers')), {
+        type,
         lastName,
         firstName,
-        billingAddress: {
-          street: address,
-          zip: "",
-          city: ""
-        },
+        street,
+        houseNr,
+        zip,
+        city,
         phone,
         email,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
+        createdBy: profile?.displayName || profile?.email || 'Unbekannt',
       });
 
       const docRef = await Promise.race([addPromise, timeoutPromise]) as any;
       
       if (!docRef || !docRef.id) throw new Error("Document creation failed");
+
+      // Log activity
+      await logActivity(
+        profile?.uid || 'unknown',
+        profile?.displayName || profile?.email || 'Unbekannt',
+        'CREATE_CUSTOMER',
+        `Kunde ${firstName} ${lastName} angelegt`
+      );
 
       router.push(`/dashboard/customers/${docRef.id}`);
       onClose();
@@ -63,20 +80,32 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
       </div>
       
       <div className="space-y-4">
+        
+        <div className="flex gap-4 p-2 bg-bg-dark rounded-lg border border-structure">
+          <label className="flex items-center gap-2 text-white text-sm cursor-pointer">
+            <input type="radio" checked={type === 'privat'} onChange={() => setType('privat')} className="accent-primary" /> 
+            Privatperson
+          </label>
+          <label className="flex items-center gap-2 text-white text-sm cursor-pointer">
+            <input type="radio" checked={type === 'firma'} onChange={() => setType('firma')} className="accent-primary" /> 
+            Firma
+          </label>
+        </div>
+
         <div>
-          <label className="block text-sm font-medium text-text-muted mb-1">Nachname / Firmenname *</label>
+          <label className="block text-sm font-medium text-text-muted mb-1">{type === 'firma' ? 'Firmenname' : 'Nachname'} *</label>
           <input 
             type="text" 
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
             className="input-field" 
-            placeholder="Müller"
+            placeholder={type === 'firma' ? 'Muster GmbH' : 'Müller'}
             required 
             autoFocus
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-text-muted mb-1">Vorname (Optional)</label>
+          <label className="block text-sm font-medium text-text-muted mb-1">{type === 'firma' ? 'Ansprechpartner (Vorname)' : 'Vorname'} (Optional)</label>
           <input 
             type="text" 
             value={firstName}
@@ -85,17 +114,53 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
             placeholder="Max"
           />
         </div>
-        <div>
-          <label className="block text-sm font-medium text-text-muted mb-1">Adresse (Straße & Ort) *</label>
-          <input 
-            type="text" 
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            className="input-field" 
-            placeholder="Grillostr. 70, 44799 Bochum"
-            required 
-          />
+        
+        <div className="flex gap-3">
+          <div className="flex-[3]">
+            <label className="block text-sm font-medium text-text-muted mb-1">Straße</label>
+            <input 
+              type="text" 
+              value={street}
+              onChange={(e) => setStreet(e.target.value)}
+              className="input-field" 
+              placeholder="Musterstr."
+            />
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-text-muted mb-1">Nr.</label>
+            <input 
+              type="text" 
+              value={houseNr}
+              onChange={(e) => setHouseNr(e.target.value)}
+              className="input-field" 
+              placeholder="12a"
+            />
+          </div>
         </div>
+
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-text-muted mb-1">PLZ</label>
+            <input 
+              type="text" 
+              value={zip}
+              onChange={(e) => setZip(e.target.value)}
+              className="input-field" 
+              placeholder="44787"
+            />
+          </div>
+          <div className="flex-[2]">
+            <label className="block text-sm font-medium text-text-muted mb-1">Ort</label>
+            <input 
+              type="text" 
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              className="input-field" 
+              placeholder="Bochum"
+            />
+          </div>
+        </div>
+
         <div>
           <label className="block text-sm font-medium text-text-muted mb-1">Telefon (Optional, für WhatsApp)</label>
           <input 

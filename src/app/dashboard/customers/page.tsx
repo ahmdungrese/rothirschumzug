@@ -3,15 +3,18 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot } from 'firebase/firestore';
+import { getCol } from '@/lib/demoMode';
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, 'customers'));
+    const q = query(collection(db, getCol('customers')));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetched = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+      const fetched = snapshot.docs
+        .map((doc: any) => ({ id: doc.id, ...doc.data() }))
+        .filter((c: any) => !c.isArchived); // Filter out archived
       setCustomers(fetched);
       setLoading(false);
     }, (error) => {

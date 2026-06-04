@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, where } from 'firebase/firestore';
 import { BanknotesIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
+import { getCol } from '@/lib/demoMode';
 
 export default function FinancesPage() {
   const [openInvoices, setOpenInvoices] = useState<any[]>([]);
@@ -12,7 +13,7 @@ export default function FinancesPage() {
 
   useEffect(() => {
     const q = query(
-      collection(db, 'orders'),
+      collection(db, getCol('orders')),
       where('status', 'in', ['invoice_open', 'invoice_overdue', 'completed'])
     );
     

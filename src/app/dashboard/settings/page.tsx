@@ -2,10 +2,14 @@
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon } from '@heroicons/react/24/outline';
+import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon } from '@heroicons/react/24/outline';
+import { TeamAccessManager } from '@/components/settings/TeamAccessManager';
+import { ActivityLogViewer } from '@/components/settings/ActivityLogViewer';
+import { getCol } from '@/lib/demoMode';
 
 const TABS = [
   { id: 'basisdaten', name: 'Basisdaten', icon: BuildingOfficeIcon },
+  { id: 'ressourcen', name: 'Team & Zugänge', icon: UsersIcon },
   { id: 'ansprechpartner', name: 'CRM & Kontakte', icon: UsersIcon },
   { id: 'immobilien', name: 'Immobilienarten', icon: BuildingOfficeIcon },
   { id: 'leistungen', name: 'Leistungen & Zahlungen', icon: CurrencyEuroIcon },
@@ -35,13 +39,18 @@ export default function SettingsPage() {
     propertyTypes: ['Haus', 'Wohnung', 'Einfamilienhaus', 'Reihenhaus', 'Büro / Gewerbe', 'Lager / Garage', 'Sonstiges'],
     taxRate: 19,
     dunningFee: 5,
-    nextQuoteNumber: 34,
     nextInvoiceNumber: 2,
+    nextOrderNumber: 1,
     quoteValidDays: 14,
+    employees: ['Ali', 'Thomas', 'Klaus', 'Mustafa'],
+    vehicles: ['LKW 7,5t (Eigener)', 'Sixt Koffer 3,5t (A)', 'Sixt Koffer 3,5t (B)'],
     texts: {
       quoteIntro: 'Sehr geehrte Damen und Herren,\nvielen Dank für Ihre Anfrage. Wir freuen uns, Ihnen folgendes Angebot unterbreiten zu dürfen:',
       quoteOutro: 'Alle angegebenen Preise verstehen sich als Bruttopreise und beinhalten die gesetzliche Mehrwertsteuer.\nWir danken Ihnen herzlich für Ihr Vertrauen und die angenehme Zusammenarbeit.',
       quoteGreeting: '„Bei Fragen zögern Sie bitte nicht, uns zu kontaktieren. Wir sind jederzeit für Sie erreichbar.“\n\nMit freundlichen Grüßen\nDein Unternehmen',
+      orderIntro: 'Sehr geehrte Damen und Herren,\nvielen Dank für Ihre Unterschrift. Hiermit bestätigen wir Ihren Auftrag verbindlich.',
+      orderOutro: 'Wir freuen uns auf den gemeinsamen Umzug und garantieren Ihnen einen reibungslosen Ablauf.',
+      orderGreeting: 'Mit freundlichen Grüßen\nDein Unternehmen',
       insurance: 'Mit unserer Versicherung ist Ihr Umzugsgut abgesichert. Für diesen Transport deckt unser Unternehmen eine Transportgüterversicherung ein, ohne dass hierfür zusätzliche Kosten entstehen. Bei der Übernahme Ihres Umzugsgutes gilt eine gesetzliche Haftung gem. Paragraph 451g HGB - beschränkt auf einen Zeitwert von €620,00 / cbm.',
       invoiceIntro: 'Vielen Dank für Ihren Auftrag. Wir berechnen Ihnen für unsere erbrachten Leistungen:',
       invoiceOutro: 'Bitte überweisen Sie den Rechnungsbetrag innerhalb von 5 Tagen ohne Abzug auf unser Konto.',
@@ -118,12 +127,18 @@ export default function SettingsPage() {
   const [newPropertyType, setNewPropertyType] = useState('');
   const [newProtocolType, setNewProtocolType] = useState('');
   const [newProtocolTemplate, setNewProtocolTemplate] = useState('');
+  const [newEmployee, setNewEmployee] = useState('');
+  const [newVehicle, setNewVehicle] = useState('');
+  
+  // PIN Protection State
+  const [isSystemUnlocked, setIsSystemUnlocked] = useState(false);
+  const [pinInput, setPinInput] = useState('');
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
 
   useEffect(() => {
     const fetchSettings = async () => {
-      const docRef = doc(db, 'system', 'settings');
+      const docRef = doc(db, getCol('system'), 'settings');
       const docSnap = await getDoc(docRef);
       if (docSnap.exists()) {
         let data = docSnap.data();
@@ -144,9 +159,15 @@ export default function SettingsPage() {
           await setDoc(docRef, data, { merge: true });
         }
         
-        // Ensure customerSources exists
-        if (!data.customerSources) {
-          data.customerSources = ['Google Suche', 'Check24', 'Empfehlung', 'Eigene Website', 'Kleinanzeigen', 'Direkter Anruf'];
+        // Ensure arrays and new fields exist
+        if (!data.customerSources) data.customerSources = ['Google Suche', 'Check24', 'Empfehlung', 'Eigene Website', 'Kleinanzeigen', 'Direkter Anruf'];
+        if (!data.employees) data.employees = ['Ali', 'Thomas', 'Klaus', 'Mustafa'];
+        if (!data.vehicles) data.vehicles = ['LKW 7,5t (Eigener)', 'Sixt Koffer 3,5t (A)', 'Sixt Koffer 3,5t (B)'];
+        if (data.nextOrderNumber === undefined) data.nextOrderNumber = 1;
+        if (!data.texts.orderIntro) {
+          data.texts.orderIntro = 'Sehr geehrte Damen und Herren,\nvielen Dank für Ihre Unterschrift. Hiermit bestätigen wir Ihren Auftrag verbindlich.';
+          data.texts.orderOutro = 'Wir freuen uns auf den gemeinsamen Umzug und garantieren Ihnen einen reibungslosen Ablauf.';
+          data.texts.orderGreeting = 'Mit freundlichen Grüßen\nRothirsch Umzüge';
         }
 
         setSettings({ ...settings, ...data });
@@ -159,7 +180,7 @@ export default function SettingsPage() {
     setIsSaving(true);
     setSaveStatus('saving');
     try {
-      await setDoc(doc(db, 'system', 'settings'), settings, { merge: true });
+      await setDoc(doc(db, getCol('system'), 'settings'), settings, { merge: true });
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 3000);
     } catch (error) {
@@ -240,6 +261,28 @@ export default function SettingsPage() {
     setSettings({ ...settings, protocolTemplates: settings.protocolTemplates.filter((p: string) => p !== pt) });
   };
 
+  const addEmployee = () => {
+    if (newEmployee.trim() && !settings.employees?.includes(newEmployee.trim())) {
+      setSettings({ ...settings, employees: [...(settings.employees||[]), newEmployee.trim()] });
+      setNewEmployee('');
+    }
+  };
+
+  const removeEmployee = (emp: string) => {
+    setSettings({ ...settings, employees: settings.employees.filter((e: string) => e !== emp) });
+  };
+
+  const addVehicle = () => {
+    if (newVehicle.trim() && !settings.vehicles?.includes(newVehicle.trim())) {
+      setSettings({ ...settings, vehicles: [...(settings.vehicles||[]), newVehicle.trim()] });
+      setNewVehicle('');
+    }
+  };
+
+  const removeVehicle = (veh: string) => {
+    setSettings({ ...settings, vehicles: settings.vehicles.filter((v: string) => v !== veh) });
+  };
+
   const updateCatalogItem = (cIdx: number, iIdx: number, field: string, value: any) => {
     const newCatalog = [...settings.catalog];
     newCatalog[cIdx].items[iIdx][field] = value;
@@ -285,7 +328,7 @@ export default function SettingsPage() {
           <p className="text-sm text-text-muted mt-1">Verwalten Sie hier alle globalen Texte, Vorgaben und Kataloge.</p>
         </div>
         <div className="flex items-center gap-4">
-          {saveStatus === 'success' && <span className="text-green-400 text-sm font-semibold animate-in fade-in slide-in-from-right-4">✓ Gespeichert</span>}
+          {saveStatus === 'success' && <span className="text-green-400 text-sm font-semibold animate-in fade-in slide-in-from-right-4 flex items-center gap-1"><CheckIcon className="w-4 h-4" /> Gespeichert</span>}
           {saveStatus === 'error' && <span className="text-red-400 text-sm font-semibold animate-in fade-in slide-in-from-right-4">Fehler beim Speichern</span>}
           <button onClick={saveSettings} disabled={isSaving} className={`btn-primary py-2 px-6 shadow-lg ${saveStatus === 'success' ? 'bg-green-600 shadow-green-500/30' : 'shadow-primary/30'}`}>
             {isSaving ? 'Speichert...' : <><CheckIcon className="w-5 h-5 mr-1 inline" /> Speichern</>}
@@ -367,6 +410,40 @@ export default function SettingsPage() {
                 <div>
                   <label className="block text-sm font-medium text-text-muted mb-1">BIC</label>
                   <input type="text" value={settings.bic} onChange={e => handleChange('bic', e.target.value)} className="input-field w-full" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: Ressourcen (Team & Zugänge) */}
+          {activeTab === 'ressourcen' && (
+            <div className="space-y-8 animate-in fade-in duration-300">
+              
+              {/* Neuer TeamAccessManager inkl. Firebase Auth */}
+              <div className="panel border-t-4 border-t-structure">
+                <TeamAccessManager />
+              </div>
+
+              {/* Aktivitäts-Logbuch */}
+              <div className="panel border-t-4 border-t-structure">
+                <ActivityLogViewer />
+              </div>
+
+              {/* Fuhrpark */}
+              <div className="panel border-t-4 border-t-structure">
+                <h2 className="text-xl font-bold mb-4 text-white">Dein Fuhrpark (Fahrzeuge)</h2>
+                <p className="text-sm text-text-muted mb-4">Erfasse hier deine Fahrzeuge (z.B. "Sixt Sprinter" oder "Eigener 7,5t"). Diese werden im Planer zugewiesen.</p>
+                <div className="flex gap-2 mb-4">
+                  <input type="text" value={newVehicle} onChange={e => setNewVehicle(e.target.value)} placeholder="Fahrzeugname / Kennzeichen..." className="input-field flex-1" onKeyDown={(e) => e.key === 'Enter' && addVehicle()} />
+                  <button onClick={addVehicle} className="btn-primary py-2 px-4 whitespace-nowrap">Hinzufügen</button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(settings.vehicles || []).map((veh: string) => (
+                    <div key={veh} className="bg-bg-dark border border-structure rounded-full px-3 py-1 flex items-center gap-2">
+                      <span className="text-sm">{veh}</span>
+                      <button onClick={() => removeVehicle(veh)} className="text-red-400 hover:text-red-300">×</button>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -491,7 +568,23 @@ export default function SettingsPage() {
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-semibold text-primary mb-3">Rechnungen</h3>
+                  <h3 className="text-lg font-semibold text-primary mb-3 mt-8">Auftragsbestätigungen</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-text-muted mb-1">Einleitungstext</label>
+                      <textarea value={settings.texts.orderIntro} onChange={e => handleChange('orderIntro', e.target.value, 'texts')} className="input-field w-full h-16" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-text-muted mb-1">Schlusstext / Hinweise</label>
+                      <textarea value={settings.texts.orderOutro} onChange={e => handleChange('orderOutro', e.target.value, 'texts')} className="input-field w-full h-16" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-text-muted mb-1">Abschluss-Gruß</label>
+                      <textarea value={settings.texts.orderGreeting} onChange={e => handleChange('orderGreeting', e.target.value, 'texts')} className="input-field w-full h-24" />
+                    </div>
+                  </div>
+
+                  <h3 className="text-lg font-semibold text-primary mb-3 mt-8">Rechnungen</h3>
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-text-muted mb-1">Einleitungstext</label>
@@ -561,9 +654,39 @@ export default function SettingsPage() {
           {activeTab === 'system' && (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
               <h2 className="text-xl font-bold text-white border-b border-structure pb-2 mb-4">System & Finanzen</h2>
-              <p className="text-sm text-text-muted mb-4">Globale Parameter für Berechnungen und Steuern.</p>
+              <p className="text-sm text-text-muted mb-4">Globale Parameter für Berechnungen, Steuern und Nummernkreise.</p>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {!isSystemUnlocked ? (
+                <div className="bg-bg-dark border border-red-500/30 p-8 rounded-xl max-w-md mx-auto mt-12 text-center shadow-lg shadow-red-500/10">
+                  <ServerStackIcon className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-bold text-white mb-2">Geschützter Bereich</h3>
+                  <p className="text-sm text-text-muted mb-6">Bitte gib deinen 4-stelligen Admin-PIN ein, um Steuersätze und Nummernkreise zu bearbeiten.</p>
+                  <div className="flex gap-2 justify-center">
+                    <input 
+                      type="password" 
+                      value={pinInput}
+                      onChange={e => setPinInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && pinInput === '7770') setIsSystemUnlocked(true);
+                      }}
+                      className="input-field text-center w-32 tracking-widest font-mono text-xl" 
+                      maxLength={4} 
+                      placeholder="****"
+                      autoFocus
+                    />
+                    <button 
+                      onClick={() => {
+                        if (pinInput === '7770') setIsSystemUnlocked(true);
+                        else alert('Falsche PIN!');
+                      }} 
+                      className="btn-primary"
+                    >
+                      Entsperren
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-bg-dark p-4 rounded-xl border border-structure">
                   <label className="block text-sm font-medium text-white mb-1">Standard Steuersatz (%)</label>
                   <input type="number" value={settings.taxRate} onChange={e => handleChange('taxRate', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
@@ -583,11 +706,17 @@ export default function SettingsPage() {
                   <input type="number" value={settings.nextQuoteNumber} onChange={e => handleChange('nextQuoteNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
                 </div>
                 <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                  <label className="block text-sm font-medium text-white mb-1">Nächste Auftragsnummer (Start)</label>
+                  <p className="text-xs text-text-muted mb-2">Der nächste bestätigte Auftrag beginnt mit dieser Nummer.</p>
+                  <input type="number" value={settings.nextOrderNumber || 1} onChange={e => handleChange('nextOrderNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                </div>
+                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
                   <label className="block text-sm font-medium text-white mb-1">Nächste Rechnungsnummer (Start)</label>
                   <p className="text-xs text-text-muted mb-2">Die nächste Rechnung beginnt mit dieser Nummer.</p>
                   <input type="number" value={settings.nextInvoiceNumber} onChange={e => handleChange('nextInvoiceNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
                 </div>
               </div>
+              )}
             </div>
           )}
           

@@ -2,8 +2,9 @@
 import React, { useState } from 'react';
 import { db } from '@/lib/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { XMarkIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
+import { getCol } from '@/lib/demoMode';
 
 export function ClaimModal({ 
   customerId, 
@@ -28,7 +29,7 @@ export function ClaimModal({
     
     setIsSaving(true);
     try {
-      await addDoc(collection(db, 'claims'), {
+      await addDoc(collection(db, getCol('claims')), {
         customerId,
         customerName,
         orderId: orderId || null,
@@ -55,7 +56,7 @@ export function ClaimModal({
       <div className="bg-bg-panel border border-structure rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col">
         <div className="p-4 border-b border-structure flex justify-between items-center bg-red-900/20 shrink-0">
           <h2 className="text-xl font-bold text-red-400 flex items-center gap-2">
-            🚨 Schaden / Problem erfassen
+            <ExclamationTriangleIcon className="w-6 h-6" /> Schaden / Problem erfassen
           </h2>
           <button onClick={onClose} className="p-2 text-text-muted hover:text-white rounded-full transition-colors">
             <XMarkIcon className="w-6 h-6" />

@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, TruckIcon, MapPinIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { useAuth } from '@/context/AuthContext';
+import { logActivity } from '@/lib/activityLogger';
 import { CheckCircleIcon as CheckCircleIconSolid } from '@heroicons/react/24/solid';
 import { toast } from 'react-hot-toast';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { calculateRoute } from '@/lib/routeCalculator';
+import { getCol } from '@/lib/demoMode';
 
 export function OrderEditor({ orderId }: { orderId?: string }) {
   const params = useParams();
@@ -15,6 +18,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isInvoice = searchParams?.get('type') === 'invoice';
+  const { profile } = useAuth();
   const [isSaving, setIsSaving] = useState(false);
   const [settings, setSettings] = useState<any>(null);
 
@@ -107,7 +111,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
   useEffect(() => {
     // Lade globale Settings
-    getDoc(doc(db, 'system', 'settings')).then((docSnap) => {
+    getDoc(doc(db, getCol('system'), 'settings')).then((docSnap) => {
       if(docSnap.exists()) {
         const s = docSnap.data();
         setSettings(s);
@@ -144,7 +148,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     });
 
     if (orderId) {
-      getDoc(doc(db, 'orders', orderId)).then(docSnap => {
+      getDoc(doc(db, getCol('orders'), orderId)).then(docSnap => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           setOrderMeta(data.orderMeta || {});
@@ -168,7 +172,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     }
 
     if (urlCustomerId) {
-      getDoc(doc(db, 'customers', urlCustomerId)).then(docSnap => {
+      getDoc(doc(db, getCol('customers'), urlCustomerId)).then(docSnap => {
         if (docSnap.exists()) {
           const c = docSnap.data();
           setCustomerData({
@@ -261,11 +265,16 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     try {
       let finalCustomerId = urlCustomerId;
       if (!finalCustomerId) {
-        const cRef = await addDoc(collection(db, 'customers'), { ...customerData, createdAt: serverTimestamp() });
+        const cRef = await addDoc(collection(db, getCol('customers')), { 
+          ...customerData, 
+          createdAt: serverTimestamp(),
+          createdBy: profile?.displayName || profile?.email || 'Unbekannt' 
+        });
         finalCustomerId = cRef.id;
+        await logActivity(profile?.uid || 'unknown', profile?.displayName || profile?.email || 'Unbekannt', 'CREATE_CUSTOMER', `Kunde ${customerData.lastName} im Angebots-Editor angelegt`);
       } else {
         // Update existing customer data if it was changed in the editor
-        await updateDoc(doc(db, 'customers', finalCustomerId), {
+        await updateDoc(doc(db, getCol('customers'), finalCustomerId), {
           firstName: customerData.firstName,
           lastName: customerData.lastName,
           email: customerData.email,
@@ -282,6 +291,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       const payload = {
         customerId: finalCustomerId,
         customerName: customerData.type === 'firma' ? customerData.lastName : `${customerData.firstName} ${customerData.lastName}`.trim(),
+        customerSource: customerData.source || 'Unbekannt',
         status,
         orderMeta,
         logistics,
@@ -294,19 +304,23 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         checklist,
         texts,
         totals,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
+        updatedBy: profile?.displayName || profile?.email || 'Unbekannt'
       };
 
       if (orderId) {
-        await updateDoc(doc(db, 'orders', orderId), payload);
+        await updateDoc(doc(db, getCol('orders'), orderId), payload);
+        await logActivity(profile?.uid || 'unknown', profile?.displayName || profile?.email || 'Unbekannt', 'UPDATE_ORDER', `Angebot/Auftrag aktualisiert für Kunde ${payload.customerName}`);
       } else {
-        await addDoc(collection(db, 'orders'), { 
+        await addDoc(collection(db, getCol('orders')), { 
           ...payload, 
           orderNumber: `${settings?.nextQuoteNumber ? `ANG-${new Date().getFullYear()}-${settings.nextQuoteNumber}` : `ANG-${Date.now()}`}`,
-          createdAt: serverTimestamp() 
+          createdAt: serverTimestamp(),
+          createdBy: profile?.displayName || profile?.email || 'Unbekannt' 
         });
+        await logActivity(profile?.uid || 'unknown', profile?.displayName || profile?.email || 'Unbekannt', 'CREATE_ORDER', `Angebot erstellt für Kunde ${payload.customerName}`);
         if (settings?.nextQuoteNumber) {
-          await updateDoc(doc(db, 'system', 'settings'), { nextQuoteNumber: settings.nextQuoteNumber + 1 });
+          await updateDoc(doc(db, getCol('system'), 'settings'), { nextQuoteNumber: settings.nextQuoteNumber + 1 });
         }
       }
       setSaveStatus('success');
@@ -478,7 +492,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               disabled={isCalculatingRoute}
               className="btn-primary py-1.5 px-3 text-sm flex items-center gap-2 shadow-lg"
             >
-              🚚 {isCalculatingRoute ? "Berechne..." : "Route direkt berechnen"}
+              <TruckIcon className="w-4 h-4" /> {isCalculatingRoute ? "Berechne..." : "Route direkt berechnen"}
             </button>
             <a 
               href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(`${logistics.a_street || ''} ${logistics.a_houseNr || ''}, ${logistics.a_zip || ''} ${logistics.a_city || ''}`)}&destination=${encodeURIComponent(`${logistics.b_street || ''} ${logistics.b_houseNr || ''}, ${logistics.b_zip || ''} ${logistics.b_city || ''}`)}`}
@@ -487,7 +501,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               className="btn-secondary py-1.5 px-3 text-sm flex items-center gap-2 border-primary/50 text-primary hover:bg-primary/10 shadow-lg"
               title="Google Maps Routenplanung öffnen"
             >
-              📍 Auf Maps öffnen
+              <MapPinIcon className="w-4 h-4" /> Auf Maps öffnen
             </a>
           </div>
         </div>
@@ -496,7 +510,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         {(isCalculatingRoute || routeInfo || routeError) && (
           <div className={`border rounded-lg p-3 flex items-center justify-between text-sm animate-in fade-in duration-300 ${routeError ? 'bg-red-500/10 border-red-500/30' : 'bg-primary/10 border-primary/30'}`}>
             <div className="flex items-center gap-3">
-              <span className="text-2xl">🚚</span>
+              <TruckIcon className="w-6 h-6 text-text-muted" />
               <div>
                 <span className="text-text-muted">Direkte Strecke: </span>
                 {isCalculatingRoute ? (
@@ -672,17 +686,17 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   <tr key={svc.id} className="border-b border-structure/30">
                     <td className="py-2 text-text-muted">{idx + 1}</td>
                     <td className="py-2"><input type="text" value={svc.name} onChange={e => {
-                      const newSvc = [...services]; newSvc[idx].name = e.target.value; setServices(newSvc);
+                      setServices(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s));
                     }} className="bg-transparent border-none w-full text-white focus:outline-none" /></td>
                     <td className="py-2"><input type="number" value={svc.quantity} onChange={e => {
-                      const newSvc = [...services]; newSvc[idx].quantity = parseFloat(e.target.value)||0; setServices(newSvc);
+                      setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: parseFloat(e.target.value) || 0 } : s));
                     }} className="input-field py-1 px-2 w-full text-center" min="1" /></td>
                     <td className="py-2"><input type="text" value={svc.unit} onChange={e => {
-                      const newSvc = [...services]; newSvc[idx].unit = e.target.value; setServices(newSvc);
+                      setServices(prev => prev.map((s, i) => i === idx ? { ...s, unit: e.target.value } : s));
                     }} className="input-field py-1 px-2 w-full text-center" /></td>
                     
                     {!isFlatRate && <td className="py-2 text-right"><input type="number" value={svc.unitPrice} onChange={e => {
-                      const newSvc = [...services]; newSvc[idx].unitPrice = parseFloat(e.target.value)||0; setServices(newSvc);
+                      setServices(prev => prev.map((s, i) => i === idx ? { ...s, unitPrice: parseFloat(e.target.value) || 0 } : s));
                     }} className="input-field py-1 px-2 w-full text-right" /></td>}
                     
                     {!isFlatRate && <td className="py-2 text-right text-primary font-medium">{(svc.quantity * svc.unitPrice).toFixed(2)}</td>}
@@ -781,32 +795,31 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   <tr key={item.id} className="border-b border-structure/30">
                     <td className="py-2 text-text-muted">{idx + 1}</td>
                     <td className="py-2"><input type="text" value={item.name} onChange={e => {
-                      const newInv = [...inventory]; newInv[idx].name = e.target.value; setInventory(newInv);
+                      setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, name: e.target.value } : invItem));
                     }} className="bg-transparent border-none w-full text-white focus:outline-none placeholder:text-text-muted/30" placeholder="Bezeichnung..." /></td>
                     <td className="py-2">
                       <div className="flex items-center gap-1">
                         <button type="button" onClick={() => {
-                          const newInv = [...inventory]; if (newInv[idx].quantity > 1) { newInv[idx].quantity -= 1; setInventory(newInv); }
+                          setInventory(prev => prev.map((invItem, i) => i === idx && invItem.quantity > 1 ? { ...invItem, quantity: Number(invItem.quantity) - 1 } : invItem));
                         }} className="bg-structure/50 hover:bg-primary/20 text-text-muted px-2 py-1 rounded-l transition-colors">-</button>
                         <input type="number" value={item.quantity === 0 ? '' : item.quantity} onChange={e => {
-                          const newInv = [...inventory]; newInv[idx].quantity = e.target.value === '' ? 0 : parseInt(e.target.value); setInventory(newInv);
+                          const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
+                          setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, quantity: val } : invItem));
                         }} className="input-field py-1 w-12 text-center text-white rounded-none border-x-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min="1" />
                         <button type="button" onClick={() => {
-                          const newInv = [...inventory]; newInv[idx].quantity += 1; setInventory(newInv);
+                          setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, quantity: (Number(invItem.quantity) || 0) + 1 } : invItem));
                         }} className="bg-structure/50 hover:bg-primary/20 text-text-muted px-2 py-1 rounded-r transition-colors">+</button>
                       </div>
                     </td>
                     <td className="py-2 flex items-center gap-2">
                       <input type="text" value={item.note} onChange={e => {
-                        const newInv = [...inventory]; newInv[idx].note = e.target.value; setInventory(newInv);
+                        setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, note: e.target.value } : invItem));
                       }} className="bg-transparent border-none w-full text-text-muted focus:outline-none text-xs" placeholder="..." />
                       {item.note && (
                         <button 
                           title={item.showNoteInPdf === false ? "Notiz wird im PDF versteckt" : "Notiz ist im PDF sichtbar"}
                           onClick={() => {
-                            const newInv = [...inventory]; 
-                            newInv[idx].showNoteInPdf = item.showNoteInPdf === false ? true : false; 
-                            setInventory(newInv);
+                            setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, showNoteInPdf: invItem.showNoteInPdf === false } : invItem));
                           }}
                           className={`p-1 rounded shrink-0 transition-colors ${item.showNoteInPdf === false ? 'text-red-400 bg-red-400/10 hover:bg-red-400/20' : 'text-green-400 bg-green-400/10 hover:bg-green-400/20'}`}>
                           {item.showNoteInPdf === false ? <EyeSlashIcon className="w-4 h-4"/> : <EyeIcon className="w-4 h-4"/>}

@@ -4,11 +4,13 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { logActivity } from "@/lib/activityLogger";
+import { getCol } from '@/lib/demoMode';
 
 interface UserProfile {
   uid: string;
   email: string | null;
-  role: "admin" | "employee";
+  role: "admin" | "office" | "teamlead";
   displayName: string | null;
 }
 
@@ -34,12 +36,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (typeof window !== "undefined" && localStorage.getItem("demoMode") === "true") {
+      const demoUser = { uid: "demo-user-123", email: "demo@rothirsch-app.de", displayName: "Demo Account" } as any;
+      setUser(demoUser);
+      setProfile({ uid: demoUser.uid, email: demoUser.email, role: "admin", displayName: demoUser.displayName });
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       
       if (currentUser) {
         try {
-          const userDocRef = doc(db, "users", currentUser.uid);
+          const userDocRef = doc(db, getCol('users'), currentUser.uid);
           
           // Use Promise.race to add a timeout to getDoc so it doesn't hang indefinitely if Firestore is not initialized
           const timeoutPromise = new Promise((resolve) => 
@@ -65,7 +75,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             setProfile({
               uid: currentUser.uid,
               email: currentUser.email,
-              role: "employee", // default role
+              role: "admin", // default role zu admin geändert, damit man nicht ausgesperrt wird
               displayName: currentUser.displayName,
             });
           }
@@ -77,7 +87,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setProfile({
             uid: currentUser.uid,
             email: currentUser.email,
-            role: "employee",
+            role: "admin", // default role zu admin geändert
             displayName: currentUser.displayName,
           });
         }
@@ -85,6 +95,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setProfile(null);
       }
       
+      // Log login activity once per session
+      if (currentUser && typeof window !== "undefined" && !sessionStorage.getItem("hasLoggedLogin")) {
+        sessionStorage.setItem("hasLoggedLogin", "true");
+        logActivity(currentUser.uid, currentUser.displayName || currentUser.email || 'Unbekannt', 'LOGIN', 'Erfolgreich angemeldet');
+      }
+
       setLoading(false);
     });
 
@@ -93,7 +109,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     try {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("demoMode");
+      }
       await signOut(auth);
+      if (typeof window !== "undefined") {
+        window.location.href = "/";
+      }
     } catch (error) {
       console.error("Logout error", error);
     }

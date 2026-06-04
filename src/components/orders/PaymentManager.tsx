@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { BanknotesIcon, XMarkIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
+import { getCol } from '@/lib/demoMode';
 
 export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpdate: () => void, onClose: () => void }) {
   const [payments, setPayments] = useState<any[]>(order.payments || []);
@@ -37,7 +38,7 @@ export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpd
     }
 
     try {
-      await updateDoc(doc(db, 'orders', order.id), {
+      await updateDoc(doc(db, getCol('orders'), order.id), {
         payments: updatedPayments,
         status: newStatus
       });
@@ -63,7 +64,7 @@ export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpd
     }
 
     try {
-      await updateDoc(doc(db, 'orders', order.id), {
+      await updateDoc(doc(db, getCol('orders'), order.id), {
         payments: updatedPayments,
         status: newStatus
       });
@@ -142,7 +143,7 @@ export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpd
                   <div className="font-medium text-white">€ {p.amount.toFixed(2)}</div>
                   <div className="text-xs text-text-muted flex items-center gap-2 mt-1">
                     <span className="capitalize">{p.method}</span> • 
-                    <span>{new Date(p.date?.toMillis() || Date.now()).toLocaleDateString('de-DE')}</span>
+                    <span>{p.date ? new Date(p.date.toMillis()).toLocaleDateString('de-DE') : 'Unbekannt'}</span>
                   </div>
                 </div>
                 <button 

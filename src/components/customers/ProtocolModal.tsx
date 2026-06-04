@@ -3,8 +3,9 @@ import React, { useRef, useState } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { db } from '@/lib/firebase';
 import { updateDoc, doc, arrayUnion, getDoc } from 'firebase/firestore';
-import { XMarkIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, PlusCircleIcon, ClipboardDocumentIcon, PencilIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
+import { getCol } from '@/lib/demoMode';
 
 export function ProtocolModal({ order, onClose }: { order: any, onClose: () => void }) {
   const [type, setType] = useState('Gefahrenübergang (Haftungsausschluss)');
@@ -14,7 +15,7 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
   const [settings, setSettings] = useState<any>(null);
 
   React.useEffect(() => {
-    getDoc(doc(db, 'system', 'settings')).then((docSnap) => {
+    getDoc(doc(db, getCol('system'), 'settings')).then((docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setSettings(data);
@@ -49,7 +50,7 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
         createdAt: new Date().toISOString()
       };
 
-      await updateDoc(doc(db, 'orders', order.id), {
+      await updateDoc(doc(db, getCol('orders'), order.id), {
         protocols: arrayUnion(newProtocol)
       });
       
@@ -68,7 +69,7 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
       <div className="bg-bg-panel border border-structure rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
         <div className="p-4 border-b border-structure flex justify-between items-center bg-bg-dark shrink-0">
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            📝 Neues Protokoll anlegen
+            <ClipboardDocumentIcon className="w-6 h-6" /> Neues Protokoll anlegen
           </h2>
           <button onClick={onClose} className="p-2 text-text-muted hover:text-white rounded-full transition-colors">
             <XMarkIcon className="w-6 h-6" />
@@ -128,7 +129,7 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
           
           <div className="bg-bg-dark p-4 rounded-xl border-2 border-primary/20">
             <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
-              ✍️ Unterschrift (Kunde)
+              <PencilIcon className="w-5 h-5" /> Unterschrift (Kunde)
             </h3>
             <p className="text-xs text-text-muted mb-4">
               Hiermit bestätige ich die Richtigkeit der obigen Angaben.

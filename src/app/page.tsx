@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 
 export default function Home() {
   const { user, loading } = useAuth();
-  const [email, setEmail] = useState("");
+  const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const router = useRouter();
@@ -34,8 +34,27 @@ export default function Home() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    
+    // Check for demo login
+    if (loginId.toLowerCase().trim() === 'demo@rothirsch-umzug.de') {
+      try {
+        localStorage.setItem("demoMode", "true");
+        // Trigger fresh seed
+        await fetch('/api/seed-demo', { method: 'POST' });
+        window.location.href = "/dashboard";
+        return;
+      } catch (err) {
+        console.error("Failed to seed demo data", err);
+        window.location.href = "/dashboard";
+        return;
+      }
+    }
+
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      // Wenn es kein @ enthält, ist es eine Handynummer -> Fake E-Mail bauen
+      const finalEmail = loginId.includes("@") ? loginId : `${loginId.replace(/[^0-9]/g, '')}@rothirsch-app.de`;
+      
+      await signInWithEmailAndPassword(auth, finalEmail, password);
       router.push("/dashboard");
     } catch (err: any) {
       setError("Anmeldung fehlgeschlagen. Bitte überprüfen Sie Ihre Zugangsdaten.");
@@ -59,18 +78,18 @@ export default function Home() {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-text-muted mb-1">E-Mail</label>
+            <label className="block text-sm font-medium text-text-muted mb-1">E-Mail oder Handynummer</label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              type="text"
+              value={loginId}
+              onChange={(e) => setLoginId(e.target.value)}
               className="input-field"
-              placeholder="mitarbeiter@rothirsch.de"
+              placeholder="01761234567 oder E-Mail"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-text-muted mb-1">Passwort</label>
+            <label className="block text-sm font-medium text-text-muted mb-1">Passwort / 4-stelliges PIN</label>
             <input
               type="password"
               value={password}
