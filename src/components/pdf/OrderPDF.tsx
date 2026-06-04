@@ -60,6 +60,7 @@ const styles = StyleSheet.create({
 
 export const OrderPDF = ({ order, customer, settings, isContract = false }: { order: any, customer: any, settings: any, isContract?: boolean }) => {
   const isFlat = order?.isFlatRate;
+  const billing = order?.billingAddress || customer;
 
   return (
     <Document>
@@ -86,15 +87,15 @@ export const OrderPDF = ({ order, customer, settings, isContract = false }: { or
         <View style={styles.customerDateBox}>
           <View style={styles.customerBox}>
             <Text style={styles.customerTitle}>Auftraggeber</Text>
-            <Text style={styles.customerText}>{order?.customerName}</Text>
-            {customer?.type === 'firma' && customer?.firstName && (
-              <Text style={{ fontSize: 9, color: '#444', marginBottom: 2 }}>z.Hd. {customer.firstName}</Text>
+            <Text style={styles.customerText}>{billing?.type === 'firma' ? billing?.lastName : `${billing?.firstName} ${billing?.lastName}`.trim()}</Text>
+            {billing?.type === 'firma' && billing?.firstName && (
+              <Text style={{ fontSize: 9, color: '#444', marginBottom: 2 }}>z.Hd. {billing.firstName}</Text>
             )}
             <Text style={styles.customerAddress}>
-              {customer?.street ? `${customer.street} ${customer.houseNr || ''}`.trim() : (customer?.address?.split(',')[0] || '')}
+              {billing?.street ? `${billing.street} ${billing.houseNr || ''}`.trim() : (billing?.address?.split(',')[0] || '')}
             </Text>
             <Text style={styles.customerAddress}>
-              {customer?.zip ? `${customer.zip} ${customer.city || ''}`.trim() : (customer?.address?.split(',')[1]?.trim() || '')}
+              {billing?.zip ? `${billing.zip} ${billing.city || ''}`.trim() : (billing?.address?.split(',')[1]?.trim() || '')}
             </Text>
           </View>
           <View style={styles.dateBox}>

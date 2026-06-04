@@ -24,6 +24,11 @@ export async function POST() {
       await deleteDoc(doc(db, `${prefix}users`, d.id));
     }
 
+    const logsSnap = await getDocs(collection(db, `${prefix}activity_logs`));
+    for (const d of logsSnap.docs) {
+      await deleteDoc(doc(db, `${prefix}activity_logs`, d.id));
+    }
+
     // Seed Demo Users (Team)
     await setDoc(doc(db, `${prefix}users`, 'demo-admin'), {
       uid: 'demo-admin',
@@ -60,14 +65,7 @@ export async function POST() {
       return c.id;
     };
 
-    const c1 = await createCustomer({ firstName: "Julia", lastName: "Schmidt", email: "julia@example.com", phone: "0170 123456" });
-    const c2 = await createCustomer({ firstName: "Bernd", lastName: "Logistik", email: "bernd@example.com", phone: "0151 987654" });
-    const c3 = await createCustomer({ firstName: "Anna", lastName: "Müller", email: "anna@example.com", phone: "0176 111222" });
-    const c4 = await createCustomer({ firstName: "Peter", lastName: "Doppel", email: "peter@example.com", phone: "0176 333444" });
-    const c5 = await createCustomer({ firstName: "Familie", lastName: "Zahler", email: "zahler@example.com", phone: "0160 555666" });
-    const c6 = await createCustomer({ firstName: "Storno", lastName: "Kunde", email: "storno@example.com", phone: "0172 777888" });
-    const c7 = await createCustomer({ firstName: "Inkasso", lastName: "Kunde", email: "inkasso@example.com", phone: "0152 999000" });
-
+    // --- ALTE VARIABLEN WURDEN HIER ENTFERNT ---
     // --- KUNDEN GENERIEREN ---
     const c1 = await createCustomer({ firstName: "Neu", lastName: "Entwurf", email: "entwurf@example.com", phone: "0170 111" });
     const c2 = await createCustomer({ firstName: "Wartet", lastName: "Antwort", email: "wartet@example.com", phone: "0170 222" });
@@ -89,6 +87,9 @@ export async function POST() {
     const c18 = await createCustomer({ firstName: "Schaden", lastName: "Erledigt", email: "schaden3@example.com", phone: "0171 888" });
     const c19 = await createCustomer({ firstName: "Archiv", lastName: "Perfekt", email: "archiv1@example.com", phone: "0171 999", isArchived: true });
     const c20 = await createCustomer({ firstName: "Archiv", lastName: "Storno", email: "archiv2@example.com", phone: "0172 000", isArchived: true });
+    
+    // 21. Schmiedel (mit kompletter Historie / Protokollen)
+    const c21 = await createCustomer({ firstName: "Klaus", lastName: "Schmiedel", email: "schmiedel@example.com", phone: "0173 123456" });
 
     // Hilfsfunktion für ein Datum in der Zukunft/Vergangenheit
     const getDate = (daysOffset: number) => {
@@ -97,20 +98,50 @@ export async function POST() {
       return d.toISOString().split('T')[0];
     };
 
+    // --- AKTIVITÄTS-PROTOKOLLE (Historie für Schmiedel) ---
+    const logRef = collection(db, `${prefix}activity_logs`);
+    await addDoc(logRef, {
+      userId: "demo-office", userName: "Lisa (Büro)", action: "CREATE_CUSTOMER",
+      details: "Kunde Klaus Schmiedel wurde telefonisch angelegt.", timestamp: Timestamp.fromDate(new Date(Date.now() - 5 * 24 * 60 * 60 * 1000))
+    });
+    await addDoc(logRef, {
+      userId: "demo-teamlead", userName: "Thomas (Teamleiter)", action: "CREATE_ORDER",
+      details: "Angebot erstellt für Kunde Klaus Schmiedel (Wohnungsbesichtigung durchgeführt).", timestamp: Timestamp.fromDate(new Date(Date.now() - 4 * 24 * 60 * 60 * 1000))
+    });
+    await addDoc(logRef, {
+      userId: "demo-office", userName: "Lisa (Büro)", action: "UPDATE_ORDER",
+      details: "Auftrag von Kunde Schmiedel wurde bestätigt. Halteverbotszone hinzugefügt.", timestamp: Timestamp.fromDate(new Date(Date.now() - 2 * 24 * 60 * 60 * 1000))
+    });
+
     // --- AUFTRÄGE GENERIEREN ---
 
-    // 1. Neu / Entwurf
+    // 1. Neu / Entwurf (Fehlende Daten)
     await addDoc(collection(db, `${prefix}orders`), {
       customerId: c1, customerName: "Neu Entwurf", status: "draft",
       createdAt: serverTimestamp()
     });
+    await addDoc(collection(db, `${prefix}orders`), {
+      customerId: c1, customerName: "Anfrage WhatsApp", status: "draft",
+      createdAt: serverTimestamp()
+    });
+    await addDoc(collection(db, `${prefix}orders`), {
+      customerId: c1, customerName: "Rückruf gebeten", status: "draft",
+      createdAt: serverTimestamp()
+    });
 
-    // 2. Wartet auf Antwort (Angebot)
+    // 2. Wartet auf Antwort (Angebot verschickt)
     await addDoc(collection(db, `${prefix}orders`), {
       customerId: c2, customerName: "Wartet Antwort", status: "quote",
-      orderNumber: "AN-DEMO-0001", movingDate: getDate(14),
+      orderNumber: "AN-DEMO-0001", movingDate: getDate(14), viewingDate: getDate(2),
       logistics: { a_street: "Musterweg 1", b_street: "Zielweg 2" },
       totals: { net: 800, tax: 152, gross: 952 },
+      createdAt: serverTimestamp()
+    });
+    await addDoc(collection(db, `${prefix}orders`), {
+      customerId: c2, customerName: "Familie Klein (Angebot)", status: "quote",
+      orderNumber: "AN-DEMO-0002", movingDate: getDate(21),
+      logistics: { a_street: "Bergstraße 10", b_street: "Talweg 5" },
+      totals: { net: 1400, tax: 266, gross: 1666 },
       createdAt: serverTimestamp()
     });
 

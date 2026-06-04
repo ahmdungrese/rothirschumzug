@@ -48,6 +48,8 @@ const styles = StyleSheet.create({
 
 export const InvoicePDF = ({ order, customer, settings }: { order: any, customer: any, settings: any }) => {
   const isFlat = order?.isFlatRate;
+  const isStorno = order?.isStorno;
+  const billing = order?.billingAddress || customer;
   
   // Fälligkeit berechnen
   const pmSettings = settings?.paymentMethods?.find((p:any) => p.name === order?.orderMeta?.paymentMethod) || settings?.paymentMethods?.[0];
@@ -65,9 +67,12 @@ export const InvoicePDF = ({ order, customer, settings }: { order: any, customer
             <Text style={styles.logoCity}>{settings?.city || 'Bochum'}</Text>
           </View>
           <View style={styles.headerRight}>
-            <Text style={styles.docType}>RECHNUNG</Text>
+            <Text style={styles.docType}>{isStorno ? 'STORNORECHNUNG' : 'RECHNUNG'}</Text>
             <Text style={styles.docNumLabel}>Rechnungsnummer</Text>
             <Text style={styles.docNum}>{order?.invoiceNumber || 'Entwurf'}</Text>
+            {isStorno && (
+              <Text style={{ fontSize: 9, color: '#8F1627', marginTop: 5 }}>zu Rechnung {order?.stornoFor}</Text>
+            )}
           </View>
         </View>
 
@@ -80,9 +85,16 @@ export const InvoicePDF = ({ order, customer, settings }: { order: any, customer
         <View style={styles.customerDateBox}>
           <View style={styles.customerBox}>
             <Text style={styles.customerTitle}>Rechnungsempfänger</Text>
-            <Text style={styles.customerText}>{order?.customerName}</Text>
-            <Text style={styles.customerAddress}>{customer?.address?.split(',')[0]}</Text>
-            <Text style={styles.customerAddress}>{customer?.address?.split(',')[1]?.trim()}</Text>
+            <Text style={styles.customerText}>{billing?.type === 'firma' ? billing?.lastName : `${billing?.firstName} ${billing?.lastName}`.trim()}</Text>
+            {billing?.type === 'firma' && billing?.firstName && (
+              <Text style={{ fontSize: 9, color: '#444', marginBottom: 2 }}>z.Hd. {billing.firstName}</Text>
+            )}
+            <Text style={styles.customerAddress}>
+              {billing?.street ? `${billing.street} ${billing.houseNr || ''}`.trim() : (billing?.address?.split(',')[0] || '')}
+            </Text>
+            <Text style={styles.customerAddress}>
+              {billing?.zip ? `${billing.zip} ${billing.city || ''}`.trim() : (billing?.address?.split(',')[1]?.trim() || '')}
+            </Text>
           </View>
           <View style={styles.dateBox}>
             <View style={styles.dateRow}>
@@ -111,8 +123,12 @@ export const InvoicePDF = ({ order, customer, settings }: { order: any, customer
           </View>
         </View>
 
-        <Text style={styles.introText}>Sehr geehrte(r) {customer?.lastName || customer?.firstName},</Text>
-        <Text style={{ ...styles.introText, marginTop: -10 }}>{settings?.texts?.invoiceIntro}</Text>
+        <Text style={styles.introText}>Sehr geehrte(r) {billing?.lastName || billing?.firstName},</Text>
+        <Text style={{ ...styles.introText, marginTop: -10 }}>
+          {isStorno 
+            ? `hiermit stornieren wir die Rechnung ${order?.stornoFor}. Der unten ausgewiesene Betrag wird Ihrem Konto gutgeschrieben bzw. gleicht unsere Forderung aus.` 
+            : settings?.texts?.invoiceIntro}
+        </Text>
 
         <View style={styles.table}>
           <View style={styles.tableHeader}>

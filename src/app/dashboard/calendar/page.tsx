@@ -109,8 +109,9 @@ export default function CalendarPage() {
                 const dayEvents: any[] = [];
                 
                 orders.forEach(o => {
-                  if (o.disposition?.movingDate) {
-                    const movingDateStr = o.disposition.movingDate.split('T')[0];
+                  const effectiveMovingDate = o.movingDate || o.disposition?.movingDate;
+                  if (effectiveMovingDate) {
+                    const movingDateStr = effectiveMovingDate.split('T')[0];
                     const movingDateObj = new Date(movingDateStr);
                     
                     // 1. Umzugstag

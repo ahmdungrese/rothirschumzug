@@ -199,10 +199,16 @@ export default function CustomerProfilePage() {
     }
   };
 
-  const handleStorno = async (order: any) => {
+  const handleStorno = async (order: any, createCorrection: boolean = true) => {
     try {
       // 1. Original auf Storniert setzen
       await updateDoc(doc(db, getCol('orders'), order.id), { status: 'invoice_cancelled', updatedAt: serverTimestamp() });
+      
+      // Get next invoice number
+      const settingsSnap = await getDoc(doc(db, getCol('system'), 'settings'));
+      const nextInvoiceNum = settingsSnap.data()?.nextInvoiceNumber || 1000;
+      const stornoInvoiceNumber = `RE-${new Date().getFullYear()}-${nextInvoiceNum}`;
+      await updateDoc(doc(db, getCol('system'), 'settings'), { nextInvoiceNumber: nextInvoiceNum + 1 });
       
       // 2. Storno-Beleg erstellen (Minus-Beträge)
       const stornoTotals = {
@@ -215,25 +221,29 @@ export default function CustomerProfilePage() {
       
       await addDoc(collection(db, getCol('orders')), {
         ...orderDataWithoutId,
-        status: 'invoice_cancelled',
-        invoiceNumber: `${order.invoiceNumber}-STORNO`,
+        status: 'invoice_cancelled', // Keep it cancelled so it doesn't show in finances
+        isStorno: true,
+        stornoFor: order.invoiceNumber,
+        invoiceNumber: stornoInvoiceNumber,
         totals: stornoTotals,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
 
-      // 3. Neuen Entwurf als Korrekturrechnung erstellen
-      await addDoc(collection(db, getCol('orders')), {
-        ...orderDataWithoutId,
-        status: 'draft',
-        invoiceNumber: null,
-        contractNumber: null,
-        orderNumber: `${order.orderNumber}-KORR`,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+      // 3. Neuen Entwurf als Korrekturrechnung erstellen (nur wenn gewünscht)
+      if (createCorrection) {
+        await addDoc(collection(db, getCol('orders')), {
+          ...orderDataWithoutId,
+          status: 'draft',
+          invoiceNumber: null,
+          contractNumber: null,
+          orderNumber: `${order.orderNumber}-KORR`,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+      }
 
-      toast.success("Erfolgreich storniert! Storno-Beleg & neuer Entwurf wurden erstellt.");
+      toast.success(createCorrection ? "Erfolgreich storniert! Storno-Beleg & neuer Entwurf erstellt." : "Erfolgreich storniert! Storno-Beleg wurde erstellt.");
     } catch (error) {
       console.error("Storno Error:", error);
       toast.error("Fehler beim Stornieren.");
@@ -675,17 +685,30 @@ export default function CustomerProfilePage() {
                             >
                               Zahlung erfassen
                             </button>
-                            <button 
-                              onClick={() => {
-                                if (confirm('Möchten Sie diese Rechnung wirklich stornieren? Es wird eine Minus-Rechnung und ein neuer Korrektur-Entwurf erstellt.')) {
-                                  handleStorno(order);
-                                }
-                              }}
-                              className="btn-secondary py-1.5 px-3 text-xs shrink-0 border-red-500/50 text-red-400 hover:bg-red-500/10"
-                              title="Rechnung stornieren (Stornorechnung erstellen)"
-                            >
-                              Stornieren
-                            </button>
+                            <div className="flex flex-col gap-1">
+                              <button 
+                                onClick={() => {
+                                  if (confirm('Möchten Sie diese Rechnung stornieren und sofort einen NEUEN Entwurf zur Korrektur erstellen?')) {
+                                    handleStorno(order, true);
+                                  }
+                                }}
+                                className="btn-secondary py-1.5 px-3 text-xs shrink-0 border-red-500/50 text-red-400 hover:bg-red-500/10"
+                                title="Rechnung stornieren und Kopie als Entwurf anlegen"
+                              >
+                                Stornieren & Neu
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  if (confirm('Möchten Sie diese Rechnung WIRKLICH stornieren OHNE einen neuen Entwurf zu erstellen?')) {
+                                    handleStorno(order, false);
+                                  }
+                                }}
+                                className="text-[10px] text-text-muted hover:text-red-400 underline underline-offset-2 text-center"
+                                title="Nur stornieren, kein neuer Entwurf"
+                              >
+                                Nur Stornieren
+                              </button>
+                            </div>
                           </div>
                         )}
                         

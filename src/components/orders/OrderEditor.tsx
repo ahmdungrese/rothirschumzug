@@ -165,7 +165,12 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           setTexts(data.texts || {});
           // If viewingDate exists directly on order, migrate it into orderMeta (or handle both). In calendar we read `order.viewingDate`.
           if (data.viewingDate && !data.orderMeta?.viewingDate) {
+          if (data.viewingDate && !data.orderMeta?.viewingDate) {
             setOrderMeta(prev => ({...prev, viewingDate: data.viewingDate}));
+          }
+          
+          if (data.billingAddress) {
+            setCustomerData(prev => ({...prev, ...data.billingAddress}));
           }
         }
       });
@@ -175,19 +180,21 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       getDoc(doc(db, getCol('customers'), urlCustomerId)).then(docSnap => {
         if (docSnap.exists()) {
           const c = docSnap.data();
-          setCustomerData({
-            type: c.type || 'privat',
-            firstName: c.firstName || '',
-            lastName: c.lastName || '',
-            email: c.email || '',
-            phone: c.phone || '',
-            source: c.source || '',
+          setCustomerData(prev => ({
+            // If we already loaded a billingAddress from the order, we don't want to overwrite the form with the customer profile again.
+            // So we only merge if the fields are empty or if we didn't have an order.
+            type: prev.lastName ? prev.type : (c.type || 'privat'),
+            firstName: prev.lastName ? prev.firstName : (c.firstName || ''),
+            lastName: prev.lastName ? prev.lastName : (c.lastName || ''),
+            email: prev.lastName ? prev.email : (c.email || ''),
+            phone: prev.lastName ? prev.phone : (c.phone || ''),
+            source: prev.lastName ? prev.source : (c.source || ''),
             customerContact: '',
-            street: c.street || '',
-            houseNr: c.houseNr || '',
-            zip: c.zip || '',
-            city: c.city || ''
-          });
+            street: prev.lastName ? prev.street : (c.street || ''),
+            houseNr: prev.lastName ? prev.houseNr : (c.houseNr || ''),
+            zip: prev.lastName ? prev.zip : (c.zip || ''),
+            city: prev.lastName ? prev.city : (c.city || '')
+          }));
         }
       });
     }
@@ -272,25 +279,25 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         });
         finalCustomerId = cRef.id;
         await logActivity(profile?.uid || 'unknown', profile?.displayName || profile?.email || 'Unbekannt', 'CREATE_CUSTOMER', `Kunde ${customerData.lastName} im Angebots-Editor angelegt`);
-      } else {
-        // Update existing customer data if it was changed in the editor
-        await updateDoc(doc(db, getCol('customers'), finalCustomerId), {
-          firstName: customerData.firstName,
-          lastName: customerData.lastName,
-          email: customerData.email,
-          phone: customerData.phone,
-          source: customerData.source,
-          street: customerData.street,
-          houseNr: customerData.houseNr,
-          zip: customerData.zip,
-          city: customerData.city,
-          type: customerData.type
-        });
       }
+      
+      // We DO NOT update the main customer profile here anymore to keep it decoupled.
+      // The name and address entered in the form belong to this specific order (Billing Address).
 
       const payload = {
         customerId: finalCustomerId,
         customerName: customerData.type === 'firma' ? customerData.lastName : `${customerData.firstName} ${customerData.lastName}`.trim(),
+        billingAddress: {
+          firstName: customerData.firstName || '',
+          lastName: customerData.lastName || '',
+          street: customerData.street || '',
+          houseNr: customerData.houseNr || '',
+          zip: customerData.zip || '',
+          city: customerData.city || '',
+          email: customerData.email || '',
+          phone: customerData.phone || '',
+          type: customerData.type || 'privat'
+        },
         customerSource: customerData.source || 'Unbekannt',
         status,
         orderMeta,
