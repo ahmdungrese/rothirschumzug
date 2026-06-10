@@ -1,20 +1,19 @@
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 
 const styles = StyleSheet.create({
-  page: { padding: 40, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
-  headerContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30 },
-  logoBox: { width: 120 },
-  logoTextPrimary: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: '#8F1627' },
-  logoTextSecondary: { fontSize: 12, fontFamily: 'Helvetica-Bold' },
-  logoCity: { fontSize: 10 },
-  headerRight: { textAlign: 'right', width: 200 },
+  page: { padding: 30, paddingBottom: 50, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
+  headerContainer: { alignItems: 'center', marginBottom: 30 },
+  logoTextPrimary: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#8F1627', textTransform: 'uppercase', letterSpacing: 2 },
+  
+  docInfoBox: { width: '40%', alignItems: 'flex-end', justifyContent: 'flex-start' },
   docType: { fontSize: 16, fontFamily: 'Helvetica-Bold', color: '#8F1627', marginBottom: 5 },
   docNumLabel: { fontSize: 9, color: '#666' },
   docNum: { fontSize: 11, fontFamily: 'Helvetica-Bold' },
-  line: { borderBottomWidth: 1, borderBottomColor: '#8F1627', marginBottom: 20 },
-  companyLine: { fontSize: 8, color: '#666', marginBottom: 15 },
   
-  customerDateBox: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30 },
+  line: { borderBottomWidth: 1, borderBottomColor: '#8F1627', marginBottom: 15 },
+  companyLine: { fontSize: 8, color: '#666', marginBottom: 10 },
+  
+  customerDateBox: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
   customerBox: { width: '50%' },
   customerTitle: { fontSize: 9, color: '#666', marginBottom: 3 },
   customerText: { fontSize: 10, fontFamily: 'Helvetica-Bold', marginBottom: 2 },
@@ -25,28 +24,30 @@ const styles = StyleSheet.create({
   dateLabel: { color: '#666' },
   dateValue: { fontFamily: 'Helvetica-Bold', textAlign: 'right' },
   
-  introText: { marginBottom: 20, lineHeight: 1.4 },
+  introText: { marginBottom: 15, lineHeight: 1.4 },
   
-  table: { width: '100%', marginBottom: 20 },
+  table: { width: '100%', marginBottom: 15 },
   tableHeader: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#ccc', paddingBottom: 5, marginBottom: 5, fontFamily: 'Helvetica-Bold' },
   tableRow: { flexDirection: 'row', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#eee' },
   col1: { width: '10%' },
   col2: { width: '60%' },
   col3: { width: '30%', textAlign: 'right' },
   
-  totals: { alignItems: 'flex-end', marginBottom: 30 },
+  totals: { alignItems: 'flex-end', marginBottom: 20 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', width: '40%', marginBottom: 5 },
   totalRowBold: { flexDirection: 'row', justifyContent: 'space-between', width: '40%', marginTop: 5, paddingTop: 5, borderTopWidth: 1, borderTopColor: '#333', fontFamily: 'Helvetica-Bold', fontSize: 11 },
   
-  textBlock: { marginBottom: 20, lineHeight: 1.4 },
+  textBlock: { marginBottom: 10, lineHeight: 1.4 },
   
-  footerBlocks: { marginTop: 40, flexDirection: 'row', justifyContent: 'space-between' },
+  detailsHeader: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#8F1627', marginBottom: 10, marginTop: 15 },
+  
+  footerBlocks: { position: 'absolute', bottom: 30, left: 30, right: 30, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10 },
   footerCol: { width: '30%' },
   footerTitle: { fontSize: 10, fontFamily: 'Helvetica-Bold', marginBottom: 5, color: '#8F1627' },
   footerText: { fontSize: 9, marginBottom: 2, color: '#666' }
 });
 
-export const InvoicePDF = ({ order, customer, settings }: { order: any, customer: any, settings: any }) => {
+export const InvoicePDF = ({ order, customer, settings, employeeName }: { order: any, customer: any, settings: any, employeeName?: string }) => {
   const isFlat = order?.isFlatRate;
   const isStorno = order?.isStorno;
   const billing = order?.billingAddress || customer;
@@ -57,23 +58,25 @@ export const InvoicePDF = ({ order, customer, settings }: { order: any, customer
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + dueDays);
 
+  const docTitle = isStorno ? `Stornorechnung ${order?.invoiceNumber || order?.orderNumber || 'Entwurf'} - ${billing?.lastName || 'Kunde'}` : `Rechnung ${order?.invoiceNumber || order?.orderNumber || 'Entwurf'} - ${billing?.lastName || 'Kunde'}`;
+
+  // Personalisierte Anrede
+  const salutation = billing?.salutation || customer?.salutation;
+  let introGreeting = `Sehr geehrte(r) ${billing?.lastName || billing?.firstName},`;
+  if (salutation === 'Herr' && billing?.lastName) {
+    introGreeting = `Sehr geehrter Herr ${billing.lastName},`;
+  } else if (salutation === 'Frau' && billing?.lastName) {
+    introGreeting = `Sehr geehrte Frau ${billing.lastName},`;
+  }
+
+  const invoiceOutro = settings?.texts?.invoiceOutro || '';
+  const invoiceGreeting = settings?.texts?.invoiceGreeting || '';
+
   return (
-    <Document>
+    <Document title={docTitle}>
       <Page size="A4" style={styles.page}>
         <View style={styles.headerContainer}>
-          <View style={styles.logoBox}>
-            <Text style={styles.logoTextSecondary}>RU</Text>
-            <Text style={styles.logoTextPrimary}>{settings?.companyName || 'Dein Unternehmen'}</Text>
-            <Text style={styles.logoCity}>{settings?.city || 'Bochum'}</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.docType}>{isStorno ? 'STORNORECHNUNG' : 'RECHNUNG'}</Text>
-            <Text style={styles.docNumLabel}>Rechnungsnummer</Text>
-            <Text style={styles.docNum}>{order?.invoiceNumber || 'Entwurf'}</Text>
-            {isStorno && (
-              <Text style={{ fontSize: 9, color: '#8F1627', marginTop: 5 }}>zu Rechnung {order?.stornoFor}</Text>
-            )}
-          </View>
+          <Text style={styles.logoTextPrimary}>{settings?.companyName || 'ROTHIRSCH UMZUG'}</Text>
         </View>
 
         <View style={styles.line} />
@@ -96,34 +99,34 @@ export const InvoicePDF = ({ order, customer, settings }: { order: any, customer
               {billing?.zip ? `${billing.zip} ${billing.city || ''}`.trim() : (billing?.address?.split(',')[1]?.trim() || '')}
             </Text>
           </View>
-          <View style={styles.dateBox}>
-            <View style={styles.dateRow}>
+          
+          <View style={styles.docInfoBox}>
+            <Text style={styles.docType}>{isStorno ? 'STORNORECHNUNG' : 'RECHNUNG'}</Text>
+            <Text style={styles.docNumLabel}>Rechnungsnummer</Text>
+            <Text style={styles.docNum}>{order?.invoiceNumber || 'Entwurf'}</Text>
+            {isStorno && (
+              <Text style={{ fontSize: 9, color: '#8F1627', marginTop: 5, marginBottom: 15 }}>zu Rechnung {order?.stornoFor}</Text>
+            )}
+            {!isStorno && <View style={{ height: 15 }} />}
+            
+            <View style={[styles.dateRow, { width: '100%', marginTop: 10 }]}>
               <Text style={styles.dateLabel}>Datum</Text>
-              <Text style={styles.dateValue}>{new Date().toLocaleDateString('de-DE')}</Text>
+              <Text style={styles.dateValue}>{order?.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString('de-DE') : new Date().toLocaleDateString('de-DE')}</Text>
             </View>
-            <View style={styles.dateRow}>
-              <Text style={styles.dateLabel}>Fälligkeit</Text>
-              <Text style={styles.dateValue}>{dueDate.toLocaleDateString('de-DE')}</Text>
-            </View>
-            <View style={styles.dateRow}>
-              <Text style={styles.dateLabel}>Zahlungsziel</Text>
-              <Text style={styles.dateValue}>{pmSettings?.shortText || '-'}</Text>
-            </View>
-            <View style={styles.dateRow}>
+            <View style={[styles.dateRow, { width: '100%' }]}>
               <Text style={styles.dateLabel}>Leistungsdatum</Text>
               <Text style={styles.dateValue}>
-                {order?.orderMeta?.movingDateFrom ? new Date(order.orderMeta.movingDateFrom).toLocaleDateString('de-DE') : '-'}
-                {order?.orderMeta?.movingDateTo ? ` - ${new Date(order.orderMeta.movingDateTo).toLocaleDateString('de-DE')}` : ''}
+                {order?.orderMeta?.movingDateFrom ? new Date(order.orderMeta.movingDateFrom).toLocaleDateString('de-DE') : 'Nach Absprache'}
               </Text>
             </View>
-            <View style={styles.dateRow}>
+            <View style={[styles.dateRow, { width: '100%' }]}>
               <Text style={styles.dateLabel}>Sachbearbeiter</Text>
-              <Text style={styles.dateValue}>{order?.orderMeta?.manager || '-'}</Text>
+              <Text style={styles.dateValue}>{employeeName || order?.orderMeta?.manager || '-'}</Text>
             </View>
           </View>
         </View>
 
-        <Text style={styles.introText}>Sehr geehrte(r) {billing?.lastName || billing?.firstName},</Text>
+        <Text style={styles.introText}>{introGreeting}</Text>
         <Text style={{ ...styles.introText, marginTop: -10 }}>
           {isStorno 
             ? `hiermit stornieren wir die Rechnung ${order?.stornoFor}. Der unten ausgewiesene Betrag wird Ihrem Konto gutgeschrieben bzw. gleicht unsere Forderung aus.` 
@@ -163,10 +166,18 @@ export const InvoicePDF = ({ order, customer, settings }: { order: any, customer
         </View>
 
         <Text style={{ ...styles.detailsHeader, fontSize: 12, marginBottom: 5 }}>Zahlungsinformationen</Text>
-        <Text style={styles.textBlock}>{pmSettings?.textInvoice}</Text>
+        {pmSettings?.textInvoice && (
+          <Text style={styles.textBlock}>{pmSettings.textInvoice}</Text>
+        )}
         
-        <Text style={styles.textBlock}>{settings?.texts?.invoiceOutro}</Text>
-        <Text style={styles.textBlock}>{settings?.texts?.invoiceGreeting}</Text>
+        {invoiceOutro && (
+          <Text style={styles.textBlock}>
+            {pmSettings?.textInvoice ? invoiceOutro.replace(pmSettings.textInvoice, '').trim() : invoiceOutro}
+          </Text>
+        )}
+        {invoiceGreeting && !invoiceOutro.includes(invoiceGreeting) && (
+          <Text style={styles.textBlock}>{invoiceGreeting}</Text>
+        )}
 
         <View style={styles.footerBlocks}>
           <View style={styles.footerCol}>

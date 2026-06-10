@@ -11,6 +11,6 @@ const PDFViewer = dynamic(() => import('./PDFViewerWrapper'), {
   )
 });
 
-export function PDFGenerator({ order, customer, type = 'order' }: { order: any, customer: any, type?: 'order' | 'employee' }) {
+export function PDFGenerator({ order, customer, type = 'order' }: { order: any, customer: any, type?: 'order' | 'employee' | 'invoice' | 'contract' | 'protocol' }) {
   return <PDFViewer order={order} customer={customer} type={type} />;
 }

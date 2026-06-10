@@ -4,8 +4,9 @@ import { useAuth } from '@/context/AuthContext';
 import { collection, query, onSnapshot, where, Timestamp, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
-import { PlusIcon, ClipboardDocumentListIcon, ExclamationTriangleIcon, MapPinIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, ClipboardDocumentListIcon, ExclamationTriangleIcon, MapPinIcon, CheckIcon, ShieldExclamationIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
 import { getCol } from '@/lib/demoMode';
+import { generateTickets } from '@/lib/ticketEngine';
 
 export default function DashboardPage() {
   const { profile } = useAuth();
@@ -24,19 +25,17 @@ export default function DashboardPage() {
     confirmed: any[],
     invoicing: any[]
   }>({ drafts: [], quotes: [], confirmed: [], invoicing: [] });
+  const [orders, setOrders] = useState<any[]>([]);
 
   useEffect(() => {
-    // Limit to orders from the last 30 days to save Firebase reads
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const q = query(
-      collection(db, getCol('orders')),
-      where('createdAt', '>=', Timestamp.fromDate(thirtyDaysAgo))
-    );
+    // We need both orders and customers to generate accurate tickets (e.g. phone number missing)
+    const qOrders = query(collection(db, getCol('orders')));
+    const qCustomers = query(collection(db, getCol('customers')));
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const orders = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-      
+    let currentOrders: any[] = [];
+    let currentCustomers: Record<string, any> = {};
+
+    const processDashboardData = () => {
       let revenue = 0;
       let openSum = 0;
       let overdue = 0;
@@ -47,7 +46,7 @@ export default function DashboardPage() {
       const currentMonth = now.getMonth();
       const currentYear = now.getFullYear();
 
-      orders.forEach((o: any) => {
+      currentOrders.forEach((o: any) => {
         // Financials
         const orderDate = o.createdAt?.toDate() || new Date();
         const isCurrentMonth = orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
@@ -86,11 +85,21 @@ export default function DashboardPage() {
             logistics.push({ id: o.id, type: 'Möbellift', customer: o.customerId });
           }
         }
-        // Todos extrahieren
-        if (o.status === 'confirmed' && o.todos && Array.isArray(o.todos)) {
-          o.todos.forEach((t: any) => {
-            if (!t.isDone) {
-              allTodos.push({ ...t, orderId: o.id, customerName: o.customerName || 'Kunde', customerId: o.customerId });
+        
+        // Tickets via Engine generieren
+        const customerData = currentCustomers[o.customerId] || null;
+        const systemTickets = generateTickets(o, customerData);
+        systemTickets.forEach(t => {
+          if (!t.done) {
+            allTodos.push({ ...t, orderId: o.id, customerName: o.customerName || 'Kunde', customerId: o.customerId });
+          }
+        });
+
+        // Manuelle Checklisten-Einträge aus OrderEditor anhängen
+        if (o.status === 'confirmed' && o.checklist && Array.isArray(o.checklist)) {
+          o.checklist.forEach((t: any) => {
+            if (!t.done) {
+              allTodos.push({ id: `manual_${t.id}`, title: t.text, phase: 2, type: 'info', done: false, orderId: o.id, customerName: o.customerName || 'Kunde', customerId: o.customerId });
             }
           });
         }
@@ -102,38 +111,51 @@ export default function DashboardPage() {
       
       // Kanban Board Data
       setKanbanOrders({
-        drafts: orders.filter(o => {
+        drafts: currentOrders.filter(o => {
           if (o.status !== 'draft' && o.status !== 'quote') return false;
           const hasName = o.customerName && o.customerName.trim() !== '';
-          const hasDate = o.movingDate && o.movingDate.trim() !== '';
-          const hasAddress = o.logistics && o.logistics.a_street && o.logistics.a_street.trim() !== '';
+          const hasDate = o.orderMeta?.movingDateFrom && o.orderMeta.movingDateFrom.trim() !== '';
+          const hasAddress = o.logistics?.a_street && o.logistics.a_street.trim() !== '';
           return !(hasName && hasDate && hasAddress);
         }),
-        quotes: orders.filter(o => {
+        quotes: currentOrders.filter(o => {
           if (o.status !== 'draft' && o.status !== 'quote') return false;
           const hasName = o.customerName && o.customerName.trim() !== '';
-          const hasDate = o.movingDate && o.movingDate.trim() !== '';
-          const hasAddress = o.logistics && o.logistics.a_street && o.logistics.a_street.trim() !== '';
+          const hasDate = o.orderMeta?.movingDateFrom && o.orderMeta.movingDateFrom.trim() !== '';
+          const hasAddress = o.logistics?.a_street && o.logistics.a_street.trim() !== '';
           return hasName && hasDate && hasAddress;
         }),
-        confirmed: orders.filter(o => o.status === 'confirmed'),
-        invoicing: orders.filter(o => ['completed', 'invoice_open', 'invoice_overdue'].includes(o.status))
+        confirmed: currentOrders.filter(o => o.status === 'confirmed'),
+        invoicing: currentOrders.filter(o => ['completed', 'invoice_open', 'invoice_overdue'].includes(o.status))
       });
-      
-    }, (error) => {
-      console.error("Error fetching stats", error);
+    };
+    
+    const unsubOrders = onSnapshot(qOrders, (snapshot) => {
+      currentOrders = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+      setOrders(currentOrders);
+      processDashboardData();
     });
 
-    return () => { unsubscribe(); };
+    const unsubCustomers = onSnapshot(qCustomers, (snapshot) => {
+      const cmap: Record<string, any> = {};
+      snapshot.docs.forEach(doc => { cmap[doc.id] = { id: doc.id, ...doc.data() }; });
+      currentCustomers = cmap;
+      processDashboardData();
+    });
+
+    return () => { 
+      unsubOrders(); 
+      unsubCustomers(); 
+    };
   }, []);
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500 pb-12">
       {/* Zone 1: Kopfbereich & Quick Actions */}
-      <section className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+      <section className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Dashboard</h1>
-          <p className="text-text-muted mt-1">Willkommen zurück, {profile?.displayName || 'Admin'}!</p>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-text-main">Dashboard</h1>
+          <p className="text-text-muted mt-1 text-sm md:text-base">Willkommen zurück, {profile?.displayName || 'Admin'}!</p>
         </div>
       </section>
 
@@ -141,14 +163,14 @@ export default function DashboardPage() {
       {(stats.overdueCount > 0 || logisticsWarnings.length > 0) && (
         <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {stats.overdueCount > 0 && (
-            <div className="bg-red-900/20 border border-red-500/30 p-5 rounded-2xl flex items-start gap-4 shadow-[0_0_15px_rgba(239,68,68,0.1)]">
-              <ExclamationTriangleIcon className="w-8 h-8 text-red-500 flex-shrink-0" />
+            <div className="bg-red-900/20 border border-red-500/30 p-4 md:p-5 rounded-xl md:rounded-2xl flex items-start gap-3 md:gap-4 shadow-[0_0_15px_rgba(239,68,68,0.1)]">
+              <ExclamationTriangleIcon className="w-6 h-6 md:w-8 md:h-8 text-red-500 flex-shrink-0" />
               <div>
-                <h3 className="text-red-400 font-bold mb-1 uppercase tracking-wider text-sm">Finanz-Warnung</h3>
-                <p className="text-red-200 text-sm">
+                <h3 className="text-red-400 font-bold mb-1 uppercase tracking-wider text-xs md:text-sm">Finanz-Warnung</h3>
+                <p className="text-red-200 text-xs md:text-sm">
                   {stats.overdueCount} {stats.overdueCount === 1 ? 'Rechnung ist' : 'Rechnungen sind'} überfällig und im Mahnstatus.
                 </p>
-                <Link href="/dashboard/finances" className="text-red-400 text-xs font-semibold mt-2 inline-block hover:underline">
+                <Link href="/dashboard/finances" className="text-red-400 text-[10px] md:text-xs font-semibold mt-2 inline-block hover:underline">
                   Jetzt prüfen &rarr;
                 </Link>
               </div>
@@ -156,14 +178,14 @@ export default function DashboardPage() {
           )}
           
           {logisticsWarnings.length > 0 && (
-            <div className="bg-orange-900/20 border border-orange-500/30 p-5 rounded-2xl flex items-start gap-4 shadow-[0_0_15px_rgba(249,115,22,0.1)]">
-              <ExclamationTriangleIcon className="w-8 h-8 text-orange-500 flex-shrink-0" />
+            <div className="bg-orange-900/20 border border-orange-500/30 p-4 md:p-5 rounded-xl md:rounded-2xl flex items-start gap-3 md:gap-4 shadow-[0_0_15px_rgba(249,115,22,0.1)]">
+              <ExclamationTriangleIcon className="w-6 h-6 md:w-8 md:h-8 text-orange-500 flex-shrink-0" />
               <div>
-                <h3 className="text-orange-400 font-bold mb-1 uppercase tracking-wider text-sm">Logistik-Aktion erforderlich</h3>
-                <p className="text-orange-200 text-sm">
+                <h3 className="text-orange-400 font-bold mb-1 uppercase tracking-wider text-xs md:text-sm">Logistik-Aktion erforderlich</h3>
+                <p className="text-orange-200 text-xs md:text-sm">
                   {logisticsWarnings.length} unbestätigte Logistik-Aufgaben (Halteverbot / Möbellift).
                 </p>
-                <Link href="/dashboard/orders" className="text-orange-400 text-xs font-semibold mt-2 inline-block hover:underline">
+                <Link href="/dashboard/orders" className="text-orange-400 text-[10px] md:text-xs font-semibold mt-2 inline-block hover:underline">
                   Disposition öffnen &rarr;
                 </Link>
               </div>
@@ -174,29 +196,29 @@ export default function DashboardPage() {
 
       {/* Zone 3: Hauptbereich (Rollenbasiert) */}
       {profile?.role === 'admin' ? (
-        <section className="space-y-6">
-          <h2 className="text-xl font-semibold text-white border-b border-structure pb-2">Chef-Übersicht (Live-Kennzahlen)</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <section className="space-y-4 md:space-y-6">
+          <h2 className="text-lg md:text-xl font-semibold text-text-main border-b border-structure pb-2">Chef-Übersicht (Live-Kennzahlen)</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             <div className="panel border-t-4 border-t-green-500">
-              <h3 className="text-text-muted text-xs font-semibold uppercase tracking-wider">Bezahlt (Dieser Monat)</h3>
-              <p className="text-3xl font-bold mt-2 text-white">€ {stats.monthlyRevenue.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</p>
+              <h3 className="text-text-muted text-[10px] md:text-xs font-semibold uppercase tracking-wider">Bezahlt (Dieser Monat)</h3>
+              <p className="text-2xl md:text-3xl font-bold mt-1 md:mt-2 text-text-main">€ {stats.monthlyRevenue.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</p>
             </div>
             <div className="panel border-t-4 border-t-primary">
-              <h3 className="text-text-muted text-xs font-semibold uppercase tracking-wider">Offene Posten (Gesamt)</h3>
-              <p className="text-3xl font-bold mt-2 text-white">€ {stats.openItems.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</p>
+              <h3 className="text-text-muted text-[10px] md:text-xs font-semibold uppercase tracking-wider">Offene Posten (Gesamt)</h3>
+              <p className="text-2xl md:text-3xl font-bold mt-1 md:mt-2 text-text-main">€ {stats.openItems.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</p>
             </div>
           </div>
         </section>
       ) : null}
 
       {/* Zone 2.5: Aufgaben Zentrale (Tickets) */}
-      <section className="space-y-6">
-        <h2 className="text-xl font-semibold text-white border-b border-structure pb-2 flex items-center gap-2">
-          <ClipboardDocumentListIcon className="w-6 h-6 text-primary" /> 
+      <section className="space-y-4 md:space-y-6">
+        <h2 className="text-lg md:text-xl font-semibold text-text-main border-b border-structure pb-2 flex items-center gap-2">
+          <ClipboardDocumentListIcon className="w-5 h-5 md:w-6 md:h-6 text-primary" /> 
           Aufgaben-Zentrale
         </h2>
         <div className="panel border-t-4 border-t-primary">
-          <h3 className="font-semibold text-text-main mb-4">Offene System-Tickets ({activeTodos.length})</h3>
+          <h3 className="font-semibold text-text-main text-sm md:text-base mb-3 md:mb-4">Offene System-Tickets ({activeTodos.length})</h3>
           
           {activeTodos.length === 0 ? (
             <div className="bg-bg-dark border border-structure rounded-lg p-6 text-center">
@@ -205,15 +227,28 @@ export default function DashboardPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {activeTodos.map(todo => (
-                <div key={todo.id} className="bg-bg-dark border border-structure rounded-lg p-4 flex flex-col justify-between shadow-md hover:border-primary/50 transition-colors">
+                <div key={todo.id + todo.orderId} className={`bg-bg-dark border rounded-lg p-4 flex flex-col justify-between shadow-md transition-colors ${todo.type === 'warning' ? 'border-red-500/30 hover:border-red-500/60' : todo.type === 'action' ? 'border-primary/30 hover:border-primary/60' : 'border-structure hover:border-blue-500/50'}`}>
                   <div>
                     <div className="flex justify-between items-start mb-2">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded">
-                        Ticket
+                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded flex items-center gap-1 ${
+                        todo.type === 'warning' ? 'bg-red-500/10 text-red-400' : 
+                        todo.type === 'action' ? 'bg-primary/10 text-primary' : 
+                        'bg-blue-500/10 text-blue-400'
+                      }`}>
+                        {todo.type === 'warning' && <ExclamationTriangleIcon className="w-3 h-3" />}
+                        {todo.type === 'action' && <CheckIcon className="w-3 h-3" />}
+                        {todo.type === 'info' && <InformationCircleIcon className="w-3 h-3" />}
+                        Phase {todo.phase}
                       </span>
                     </div>
-                    <h4 className="text-white font-medium text-sm leading-snug">{todo.title}</h4>
-                    <Link href={`/dashboard/customers/${todo.customerId}`} className="text-text-muted text-xs hover:text-white mt-1 inline-block truncate max-w-[200px]">
+                    <h4 className="text-text-main font-medium text-sm leading-snug">
+                      {todo.actionLink ? (
+                        <Link href={todo.actionLink} className="hover:text-primary hover:underline transition-colors">{todo.title}</Link>
+                      ) : (
+                        todo.title
+                      )}
+                    </h4>
+                    <Link href={`/dashboard/customers/${todo.customerId}`} className="text-text-muted text-xs hover:text-text-main mt-1 inline-block truncate max-w-[200px]">
                       Für: {todo.customerName}
                     </Link>
                   </div>
@@ -221,24 +256,35 @@ export default function DashboardPage() {
                     <button 
                       onClick={async () => {
                         // Optimistic UI update
-                        setActiveTodos(prev => prev.filter(t => t.id !== todo.id));
+                        setActiveTodos(prev => prev.filter(t => t.id !== todo.id || t.orderId !== todo.orderId));
                         
-                        // Finde das zugehörige Order-Dokument
-                        const parentOrder = kanbanOrders.confirmed.find(o => o.id === todo.orderId);
-                        if (parentOrder && parentOrder.todos) {
-                          const updatedTodos = parentOrder.todos.map((t:any) => 
-                            t.id === todo.id ? { ...t, isDone: true } : t
-                          );
-                          try {
-                            await updateDoc(doc(db, getCol('orders'), todo.orderId), { todos: updatedTodos });
-                          } catch (e) {
-                            console.error("Fehler beim Abhaken", e);
+                        try {
+                          if (todo.id.startsWith('manual_')) {
+                            // Manual checklist item
+                            const realId = todo.id.replace('manual_', '');
+                            const parentOrder = orders.find((o: any) => o.id === todo.orderId);
+                            if (parentOrder && parentOrder.checklist) {
+                              const updatedChecklist = parentOrder.checklist.map((t:any) => 
+                                t.id === realId ? { ...t, done: true } : t
+                              );
+                              await updateDoc(doc(db, getCol('orders'), todo.orderId), { checklist: updatedChecklist });
+                            }
+                          } else {
+                            // Engine ticket
+                            const parentOrder = orders.find((o: any) => o.id === todo.orderId);
+                            if (parentOrder) {
+                              const updatedStates = parentOrder.ticketStates || {};
+                              updatedStates[todo.id] = true;
+                              await updateDoc(doc(db, getCol('orders'), todo.orderId), { ticketStates: updatedStates });
+                            }
                           }
+                        } catch (e) {
+                          console.error("Fehler beim Abhaken", e);
                         }
                       }}
                       className="btn-secondary py-1 px-3 text-xs flex items-center gap-2 hover:bg-green-500/20 hover:text-green-400 hover:border-green-500/30"
                     >
-                      <CheckIcon className="w-4 h-4" /> Als erledigt markieren
+                      <CheckIcon className="w-4 h-4" /> Erledigt
                     </button>
                   </div>
                 </div>
@@ -249,16 +295,16 @@ export default function DashboardPage() {
       </section>
 
       {/* Zone 4: Kanban Ticket-System (Auftrags-Pipeline) */}
-      <section className="space-y-6 mt-8">
-        <h2 className="text-xl font-semibold text-white border-b border-structure pb-2 flex items-center justify-between">
-          <span className="flex items-center gap-2"><ClipboardDocumentListIcon className="w-6 h-6 text-text-muted" /> Ticket-System (Auftrags-Pipeline)</span>
-          <span className="text-sm font-normal text-text-muted">Live-Übersicht aller laufenden Projekte</span>
+      <section className="space-y-4 md:space-y-6 mt-6 md:mt-8">
+        <h2 className="text-lg md:text-xl font-semibold text-text-main border-b border-structure pb-2 flex flex-col md:flex-row md:items-center justify-between gap-1 md:gap-2">
+          <span className="flex items-center gap-2"><ClipboardDocumentListIcon className="w-5 h-5 md:w-6 md:h-6 text-text-muted shrink-0" /> Ticket-System (Auftrags-Pipeline)</span>
+          <span className="text-xs md:text-sm font-normal text-text-muted">Live-Übersicht aller laufenden Projekte</span>
         </h2>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-x-auto pb-4">
           
           {/* Spalte 1: Neu / Fehlende Daten */}
-          <div className="bg-bg-dark border border-structure rounded-xl flex flex-col h-[500px]">
+          <div className="bg-bg-dark border border-structure rounded-xl flex flex-col max-h-[350px] md:max-h-none md:h-[500px] transition-all">
             <div className="p-3 border-b border-structure bg-red-900/20 rounded-t-xl shrink-0 flex justify-between items-center">
               <h3 className="font-semibold text-red-400 text-sm truncate">1. Neu / Fehlende Daten</h3>
               <span className="bg-red-500/20 text-red-400 text-xs px-2 py-0.5 rounded-full shrink-0">{kanbanOrders.drafts.length}</span>
@@ -267,16 +313,16 @@ export default function DashboardPage() {
               {kanbanOrders.drafts.map(order => (
                 <Link key={order.id} href={`/dashboard/customers/${order.customerId}/edit-order/${order.id}`} className="block bg-bg-panel border border-structure hover:border-primary/50 transition-colors rounded-lg p-3 shadow-md cursor-pointer">
                   <div className="text-xs text-text-muted mb-1">{new Date(order.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')}</div>
-                  <div className="font-semibold text-white truncate">{order.customerName || 'Unbekannt'}</div>
+                  <div className="font-semibold text-text-main truncate">{order.customerName || 'Unbekannt'}</div>
                   <div className="text-sm text-primary font-medium mt-2">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
                 </Link>
               ))}
-              {kanbanOrders.drafts.length === 0 && <p className="text-text-muted text-xs text-center italic py-4">Leer</p>}
+              {kanbanOrders.drafts.length === 0 && <p className="text-text-muted text-xs text-center italic py-4">Keine Einträge</p>}
             </div>
           </div>
 
           {/* Spalte 2: Echter Kunde */}
-          <div className="bg-bg-dark border border-structure rounded-xl flex flex-col h-[500px]">
+          <div className="bg-bg-dark border border-structure rounded-xl flex flex-col max-h-[350px] md:max-h-none md:h-[500px] transition-all">
             <div className="p-3 border-b border-structure bg-yellow-900/20 rounded-t-xl shrink-0 flex justify-between items-center">
               <h3 className="font-semibold text-yellow-400 text-sm truncate">2. Echter Kunde (In Klärung)</h3>
               <span className="bg-yellow-500/20 text-yellow-400 text-xs px-2 py-0.5 rounded-full shrink-0">{kanbanOrders.quotes.length}</span>
@@ -285,16 +331,16 @@ export default function DashboardPage() {
               {kanbanOrders.quotes.map(order => (
                 <Link key={order.id} href={`/dashboard/orders`} className="block bg-bg-panel border border-blue-500/30 hover:border-blue-400 transition-colors rounded-lg p-3 shadow-md cursor-pointer">
                   <div className="text-xs text-blue-400/70 mb-1">{order.orderNumber || 'Angebot'}</div>
-                  <div className="font-semibold text-white truncate">{order.customerName || 'Unbekannt'}</div>
+                  <div className="font-semibold text-text-main truncate">{order.customerName || 'Unbekannt'}</div>
                   <div className="text-sm text-blue-400 font-medium mt-2">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
                 </Link>
               ))}
-              {kanbanOrders.quotes.length === 0 && <p className="text-text-muted text-xs text-center italic py-4">Leer</p>}
+              {kanbanOrders.quotes.length === 0 && <p className="text-text-muted text-xs text-center italic py-4">Keine Einträge</p>}
             </div>
           </div>
 
           {/* Spalte 3: Vorbereitung (Dispo) */}
-          <div className="bg-bg-dark border border-structure rounded-xl flex flex-col h-[500px]">
+          <div className="bg-bg-dark border border-structure rounded-xl flex flex-col max-h-[350px] md:max-h-none md:h-[500px] transition-all">
             <div className="p-3 border-b border-structure bg-green-900/20 rounded-t-xl shrink-0 flex justify-between items-center">
               <h3 className="font-semibold text-green-400 text-sm truncate">3. Vorbereitung (Dispo)</h3>
               <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full shrink-0">{kanbanOrders.confirmed.length}</span>
@@ -310,18 +356,18 @@ export default function DashboardPage() {
                       </div>
                     )}
                   </div>
-                  <div className="font-semibold text-white truncate">{order.customerName || 'Unbekannt'}</div>
+                  <div className="font-semibold text-text-main truncate">{order.customerName || 'Unbekannt'}</div>
                   <div className="text-xs text-text-muted mt-2 truncate flex items-center gap-1">
                     <MapPinIcon className="w-3 h-3 text-orange-400 shrink-0" /> {order.logistics?.loadingAddress?.split(',')[0]} &rarr; {order.logistics?.unloadingAddress?.split(',')[0]}
                   </div>
                 </Link>
               ))}
-              {kanbanOrders.confirmed.length === 0 && <p className="text-text-muted text-xs text-center italic py-4">Leer</p>}
+              {kanbanOrders.confirmed.length === 0 && <p className="text-text-muted text-xs text-center italic py-4">Keine Einträge</p>}
             </div>
           </div>
 
           {/* Spalte 4: Erledigt / Rechnung */}
-          <div className="bg-bg-dark border border-structure rounded-xl flex flex-col h-[500px]">
+          <div className="bg-bg-dark border border-structure rounded-xl flex flex-col max-h-[350px] md:max-h-none md:h-[500px] transition-all">
             <div className="p-3 border-b border-structure bg-purple-900/20 rounded-t-xl shrink-0 flex justify-between items-center">
               <h3 className="font-semibold text-purple-400 text-sm truncate">4. Erledigt / Rechnung</h3>
               <span className="bg-purple-500/20 text-purple-400 text-xs px-2 py-0.5 rounded-full shrink-0">{kanbanOrders.invoicing.length}</span>
@@ -335,17 +381,17 @@ export default function DashboardPage() {
                       <div className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">Mahnung</div>
                     )}
                   </div>
-                  <div className="font-semibold text-white truncate">{order.customerName || 'Unbekannt'}</div>
+                  <div className="font-semibold text-text-main truncate">{order.customerName || 'Unbekannt'}</div>
                   
                   <div className="flex justify-between items-center mt-2">
-                    <div className="text-sm font-medium text-white">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
+                    <div className="text-sm font-medium text-text-main">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
                     <div className={`text-xs font-bold ${order.status === 'invoice_overdue' ? 'text-red-400' : 'text-primary'}`}>
                       Offen: € {Math.max(0, (order.totals?.gross || 0) - (order.payments?.reduce((s:number,p:any)=>s+p.amount,0)||0)).toFixed(2)}
                     </div>
                   </div>
                 </Link>
               ))}
-              {kanbanOrders.invoicing.length === 0 && <p className="text-text-muted text-xs text-center italic py-4">Leer</p>}
+              {kanbanOrders.invoicing.length === 0 && <p className="text-text-muted text-xs text-center italic py-4">Keine Einträge</p>}
             </div>
           </div>
 

@@ -80,11 +80,11 @@ export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpd
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="panel w-full max-w-lg shadow-2xl relative border-t-4 border-t-primary animate-in zoom-in-95 duration-200">
-        <button onClick={onClose} className="absolute right-4 top-4 text-text-muted hover:text-white">
+        <button onClick={onClose} className="absolute right-4 top-4 text-text-muted hover:text-text-main">
           <XMarkIcon className="w-6 h-6" />
         </button>
 
-        <h2 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+        <h2 className="text-xl font-bold text-text-main mb-6 flex items-center gap-2">
           <BanknotesIcon className="w-6 h-6 text-primary" />
           Zahlungen verwalten
         </h2>
@@ -92,7 +92,7 @@ export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpd
         <div className="grid grid-cols-3 gap-4 mb-8">
           <div className="bg-bg-dark p-3 rounded-xl border border-structure text-center">
             <div className="text-xs text-text-muted uppercase tracking-wider mb-1">Rechnung</div>
-            <div className="font-semibold text-white">€ {totalGross.toFixed(2)}</div>
+            <div className="font-semibold text-text-main">€ {totalGross.toFixed(2)}</div>
           </div>
           <div className="bg-bg-dark p-3 rounded-xl border border-structure text-center border-b-2 border-b-green-500">
             <div className="text-xs text-text-muted uppercase tracking-wider mb-1">Bezahlt</div>
@@ -140,7 +140,7 @@ export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpd
             payments.map(p => (
               <div key={p.id} className="flex justify-between items-center p-3 bg-bg-dark border border-structure rounded-lg">
                 <div>
-                  <div className="font-medium text-white">€ {p.amount.toFixed(2)}</div>
+                  <div className="font-medium text-text-main">€ {p.amount.toFixed(2)}</div>
                   <div className="text-xs text-text-muted flex items-center gap-2 mt-1">
                     <span className="capitalize">{p.method}</span> • 
                     <span>{p.date ? new Date(p.date.toMillis()).toLocaleDateString('de-DE') : 'Unbekannt'}</span>

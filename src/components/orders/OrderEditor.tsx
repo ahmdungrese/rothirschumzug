@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, TruckIcon, MapPinIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, TruckIcon, MapPinIcon, ExclamationTriangleIcon, StarIcon } from '@heroicons/react/24/outline';
+import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 import { useAuth } from '@/context/AuthContext';
 import { logActivity } from '@/lib/activityLogger';
 import { CheckCircleIcon as CheckCircleIconSolid } from '@heroicons/react/24/solid';
@@ -19,14 +20,18 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const searchParams = useSearchParams();
   const isInvoice = searchParams?.get('type') === 'invoice';
   const { profile } = useAuth();
+  const canEditPrices = profile?.role === 'admin' ? true : profile?.canEditPrices ?? true;
+  const canViewPrices = profile?.role === 'admin' ? true : profile?.canViewPrices ?? true;
   const [isSaving, setIsSaving] = useState(false);
   const [settings, setSettings] = useState<any>(null);
+  const [orderStatus, setOrderStatus] = useState('draft');
 
   // 1. Kundeninformationen
   const [customerData, setCustomerData] = useState({
     type: 'privat', // 'privat' | 'firma'
     firstName: '',
     lastName: '',
+    salutation: '',
     email: '',
     phone: '',
     customerContact: '', // Name der Person vor Ort
@@ -151,26 +156,42 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       getDoc(doc(db, getCol('orders'), orderId)).then(docSnap => {
         if (docSnap.exists()) {
           const data = docSnap.data();
-          setOrderMeta(data.orderMeta || {});
-          setLogistics(data.logistics || {});
+          setOrderStatus(data.status || 'draft');
+          setOrderMeta({
+            movingDateFrom: data.orderMeta?.movingDateFrom || '',
+            movingDateTo: data.orderMeta?.movingDateTo || '',
+            validUntil: data.orderMeta?.validUntil || '',
+            manager: data.orderMeta?.manager || '',
+            paymentMethod: data.orderMeta?.paymentMethod || '',
+            viewingDate: data.orderMeta?.viewingDate || data.viewingDate || ''
+          });
+          setLogistics({
+            a_street: data.logistics?.a_street || '', a_houseNr: data.logistics?.a_houseNr || '', a_zip: data.logistics?.a_zip || '', a_city: data.logistics?.a_city || '', a_floor: data.logistics?.a_floor || '', a_distance: data.logistics?.a_distance || 0, a_type: data.logistics?.a_type || '', a_elevator: data.logistics?.a_elevator || false, a_parking: data.logistics?.a_parking || false, a_furnitureLift: data.logistics?.a_furnitureLift || false,
+            b_street: data.logistics?.b_street || '', b_houseNr: data.logistics?.b_houseNr || '', b_zip: data.logistics?.b_zip || '', b_city: data.logistics?.b_city || '', b_floor: data.logistics?.b_floor || '', b_distance: data.logistics?.b_distance || 0, b_type: data.logistics?.b_type || '', b_elevator: data.logistics?.b_elevator || false, b_parking: data.logistics?.b_parking || false, b_furnitureLift: data.logistics?.b_furnitureLift || false,
+          });
           setIsFlatRate(data.isFlatRate !== undefined ? data.isFlatRate : true);
           setFlatRateNet(data.flatRateNet || 0);
           setServices(data.services || []);
           setInventory(data.inventory || []);
           setAppendInventoryToPDF(data.appendInventoryToPDF || false);
-          setChecklist(data.checklist || [
-            { id: '1', text: 'Halteverbotszone beantragt', done: false },
-            { id: '2', text: 'Umzugskartons geliefert', done: false }
-          ]);
+          setChecklist(data.checklist || []);
           setTexts(data.texts || {});
-          // If viewingDate exists directly on order, migrate it into orderMeta (or handle both). In calendar we read `order.viewingDate`.
-          if (data.viewingDate && !data.orderMeta?.viewingDate) {
-          if (data.viewingDate && !data.orderMeta?.viewingDate) {
-            setOrderMeta(prev => ({...prev, viewingDate: data.viewingDate}));
-          }
           
           if (data.billingAddress) {
-            setCustomerData(prev => ({...prev, ...data.billingAddress}));
+            setCustomerData(prev => ({
+              ...prev,
+              type: data.billingAddress.type || 'privat',
+              firstName: data.billingAddress.firstName || '',
+              lastName: data.billingAddress.lastName || '',
+              street: data.billingAddress.street || '',
+              houseNr: data.billingAddress.houseNr || '',
+              zip: data.billingAddress.zip || '',
+              city: data.billingAddress.city || '',
+              email: data.billingAddress.email || '',
+              phone: data.billingAddress.phone || '',
+              source: data.billingAddress.source || '',
+              customerContact: data.billingAddress.customerContact || ''
+            }));
           }
         }
       });
@@ -290,6 +311,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         billingAddress: {
           firstName: customerData.firstName || '',
           lastName: customerData.lastName || '',
+          salutation: customerData.salutation || '',
           street: customerData.street || '',
           houseNr: customerData.houseNr || '',
           zip: customerData.zip || '',
@@ -342,13 +364,13 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     }
   };
 
-  if (!settings) return <div className="p-12 text-center text-white">Lade Einstellungen...</div>;
+  if (!settings) return <div className="p-12 text-center text-text-main">Lade Einstellungen...</div>;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-32">
       <div className="flex justify-between items-center bg-bg-panel border border-structure p-4 rounded-xl shadow-lg mt-6">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-text-main flex items-center gap-2">
             {isInvoice ? 'Neue Rechnung' : (orderId ? 'Angebot bearbeiten' : 'Neues Angebot')}
           </h1>
           <p className="text-sm text-text-muted mt-1">
@@ -359,7 +381,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
       {/* 1. Kundeninformationen */}
       <section className="panel border-t-4 border-t-primary shadow-lg">
-        <h2 className="text-xl font-bold mb-4 text-white border-b border-structure pb-2">Kundeninformationen</h2>
+        <h2 className="text-xl font-bold mb-4 text-text-main border-b border-structure pb-2">Kundeninformationen</h2>
         {!urlCustomerId && (
           <div className="mb-4 text-xs text-text-muted bg-bg-dark p-3 rounded-lg border border-structure">
             Der Kunde wird beim Speichern automatisch angelegt. Die Adresse wird aus der Beladeadresse übernommen.
@@ -368,11 +390,19 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div className="col-span-1 md:grid-cols-2 lg:col-span-4 flex gap-4">
-            <label className="flex items-center gap-2 text-white cursor-pointer"><input type="radio" checked={customerData.type === 'privat'} onChange={() => setCustomerData({...customerData, type:'privat'})} className="accent-primary" /> Privatperson</label>
-            <label className="flex items-center gap-2 text-white cursor-pointer"><input type="radio" checked={customerData.type === 'firma'} onChange={() => setCustomerData({...customerData, type:'firma'})} className="accent-primary" /> Firma / Geschäftlich</label>
+            <label className="flex items-center gap-2 text-text-main cursor-pointer"><input type="radio" checked={customerData.type === 'privat'} onChange={() => setCustomerData({...customerData, type:'privat'})} className="accent-primary" /> Privatperson</label>
+            <label className="flex items-center gap-2 text-text-main cursor-pointer"><input type="radio" checked={customerData.type === 'firma'} onChange={() => setCustomerData({...customerData, type:'firma'})} className="accent-primary" /> Firma / Geschäftlich</label>
           </div>
           {customerData.type === 'privat' ? (
               <>
+                <div>
+                  <label className="block text-xs text-text-muted mb-1">Anrede</label>
+                  <select value={customerData.salutation || ''} onChange={e => setCustomerData({...customerData, salutation: e.target.value})} className="input-field w-full">
+                    <option value="">Keine</option>
+                    <option value="Herr">Herr</option>
+                    <option value="Frau">Frau</option>
+                  </select>
+                </div>
                 <div>
                   <label className="block text-xs text-text-muted mb-1">Vorname</label>
                   <input type="text" value={customerData.firstName} onChange={e => setCustomerData({...customerData, firstName: e.target.value})} className="input-field w-full" />
@@ -412,7 +442,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           
           {/* Adress-Block (Aufgeteilt) */}
           <div className="col-span-1 md:col-span-2 lg:col-span-4 mt-2 border-t border-structure pt-4">
-            <h3 className="text-sm font-semibold text-white mb-3">Hauptadresse des Kunden</h3>
+            <h3 className="text-sm font-semibold text-text-main mb-3">Hauptadresse des Kunden</h3>
             <div className="grid grid-cols-4 gap-3">
               <div className="col-span-3">
                 <label className="block text-xs text-text-muted mb-1">Straße</label>
@@ -491,7 +521,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       {/* 2. Adressen (A -> B) */}
       <div className="flex flex-col gap-4 mb-2">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">Logistik & Route</h2>
+          <h2 className="text-xl font-bold text-text-main flex items-center gap-2">Logistik & Route</h2>
           <div className="flex flex-wrap gap-2">
             <button 
               type="button"
@@ -554,7 +584,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
         <div className="panel border-t-4 border-t-structure shadow-lg">
           <div className="flex justify-between items-center mb-4 border-b border-structure pb-2">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">Beladeadresse (A)</h2>
+            <h2 className="text-xl font-bold text-text-main flex items-center gap-2">Beladeadresse (A)</h2>
             <button onClick={() => copyCustomerAddress('a')} className="text-xs btn-secondary py-1 px-2">Kundenadresse übernehmen</button>
           </div>
           <div className="grid grid-cols-4 gap-3">
@@ -591,16 +621,16 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             </div>
             
             <div className="col-span-4 mt-2 flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 text-white cursor-pointer"><input type="checkbox" checked={logistics.a_elevator} onChange={e => setLogistics({...logistics, a_elevator: e.target.checked})} className="accent-primary w-4 h-4" /> Aufzug</label>
-              <label className="flex items-center gap-2 text-white cursor-pointer"><input type="checkbox" checked={logistics.a_parking} onChange={e => setLogistics({...logistics, a_parking: e.target.checked})} className="accent-primary w-4 h-4" /> Halteverbot</label>
-              <label className="flex items-center gap-2 text-white cursor-pointer"><input type="checkbox" checked={logistics.a_furnitureLift} onChange={e => setLogistics({...logistics, a_furnitureLift: e.target.checked})} className="accent-primary w-4 h-4" /> Möbellift</label>
+              <label className="flex items-center gap-2 text-text-main cursor-pointer"><input type="checkbox" checked={logistics.a_elevator} onChange={e => setLogistics({...logistics, a_elevator: e.target.checked})} className="accent-primary w-4 h-4" /> Aufzug</label>
+              <label className="flex items-center gap-2 text-text-main cursor-pointer"><input type="checkbox" checked={logistics.a_parking} onChange={e => setLogistics({...logistics, a_parking: e.target.checked})} className="accent-primary w-4 h-4" /> Halteverbot</label>
+              <label className="flex items-center gap-2 text-text-main cursor-pointer"><input type="checkbox" checked={logistics.a_furnitureLift} onChange={e => setLogistics({...logistics, a_furnitureLift: e.target.checked})} className="accent-primary w-4 h-4" /> Möbellift</label>
             </div>
           </div>
         </div>
 
         <div className="panel border-t-4 border-t-structure shadow-lg">
           <div className="flex justify-between items-center mb-4 border-b border-structure pb-2">
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">Entladeadresse (B)</h2>
+            <h2 className="text-xl font-bold text-text-main flex items-center gap-2">Entladeadresse (B)</h2>
             <button onClick={() => copyCustomerAddress('b')} className="text-xs btn-secondary py-1 px-2">Kundenadresse übernehmen</button>
           </div>
           <div className="grid grid-cols-4 gap-3">
@@ -637,9 +667,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             </div>
             
             <div className="col-span-4 mt-2 flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 text-white cursor-pointer"><input type="checkbox" checked={logistics.b_elevator} onChange={e => setLogistics({...logistics, b_elevator: e.target.checked})} className="accent-primary w-4 h-4" /> Aufzug</label>
-              <label className="flex items-center gap-2 text-white cursor-pointer"><input type="checkbox" checked={logistics.b_parking} onChange={e => setLogistics({...logistics, b_parking: e.target.checked})} className="accent-primary w-4 h-4" /> Halteverbot</label>
-              <label className="flex items-center gap-2 text-white cursor-pointer"><input type="checkbox" checked={logistics.b_furnitureLift} onChange={e => setLogistics({...logistics, b_furnitureLift: e.target.checked})} className="accent-primary w-4 h-4" /> Möbellift</label>
+              <label className="flex items-center gap-2 text-text-main cursor-pointer"><input type="checkbox" checked={logistics.b_elevator} onChange={e => setLogistics({...logistics, b_elevator: e.target.checked})} className="accent-primary w-4 h-4" /> Aufzug</label>
+              <label className="flex items-center gap-2 text-text-main cursor-pointer"><input type="checkbox" checked={logistics.b_parking} onChange={e => setLogistics({...logistics, b_parking: e.target.checked})} className="accent-primary w-4 h-4" /> Halteverbot</label>
+              <label className="flex items-center gap-2 text-text-main cursor-pointer"><input type="checkbox" checked={logistics.b_furnitureLift} onChange={e => setLogistics({...logistics, b_furnitureLift: e.target.checked})} className="accent-primary w-4 h-4" /> Möbellift</label>
             </div>
           </div>
         </div>
@@ -648,10 +678,10 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       {/* 3. Leistungen & Preise */}
       <section className="panel border-t-4 border-t-blue-500 shadow-lg">
         <div className="flex justify-between items-center mb-4 border-b border-structure pb-2">
-          <h2 className="text-xl font-bold text-white">Leistungen & Preise</h2>
-          <label className="flex items-center gap-2 bg-bg-dark px-3 py-1.5 rounded-lg border border-structure cursor-pointer">
-            <input type="checkbox" checked={isFlatRate} onChange={e => setIsFlatRate(e.target.checked)} className="accent-primary" />
-            <span className="text-sm font-medium text-white">Pauschalangebot</span>
+          <h2 className="text-xl font-bold text-text-main">Leistungen & Preise</h2>
+          <label className={`flex items-center gap-2 bg-bg-dark px-3 py-1.5 rounded-lg border border-structure ${!canEditPrices ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+            <input type="checkbox" checked={isFlatRate} onChange={e => setIsFlatRate(e.target.checked)} disabled={!canEditPrices} className="accent-primary" />
+            <span className="text-sm font-medium text-text-main">Pauschalangebot</span>
           </label>
         </div>
 
@@ -663,12 +693,19 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               <div key={idx} className="mb-4">
                 <div className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">{cat.category}</div>
                 <div className="space-y-1">
-                  {cat.items.map((item:any, i:number) => (
-                    <button key={i} onClick={() => addServiceFromCatalog(item)} className="w-full text-left p-2 rounded hover:bg-structure/30 text-sm text-white flex justify-between items-center transition-colors">
-                      <span className="truncate pr-2">{item.name}</span>
-                      <PlusIcon className="w-4 h-4 text-primary shrink-0" />
-                    </button>
-                  ))}
+                  {cat.items.map((item:any, i:number) => {
+                    const isTicketTrigger = ['karton', 'box', 'kartons', 'küche', 'kueche', 'einbau', 'montage', 'einpack', 'auspack', 'packservice', 'einräum', 'ausräum'].some(kw => item.name.toLowerCase().includes(kw));
+                    
+                    return (
+                      <button key={i} onClick={() => addServiceFromCatalog(item)} className="w-full text-left p-2 rounded hover:bg-structure/30 text-sm text-text-main flex justify-between items-center transition-colors group">
+                        <span className="truncate pr-2 flex items-center gap-2">
+                          {item.name}
+                          {isTicketTrigger && <StarIconSolid className="w-3 h-3 text-orange-400 opacity-70 group-hover:opacity-100" title="Erzeugt ein System-Ticket" />}
+                        </span>
+                        <PlusIcon className="w-4 h-4 text-primary shrink-0" />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -694,7 +731,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                     <td className="py-2 text-text-muted">{idx + 1}</td>
                     <td className="py-2"><input type="text" value={svc.name} onChange={e => {
                       setServices(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s));
-                    }} className="bg-transparent border-none w-full text-white focus:outline-none" /></td>
+                    }} className="bg-transparent border-none w-full text-text-main focus:outline-none" /></td>
                     <td className="py-2"><input type="number" value={svc.quantity} onChange={e => {
                       setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: parseFloat(e.target.value) || 0 } : s));
                     }} className="input-field py-1 px-2 w-full text-center" min="1" /></td>
@@ -704,9 +741,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                     
                     {!isFlatRate && <td className="py-2 text-right"><input type="number" value={svc.unitPrice} onChange={e => {
                       setServices(prev => prev.map((s, i) => i === idx ? { ...s, unitPrice: parseFloat(e.target.value) || 0 } : s));
-                    }} className="input-field py-1 px-2 w-full text-right" /></td>}
+                    }} disabled={!canEditPrices} className={`input-field py-1 px-2 w-full text-right ${!canEditPrices ? 'opacity-50 cursor-not-allowed' : ''}`} /></td>}
                     
-                    {!isFlatRate && <td className="py-2 text-right text-primary font-medium">{(svc.quantity * svc.unitPrice).toFixed(2)}</td>}
+                    {!isFlatRate && <td className="py-2 text-right text-primary font-medium">{canViewPrices ? (svc.quantity * svc.unitPrice).toFixed(2) : '***'}</td>}
                     
                     <td className="py-2 text-right">
                       <button onClick={() => setServices(services.filter(s => s.id !== svc.id))} className="text-text-muted hover:text-red-400 p-1"><TrashIcon className="w-4 h-4" /></button>
@@ -725,19 +762,27 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 {isFlatRate ? (
                   <div className="mb-4">
                     <label className="text-xs text-text-muted font-bold uppercase tracking-wider mb-1 block">Pauschalabrechnung (Netto)</label>
-                    <input type="number" value={flatRateNet} onChange={e => setFlatRateNet(parseFloat(e.target.value)||0)} className="input-field w-full text-right font-bold text-lg" placeholder="0.00" />
+                    <input type="number" value={flatRateNet} onChange={e => setFlatRateNet(parseFloat(e.target.value)||0)} disabled={!canEditPrices} className={`input-field w-full text-right font-bold text-lg ${!canEditPrices ? 'opacity-50 cursor-not-allowed' : ''}`} placeholder="0.00" />
                   </div>
                 ) : null}
                 
-                <div className="flex justify-between text-text-muted text-sm">
-                  <span>Summe Netto:</span><span>{totals.net.toFixed(2)} €</span>
-                </div>
-                <div className="flex justify-between text-text-muted text-sm">
-                  <span>MwSt. 19%:</span><span>{totals.tax.toFixed(2)} €</span>
-                </div>
-                <div className="flex justify-between text-white font-bold text-lg border-t border-structure pt-2 mt-2">
-                  <span>Gesamtbetrag:</span><span className="text-primary">{totals.gross.toFixed(2)} €</span>
-                </div>
+                {canViewPrices ? (
+                  <>
+                    <div className="flex justify-between text-text-muted text-sm">
+                      <span>Summe Netto:</span><span>{totals.net.toFixed(2)} €</span>
+                    </div>
+                    <div className="flex justify-between text-text-muted text-sm">
+                      <span>MwSt. 19%:</span><span>{totals.tax.toFixed(2)} €</span>
+                    </div>
+                    <div className="flex justify-between text-text-main font-bold text-lg border-t border-structure pt-2 mt-2">
+                      <span>Gesamtbetrag:</span><span className="text-primary">{totals.gross.toFixed(2)} €</span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="text-right text-text-muted italic text-sm border-t border-structure pt-2 mt-2">
+                    Summen ausgeblendet (fehlende Berechtigung)
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -745,28 +790,36 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       </section>
 
       {/* 4. MwSt.-Schnellrechner */}
-      <section className="bg-bg-dark border border-structure p-4 rounded-xl flex items-center justify-between shadow-inner">
-        <div className="flex items-center gap-3">
-          <CalculatorIcon className="w-8 h-8 text-text-muted" />
-          <div>
-            <h3 className="font-bold text-white text-sm">MwSt.-Schnellrechner (19%)</h3>
-            <p className="text-xs text-text-muted">Hilfswerkzeug (Wird nicht gespeichert)</p>
+      {canViewPrices && (
+        <section className="bg-bg-dark border border-structure p-4 rounded-xl flex items-center justify-between shadow-inner">
+          <div className="flex items-center gap-3">
+            <CalculatorIcon className="w-8 h-8 text-text-muted" />
+            <div>
+              <h3 className="font-semibold text-text-main">MwSt.-Schnellrechner</h3>
+              <p className="text-xs text-text-muted">Hilfe zum Umrechnen (speichert nicht ins Angebot)</p>
+            </div>
           </div>
-        </div>
-        <div className="flex gap-4">
-          <div><label className="block text-[10px] text-text-muted mb-1">Brutto (inkl. MwSt)</label><input type="number" value={calcInput.gross} onChange={e => handleCalcInput('gross', e.target.value)} className="input-field w-24 py-1 text-sm text-right font-bold text-white" /></div>
-          <div><label className="block text-[10px] text-text-muted mb-1">Netto</label><input type="number" value={calcInput.net.toFixed(2)} onChange={e => handleCalcInput('net', e.target.value)} className="input-field w-24 py-1 text-sm text-right" /></div>
-          <div><label className="block text-[10px] text-text-muted mb-1">MwSt (19%)</label><input type="text" readOnly value={calcInput.tax.toFixed(2)} className="input-field w-24 py-1 text-sm text-right opacity-50" /></div>
-        </div>
-      </section>
+          <div className="flex gap-4">
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Brutto eingeben</label>
+              <input type="number" value={calcInput.gross === 0 ? '' : calcInput.gross.toFixed(2)} onChange={e => handleCalcInput('gross', e.target.value)} className="input-field w-32" placeholder="z.B. 1190" />
+            </div>
+            <div className="pt-6 text-text-muted">=</div>
+            <div>
+              <label className="block text-xs text-text-muted mb-1">Netto Ergebnis</label>
+              <div className="input-field w-32 bg-structure/30 text-text-main font-mono">{calcInput.net.toFixed(2)}</div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* 5. Umzugsgut / Inventarliste */}
       <section className="panel border-t-4 border-t-structure shadow-lg">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b border-structure pb-2 gap-4">
-          <h2 className="text-xl font-bold text-white">Umzugsgut / Inventarliste</h2>
+          <h2 className="text-xl font-bold text-text-main">Umzugsgut / Inventarliste</h2>
           <label className="flex items-center gap-2 bg-bg-dark px-3 py-1.5 rounded-lg border border-structure cursor-pointer">
             <input type="checkbox" checked={appendInventoryToPDF} onChange={e => setAppendInventoryToPDF(e.target.checked)} className="accent-primary" />
-            <span className="text-sm font-medium text-white">Als Anhang (letzte Seite) an Angebot hängen</span>
+            <span className="text-sm font-medium text-text-main">Als Anhang (letzte Seite) an Angebot hängen</span>
           </label>
         </div>
         <div className="flex flex-col md:flex-row gap-6">
@@ -790,7 +843,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 <tr className="text-text-muted border-b border-structure">
                   <th className="pb-2 w-8">#</th>
                   <th className="pb-2">Gegenstand / Beschreibung</th>
-                  <th className="pb-2 w-20">Menge</th>
+                  <th className="pb-2 w-28 text-center">Anzahl</th>
                   <th className="pb-2">Notiz</th>
                   <th className="pb-2 w-10"></th>
                 </tr>
@@ -803,19 +856,16 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                     <td className="py-2 text-text-muted">{idx + 1}</td>
                     <td className="py-2"><input type="text" value={item.name} onChange={e => {
                       setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, name: e.target.value } : invItem));
-                    }} className="bg-transparent border-none w-full text-white focus:outline-none placeholder:text-text-muted/30" placeholder="Bezeichnung..." /></td>
+                    }} className="bg-transparent border-none w-full text-text-main focus:outline-none placeholder:text-text-muted/30" placeholder="Bezeichnung..." /></td>
                     <td className="py-2">
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center justify-center gap-2 bg-bg-dark rounded-lg p-1 border border-structure/50 w-28">
                         <button type="button" onClick={() => {
                           setInventory(prev => prev.map((invItem, i) => i === idx && invItem.quantity > 1 ? { ...invItem, quantity: Number(invItem.quantity) - 1 } : invItem));
-                        }} className="bg-structure/50 hover:bg-primary/20 text-text-muted px-2 py-1 rounded-l transition-colors">-</button>
-                        <input type="number" value={item.quantity === 0 ? '' : item.quantity} onChange={e => {
-                          const val = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
-                          setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, quantity: val } : invItem));
-                        }} className="input-field py-1 w-12 text-center text-white rounded-none border-x-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min="1" />
+                        }} className="w-6 h-6 flex items-center justify-center bg-structure/50 hover:bg-primary/20 text-white rounded transition-colors font-bold">-</button>
+                        <span className="w-6 text-center text-text-main font-semibold text-sm">{item.quantity}</span>
                         <button type="button" onClick={() => {
                           setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, quantity: (Number(invItem.quantity) || 0) + 1 } : invItem));
-                        }} className="bg-structure/50 hover:bg-primary/20 text-text-muted px-2 py-1 rounded-r transition-colors">+</button>
+                        }} className="w-6 h-6 flex items-center justify-center bg-structure/50 hover:bg-primary/20 text-white rounded transition-colors font-bold">+</button>
                       </div>
                     </td>
                     <td className="py-2 flex items-center gap-2">
@@ -846,7 +896,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
       {/* 8. Mitarbeiter-Checkliste */}
       <section className="panel border-t-4 border-t-orange-500 shadow-lg">
-        <h2 className="text-xl font-bold mb-4 text-white border-b border-structure pb-2">Mitarbeiter-Checkliste</h2>
+        <h2 className="text-xl font-bold mb-4 text-text-main border-b border-structure pb-2">Mitarbeiter-Checkliste</h2>
         <p className="text-sm text-text-muted mb-4">
           Diese Liste taucht automatisch auf dem Mitarbeiter-Laufzettel auf. Logistik-Auswahlen wie "Halteverbot" oder "Möbellift" werden dort ebenfalls automatisch angezeigt und müssen hier nicht doppelt eingetragen werden.
         </p>
@@ -855,7 +905,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             <div key={item.id} className="flex items-center justify-between p-3 rounded-xl border bg-bg-dark border-structure hover:border-primary/50 transition-colors">
               <button onClick={() => setChecklist(checklist.map(c => c.id === item.id ? { ...c, done: !c.done } : c))} className="flex items-center gap-3 flex-1 text-left">
                 {item.done ? <CheckCircleIconSolid className="w-5 h-5 text-primary shrink-0" /> : <CheckCircleIcon className="w-5 h-5 text-text-muted shrink-0" />}
-                <span className={`text-sm font-medium transition-all ${item.done ? 'text-text-muted line-through' : 'text-white'}`}>{item.text}</span>
+                <span className={`text-sm font-medium transition-all ${item.done ? 'text-text-muted line-through' : 'text-text-main'}`}>{item.text}</span>
               </button>
               <button onClick={() => setChecklist(checklist.filter(c => c.id !== item.id))} className="text-text-muted hover:text-red-400 p-1"><TrashIcon className="w-4 h-4" /></button>
             </div>
@@ -885,7 +935,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       {/* 6. Dokumententexte & Bedingungen */}
       <section className="panel border-t-4 border-t-structure shadow-lg">
         <div className="flex justify-between items-center mb-4 border-b border-structure pb-2">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2"><DocumentTextIcon className="w-6 h-6 text-text-muted"/> Dokumententexte & Bedingungen</h2>
+          <h2 className="text-xl font-bold text-text-main flex items-center gap-2"><DocumentTextIcon className="w-6 h-6 text-text-muted"/> Dokumententexte & Bedingungen</h2>
           <button onClick={loadStandardTexts} className="btn-secondary text-xs">Standard laden</button>
         </div>
         <div className="space-y-4">
@@ -910,10 +960,13 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           {errorMessage && <span className="text-red-400 text-sm font-semibold animate-in fade-in slide-in-from-bottom-4 bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20">{errorMessage}</span>}
         </div>
         <div className="flex justify-end gap-4">
-          <button onClick={() => saveOrder('draft')} disabled={isSaving} className="btn-secondary">
-            {isSaving ? '...' : 'Abbrechen'}
+          <button onClick={() => {
+            if (urlCustomerId) router.push(`/dashboard/customers/${urlCustomerId}`);
+            else router.push('/dashboard/orders');
+          }} disabled={isSaving} className="btn-secondary">
+            Abbrechen
           </button>
-          <button onClick={() => saveOrder(isInvoice ? 'invoice_open' : 'quote')} disabled={isSaving} className="btn-primary shadow-lg shadow-primary/30 flex items-center gap-2">
+          <button onClick={() => saveOrder(isInvoice ? 'invoice_open' : orderStatus === 'draft' ? 'quote' : orderStatus)} disabled={isSaving} className="btn-primary shadow-lg shadow-primary/30 flex items-center gap-2">
             {isSaving && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
             {isSaving ? 'Speichert...' : (isInvoice ? 'Als Rechnung speichern' : 'Speichern')}
           </button>

@@ -18,7 +18,7 @@ export function ActivityLogViewer() {
   return (
     <div className="space-y-4 mt-12">
       <div>
-        <h2 className="text-xl font-bold text-white mb-2">Aktivitäts-Logbuch</h2>
+        <h2 className="text-xl font-bold text-text-main mb-2">Aktivitäts-Logbuch</h2>
         <p className="text-text-muted text-sm">Übersicht der letzten 100 Systemaktivitäten (Logins, Änderungen).</p>
       </div>
 
@@ -38,7 +38,7 @@ export function ActivityLogViewer() {
                 <td className="p-4 text-text-muted">
                   {log.timestamp ? new Date(log.timestamp.toMillis()).toLocaleString('de-DE') : 'Gerade eben'}
                 </td>
-                <td className="p-4 font-medium text-white">{log.userName}</td>
+                <td className="p-4 font-medium text-text-main">{log.userName}</td>
                 <td className="p-4">
                   <span className={`px-2 py-1 rounded text-xs font-semibold ${
                     log.action === 'LOGIN' ? 'bg-green-500/20 text-green-400' :

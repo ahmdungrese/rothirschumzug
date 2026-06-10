@@ -5,11 +5,13 @@ import { collection, query, onSnapshot, where } from 'firebase/firestore';
 import { BanknotesIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { getCol } from '@/lib/demoMode';
+import { PaymentManager } from '@/components/orders/PaymentManager';
 
 export default function FinancesPage() {
   const [openInvoices, setOpenInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedPaymentOrder, setSelectedPaymentOrder] = useState<any>(null);
 
   useEffect(() => {
     const q = query(
@@ -51,7 +53,7 @@ export default function FinancesPage() {
     <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-bg-panel border border-structure p-6 rounded-xl shadow-lg">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
+          <h1 className="text-3xl font-bold tracking-tight text-text-main flex items-center gap-3">
             <BanknotesIcon className="w-8 h-8 text-primary" /> Offene Rechnungen
           </h1>
           <p className="text-text-muted mt-1">Überwachung von Zahlungseingängen und Mahnwesen.</p>
@@ -80,7 +82,7 @@ export default function FinancesPage() {
         ) : filteredInvoices.length === 0 ? (
           <div className="text-center p-12 bg-bg-dark rounded-xl border border-structure">
             <BanknotesIcon className="w-12 h-12 text-green-500/50 mx-auto mb-3" />
-            <p className="text-white font-semibold">Keine offenen Rechnungen gefunden.</p>
+            <p className="text-text-main font-semibold">Keine offenen Rechnungen gefunden.</p>
             <p className="text-text-muted text-sm mt-1">Gute Arbeit! Alle Rechnungen sind bezahlt.</p>
           </div>
         ) : (
@@ -92,6 +94,7 @@ export default function FinancesPage() {
                   <th className="p-4 font-medium">Kunde</th>
                   <th className="p-4 font-medium">Datum</th>
                   <th className="p-4 font-medium text-right">Brutto</th>
+                  <th className="p-4 font-medium text-right text-green-400">Bezahlt</th>
                   <th className="p-4 font-medium text-right text-red-400">Offen</th>
                   <th className="p-4 font-medium text-right">Aktionen</th>
                 </tr>
@@ -102,25 +105,39 @@ export default function FinancesPage() {
                   const paid = inv.payments?.reduce((s: number, p: any) => s + p.amount, 0) || 0;
                   const open = gross - paid;
                   const isOverdue = inv.status === 'invoice_overdue';
+                  const isPartial = paid > 0 && paid < gross;
                   
                   return (
                     <tr key={inv.id} className="border-b border-structure/50 hover:bg-structure/20 transition-colors">
                       <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <span className="text-white font-medium">{inv.invoiceNumber || '-'}</span>
-                          {isOverdue && <span className="bg-red-500/20 text-red-400 text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">Mahnung</span>}
+                        <div className="flex flex-col gap-1">
+                          <span className="text-text-main font-medium">{inv.invoiceNumber || '-'}</span>
+                          <div className="flex items-center gap-2">
+                            {isOverdue && <span className="bg-red-500/20 text-red-400 text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">Mahnung</span>}
+                            {isPartial && <span className="bg-yellow-500/20 text-yellow-500 text-[10px] px-1.5 py-0.5 rounded uppercase font-bold tracking-wider">Teilweise bezahlt</span>}
+                          </div>
                         </div>
                       </td>
-                      <td className="p-4 font-semibold text-white">{inv.customerName || 'Unbekannt'}</td>
+                      <td className="p-4 font-semibold text-text-main">{inv.customerName || 'Unbekannt'}</td>
                       <td className="p-4 text-text-muted text-sm">
                         {inv.createdAt?.toDate().toLocaleDateString('de-DE') || '-'}
                       </td>
                       <td className="p-4 text-right text-text-muted font-medium">€ {gross.toFixed(2)}</td>
+                      <td className="p-4 text-right text-green-400 font-medium">€ {paid.toFixed(2)}</td>
                       <td className="p-4 text-right text-red-400 font-bold">€ {open.toFixed(2)}</td>
                       <td className="p-4 text-right">
-                        <Link href={`/dashboard/customers/${inv.customerId}`} className="btn-secondary text-sm">
-                          Öffnen
-                        </Link>
+                        <div className="flex justify-end gap-2">
+                          <button 
+                            onClick={() => setSelectedPaymentOrder(inv)}
+                            className="btn-primary py-1.5 px-3 text-xs flex items-center gap-1"
+                          >
+                            <BanknotesIcon className="w-4 h-4" />
+                            Zahlung erfassen
+                          </button>
+                          <Link href={`/dashboard/customers/${inv.customerId}`} className="btn-secondary py-1.5 px-3 text-xs">
+                            Öffnen
+                          </Link>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -130,6 +147,14 @@ export default function FinancesPage() {
           </div>
         )}
       </div>
+
+      {selectedPaymentOrder && (
+        <PaymentManager 
+          order={selectedPaymentOrder} 
+          onUpdate={() => {}} 
+          onClose={() => setSelectedPaymentOrder(null)} 
+        />
+      )}
     </div>
   );
 }

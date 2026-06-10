@@ -14,7 +14,7 @@ export default async function EditOrderPage({ params }: { params: Promise<{ id: 
               <ArrowLeftIcon className="w-4 h-4" /> Zurück zur Kundenakte
             </Link>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Angebot bearbeiten</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-text-main">Angebot bearbeiten</h1>
           <p className="text-text-muted mt-1">Passen Sie hier die Leistungen und Logistik an.</p>
         </div>
       </div>

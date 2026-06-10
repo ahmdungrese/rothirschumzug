@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, where, getDoc, doc } from 'firebase/firestore';
-import { CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon, CheckIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { DispoModal } from './DispoModal';
 import { getCol } from '@/lib/demoMode';
@@ -18,7 +18,7 @@ export default function CalendarPage() {
     // Fetch all confirmed or completed orders that have a movingDate
     const q = query(
       collection(db, getCol('orders')),
-      where('status', 'in', ['confirmed', 'completed', 'invoice_open', 'invoice_overdue', 'invoice_paid'])
+      where('status', 'in', ['draft', 'quote', 'confirmed', 'completed', 'invoice_open', 'invoice_overdue', 'invoice_paid'])
     );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -66,19 +66,19 @@ export default function CalendarPage() {
     <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-bg-panel border border-structure p-6 rounded-xl shadow-lg">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
+          <h1 className="text-3xl font-bold tracking-tight text-text-main flex items-center gap-3">
             <CalendarDaysIcon className="w-8 h-8 text-primary" /> Einsatzplanung
           </h1>
           <p className="text-text-muted mt-1">Verwalten Sie hier alle operativen Umzüge und Termine.</p>
         </div>
         <div className="flex items-center gap-4">
-          <button onClick={prevMonth} className="p-2 hover:bg-structure rounded-full transition-colors text-white">
+          <button onClick={prevMonth} className="p-2 hover:bg-structure rounded-full transition-colors text-text-main">
             <ChevronLeftIcon className="w-6 h-6" />
           </button>
-          <h2 className="text-xl font-bold text-white w-48 text-center">
+          <h2 className="text-xl font-bold text-text-main w-48 text-center">
             {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
           </h2>
-          <button onClick={nextMonth} className="p-2 hover:bg-structure rounded-full transition-colors text-white">
+          <button onClick={nextMonth} className="p-2 hover:bg-structure rounded-full transition-colors text-text-main">
             <ChevronRightIcon className="w-6 h-6" />
           </button>
         </div>
@@ -109,71 +109,93 @@ export default function CalendarPage() {
                 const dayEvents: any[] = [];
                 
                 orders.forEach(o => {
-                  const effectiveMovingDate = o.movingDate || o.disposition?.movingDate;
+                  const effectiveMovingDate = o.orderMeta?.movingDateFrom || o.movingDate || o.disposition?.movingDate;
                   if (effectiveMovingDate) {
                     const movingDateStr = effectiveMovingDate.split('T')[0];
                     const movingDateObj = new Date(movingDateStr);
                     
-                    // 1. Umzugstag
-                    if (movingDateStr === dateStr) {
+                    // Bestimme das Erstellungsdatum für kurzfristige Berechnungen
+                    let createdAtObj = new Date(); // Fallback auf heute
+                    if (o.createdAt) {
+                      createdAtObj = o.createdAt?.seconds ? new Date(o.createdAt.seconds * 1000) : new Date(o.createdAt);
+                    }
+                    
+                    // 1. Umzugstag (nur bei bestätigten Aufträgen)
+                    const isConfirmed = !['draft', 'quote'].includes(o.status);
+                    
+                    if (movingDateStr === dateStr && isConfirmed) {
+                      const isDone = o.status === 'completed' || o.status === 'invoice_open' || o.status === 'invoice_paid';
                       dayEvents.push({
                         id: o.id + '_move',
                         type: 'move',
                         title: 'Umzug: ' + o.customerName,
-                        address: o.logistics?.loadingAddress?.split(',')[0] || 'Keine Adresse',
+                        address: o.logistics?.a_city || o.logistics?.loadingAddress?.split(',')[0] || 'Keine Adresse',
                         color: 'bg-orange-500/20 border-orange-500/30 text-orange-400 hover:bg-orange-500/30',
                         orderId: o.id,
-                        customerId: o.customerId
+                        customerId: o.customerId,
+                        isDone,
+                        disposition: o.disposition || null
                       });
                     }
 
-                    // 2. Halteverbot (4 Tage vorher)
-                    if (o.logistics?.noParkingZone) {
-                      const hvDate = new Date(movingDateObj);
+                    // 2. Halteverbot (4 Tage vorher, oder am Tag der Angebot-Annahme wenn kurzfristig) - nur bestätigte
+                    if (o.logistics?.noParkingZone && isConfirmed) {
+                      let hvDate = new Date(movingDateObj);
                       hvDate.setDate(hvDate.getDate() - 4);
+                      if (hvDate < createdAtObj) hvDate = new Date(createdAtObj); // Wenn kurzfristig, zeige es am Bestätigungstag
+
                       const hvDateStr = `${hvDate.getFullYear()}-${String(hvDate.getMonth() + 1).padStart(2, '0')}-${String(hvDate.getDate()).padStart(2, '0')}`;
                       if (hvDateStr === dateStr) {
                         dayEvents.push({
                           id: o.id + '_hv',
+                          ticketId: 'halteverbot',
                           type: 'parking',
                           title: 'Halteverbot aufstellen',
                           address: o.customerName,
                           color: 'bg-red-500/20 border-red-500/30 text-red-400 hover:bg-red-500/30',
                           orderId: o.id,
-                          customerId: o.customerId
+                          customerId: o.customerId,
+                          isDone: !!o.ticketStates?.halteverbot
                         });
                       }
                     }
 
-                    // 3. Karton-Lieferung (14 Tage vorher)
-                    if (o.services?.some((s: any) => s.name.toLowerCase().includes('karton'))) {
-                      const boxDate = new Date(movingDateObj);
-                      boxDate.setDate(boxDate.getDate() - 14);
+                    // 3. Karton-Lieferung (4 Wochen / 28 Tage vorher, oder am Tag der Angebot-Annahme wenn kurzfristig) - nur bestätigte
+                    if (o.services?.some((s: any) => s.name.toLowerCase().includes('karton')) && isConfirmed) {
+                      let boxDate = new Date(movingDateObj);
+                      boxDate.setDate(boxDate.getDate() - 28);
+                      if (boxDate < createdAtObj) boxDate = new Date(createdAtObj); // Wenn kurzfristig, zeige es direkt am Tag der Unterschrift
+
                       const boxDateStr = `${boxDate.getFullYear()}-${String(boxDate.getMonth() + 1).padStart(2, '0')}-${String(boxDate.getDate()).padStart(2, '0')}`;
                       if (boxDateStr === dateStr) {
                         dayEvents.push({
                           id: o.id + '_box',
+                          ticketId: 'kartons_liefern',
                           type: 'boxes',
                           title: 'Kartons liefern',
                           address: o.customerName,
                           color: 'bg-blue-500/20 border-blue-500/30 text-blue-400 hover:bg-blue-500/30',
                           orderId: o.id,
-                          customerId: o.customerId
+                          customerId: o.customerId,
+                          isDone: !!o.ticketStates?.kartons_liefern
                         });
                       }
                     }
                   }
 
                   // 4. Besichtigungstermine
-                  if (o.viewingDate && o.viewingDate.split('T')[0] === dateStr) {
+                  const effectiveViewingDate = o.orderMeta?.viewingDate || o.viewingDate;
+                  if (effectiveViewingDate && effectiveViewingDate.split('T')[0] === dateStr) {
                     dayEvents.push({
                       id: o.id + '_view',
+                      ticketId: 'viewing_requested',
                       type: 'viewing',
                       title: 'Besichtigung',
                       address: o.customerName,
                       color: 'bg-primary/20 border-primary/30 text-primary hover:bg-primary/30',
                       orderId: o.id,
-                      customerId: o.customerId
+                      customerId: o.customerId,
+                      isDone: !!o.ticketStates?.viewing_requested
                     });
                   }
                 });
@@ -192,14 +214,27 @@ export default function CalendarPage() {
                     </div>
                     
                     <div className="space-y-1">
-                      {dayEvents.map(event => (
+                      {dayEvents.map((event: any) => (
                         <Link 
                           key={event.id} 
                           href={event.type === 'move' ? `/dashboard/orders` : `/dashboard/customers/${event.customerId}`}
-                          className={`block border p-1.5 rounded text-xs transition-colors ${event.color}`}
+                          className={`block border p-1.5 rounded text-xs transition-colors ${event.color} ${event.isDone ? 'opacity-40 grayscale-[0.5]' : ''}`}
                         >
-                          <div className="font-bold truncate">{event.title}</div>
+                          <div className="font-bold truncate flex items-center gap-1">
+                            {event.isDone && <CheckIcon className="w-3 h-3 shrink-0" />}
+                            <span className={event.isDone ? 'line-through decoration-black/30' : ''}>
+                              {event.disposition?.movingTimeStr && <span className="mr-1">{event.disposition.movingTimeStr}</span>}
+                              {event.title}
+                            </span>
+                          </div>
                           <div className="opacity-80 truncate mt-0.5">{event.address}</div>
+                          {event.type === 'move' && event.disposition && (
+                            <div className="mt-1 pt-1 border-t border-current/20 text-[10px] leading-tight flex flex-wrap gap-x-2 gap-y-0.5">
+                              {event.disposition.helpers > 0 && <span className="font-semibold">{event.disposition.helpers} Helfer</span>}
+                              {event.disposition.koffer35t > 0 && <span>{event.disposition.koffer35t}x 3,5t</span>}
+                              {event.disposition.lkw7t > 0 && <span>{event.disposition.lkw7t}x 7,5t</span>}
+                            </div>
+                          )}
                         </Link>
                       ))}
                     </div>

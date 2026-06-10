@@ -28,6 +28,8 @@ export function TeamAccessManager() {
   const [loginId, setLoginId] = useState(""); // Can be email or phone
   const [password, setPassword] = useState(""); // Or PIN
   const [role, setRole] = useState<"admin" | "office" | "teamlead">("office");
+  const [canViewPrices, setCanViewPrices] = useState(true);
+  const [canEditPrices, setCanEditPrices] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -66,6 +68,8 @@ export function TeamAccessManager() {
         email: finalEmail,
         role: role,
         loginId: loginId,
+        canViewPrices: role === 'admin' ? true : role === 'teamlead' ? false : canViewPrices,
+        canEditPrices: role === 'admin' ? true : role === 'teamlead' ? false : canEditPrices,
         createdAt: serverTimestamp(),
       });
 
@@ -74,6 +78,8 @@ export function TeamAccessManager() {
       setLoginId("");
       setPassword("");
       setRole("office");
+      setCanViewPrices(true);
+      setCanEditPrices(true);
     } catch (error: any) {
       console.error(error);
       if (error.code === 'auth/email-already-in-use') {
@@ -94,12 +100,12 @@ export function TeamAccessManager() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl font-bold text-white mb-2">Team & Zugänge</h2>
+        <h2 className="text-xl font-bold text-text-main mb-2">Team & Zugänge</h2>
         <p className="text-text-muted text-sm">Erstellen Sie Logins für Ihre Mitarbeiter. Das System nutzt im Hintergrund Firebase, ohne Sie auszuloggen.</p>
       </div>
 
       <div className="bg-bg-dark border border-structure rounded-xl p-6">
-        <h3 className="text-white font-semibold mb-4">Neuen Mitarbeiter anlegen</h3>
+        <h3 className="text-text-main font-semibold mb-4">Neuen Mitarbeiter anlegen</h3>
         <form onSubmit={handleCreateUser} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -118,11 +124,30 @@ export function TeamAccessManager() {
             <div>
               <label className="block text-sm text-text-muted mb-1">Rolle (Rechte)</label>
               <select value={role} onChange={e => setRole(e.target.value as any)} className="input-field bg-bg-dark">
-                <option value="office">💻 Büroassistent (Kunden, Angebote, Preise)</option>
-                <option value="teamlead">🚚 Teamleiter (Laufzettel & Kalender, keine Preise)</option>
+                <option value="office">💻 Büroassistent (Kunden, Angebote)</option>
+                <option value="teamlead">🚚 Teamleiter (Laufzettel & Kalender)</option>
                 <option value="admin">👑 Admin (Voller Zugriff)</option>
               </select>
             </div>
+            {role === 'office' && (
+              <div className="md:col-span-2 bg-structure/20 p-4 rounded-lg border border-structure mt-2">
+                <h4 className="text-sm font-semibold text-text-main mb-3">Spezielle Rechte für Büroassistenten</h4>
+                <div className="flex flex-col gap-3">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked={canViewPrices} onChange={e => setCanViewPrices(e.target.checked)} className="accent-primary w-4 h-4" />
+                    <span className="text-sm text-text-main">
+                      <strong className="text-text-main">Darf Preise sehen:</strong> Wenn aktiv, werden Rechnungsbeträge und Umsätze im Kundenprofil angezeigt.
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input type="checkbox" checked={canEditPrices} onChange={e => setCanEditPrices(e.target.checked)} className="accent-primary w-4 h-4" disabled={!canViewPrices} />
+                    <span className={`text-sm ${!canViewPrices ? 'text-text-muted opacity-50' : 'text-text-main'}`}>
+                      <strong className={!canViewPrices ? '' : 'text-text-main'}>Darf Preise bearbeiten:</strong> Wenn aktiv, darf der Mitarbeiter im Angebots-Editor manuelle Preise eintippen oder Rabatte geben. Ansonsten greifen feste Katalogpreise.
+                    </span>
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
           <button type="submit" disabled={isSubmitting} className="btn-primary w-full md:w-auto mt-4">
             {isSubmitting ? 'Wird angelegt...' : 'Mitarbeiter Zugang erstellen'}
@@ -142,7 +167,7 @@ export function TeamAccessManager() {
           <tbody>
             {teamMembers.map(member => (
               <tr key={member.uid} className="border-b border-structure/50 hover:bg-structure/20">
-                <td className="p-4 font-medium text-white">{member.displayName || 'Unbekannt'}</td>
+                <td className="p-4 font-medium text-text-main">{member.displayName || 'Unbekannt'}</td>
                 <td className="p-4 text-text-muted">{member.loginId || member.email}</td>
                 <td className="p-4">
                   <span className={`px-2 py-1 rounded text-xs font-semibold ${

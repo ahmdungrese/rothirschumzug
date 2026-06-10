@@ -160,7 +160,7 @@ export default function StatisticsPage() {
     return (
       <div className="max-w-7xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center p-8">
         <ChartBarIcon className="w-20 h-20 text-structure mb-4" />
-        <h1 className="text-2xl font-bold text-white mb-2">Zugriff verweigert</h1>
+        <h1 className="text-2xl font-bold text-text-main mb-2">Zugriff verweigert</h1>
         <p className="text-text-muted">Nur Administratoren haben Zugriff auf die Unternehmens-Auswertungen.</p>
       </div>
     );
@@ -170,7 +170,7 @@ export default function StatisticsPage() {
     if (active && payload && payload.length) {
       return (
         <div className="bg-bg-dark border border-structure p-3 rounded-lg shadow-xl">
-          <p className="font-bold text-white">{label || payload[0].name}</p>
+          <p className="font-bold text-text-main">{label || payload[0].name}</p>
           {payload.map((p: any, i: number) => (
             <p key={i} style={{ color: p.color || p.fill }}>
               {p.name}: {p.name.includes('Umsatz') || p.name.includes('value') ? `€ ${p.value.toLocaleString('de-DE', {minimumFractionDigits: 2})}` : p.value}
@@ -185,7 +185,7 @@ export default function StatisticsPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500 pb-12">
       <section>
-        <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
+        <h1 className="text-3xl font-bold tracking-tight text-text-main flex items-center gap-3">
           <ChartBarIcon className="w-8 h-8 text-primary" /> Unternehmens-Auswertungen
         </h1>
         <p className="text-text-muted mt-1">Live-Analyse aus deinen Echtzeit-Daten (Gesamtzeitraum / Letzte 30 Tage).</p>
@@ -198,7 +198,7 @@ export default function StatisticsPage() {
             <CurrencyEuroIcon className="w-6 h-6 text-green-500" />
           </div>
           <h3 className="text-text-muted text-xs font-bold uppercase tracking-wider mb-2">Gesamtumsatz (System)</h3>
-          <p className="text-3xl font-bold text-white">€ {(kpis.totalRevenue / 1000).toFixed(1)}k</p>
+          <p className="text-3xl font-bold text-text-main">€ {(kpis.totalRevenue / 1000).toFixed(1)}k</p>
         </div>
 
         <div className="bg-bg-panel border border-structure rounded-xl p-5 relative overflow-hidden group">
@@ -206,7 +206,7 @@ export default function StatisticsPage() {
             <ChartBarIcon className="w-6 h-6 text-blue-500" />
           </div>
           <h3 className="text-text-muted text-xs font-bold uppercase tracking-wider mb-2">Umzüge / Aufträge</h3>
-          <p className="text-3xl font-bold text-white">{kpis.totalOrders}</p>
+          <p className="text-3xl font-bold text-text-main">{kpis.totalOrders}</p>
         </div>
 
         <div className="bg-bg-panel border border-structure rounded-xl p-5 relative overflow-hidden group">
@@ -214,7 +214,7 @@ export default function StatisticsPage() {
             <CursorArrowRaysIcon className="w-6 h-6 text-orange-500" />
           </div>
           <h3 className="text-text-muted text-xs font-bold uppercase tracking-wider mb-2">Beste Lead-Quelle</h3>
-          <p className="text-2xl font-bold text-white truncate">{kpis.topSource}</p>
+          <p className="text-2xl font-bold text-text-main truncate">{kpis.topSource}</p>
         </div>
 
         <div className="bg-bg-panel border border-structure rounded-xl p-5 relative overflow-hidden group">
@@ -222,7 +222,7 @@ export default function StatisticsPage() {
             <UsersIcon className="w-6 h-6 text-purple-500" />
           </div>
           <h3 className="text-text-muted text-xs font-bold uppercase tracking-wider mb-2">Aktivster Mitarbeiter</h3>
-          <p className="text-2xl font-bold text-white truncate">{kpis.topEmployee}</p>
+          <p className="text-2xl font-bold text-text-main truncate">{kpis.topEmployee}</p>
         </div>
       </section>
 
@@ -230,7 +230,7 @@ export default function StatisticsPage() {
         
         {/* CHART 1: Umsatz-Entwicklung */}
         <section className="bg-bg-panel border border-structure rounded-xl p-6 shadow-xl">
-          <h2 className="text-xl font-bold text-white mb-6">Umsatz-Entwicklung (Letzte 6 Monate)</h2>
+          <h2 className="text-xl font-bold text-text-main mb-6">Umsatz-Entwicklung (Letzte 6 Monate)</h2>
           <div className="h-[300px] w-full">
             {revenueData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -250,7 +250,7 @@ export default function StatisticsPage() {
 
         {/* CHART 2: Lead-Quellen */}
         <section className="bg-bg-panel border border-structure rounded-xl p-6 shadow-xl">
-          <h2 className="text-xl font-bold text-white mb-6">Umsatz nach Herkunft (Marketing)</h2>
+          <h2 className="text-xl font-bold text-text-main mb-6">Umsatz nach Herkunft (Marketing)</h2>
           <div className="h-[300px] w-full flex items-center">
             {sourceData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
@@ -280,7 +280,7 @@ export default function StatisticsPage() {
 
         {/* CHART 3: Team Performance */}
         <section className="bg-bg-panel border border-structure rounded-xl p-6 shadow-xl lg:col-span-2">
-          <h2 className="text-xl font-bold text-white mb-6">Mitarbeiter-Aktivität (Letzte 30 Tage)</h2>
+          <h2 className="text-xl font-bold text-text-main mb-6">Mitarbeiter-Aktivität (Letzte 30 Tage)</h2>
           <div className="h-[300px] w-full">
             {teamActivity.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">

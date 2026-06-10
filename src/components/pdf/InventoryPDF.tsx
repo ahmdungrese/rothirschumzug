@@ -3,7 +3,8 @@ import { COMPANY_DETAILS } from '@/lib/constants';
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 40 },
+  headerContainer: { alignItems: 'center', marginBottom: 30 },
+  logoTextPrimary: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#8F1627', textTransform: 'uppercase', letterSpacing: 2 },
   companyInfo: { textAlign: 'right', fontSize: 9, color: '#666' },
   title: { fontSize: 18, fontFamily: 'Helvetica-Bold', marginBottom: 20, color: '#8F1627' },
   section: { marginBottom: 20 },
@@ -18,12 +19,8 @@ const styles = StyleSheet.create({
 export const InventoryPDF = ({ customer, items }: { customer: any, items: any[] }) => (
   <Document>
     <Page size="A4" style={styles.page}>
-      <View style={styles.header}>
-        <Text style={{ fontSize: 24, fontFamily: 'Helvetica-Bold', color: '#8F1627' }}>Rothirsch Umzüge</Text>
-        <View style={styles.companyInfo}>
-          <Text>{COMPANY_DETAILS.name}</Text>
-          <Text>{COMPANY_DETAILS.phone}</Text>
-        </View>
+      <View style={styles.headerContainer}>
+        <Text style={styles.logoTextPrimary}>ROTHIRSCH UMZUG</Text>
       </View>
 
       <Text style={styles.title}>Umzugsgut / Inventarliste</Text>

@@ -165,7 +165,7 @@ export function NotificationBell() {
       <button 
         id="bell-icon"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-text-muted hover:text-white hover:bg-structure/30 rounded-lg transition-colors"
+        className="relative p-2 text-text-muted hover:text-text-main hover:bg-structure/30 rounded-lg transition-colors"
       >
         <BellIcon className="w-6 h-6" />
         {notifications.length > 0 && (
@@ -181,7 +181,7 @@ export function NotificationBell() {
       {isOpen && (
         <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-bg-panel border border-structure shadow-2xl rounded-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
           <div className="p-3 bg-bg-dark border-b border-structure flex justify-between items-center">
-            <h3 className="font-semibold text-white">Dispo-Warnungen (Anti-Vergess)</h3>
+            <h3 className="font-semibold text-text-main">Dispo-Warnungen (Anti-Vergess)</h3>
             <span className="text-xs bg-structure text-text-muted px-2 py-1 rounded-md">{notifications.length}</span>
           </div>
           

@@ -78,7 +78,7 @@ export default function ArchivePage() {
     <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-bg-panel border border-structure p-6 rounded-xl shadow-lg">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white flex items-center gap-3">
+          <h1 className="text-3xl font-bold tracking-tight text-text-main flex items-center gap-3">
             <ArchiveBoxIcon className="w-8 h-8 text-text-muted" /> Archiv
           </h1>
           <p className="text-text-muted mt-1">Gelöschte Daten verwalten (Wiederherstellen oder endgültig löschen).</p>
@@ -97,13 +97,13 @@ export default function ArchivePage() {
       <div className="flex gap-4 border-b border-structure pb-4">
         <button 
           onClick={() => setActiveTab('customers')} 
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === 'customers' ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-bg-dark text-text-muted hover:text-white border border-structure'}`}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === 'customers' ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-bg-dark text-text-muted hover:text-text-main border border-structure'}`}
         >
           Kunden ({archivedCustomers.length})
         </button>
         <button 
           onClick={() => setActiveTab('orders')} 
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === 'orders' ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-bg-dark text-text-muted hover:text-white border border-structure'}`}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === 'orders' ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-bg-dark text-text-muted hover:text-text-main border border-structure'}`}
         >
           Angebote/Aufträge ({archivedOrders.length})
         </button>
@@ -132,7 +132,7 @@ export default function ArchivePage() {
                     filteredCustomers.map(customer => (
                       <tr key={customer.id} className="border-b border-structure/50 hover:bg-structure/20 transition-colors">
                         <td className="p-4 text-text-muted text-sm">{customer.customerNumber || '-'}</td>
-                        <td className="p-4 font-semibold text-white">{customer.firstName} {customer.lastName}</td>
+                        <td className="p-4 font-semibold text-text-main">{customer.firstName} {customer.lastName}</td>
                         <td className="p-4 text-text-muted">{customer.billingAddress?.city || '-'}</td>
                         <td className="p-4"><span className="bg-structure text-text-muted text-xs px-2 py-1 rounded">Archiviert</span></td>
                         <td className="p-4 text-right">
@@ -170,8 +170,8 @@ export default function ArchivePage() {
                     filteredOrders.map(order => (
                       <tr key={order.id} className="border-b border-structure/50 hover:bg-structure/20 transition-colors">
                         <td className="p-4 text-text-muted text-sm">{order.orderNumber || '-'}</td>
-                        <td className="p-4 font-semibold text-white">{order.customerName || 'Unbekannt'}</td>
-                        <td className="p-4 text-white font-medium">€ {order.totals?.gross?.toFixed(2) || '0.00'}</td>
+                        <td className="p-4 font-semibold text-text-main">{order.customerName || 'Unbekannt'}</td>
+                        <td className="p-4 text-text-main font-medium">€ {order.totals?.gross?.toFixed(2) || '0.00'}</td>
                         <td className="p-4"><span className="bg-structure text-text-muted text-xs px-2 py-1 rounded">Archiviert</span></td>
                         <td className="p-4 text-right">
                           <div className="flex items-center justify-end gap-2">

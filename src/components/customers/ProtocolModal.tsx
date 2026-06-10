@@ -20,11 +20,33 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
         const data = docSnap.data();
         setSettings(data);
         if (data.protocolTypes && data.protocolTypes.length > 0) {
-          setType(data.protocolTypes[0]);
+          const firstType = data.protocolTypes[0];
+          setType(firstType);
+          setText(getDefaultTextForType(firstType));
+        } else {
+          setText(getDefaultTextForType('Gefahrenübergang (Haftungsausschluss)'));
         }
       }
     });
   }, []);
+
+  const getDefaultTextForType = (t: string) => {
+    if (t.includes('Gefahrenübergang') || t.includes('Haftungsausschluss')) {
+      return "Der Kunde bestätigt hiermit, dass der Transport/Umzug auf eigene Gefahr erfolgt. Das Unternehmen übernimmt keine Haftung für entstandene Kratzer, Schäden oder Mängel an den betreffenden Gegenständen oder am Gebäude.";
+    }
+    if (t.includes('Keine Schäden') || t.includes('Abschluss')) {
+      return "Der Kunde bestätigt hiermit ausdrücklich, dass der Umzug und alle vereinbarten Leistungen vollständig und zu seiner vollsten Zufriedenheit durchgeführt wurden. Es sind keine Schäden an Möbeln, dem Inventar oder in den Räumlichkeiten (Treppenhaus, Wände, Böden etc.) entstanden.";
+    }
+    if (t.includes('Schaden')) {
+      return "Folgende Vorschäden / Schäden wurden vor oder während den Arbeiten dokumentiert:\n1. \n2. \n";
+    }
+    return "";
+  };
+
+  const handleTypeChange = (newType: string) => {
+    setType(newType);
+    setText(getDefaultTextForType(newType));
+  };
 
   const clear = () => sigPad.current?.clear();
 
@@ -68,10 +90,10 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="bg-bg-panel border border-structure rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
         <div className="p-4 border-b border-structure flex justify-between items-center bg-bg-dark shrink-0">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+          <h2 className="text-xl font-bold text-text-main flex items-center gap-2">
             <ClipboardDocumentIcon className="w-6 h-6" /> Neues Protokoll anlegen
           </h2>
-          <button onClick={onClose} className="p-2 text-text-muted hover:text-white rounded-full transition-colors">
+          <button onClick={onClose} className="p-2 text-text-muted hover:text-text-main rounded-full transition-colors">
             <XMarkIcon className="w-6 h-6" />
           </button>
         </div>
@@ -82,8 +104,8 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
               <label className="block text-sm font-medium text-text-muted mb-2">Art des Protokolls</label>
               <select 
                 value={type} 
-                onChange={(e) => setType(e.target.value)}
-                className="input-field py-3 px-4 w-full bg-bg-dark text-white font-medium border-primary/30 focus:border-primary"
+                onChange={(e) => handleTypeChange(e.target.value)}
+                className="input-field py-3 px-4 w-full bg-bg-dark text-text-main font-medium border-primary/30 focus:border-primary"
               >
                 {settings?.protocolTypes ? (
                   settings.protocolTypes.map((pt: string) => <option key={pt} value={pt}>{pt}</option>)
@@ -110,7 +132,7 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
                     }}
                     className="bg-primary/20 text-primary border border-primary/30 text-xs py-1 px-2 rounded cursor-pointer max-w-[200px] truncate"
                   >
-                    <option value="">+ Vorlage einfügen</option>
+                    <option value="">+ Textbaustein anfügen</option>
                     {settings.protocolTemplates.map((t: string, idx: number) => (
                       <option key={idx} value={t}>{t.length > 30 ? t.substring(0,30)+'...' : t}</option>
                     ))}
@@ -128,7 +150,7 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
           </div>
           
           <div className="bg-bg-dark p-4 rounded-xl border-2 border-primary/20">
-            <h3 className="font-semibold text-white mb-2 flex items-center gap-2">
+            <h3 className="font-semibold text-text-main mb-2 flex items-center gap-2">
               <PencilIcon className="w-5 h-5" /> Unterschrift (Kunde)
             </h3>
             <p className="text-xs text-text-muted mb-4">

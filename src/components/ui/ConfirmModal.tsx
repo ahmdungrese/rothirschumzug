@@ -31,7 +31,7 @@ export function ConfirmModal({
             <div className={`p-3 rounded-full ${isDestructive ? 'bg-red-500/20 text-red-500' : 'bg-primary/20 text-primary'}`}>
               <ExclamationTriangleIcon className="w-8 h-8" />
             </div>
-            <h3 className="text-xl font-bold text-white">{title}</h3>
+            <h3 className="text-xl font-bold text-text-main">{title}</h3>
           </div>
           <p className="text-text-muted">{message}</p>
         </div>

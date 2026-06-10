@@ -59,11 +59,11 @@ export function PaymentModal({ order, onClose }: { order: any, onClose: () => vo
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-center items-center p-4">
       <div className="bg-bg-panel border border-structure p-6 rounded-2xl w-full max-w-md shadow-2xl relative animate-in zoom-in-95 duration-200">
-        <button onClick={onClose} className="absolute top-4 right-4 text-text-muted hover:text-white">
+        <button onClick={onClose} className="absolute top-4 right-4 text-text-muted hover:text-text-main">
           <XMarkIcon className="w-6 h-6" />
         </button>
         
-        <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+        <h2 className="text-xl font-bold text-text-main mb-2 flex items-center gap-2">
           <BanknotesIcon className="w-6 h-6 text-green-400" />
           Zahlung erfassen
         </h2>
@@ -72,14 +72,14 @@ export function PaymentModal({ order, onClose }: { order: any, onClose: () => vo
         <div className="bg-bg-dark border border-structure rounded-xl p-4 mb-6 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-text-muted">Rechnungssumme:</span>
-            <span className="text-white font-medium">€ {gross.toFixed(2)}</span>
+            <span className="text-text-main font-medium">€ {gross.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-text-muted">Bisher bezahlt:</span>
             <span className="text-green-400 font-medium">€ {paidTotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-base font-bold pt-2 border-t border-structure">
-            <span className="text-white">Offener Restbetrag:</span>
+            <span className="text-text-main">Offener Restbetrag:</span>
             <span className="text-orange-400">€ {openAmount.toFixed(2)}</span>
           </div>
         </div>

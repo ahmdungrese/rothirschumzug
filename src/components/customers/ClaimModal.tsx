@@ -58,7 +58,7 @@ export function ClaimModal({
           <h2 className="text-xl font-bold text-red-400 flex items-center gap-2">
             <ExclamationTriangleIcon className="w-6 h-6" /> Schaden / Problem erfassen
           </h2>
-          <button onClick={onClose} className="p-2 text-text-muted hover:text-white rounded-full transition-colors">
+          <button onClick={onClose} className="p-2 text-text-muted hover:text-text-main rounded-full transition-colors">
             <XMarkIcon className="w-6 h-6" />
           </button>
         </div>

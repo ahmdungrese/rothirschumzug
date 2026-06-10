@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
 import { 
   HomeIcon, 
   UsersIcon, 
@@ -31,6 +32,7 @@ const navItems = [
 export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (val: boolean) => void }) {
   const pathname = usePathname();
   const { profile } = useAuth();
+  const { theme } = useTheme();
   
   const filteredNavItems = navItems.filter(item => item.roles.includes(profile?.role || 'teamlead'));
 
@@ -44,13 +46,20 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
         />
       )}
 
-      {/* Sidebar - Hidden on mobile entirely now */}
+      {/* Sidebar - SlideOver on mobile, static on desktop */}
       <aside className={`
-        hidden md:flex md:static md:inset-0 fixed inset-y-0 left-0 z-50 w-64 flex-col bg-bg-panel border-r border-structure transform transition-transform duration-300 ease-in-out md:translate-x-0
+        flex md:static md:inset-0 fixed inset-y-0 left-0 z-50 w-64 flex-col bg-bg-panel border-r border-structure transform transition-transform duration-300 ease-in-out md:translate-x-0
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="flex items-center justify-between h-16 px-4 border-b border-structure">
-          <Image src="/Rothirsch.png" alt="Rothirsch Logo" width={150} height={40} className="object-contain" priority />
+        <div className="flex items-center justify-between h-16 px-4 border-b border-structure bg-[#0A0F13]">
+          <Image 
+            src="/Rothirsch.png" 
+            alt="Rothirsch Logo" 
+            width={150} 
+            height={40} 
+            className="object-contain" 
+            priority 
+          />
           <button onClick={() => setIsOpen(false)} className="md:hidden text-text-muted hover:text-text-main">
             <XMarkIcon className="w-6 h-6" />
           </button>
@@ -109,7 +118,7 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
                 localStorage.removeItem('demoMode');
                 window.location.href = '/';
               }}
-              className="w-full mt-2 text-xs text-text-muted hover:text-white text-center py-2"
+              className="w-full mt-2 text-xs text-text-muted hover:text-text-main text-center py-2"
             >
               Demo-Modus beenden
             </button>

@@ -1,17 +1,16 @@
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
-  headerContainer: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30 },
-  logoBox: { width: 120 },
-  logoTextPrimary: { fontSize: 20, fontFamily: 'Helvetica-Bold', color: '#8F1627' },
-  logoTextSecondary: { fontSize: 12, fontFamily: 'Helvetica-Bold' },
-  logoCity: { fontSize: 10 },
-  headerRight: { textAlign: 'right', width: 200 },
+  headerContainer: { alignItems: 'center', marginBottom: 30 },
+  logoTextPrimary: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#8F1627', textTransform: 'uppercase', letterSpacing: 2 },
+  
+  docInfoBox: { width: '40%', alignItems: 'flex-end', justifyContent: 'flex-start' },
   docType: { fontSize: 16, fontFamily: 'Helvetica-Bold', color: '#8F1627', marginBottom: 5 },
   docNumLabel: { fontSize: 9, color: '#666' },
   docNum: { fontSize: 11, fontFamily: 'Helvetica-Bold' },
-  line: { borderBottomWidth: 1, borderBottomColor: '#8F1627', marginBottom: 20 },
+  
+  line: { borderBottomWidth: 1, borderBottomColor: '#8F1627', marginBottom: 15 },
   companyLine: { fontSize: 8, color: '#666', marginBottom: 15 },
   
   customerDateBox: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30 },
@@ -41,41 +40,68 @@ const styles = StyleSheet.create({
   textBlock: { marginBottom: 20, lineHeight: 1.4 },
   
   detailsHeader: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#8F1627', marginBottom: 15, marginTop: 20 },
-  addressBox: { flexDirection: 'row', marginBottom: 15 },
-  arrow: { width: 30, fontSize: 20, color: '#8F1627', fontFamily: 'Helvetica-Bold' },
-  addressContent: { flex: 1 },
-  addressTitle: { fontFamily: 'Helvetica-Bold', marginBottom: 5 },
-  addressGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  addressItem: { width: '50%', marginBottom: 5 },
-  addressLabel: { color: '#666', fontSize: 9 },
+  
+  // Neue Adresse Boxen
+  addressesRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
+  addressBoxHalf: { width: '48%' },
+  addressTitle: { fontFamily: 'Helvetica-Bold', marginBottom: 5, color: '#8F1627', borderBottomWidth: 1, borderBottomColor: '#eee', paddingBottom: 3 },
+  addressItem: { marginBottom: 4, flexDirection: 'row' },
+  addressLabel: { color: '#666', fontSize: 9, width: '40%' },
+  addressValue: { width: '60%' },
   
   signatureBox: { marginTop: 30, flexDirection: 'row', justifyContent: 'space-between' },
   sigLine: { width: '45%', borderTopWidth: 1, borderTopColor: '#333', paddingTop: 5, fontSize: 9, textAlign: 'center' },
   
   footer: { position: 'absolute', bottom: 30, left: 40, right: 40, fontSize: 8, color: '#999', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10, flexDirection: 'row', justifyContent: 'space-between' },
   
-  agbTitle: { fontSize: 12, fontFamily: 'Helvetica-Bold', marginBottom: 10 },
-  agbText: { fontSize: 7, lineHeight: 1.3 }
+  agbTitle: { fontSize: 12, fontFamily: 'Helvetica-Bold', marginBottom: 10, textAlign: 'center' },
+  agbColumnsContainer: { flexDirection: 'row', justifyContent: 'space-between' },
+  agbColumn: { width: '48%' },
+  agbText: { fontSize: 7, lineHeight: 1.3, textAlign: 'justify' },
+  
+  agbSignatureBox: { marginTop: 40, alignItems: 'flex-end' },
+  agbSigLine: { width: '60%', borderTopWidth: 1, borderTopColor: '#333', paddingTop: 5, fontSize: 9, textAlign: 'center' },
+
+  watermarkContainer: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', zIndex: -1 },
+  watermarkText: { fontSize: 60, color: '#e5e7eb', transform: 'rotate(-45deg)', fontFamily: 'Helvetica-Bold', opacity: 0.3 }
 });
 
-export const OrderPDF = ({ order, customer, settings, isContract = false }: { order: any, customer: any, settings: any, isContract?: boolean }) => {
+export const OrderPDF = ({ order, customer, settings, isContract = false, employeeName }: { order: any, customer: any, settings: any, isContract?: boolean, employeeName?: string }) => {
   const isFlat = order?.isFlatRate;
   const billing = order?.billingAddress || customer;
 
+  const docTitle = isContract ? `Auftragsbestätigung ${order?.contractNumber || order?.orderNumber || 'Entwurf'} - ${billing?.lastName || 'Kunde'}` : `Angebot ${order?.orderNumber || 'Entwurf'} - ${billing?.lastName || 'Kunde'}`;
+
+  // Personalisierte Anrede
+  const salutation = billing?.salutation || customer?.salutation;
+  let introText = isContract ? (order?.texts?.orderIntro || settings?.texts?.orderIntro || '') : (order?.texts?.quoteIntro || settings?.texts?.quoteIntro || '');
+  
+  if (salutation === 'Herr' && billing?.lastName) {
+    introText = introText.replace(/Sehr geehrte Damen und Herren,?/gi, `Sehr geehrter Herr ${billing.lastName},`);
+  } else if (salutation === 'Frau' && billing?.lastName) {
+    introText = introText.replace(/Sehr geehrte Damen und Herren,?/gi, `Sehr geehrte Frau ${billing.lastName},`);
+  }
+
+  // Schlusstexte ohne doppelte Begrüßung
+  const outroText = isContract ? (order?.texts?.orderOutro || settings?.texts?.orderOutro || '') : (order?.texts?.quoteOutro || settings?.texts?.quoteOutro || '');
+  const greetingText = isContract ? (order?.texts?.orderGreeting || settings?.texts?.orderGreeting || '') : (order?.texts?.quoteGreeting || settings?.texts?.quoteGreeting || '');
+
+  // Zahlungsmethode Text (aus Order settings oder Global)
+  const pmSettings = settings?.paymentMethods?.find((p:any) => p.name === order?.orderMeta?.paymentMethod) || settings?.paymentMethods?.[0];
+  const paymentTerms = order?.texts?.paymentTerms || pmSettings?.textQuote || '';
+
+  // Helper Funktion für AGB Splitting (Sehr grobes Aufteilen in 2 Hälften)
+  const agbFullText = settings?.texts?.agb || '';
+  const midpoint = Math.floor(agbFullText.length / 2);
+  const splitIndex = agbFullText.indexOf(' ', midpoint) !== -1 ? agbFullText.indexOf(' ', midpoint) : midpoint;
+  const agbLeft = agbFullText.substring(0, splitIndex);
+  const agbRight = agbFullText.substring(splitIndex);
+
   return (
-    <Document>
+    <Document title={docTitle}>
       <Page size="A4" style={styles.page}>
         <View style={styles.headerContainer}>
-          <View style={styles.logoBox}>
-            <Text style={styles.logoTextSecondary}>RU</Text>
-            <Text style={styles.logoTextPrimary}>{settings?.companyName || 'Dein Unternehmen'}</Text>
-            <Text style={styles.logoCity}>{settings?.city || 'Bochum'}</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <Text style={styles.docType}>{isContract ? 'Auftragsbestätigung' : 'Angebot'}</Text>
-            <Text style={styles.docNumLabel}>{isContract ? 'Auftragsnummer' : 'Angebotsnummer'}</Text>
-            <Text style={styles.docNum}>{isContract ? (order?.contractNumber || 'Entwurf') : (order?.orderNumber || 'Entwurf')}</Text>
-          </View>
+          <Text style={styles.logoTextPrimary}>{settings?.companyName || 'ROTHIRSCH UMZUG'}</Text>
         </View>
 
         <View style={styles.line} />
@@ -98,27 +124,38 @@ export const OrderPDF = ({ order, customer, settings, isContract = false }: { or
               {billing?.zip ? `${billing.zip} ${billing.city || ''}`.trim() : (billing?.address?.split(',')[1]?.trim() || '')}
             </Text>
           </View>
-          <View style={styles.dateBox}>
-            <View style={styles.dateRow}>
+          <View style={styles.docInfoBox}>
+            <Text style={styles.docType}>{isContract ? 'Auftragsbestätigung' : 'Angebot'}</Text>
+            <Text style={styles.docNumLabel}>{isContract ? 'Auftragsnummer' : 'Angebotsnummer'}</Text>
+            <Text style={styles.docNum}>{isContract ? (order?.contractNumber || 'Entwurf') : (order?.orderNumber || 'Entwurf')}</Text>
+            <View style={{ height: 15 }} />
+
+            <View style={[styles.dateRow, { width: '100%' }]}>
               <Text style={styles.dateLabel}>Datum</Text>
               <Text style={styles.dateValue}>{order?.createdAt?.toDate().toLocaleDateString('de-DE') || new Date().toLocaleDateString('de-DE')}</Text>
             </View>
-            <View style={styles.dateRow}>
+            <View style={[styles.dateRow, { width: '100%' }]}>
               <Text style={styles.dateLabel}>Umzug</Text>
               <Text style={styles.dateValue}>
                 {order?.orderMeta?.movingDateFrom ? new Date(order.orderMeta.movingDateFrom).toLocaleDateString('de-DE') : 'Nach Absprache'}
                 {order?.orderMeta?.movingDateTo ? ` - ${new Date(order.orderMeta.movingDateTo).toLocaleDateString('de-DE')}` : ''}
               </Text>
             </View>
-            <View style={styles.dateRow}>
+            <View style={[styles.dateRow, { width: '100%' }]}>
               <Text style={styles.dateLabel}>Gültig</Text>
               <Text style={styles.dateValue}>{order?.orderMeta?.validUntil ? new Date(order.orderMeta.validUntil).toLocaleDateString('de-DE') : '-'}</Text>
             </View>
+            {employeeName && (
+              <View style={[styles.dateRow, { width: '100%' }]}>
+                <Text style={styles.dateLabel}>Sachbearbeiter</Text>
+                <Text style={styles.dateValue}>{employeeName}</Text>
+              </View>
+            )}
           </View>
         </View>
 
         <Text style={styles.introText}>
-          {isContract ? (order?.texts?.orderIntro || settings?.texts?.orderIntro) : (order?.texts?.quoteIntro || settings?.texts?.quoteIntro)}
+          {introText}
         </Text>
 
         <View style={styles.table}>
@@ -154,12 +191,14 @@ export const OrderPDF = ({ order, customer, settings, isContract = false }: { or
         </View>
 
         <Text style={styles.textBlock}>
-          {isContract ? (order?.texts?.orderOutro || settings?.texts?.orderOutro) : (order?.texts?.quoteOutro || settings?.texts?.quoteOutro)}
+          {paymentTerms ? outroText.replace(paymentTerms, '').trim() : outroText}
         </Text>
         
-        <Text style={styles.textBlock}>
-          {isContract ? (order?.texts?.orderGreeting || settings?.texts?.orderGreeting) : (order?.texts?.quoteGreeting || settings?.texts?.quoteGreeting)}
-        </Text>
+        {greetingText && !outroText.includes(greetingText) && (
+          <Text style={styles.textBlock}>
+            {greetingText}
+          </Text>
+        )}
 
         <View style={styles.footer}>
           <View>
@@ -179,47 +218,100 @@ export const OrderPDF = ({ order, customer, settings, isContract = false }: { or
 
       {/* Page 2: Details & Signature */}
       <Page size="A4" style={styles.page}>
-        <Text style={styles.detailsHeader}>Auftragsdetails & Bestätigung</Text>
+        <Text style={styles.detailsHeader}>{isContract ? 'Auftragsdetails & Bestätigung' : 'Angebotsdetails'}</Text>
 
-        <View style={styles.addressBox}>
-          <Text style={styles.arrow}>↑</Text>
-          <View style={styles.addressContent}>
+        <View style={styles.addressesRow}>
+          {/* Auszugsort (A) */}
+          <View style={styles.addressBoxHalf}>
             <Text style={styles.addressTitle}>Auszugsort</Text>
-            <View style={styles.addressGrid}>
-              <View style={styles.addressItem}><Text style={styles.addressLabel}>Adresse:</Text><Text>{order?.logistics?.a_street} {order?.logistics?.a_houseNr}, {order?.logistics?.a_zip} {order?.logistics?.a_city}</Text></View>
-              <View style={styles.addressItem}><Text style={styles.addressLabel}>Immo-Art:</Text><Text>{order?.logistics?.a_type || 'k.A.'}</Text></View>
-              <View style={styles.addressItem}><Text style={styles.addressLabel}>Etage:</Text><Text>{order?.logistics?.a_floor || 'k.A.'} {order?.logistics?.a_elevator ? '(mit Aufzug)' : '(ohne Aufzug)'}</Text></View>
-              <View style={styles.addressItem}><Text style={styles.addressLabel}>Laufweg:</Text><Text>{!order?.logistics?.a_distance ? 'Unter 10 Meter' : `${order.logistics.a_distance} Meter`}</Text></View>
-              <View style={styles.addressItem}><Text style={styles.addressLabel}>Halteverbot:</Text><Text>{order?.logistics?.a_parking ? 'Ja' : 'Nein / Bauseits'}</Text></View>
-              <View style={styles.addressItem}><Text style={styles.addressLabel}>Möbellift:</Text><Text>{order?.logistics?.a_furnitureLift ? 'Ja (wird gestellt)' : 'Nein'}</Text></View>
+            <View style={styles.addressItem}>
+              <Text style={styles.addressLabel}>Adresse:</Text>
+              <Text style={styles.addressValue}>{order?.logistics?.a_street} {order?.logistics?.a_houseNr}, {order?.logistics?.a_zip} {order?.logistics?.a_city}</Text>
             </View>
+            <View style={styles.addressItem}>
+              <Text style={styles.addressLabel}>Immo-Art:</Text>
+              <Text style={styles.addressValue}>{order?.logistics?.a_type || 'k.A.'}</Text>
+            </View>
+            <View style={styles.addressItem}>
+              <Text style={styles.addressLabel}>Etage:</Text>
+              <Text style={styles.addressValue}>{order?.logistics?.a_floor || 'k.A.'} {order?.logistics?.a_elevator ? '(mit Aufzug)' : '(ohne Aufzug)'}</Text>
+            </View>
+            <View style={styles.addressItem}>
+              <Text style={styles.addressLabel}>Laufweg:</Text>
+              <Text style={styles.addressValue}>{!order?.logistics?.a_distance ? 'Unter 10 Meter' : `${order.logistics.a_distance} Meter`}</Text>
+            </View>
+            {order?.logistics?.a_parking && (
+              <View style={styles.addressItem}>
+                <Text style={styles.addressLabel}>Halteverbot:</Text>
+                <Text style={styles.addressValue}>Ja</Text>
+              </View>
+            )}
+            {order?.logistics?.a_furnitureLift && (
+              <View style={styles.addressItem}>
+                <Text style={styles.addressLabel}>Möbellift:</Text>
+                <Text style={styles.addressValue}>Ja (wird gestellt)</Text>
+              </View>
+            )}
           </View>
-        </View>
 
-        <View style={styles.addressBox}>
-          <Text style={styles.arrow}>↓</Text>
-          <View style={styles.addressContent}>
+          {/* Einzugsort (B) */}
+          <View style={styles.addressBoxHalf}>
             <Text style={styles.addressTitle}>Einzugsort</Text>
-            <View style={styles.addressGrid}>
-              <View style={styles.addressItem}><Text style={styles.addressLabel}>Adresse:</Text><Text>{order?.logistics?.b_street} {order?.logistics?.b_houseNr}, {order?.logistics?.b_zip} {order?.logistics?.b_city}</Text></View>
-              <View style={styles.addressItem}><Text style={styles.addressLabel}>Immo-Art:</Text><Text>{order?.logistics?.b_type || 'k.A.'}</Text></View>
-              <View style={styles.addressItem}><Text style={styles.addressLabel}>Etage:</Text><Text>{order?.logistics?.b_floor || 'k.A.'} {order?.logistics?.b_elevator ? '(mit Aufzug)' : '(ohne Aufzug)'}</Text></View>
-              <View style={styles.addressItem}><Text style={styles.addressLabel}>Laufweg:</Text><Text>{!order?.logistics?.b_distance ? 'Unter 10 Meter' : `${order.logistics.b_distance} Meter`}</Text></View>
-              <View style={styles.addressItem}><Text style={styles.addressLabel}>Halteverbot:</Text><Text>{order?.logistics?.b_parking ? 'Ja' : 'Nein / Bauseits'}</Text></View>
-              <View style={styles.addressItem}><Text style={styles.addressLabel}>Möbellift:</Text><Text>{order?.logistics?.b_furnitureLift ? 'Ja (wird gestellt)' : 'Nein'}</Text></View>
+            <View style={styles.addressItem}>
+              <Text style={styles.addressLabel}>Adresse:</Text>
+              <Text style={styles.addressValue}>{order?.logistics?.b_street} {order?.logistics?.b_houseNr}, {order?.logistics?.b_zip} {order?.logistics?.b_city}</Text>
             </View>
+            <View style={styles.addressItem}>
+              <Text style={styles.addressLabel}>Immo-Art:</Text>
+              <Text style={styles.addressValue}>{order?.logistics?.b_type || 'k.A.'}</Text>
+            </View>
+            <View style={styles.addressItem}>
+              <Text style={styles.addressLabel}>Etage:</Text>
+              <Text style={styles.addressValue}>{order?.logistics?.b_floor || 'k.A.'} {order?.logistics?.b_elevator ? '(mit Aufzug)' : '(ohne Aufzug)'}</Text>
+            </View>
+            <View style={styles.addressItem}>
+              <Text style={styles.addressLabel}>Laufweg:</Text>
+              <Text style={styles.addressValue}>{!order?.logistics?.b_distance ? 'Unter 10 Meter' : `${order.logistics.b_distance} Meter`}</Text>
+            </View>
+            {order?.logistics?.b_parking && (
+              <View style={styles.addressItem}>
+                <Text style={styles.addressLabel}>Halteverbot:</Text>
+                <Text style={styles.addressValue}>Ja</Text>
+              </View>
+            )}
+            {order?.logistics?.b_furnitureLift && (
+              <View style={styles.addressItem}>
+                <Text style={styles.addressLabel}>Möbellift:</Text>
+                <Text style={styles.addressValue}>Ja (wird gestellt)</Text>
+              </View>
+            )}
           </View>
         </View>
 
         <Text style={{ ...styles.detailsHeader, fontSize: 11, marginBottom: 5 }}>Versicherungsschutz</Text>
         <Text style={styles.textBlock}>{settings?.texts?.insurance}</Text>
 
+        {paymentTerms && (
+          <>
+            <Text style={{ ...styles.detailsHeader, fontSize: 11, marginBottom: 5 }}>Zahlungsinformationen</Text>
+            <Text style={styles.textBlock}>{paymentTerms}</Text>
+          </>
+        )}
+
         <Text style={{ ...styles.detailsHeader, fontSize: 11, marginBottom: 5 }}>Zum Auftrag</Text>
         <Text style={styles.textBlock}>Mit Ihrer Unterschrift bestätigen Sie die Beauftragung und erkennen unsere Allgemeinen Geschäftsbedingungen sowie die gesetzlichen Haftungsregelungen des Möbelspediteurs (§ 451g HGB) an. Wir sichern Ihnen eine professionelle und zuverlässige Durchführung Ihres Umzugs zu.</Text>
 
         <View style={styles.signatureBox}>
-          <View style={styles.sigLine}><Text>Ort, Datum</Text></View>
-          <View style={styles.sigLine}><Text>Unterschrift Auftraggeber</Text></View>
+          <View style={styles.sigLine}>
+            <Text>{order?.signatureOrderPlace ? `${order.signatureOrderPlace}, den ${order.signatureOrderDateString}` : 'Ort, Datum'}</Text>
+          </View>
+          <View style={styles.sigLine}>
+            {order?.signatureOrder ? (
+              <Image src={order.signatureOrder} style={{ height: 40, marginTop: -35 }} />
+            ) : (
+              <Text>Unterschrift Auftraggeber</Text>
+            )}
+          </View>
         </View>
 
         <View style={styles.footer}>
@@ -229,8 +321,34 @@ export const OrderPDF = ({ order, customer, settings, isContract = false }: { or
 
       {/* Page 3: AGBs */}
       <Page size="A4" style={styles.page}>
+        <View style={styles.watermarkContainer}>
+          <Text style={styles.watermarkText}>{settings?.companyName}</Text>
+        </View>
+
         <Text style={styles.agbTitle}>Allgemeine Geschäftsbedingungen (AGB)</Text>
-        <Text style={styles.agbText}>{settings?.texts?.agb}</Text>
+        
+        <View style={styles.agbColumnsContainer}>
+          <View style={styles.agbColumn}>
+            <Text style={styles.agbText}>{agbLeft}</Text>
+          </View>
+          <View style={styles.agbColumn}>
+            <Text style={styles.agbText}>{agbRight}</Text>
+          </View>
+        </View>
+
+        <View style={styles.agbSignatureBox}>
+          <View style={styles.agbSigLine}>
+            {order?.signatureAGB ? (
+              <>
+                <Image src={order.signatureAGB} style={{ height: 40, marginTop: -35, alignSelf: 'center' }} />
+                <Text style={{ fontSize: 10, marginTop: 5 }}>{order.signatureAGBPlace}, den {order.signatureAGBDateString}</Text>
+              </>
+            ) : (
+              <Text style={{ fontSize: 10 }}>Ort, Datum & Unterschrift (AGBs gelesen & akzeptiert)</Text>
+            )}
+          </View>
+        </View>
+
         <View style={styles.footer}>
           <Text>{settings?.companyName} | Seite 3</Text>
         </View>
@@ -239,6 +357,10 @@ export const OrderPDF = ({ order, customer, settings, isContract = false }: { or
       {/* Optional: Inventarliste */}
       {order?.appendInventoryToPDF && order?.inventory?.length > 0 && (
         <Page size="A4" style={styles.page}>
+          <View style={styles.watermarkContainer}>
+            <Text style={styles.watermarkText}>{settings?.companyName}</Text>
+          </View>
+          
           <Text style={{ ...styles.detailsHeader, fontSize: 18, marginBottom: 20 }}>Anlage: Umzugsgut / Inventarliste</Text>
           <View style={styles.table}>
             <View style={styles.tableHeader}>

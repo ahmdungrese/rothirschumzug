@@ -19,6 +19,11 @@ export async function POST() {
       await deleteDoc(doc(db, `${prefix}customers`, d.id));
     }
 
+    const claimsSnap = await getDocs(collection(db, `${prefix}claims`));
+    for (const d of claimsSnap.docs) {
+      await deleteDoc(doc(db, `${prefix}claims`, d.id));
+    }
+
     const usersSnap = await getDocs(collection(db, `${prefix}users`));
     for (const d of usersSnap.docs) {
       await deleteDoc(doc(db, `${prefix}users`, d.id));

@@ -34,7 +34,7 @@ export default function CustomersPage() {
     <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Kunden</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-text-main">Kunden</h1>
           <p className="text-text-muted mt-1">Verwalten Sie hier alle Kunden.</p>
         </div>
       </div>
@@ -58,7 +58,7 @@ export default function CustomersPage() {
               ) : (
                 customers.map((customer) => (
                   <tr key={customer.id} className="block md:table-row border-b border-structure/50 hover:bg-structure/20 transition-colors p-4 md:p-0 mb-4 md:mb-0 bg-bg-dark md:bg-transparent rounded-lg md:rounded-none">
-                    <td className="block md:table-cell p-2 md:p-4 text-sm text-white font-medium border-b border-structure md:border-none">
+                    <td className="block md:table-cell p-2 md:p-4 text-sm text-text-main font-medium border-b border-structure md:border-none">
                       {customer.firstName} {customer.lastName}
                     </td>
                     <td className="block md:table-cell p-2 md:p-4 text-sm text-text-muted border-b border-structure md:border-none">

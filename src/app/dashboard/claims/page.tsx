@@ -58,7 +58,7 @@ export default function ClaimsPage() {
     <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500 pb-12">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-text-main flex items-center gap-3">
             <ShieldExclamationIcon className="w-8 h-8 text-red-500" />
             Zentrale Reklamationen
           </h1>
@@ -137,7 +137,7 @@ function ClaimCard({ claim, updateStatus, onDelete }: { claim: any, updateStatus
   return (
     <div className="bg-bg-dark border border-structure p-4 rounded-xl shadow-lg hover:border-primary/50 transition-colors flex flex-col h-full">
       <div className="flex justify-between items-start mb-2">
-        <Link href={`/dashboard/customers/${claim.customerId}`} className="font-semibold text-white hover:text-primary transition-colors text-sm truncate">
+        <Link href={`/dashboard/customers/${claim.customerId}`} className="font-semibold text-text-main hover:text-primary transition-colors text-sm truncate">
           {claim.customerName}
         </Link>
         <button onClick={onDelete} className="text-text-muted hover:text-red-400 transition-colors">
@@ -154,7 +154,7 @@ function ClaimCard({ claim, updateStatus, onDelete }: { claim: any, updateStatus
       </p>
 
       {claim.insuranceId && (
-        <div className="bg-structure/50 p-2 rounded mb-3 text-xs text-white border border-structure">
+        <div className="bg-structure/50 p-2 rounded mb-3 text-xs text-text-main border border-structure">
           <span className="text-text-muted">Versicherung:</span> {claim.insuranceId}
         </div>
       )}
@@ -163,7 +163,7 @@ function ClaimCard({ claim, updateStatus, onDelete }: { claim: any, updateStatus
         <select 
           value={claim.status}
           onChange={(e) => updateStatus(claim.id, e.target.value)}
-          className="w-full bg-bg-panel border border-structure text-xs text-white p-2 rounded-md focus:border-primary"
+          className="w-full bg-bg-panel border border-structure text-xs text-text-main p-2 rounded-md focus:border-primary"
         >
           <option value="Neu">Neu Gemeldet</option>
           <option value="In Bearbeitung">In Bearbeitung</option>

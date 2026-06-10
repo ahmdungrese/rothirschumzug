@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { PaymentManager } from '@/components/orders/PaymentManager';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { DispoModal } from '@/components/orders/DispoModal';
 import { getCol } from '@/lib/demoMode';
 
 export default function OrdersPage() {
@@ -17,12 +18,6 @@ export default function OrdersPage() {
   
   // Disposition Modal State
   const [dispoOrder, setDispoOrder] = useState<any>(null);
-  const [dispoData, setDispoData] = useState({
-    helpers: 2,
-    koffer35t: 1,
-    lkw7t: 0,
-    movingDate: ''
-  });
 
   useEffect(() => {
     // Limit to orders from the last 30 days to save Firebase reads
@@ -48,45 +43,6 @@ export default function OrdersPage() {
 
   const fetchOrders = () => {}; // No-op for PaymentManager compatibility
 
-  const confirmAndDispatch = async () => {
-    if (!dispoOrder) return;
-    try {
-      const todos = dispoOrder.todos || [];
-      
-      // Halteverbot
-      if (dispoOrder.logistics?.noParkingZone && !todos.some((t:any) => t.title === 'Halteverbot beantragen')) {
-        todos.push({ id: 'todo_' + Date.now() + 1, title: 'Halteverbot beantragen', isDone: false });
-      }
-      // Möbellift
-      if (dispoOrder.logistics?.furnitureLift && !todos.some((t:any) => t.title === 'Möbellift reservieren')) {
-        todos.push({ id: 'todo_' + Date.now() + 2, title: 'Möbellift reservieren', isDone: false });
-      }
-      // Kartons
-      if (dispoOrder.services?.some((s: any) => s.name.toLowerCase().includes('karton')) && !todos.some((t:any) => t.title === 'Umzugskartons ausliefern')) {
-        todos.push({ id: 'todo_' + Date.now() + 3, title: 'Umzugskartons ausliefern', isDone: false });
-      }
-      // Fahrzeuge
-      if ((dispoData.koffer35t > 0 || dispoData.lkw7t > 0) && !todos.some((t:any) => t.title.includes('Fahrzeug mieten'))) {
-        todos.push({ id: 'todo_' + Date.now() + 4, title: `Fahrzeug mieten (${dispoData.koffer35t}x 3,5t | ${dispoData.lkw7t}x 7,5t)`, isDone: false });
-      }
-      // Mitarbeiter
-      if (dispoData.helpers > 0 && !todos.some((t:any) => t.title === 'Mitarbeiter einteilen')) {
-        todos.push({ id: 'todo_' + Date.now() + 5, title: 'Mitarbeiter einteilen', isDone: false });
-      }
-
-      await updateDoc(doc(db, getCol('orders'), dispoOrder.id), {
-        status: 'confirmed',
-        disposition: dispoData,
-        todos: todos
-      });
-      setDispoOrder(null);
-      toast.success("Auftrag erfolgreich bestätigt und disponiert!");
-    } catch (e) {
-      console.error(e);
-      toast.error("Fehler bei der Disposition.");
-    }
-  };
-
   const generateInvoice = async (order: any) => {
     setInvoiceConfirmOrder(order);
   };
@@ -100,7 +56,7 @@ export default function OrdersPage() {
       });
       const highestNumber = currentInvoices.length > 0 ? Math.max(...currentInvoices) : 0;
       const nextNumber = highestNumber + 1;
-      const prefix = getInvoicePrefix();
+      const prefix = `RE-${new Date().getFullYear()}-`;
       const invoiceNumberString = `${prefix}${nextNumber.toString().padStart(4, '0')}`;
 
       await updateDoc(doc(db, getCol('orders'), invoiceConfirmOrder.id), {
@@ -123,15 +79,28 @@ export default function OrdersPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (order: any) => {
+    const status = order.status;
+    
+    // Check for partial payment
+    if (status === 'invoice_open' && order.payments && order.payments.length > 0) {
+      const totalGross = order.totals?.gross || 0;
+      const totalPaid = order.payments.reduce((sum: number, p: any) => sum + p.amount, 0);
+      if (totalPaid > 0 && totalPaid < totalGross) {
+        return <span className="px-2 py-1 bg-yellow-500/20 text-yellow-500 rounded text-xs font-semibold uppercase tracking-wider">Teilweise bezahlt</span>;
+      }
+    }
+
     switch(status) {
       case 'draft': return <span className="px-2 py-1 bg-structure text-text-muted rounded text-xs font-semibold uppercase tracking-wider">Entwurf</span>;
+      case 'clarification': return <span className="px-2 py-1 bg-yellow-500/20 text-yellow-500 rounded text-xs font-semibold uppercase tracking-wider">In Klärung</span>;
       case 'quote': return <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs font-semibold uppercase tracking-wider">Angebot</span>;
       case 'confirmed': return <span className="px-2 py-1 bg-primary/20 text-primary rounded text-xs font-semibold uppercase tracking-wider">Bestätigt (Aktiv)</span>;
       case 'invoice_open': return <span className="px-2 py-1 bg-orange-500/20 text-orange-400 rounded text-xs font-semibold uppercase tracking-wider">Offen</span>;
       case 'invoice_paid': return <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-semibold uppercase tracking-wider">Bezahlt</span>;
       case 'invoice_overdue': return <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs font-semibold uppercase tracking-wider">In Mahnung</span>;
       case 'canceled': return <span className="px-2 py-1 bg-red-900/30 text-red-500 rounded text-xs font-semibold uppercase tracking-wider line-through">Storniert</span>;
+      case 'rejected': return <span className="px-2 py-1 bg-red-900/30 text-red-400 rounded text-xs font-semibold uppercase tracking-wider line-through">Abgelehnt</span>;
       default: return <span className="px-2 py-1 bg-structure text-text-muted rounded text-xs">{status}</span>;
     }
   };
@@ -143,7 +112,7 @@ export default function OrdersPage() {
   return (
     <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">Aufträge & Disposition</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-text-main">Aufträge & Disposition</h1>
         <p className="text-text-muted mt-1">Verwalten Sie Angebote, teilen Sie Fahrzeuge/Mitarbeiter ein und erstellen Sie Rechnungen.</p>
       </div>
 
@@ -153,7 +122,7 @@ export default function OrdersPage() {
             <thead className="hidden md:table-header-group">
               <tr className="bg-bg-dark text-text-muted text-sm border-b border-structure md:table-row">
                 <th className="p-4 font-medium md:table-cell">Datum</th>
-                <th className="p-4 font-medium md:table-cell">Nummer / Kunde</th>
+                <th className="p-4 font-medium md:table-cell">Nummer / Kunde / Details</th>
                 <th className="p-4 font-medium md:table-cell">Status</th>
                 <th className="p-4 font-medium md:text-right md:table-cell">Summe (Brutto)</th>
                 <th className="p-4 font-medium md:text-right md:table-cell">Aktion</th>
@@ -168,22 +137,34 @@ export default function OrdersPage() {
                 orders.map((order) => (
                   <tr key={order.id} className="block md:table-row border-b border-structure/50 hover:bg-structure/20 transition-colors p-4 md:p-0 mb-4 md:mb-0 bg-bg-dark md:bg-transparent rounded-lg md:rounded-none">
                     <td className="block md:table-cell p-2 md:p-4 text-sm text-text-muted border-b border-structure md:border-none">
-                      <span className="md:hidden font-semibold text-white mr-2">Datum:</span>
+                      <span className="md:hidden font-semibold text-text-main mr-2">Datum:</span>
                       {new Date(order.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')}
                     </td>
                     <td className="block md:table-cell p-2 md:p-4 border-b border-structure md:border-none">
-                      <Link href={`/dashboard/customers/${order.customerId}`} className="hover:text-primary transition-colors flex md:block items-center justify-between">
-                        <div className="font-semibold text-white">
-                          {order.invoiceNumber ? order.invoiceNumber : (order.status === 'quote' ? 'Angebot' : 'Entwurf')}
+                      <Link href={`/dashboard/customers/${order.customerId}`} className="hover:text-primary transition-colors flex flex-col md:block items-start md:items-stretch">
+                        <div className="font-semibold text-text-main">
+                          {order.invoiceNumber ? order.invoiceNumber : (order.orderNumber || (order.status === 'quote' ? 'Angebot' : 'Entwurf'))}
                         </div>
-                        <div className="text-xs text-text-muted mt-1">Kunde: {order.customerId.slice(0, 8)}...</div>
+                        <div className="text-sm text-text-main mt-1">{order.customerName || `Kunde ID: ${order.customerId.slice(0, 8)}...`}</div>
+                        {(order.logistics?.a_city || order.logistics?.b_city || order.orderMeta?.movingDateFrom) && (
+                          <div className="text-xs text-text-muted mt-1 space-y-0.5">
+                            {(order.logistics?.a_city || order.logistics?.b_city) && (
+                              <div className="flex items-center gap-1">
+                                {order.logistics?.a_city || '?'} &rarr; {order.logistics?.b_city || '?'}
+                              </div>
+                            )}
+                            {order.orderMeta?.movingDateFrom && (
+                              <div>Umzug: {new Date(order.orderMeta.movingDateFrom).toLocaleDateString('de-DE')}</div>
+                            )}
+                          </div>
+                        )}
                       </Link>
                     </td>
                     <td className="block md:table-cell p-2 md:p-4 border-b border-structure md:border-none">
                       <div className="flex items-center gap-2 justify-between md:justify-start">
                         <span className="md:hidden text-text-muted text-sm">Status:</span>
                         <div className="flex items-center gap-2">
-                          {getStatusBadge(order.status)}
+                          {getStatusBadge(order)}
                           {order.payments && order.payments.length > 0 && (
                             <span className="text-xs text-text-muted bg-structure/50 px-2 py-0.5 rounded-full border border-structure flex items-center gap-1">
                               <BanknotesIcon className="w-3 h-3" />
@@ -193,7 +174,7 @@ export default function OrdersPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="block md:table-cell p-2 md:p-4 md:text-right font-medium text-white border-b border-structure md:border-none">
+                    <td className="block md:table-cell p-2 md:p-4 md:text-right font-medium text-text-main border-b border-structure md:border-none">
                       <div className="flex flex-col md:items-end gap-1">
                         <div className="flex justify-between md:justify-end w-full">
                           <span className="md:hidden text-text-muted text-sm">Summe:</span>
@@ -265,67 +246,11 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Disposition Modal */}
       {dispoOrder && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-bg-panel border border-structure rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-structure flex justify-between items-center bg-bg-dark">
-              <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                <TruckIcon className="w-6 h-6 text-primary" />
-                Disposition (Auftrag bestätigen)
-              </h2>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-text-muted mb-2">Umzugsdatum & Uhrzeit</label>
-                <input 
-                  type="datetime-local" 
-                  value={dispoData.movingDate}
-                  onChange={(e) => setDispoData({...dispoData, movingDate: e.target.value})}
-                  className="input-field py-2 px-3 w-full"
-                />
-                <p className="text-xs text-text-muted mt-1">Dieser Termin wird im Kalender blockiert.</p>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 border border-structure rounded-xl bg-bg-dark">
-                  <label className="block text-sm font-medium text-text-muted mb-2">Umzugshelfer</label>
-                  <div className="flex items-center gap-3">
-                    <button type="button" onClick={() => setDispoData({...dispoData, helpers: Math.max(0, dispoData.helpers - 1)})} className="btn-secondary py-1 px-3 text-lg">-</button>
-                    <span className="font-bold text-xl w-8 text-center">{dispoData.helpers}</span>
-                    <button type="button" onClick={() => setDispoData({...dispoData, helpers: dispoData.helpers + 1})} className="btn-secondary py-1 px-3 text-lg">+</button>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="space-y-3">
-                <h3 className="text-sm font-medium text-text-muted">Fahrzeuge einteilen</h3>
-                <div className="flex items-center justify-between p-3 border border-structure rounded-xl bg-bg-dark">
-                  <span className="font-medium">Koffer 3,5 Tonnen</span>
-                  <div className="flex items-center gap-3">
-                    <button type="button" onClick={() => setDispoData({...dispoData, koffer35t: Math.max(0, dispoData.koffer35t - 1)})} className="btn-secondary py-0.5 px-2">-</button>
-                    <span className="font-bold w-4 text-center">{dispoData.koffer35t}</span>
-                    <button type="button" onClick={() => setDispoData({...dispoData, koffer35t: dispoData.koffer35t + 1})} className="btn-secondary py-0.5 px-2">+</button>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between p-3 border border-structure rounded-xl bg-bg-dark">
-                  <span className="font-medium">LKW 7 Tonnen</span>
-                  <div className="flex items-center gap-3">
-                    <button type="button" onClick={() => setDispoData({...dispoData, lkw7t: Math.max(0, dispoData.lkw7t - 1)})} className="btn-secondary py-0.5 px-2">-</button>
-                    <span className="font-bold w-4 text-center">{dispoData.lkw7t}</span>
-                    <button type="button" onClick={() => setDispoData({...dispoData, lkw7t: dispoData.lkw7t + 1})} className="btn-secondary py-0.5 px-2">+</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-6 border-t border-structure bg-bg-dark flex justify-end gap-3">
-              <button onClick={() => setDispoOrder(null)} className="btn-secondary">Abbrechen</button>
-              <button onClick={confirmAndDispatch} className="btn-primary">Bestätigen & Speichern</button>
-            </div>
-          </div>
-        </div>
+        <DispoModal 
+          order={dispoOrder} 
+          onClose={() => setDispoOrder(null)} 
+        />
       )}
 
       {selectedPaymentOrder && (

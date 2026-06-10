@@ -6,6 +6,7 @@ import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, Documen
 import { TeamAccessManager } from '@/components/settings/TeamAccessManager';
 import { ActivityLogViewer } from '@/components/settings/ActivityLogViewer';
 import { getCol } from '@/lib/demoMode';
+import { toast } from 'react-hot-toast';
 
 const TABS = [
   { id: 'basisdaten', name: 'Basisdaten', icon: BuildingOfficeIcon },
@@ -14,6 +15,7 @@ const TABS = [
   { id: 'immobilien', name: 'Immobilienarten', icon: BuildingOfficeIcon },
   { id: 'leistungen', name: 'Leistungen & Zahlungen', icon: CurrencyEuroIcon },
   { id: 'texte', name: 'Textbausteine & AGB', icon: DocumentTextIcon },
+  { id: 'vorlagen', name: 'Nachrichten-Vorlagen', icon: DocumentTextIcon },
   { id: 'protokolle', name: 'Protokolle & Vorlagen', icon: DocumentTextIcon },
   { id: 'system', name: 'System & Finanzen', icon: ServerStackIcon },
 ];
@@ -117,6 +119,68 @@ export default function SettingsPage() {
       'Treppenhauswand war bereits zerkratzt.',
       'Kundeneigener Schrank passt nicht durchs Treppenhaus. Transport auf eigene Gefahr, keine Haftung für Kratzer.',
       'Fernseher hat Kratzer im Display.'
+    ],
+    communicationTemplates: [
+      {
+        id: 't1',
+        name: 'Erstkontakt (Bilder oder Liste erhalten)',
+        subject: 'Angebot für Ihren Umzug',
+        body: 'Hallo,\n\nvielen Dank für Ihr Interesse an unserem Service und für die Übersendung der Bilder.\n\nGerne erstellen wir Ihnen ein individuelles Angebot mit Festpreis und lassen Ihnen dieses zeitnah zukommen.\n\nSollten Sie vorab noch weitere Fragen haben, stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug\n\nKontaktdaten: Telefon: +49 1590 6603011 E-Mail: info@rothirsch-umzug.de Webseite: www.rothirsch-umzug.de'
+      },
+      {
+        id: 't2',
+        name: 'Erstkontakt (Keine Bilder oder Liste)',
+        subject: 'Ihre Umzugsanfrage',
+        body: 'Hallo,\n\nvielen Dank für Ihr Interesse an unserem Service. Gerne erstellen für Sie ein Angebot mit einem festen Preis. Teilen Sie uns bitte Bilder oder eine Liste mit den gewünschten Leistungen mit. Sie können uns auch gerne Ihre Telefonnummer mitteilen oder uns jederzeit anrufen, um Ihren Umzug zu besprechen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug\n\nKontaktdaten: Telefon: +49 1590 6603011 E-Mail: info@rothirsch-umzug.de Webseite: www.rothirsch-umzug.de'
+      },
+      {
+        id: 't3',
+        name: 'Angebot schicken',
+        subject: 'Ihr Umzugsangebot',
+        body: 'Sehr geehrte Damen und Herren,\n\nanbei sende ich Ihnen unser Angebot für Ihren bevorstehenden Umzug. Bitte überprüfen Sie die angehängte Datei für die detaillierten Informationen und Konditionen. Das Angebot wurde gemäß Ihren Anforderungen erstellt und beinhaltet alle gewünschten Leistungen.\n\nBei Rothirsch umzug legen wir großen Wert auf den Schutz Ihrer Möbel. Daher werden wir alle Möbelstücke sorgfältig mit Umzugsdecken und hochwertigen Schutzmaterialien schützen, um sicherzustellen, dass sie während des Transports optimal geschützt sind.\n\nIch möchte klarstellen, dass es sich bei unserem Angebot um einen Festpreis handelt. Das bedeutet, dass die vereinbarte Summe die endgültigen Kosten für Ihren Umzug abdeckt. Sie können darauf vertrauen, dass es keine unerwarteten zusätzlichen Gebühren gibt.\n\nWenn Sie mit dem Angebot zufrieden sind, bitten wir Sie um eine schriftliche Bestätigung, damit wir den Umzug entsprechend planen können. Bitte beachten Sie, dass die Termine vorbehaltlich der Verfügbarkeit sind und wir eine rechtzeitige Bestätigung benötigen, um Ihren Umzugstermin zu sichern.\n\nSollten Sie weitere Fragen haben oder Anpassungen am Angebot wünschen, stehe ich Ihnen gerne zur Verfügung. Sie können mich telefonisch oder per E-Mail kontaktieren.\n\nVielen Dank für Ihr Interesse an unseren Umzugsservices. Wir freuen uns darauf, Ihnen bei Ihrem Umzug behilflich zu sein.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug'
+      },
+      {
+        id: 't4',
+        name: 'Nachfrage zu Ihrem Umzugsangebot',
+        subject: 'Nachfrage zu Ihrem Umzugsangebot',
+        body: 'Hallo,\n\nich wollte mich erkundigen, ob Sie bereits eine Entscheidung zu unserem Angebot getroffen haben. Der gewünschte Termin ist aktuell noch verfügbar – allerdings erhalten wir viele Anfragen, sodass eine zeitnahe Rückmeldung wichtig für die Reservierung ist.\n\nSollten noch Fragen offen sein oder Sie Anpassungen wünschen, können wir das gerne telefonisch besprechen. Uns ist wichtig, dass der Ablauf für Sie so reibungslos und angenehm wie möglich verläuft.\n\nGeben Sie uns einfach kurz Bescheid.\n\nVielen Dank im Voraus – wir würden uns freuen, Sie bei Ihrem Umzug unterstützen zu dürfen!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug'
+      },
+      {
+        id: 't5',
+        name: 'Aktualisiertes Angebot schicken',
+        subject: 'Ihr aktualisiertes Umzugsangebot',
+        body: 'Sehr geehrte(r) [Name],\n\nvielen Dank für Ihre Rückmeldung. Anbei senden wir Ihnen das überarbeitete Angebot sowie die angepasste Umzugsliste, die Ihren Änderungswünschen entspricht.\n\nFalls Sie noch weitere Fragen haben oder weitere Anpassungen benötigen, stehen wir Ihnen jederzeit gern zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug'
+      },
+      {
+        id: 't6',
+        name: 'Absage',
+        subject: 'Schade, dass es nicht geklappt hat',
+        body: 'Hallo,\n\nes ist schade zu hören, dass Sie sich für einen anderen Anbieter entschieden haben. Wir wünschen Ihnen dennoch viel Erfolg und einen reibungslosen Umzug.\n\nSollten Sie in Zukunft erneut Unterstützung benötigen, stehen wir Ihnen jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug'
+      },
+      {
+        id: 't7',
+        name: 'Bestätigung',
+        subject: 'Auftragsbestätigung für Ihren Umzug',
+        body: 'Hallo,\n\nvielen Dank für Ihr Vertrauen und das unterzeichnete Angebot. Hiermit bestätige ich Ihnen den Umzugstermin am [Datum].\n\nWir freuen uns auf die Zusammenarbeit und darauf, Ihnen den Weg in Ihr neues Zuhause zu erleichtern.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug'
+      },
+      {
+        id: 't8',
+        name: 'Zeit des Umzugs (Wann trifft das Team ein?)',
+        subject: 'Ihre Umzugs-Uhrzeit',
+        body: 'Hallo,\n\nvielen Dank für Ihre Nachricht. Unser Team wird voraussichtlich zwischen 8:30 und 09:30 Uhr bei Ihnen eintreffen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug'
+      },
+      {
+        id: 't9',
+        name: 'Rechnung schicken',
+        subject: 'Ihre Rechnung',
+        body: 'Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die Rechnung für die von uns erbrachten Dienstleistungen. Bitte nehmen Sie sich einen Moment Zeit, um diese zu überprüfen. Sollten Sie Fragen oder Anmerkungen haben, stehe ich Ihnen selbstverständlich gerne zur Verfügung.\n\nWir möchten uns bei Ihnen für Ihr Vertrauen bedanken und hoffen, dass Sie mit unseren Leistungen zufrieden sind. Falls ja, würden wir uns sehr über eine Bewertung auf Google oder Check24 freuen – oder auf beiden Plattformen. Ihr Feedback ist uns äußerst wichtig und hilft uns, unseren Service kontinuierlich zu verbessern.\n\nVielen Dank für Ihre Unterstützung und Ihr Vertrauen in unsere Arbeit.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug'
+      },
+      {
+        id: 't10',
+        name: 'Neue Feature / Bewertung',
+        subject: 'Vielen Dank für Ihre Bewertung',
+        body: 'Hallo [Name],\n\nvielen Dank für Ihre großartige Bewertung! Wir freuen uns wirklich sehr über Ihr positives Feedback und es ist schön zu hören, dass alles nach Ihren Wünschen gelaufen ist und Sie zufrieden sind. Es ist immer toll, mit so angenehmen Kunden wie Ihnen zusammenzuarbeiten.\n\nViele Grüße!\n[Mitarbeiter]\nRothirsch umzug'
+      }
     ]
   });
 
@@ -168,6 +232,11 @@ export default function SettingsPage() {
           data.texts.orderIntro = 'Sehr geehrte Damen und Herren,\nvielen Dank für Ihre Unterschrift. Hiermit bestätigen wir Ihren Auftrag verbindlich.';
           data.texts.orderOutro = 'Wir freuen uns auf den gemeinsamen Umzug und garantieren Ihnen einen reibungslosen Ablauf.';
           data.texts.orderGreeting = 'Mit freundlichen Grüßen\nRothirsch Umzüge';
+        }
+
+        // Merge communicationTemplates if missing
+        if (!data.communicationTemplates || data.communicationTemplates.length === 0) {
+          data.communicationTemplates = settings.communicationTemplates;
         }
 
         setSettings({ ...settings, ...data });
@@ -261,6 +330,32 @@ export default function SettingsPage() {
     setSettings({ ...settings, protocolTemplates: settings.protocolTemplates.filter((p: string) => p !== pt) });
   };
 
+  const loadSampleProtocols = () => {
+    const samples = [
+      'Gefahrenübergang: Transport empfindlicher Gegenstände (z.B. Pflanzen, ungesichertes Glas) auf eigene Gefahr.',
+      'Haftungsausschluss: Transport durch sehr enges Treppenhaus auf Kundenwunsch. Keine Haftung für Kratzer an Möbeln oder Wänden.',
+      'Verzicht auf Schutz: Kunde verzichtet auf Schutzmaterial (Luftpolsterfolie/Decken). Transport auf eigenes Risiko.',
+      'Kundenmithilfe: Kunde stellt eigene Helfer. Für Schäden durch Kundenhelfer wird nicht gehaftet.',
+      'Abschluss: Alle Leistungen wurden vertragsgemäß, mangelfrei und zur vollsten Zufriedenheit erbracht.',
+      'Übergabe: Alte Adresse wurde besenrein und ohne durch uns verursachte Schäden übergeben.',
+      'Endkontrolle: Beide Parteien haben die Räumlichkeiten kontrolliert. Keine Schäden festgestellt.',
+      'Vorschaden: Am Möbelstück [...] wurde vor Beginn der Arbeiten ein Schaden dokumentiert.',
+      'Vorschaden: Treppenhaus / Wände wiesen vor Umzugsbeginn Kratzer und Gebrauchsspuren auf.',
+      'Schaden: Beim Transport kam es zu einem Schaden an [...]. Schaden wurde dokumentiert.',
+      'Montage: Schrank [...] war instabil. Fachgerechte Montage war aufgrund des Zustands nicht 100% möglich.',
+      'Montage: Wasser-/Stromanschluss wurde durch den Kunden/Dritte durchgeführt. Keine Haftung unsererseits.'
+    ];
+    
+    const existing = settings.protocolTemplates || [];
+    const newTemplates = [...existing];
+    samples.forEach(s => {
+      if (!newTemplates.includes(s)) newTemplates.push(s);
+    });
+    
+    setSettings({ ...settings, protocolTemplates: newTemplates });
+    toast.success("Muster-Vorlagen geladen! Bitte ganz oben auf Speichern klicken.");
+  };
+
   const addEmployee = () => {
     if (newEmployee.trim() && !settings.employees?.includes(newEmployee.trim())) {
       setSettings({ ...settings, employees: [...(settings.employees||[]), newEmployee.trim()] });
@@ -319,34 +414,34 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 pb-20 animate-in fade-in duration-500">
-      <div className="flex justify-between items-center bg-bg-panel border border-structure p-4 rounded-xl shadow-lg">
+    <div className="max-w-7xl mx-auto space-y-4 md:space-y-6 pb-20 animate-in fade-in duration-500">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-bg-panel border border-structure p-4 rounded-xl shadow-lg">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Cog6ToothIcon className="w-7 h-7 text-primary" /> Einstellungen
+          <h1 className="text-xl md:text-2xl font-bold text-text-main flex items-center gap-2">
+            <Cog6ToothIcon className="w-6 h-6 md:w-7 md:h-7 text-primary" /> Einstellungen
           </h1>
-          <p className="text-sm text-text-muted mt-1">Verwalten Sie hier alle globalen Texte, Vorgaben und Kataloge.</p>
+          <p className="text-xs md:text-sm text-text-muted mt-1">Verwalten Sie hier alle globalen Texte, Vorgaben und Kataloge.</p>
         </div>
-        <div className="flex items-center gap-4">
-          {saveStatus === 'success' && <span className="text-green-400 text-sm font-semibold animate-in fade-in slide-in-from-right-4 flex items-center gap-1"><CheckIcon className="w-4 h-4" /> Gespeichert</span>}
-          {saveStatus === 'error' && <span className="text-red-400 text-sm font-semibold animate-in fade-in slide-in-from-right-4">Fehler beim Speichern</span>}
-          <button onClick={saveSettings} disabled={isSaving} className={`btn-primary py-2 px-6 shadow-lg ${saveStatus === 'success' ? 'bg-green-600 shadow-green-500/30' : 'shadow-primary/30'}`}>
+        <div className="flex items-center gap-4 w-full md:w-auto">
+          {saveStatus === 'success' && <span className="text-green-400 text-sm font-semibold animate-in fade-in flex items-center gap-1"><CheckIcon className="w-4 h-4" /> Gespeichert</span>}
+          {saveStatus === 'error' && <span className="text-red-400 text-sm font-semibold animate-in fade-in">Fehler beim Speichern</span>}
+          <button onClick={saveSettings} disabled={isSaving} className={`btn-primary py-2 px-6 shadow-lg w-full md:w-auto ${saveStatus === 'success' ? 'bg-green-600 shadow-green-500/30' : 'shadow-primary/30'}`}>
             {isSaving ? 'Speichert...' : <><CheckIcon className="w-5 h-5 mr-1 inline" /> Speichern</>}
           </button>
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-6">
+      <div className="flex flex-col md:flex-row gap-4 md:gap-6">
         {/* Sidebar Tabs */}
-        <div className="w-full md:w-64 shrink-0 space-y-1">
+        <div className="w-full md:w-64 shrink-0 flex flex-row md:flex-col overflow-x-auto md:overflow-visible gap-2 md:gap-0 md:space-y-1 pb-2 md:pb-0 custom-scrollbar">
           {TABS.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left font-medium transition-colors ${activeTab === tab.id ? 'bg-primary/10 text-primary border border-primary/30' : 'text-text-muted hover:bg-bg-panel hover:text-white border border-transparent'}`}
+              className={`shrink-0 md:w-full flex items-center gap-2 md:gap-3 px-3 py-2 md:px-4 md:py-3 rounded-lg text-left text-sm md:text-base font-medium transition-colors ${activeTab === tab.id ? 'bg-primary/10 text-primary border border-primary/30' : 'text-text-muted hover:bg-bg-panel hover:text-text-main border border-transparent'}`}
             >
-              <tab.icon className="w-5 h-5" />
-              {tab.name}
+              <tab.icon className="w-4 h-4 md:w-5 md:h-5" />
+              <span className="whitespace-nowrap">{tab.name}</span>
             </button>
           ))}
         </div>
@@ -357,7 +452,7 @@ export default function SettingsPage() {
           {/* TAB: Basisdaten */}
           {activeTab === 'basisdaten' && (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-              <h2 className="text-xl font-bold text-white border-b border-structure pb-2 mb-4">Allgemeine Firmendaten</h2>
+              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">Allgemeine Firmendaten</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-text-muted mb-1">Firmenname</label>
@@ -389,7 +484,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              <h2 className="text-xl font-bold text-white border-b border-structure pb-2 mt-8 mb-4">Rechtliches & Bankverbindung</h2>
+              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mt-8 mb-4">Rechtliches & Bankverbindung</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-text-muted mb-1">Steuernummer / USt-IdNr.</label>
@@ -431,7 +526,7 @@ export default function SettingsPage() {
 
               {/* Fuhrpark */}
               <div className="panel border-t-4 border-t-structure">
-                <h2 className="text-xl font-bold mb-4 text-white">Dein Fuhrpark (Fahrzeuge)</h2>
+                <h2 className="text-xl font-bold mb-4 text-text-main">Dein Fuhrpark (Fahrzeuge)</h2>
                 <p className="text-sm text-text-muted mb-4">Erfasse hier deine Fahrzeuge (z.B. "Sixt Sprinter" oder "Eigener 7,5t"). Diese werden im Planer zugewiesen.</p>
                 <div className="flex gap-2 mb-4">
                   <input type="text" value={newVehicle} onChange={e => setNewVehicle(e.target.value)} placeholder="Fahrzeugname / Kennzeichen..." className="input-field flex-1" onKeyDown={(e) => e.key === 'Enter' && addVehicle()} />
@@ -455,7 +550,7 @@ export default function SettingsPage() {
               
               {/* Ansprechpartner */}
               <div>
-                <h2 className="text-xl font-bold text-white border-b border-structure pb-2 mb-4">Ansprechpartner verwalten</h2>
+                <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">Ansprechpartner verwalten</h2>
                 <p className="text-sm text-text-muted mb-4">Diese Namen erscheinen in der Auswahl für Angebote (Dein Team).</p>
                 
                 <div className="flex gap-2 mb-6">
@@ -473,7 +568,7 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                   {settings.contacts.map((contact: string, idx: number) => (
                     <div key={idx} className="flex justify-between items-center p-3 bg-bg-dark border border-structure rounded-lg">
-                      <span className="text-white font-medium">{contact}</span>
+                      <span className="text-text-main font-medium">{contact}</span>
                       <button onClick={() => removeContact(contact)} className="text-red-400 hover:bg-red-400/10 p-1 rounded transition-colors">&times;</button>
                     </div>
                   ))}
@@ -482,7 +577,7 @@ export default function SettingsPage() {
 
               {/* Kundenquellen */}
               <div className="pt-8">
-                <h2 className="text-xl font-bold text-white border-b border-structure pb-2 mb-4">Kundenquellen (Marketing)</h2>
+                <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">Kundenquellen (Marketing)</h2>
                 <p className="text-sm text-text-muted mb-4">Woher kommen Ihre Kunden? (Check24, Google, Empfehlung etc.)</p>
                 
                 <div className="flex gap-2 mb-6">
@@ -500,7 +595,7 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                   {settings.customerSources?.map((source: string, idx: number) => (
                     <div key={idx} className="flex justify-between items-center p-3 bg-bg-dark border border-structure rounded-lg">
-                      <span className="text-white font-medium">{source}</span>
+                      <span className="text-text-main font-medium">{source}</span>
                       <button onClick={() => removeSource(source)} className="text-red-400 hover:bg-red-400/10 p-1 rounded transition-colors">&times;</button>
                     </div>
                   ))}
@@ -513,7 +608,7 @@ export default function SettingsPage() {
           {/* TAB: Immobilienarten */}
           {activeTab === 'immobilien' && (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-              <h2 className="text-xl font-bold text-white border-b border-structure pb-2 mb-4">Immobilienarten</h2>
+              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">Immobilienarten</h2>
               <p className="text-sm text-text-muted mb-4">Verwalten Sie die Liste der Immobilienarten für Be- und Entladestellen.</p>
               
               <div className="flex gap-2 mb-6">
@@ -531,7 +626,7 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {settings.propertyTypes.map((pt: string, idx: number) => (
                   <div key={idx} className="flex justify-between items-center p-3 bg-bg-dark border border-structure rounded-lg">
-                    <span className="text-white font-medium">{pt}</span>
+                    <span className="text-text-main font-medium">{pt}</span>
                     <button onClick={() => removePropertyType(pt)} className="text-red-400 hover:bg-red-400/10 p-1 rounded transition-colors">&times;</button>
                   </div>
                 ))}
@@ -542,7 +637,7 @@ export default function SettingsPage() {
           {/* TAB: Texte & AGB */}
           {activeTab === 'texte' && (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-              <h2 className="text-xl font-bold text-white border-b border-structure pb-2 mb-4">Textbausteine & AGB</h2>
+              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">Textbausteine & AGB</h2>
               
               <div className="space-y-6">
                 <div>
@@ -611,11 +706,144 @@ export default function SettingsPage() {
             </div>
           )}
 
+          {/* TAB: Vorlagen (Smarte Kommunikation) */}
+          {activeTab === 'vorlagen' && (
+            <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">Smarte Nachrichten-Vorlagen</h2>
+              <div className="flex flex-col gap-4 mb-6">
+                <p className="text-sm text-text-muted">Hier pflegst du die Vorlagen für das Kommunikations-Center in der Kundenakte. Nutze die folgenden Platzhalter, die beim Senden automatisch durch echte Daten ersetzt werden:</p>
+                <div className="flex flex-wrap gap-2">
+                  {['{{Kunde_Anrede}}', '{{Kunde_Name}}', '{{Kunde_Nachname}}', '{{Umzugsdatum}}', '{{Angebot_Summe}}', '{{Sachbearbeiter}}'].map(variable => (
+                    <span key={variable} className="text-xs bg-structure/50 border border-structure text-text-main px-2 py-1 rounded cursor-default select-all hover:bg-structure transition-colors">
+                      {variable}
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-4">
+                  <button 
+                    onClick={() => {
+                      const newId = `t${Date.now()}`;
+                      const newTpl = { id: newId, name: 'Neue Vorlage', subject: '', body: '' };
+                      handleChange('communicationTemplates', [...(settings.communicationTemplates || []), newTpl]);
+                    }}
+                    className="btn-primary py-2 px-4"
+                  >
+                    + Neue Vorlage erstellen
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if(confirm('Möchtest du die Standard-Vorlagen laden? Dies überschreibt keine Vorlagen, sondern fügt die Standard-Texte inkl. Platzhalter (wieder) hinzu.')) {
+                        const defaults = [
+                          {
+                            id: 't1_default',
+                            name: 'Erstkontakt (Bilder oder Liste erhalten)',
+                            subject: 'Angebot für Ihren Umzug',
+                            body: '{{Kunde_Anrede}},\n\nvielen Dank für Ihr Interesse an unserem Service und für die Übersendung der Bilder.\n\nGerne erstellen wir Ihnen ein individuelles Angebot mit Festpreis und lassen Ihnen dieses zeitnah zukommen.\n\nSollten Sie vorab noch weitere Fragen haben, stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge\n\nKontaktdaten: Telefon: +49 1590 6603011 E-Mail: info@rothirsch-umzug.de Webseite: www.rothirsch-umzug.de'
+                          },
+                          {
+                            id: 't2_default',
+                            name: 'Erstkontakt (Keine Bilder oder Liste)',
+                            subject: 'Ihre Umzugsanfrage',
+                            body: '{{Kunde_Anrede}},\n\nvielen Dank für Ihr Interesse an unserem Service. Gerne erstellen wir für Sie ein Angebot mit einem festen Preis. Teilen Sie uns bitte Bilder oder eine Liste mit den gewünschten Leistungen mit. Sie können uns auch gerne Ihre Telefonnummer mitteilen oder uns jederzeit anrufen, um Ihren Umzug zu besprechen.\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge\n\nKontaktdaten: Telefon: +49 1590 6603011 E-Mail: info@rothirsch-umzug.de Webseite: www.rothirsch-umzug.de'
+                          },
+                          {
+                            id: 't3_default',
+                            name: 'Angebot schicken',
+                            subject: 'Ihr Umzugsangebot',
+                            body: '{{Kunde_Anrede}},\n\nanbei sende ich Ihnen unser Angebot für Ihren bevorstehenden Umzug. Bitte überprüfen Sie die angehängte Datei für die detaillierten Informationen und Konditionen. Das Angebot wurde gemäß Ihren Anforderungen erstellt und beinhaltet alle gewünschten Leistungen.\n\nBei Rothirsch Umzüge legen wir großen Wert auf den Schutz Ihrer Möbel. Daher werden wir alle Möbelstücke sorgfältig mit Umzugsdecken und hochwertigen Schutzmaterialien schützen, um sicherzustellen, dass sie während des Transports optimal geschützt sind.\n\nIch möchte klarstellen, dass es sich bei unserem Angebot in Höhe von {{Angebot_Summe}} um einen Festpreis handelt. Das bedeutet, dass die vereinbarte Summe die endgültigen Kosten für Ihren Umzug abdeckt. Sie können darauf vertrauen, dass es keine unerwarteten zusätzlichen Gebühren gibt.\n\nWenn Sie mit dem Angebot zufrieden sind, bitten wir Sie um eine schriftliche Bestätigung, damit wir den Umzug entsprechend planen können. Bitte beachten Sie, dass die Termine vorbehaltlich der Verfügbarkeit sind und wir eine rechtzeitige Bestätigung benötigen, um Ihren Umzugstermin am {{Umzugsdatum}} zu sichern.\n\nSollten Sie weitere Fragen haben oder Anpassungen am Angebot wünschen, stehe ich Ihnen gerne zur Verfügung. Sie können mich telefonisch oder per E-Mail kontaktieren.\n\nVielen Dank für Ihr Interesse an unseren Umzugsservices. Wir freuen uns darauf, Ihnen bei Ihrem Umzug behilflich zu sein.\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge'
+                          },
+                          {
+                            id: 't4_default',
+                            name: 'Nachfrage zu Ihrem Umzugsangebot',
+                            subject: 'Nachfrage zu Ihrem Umzugsangebot',
+                            body: '{{Kunde_Anrede}},\n\nich wollte mich erkundigen, ob Sie bereits eine Entscheidung zu unserem Angebot getroffen haben. Der gewünschte Termin ({{Umzugsdatum}}) ist aktuell noch verfügbar – allerdings erhalten wir viele Anfragen, sodass eine zeitnahe Rückmeldung wichtig für die Reservierung ist.\n\nSollten noch Fragen offen sein oder Sie Anpassungen wünschen, können wir das gerne telefonisch besprechen. Uns ist wichtig, dass der Ablauf für Sie so reibungslos und angenehm wie möglich verläuft.\n\nGeben Sie uns einfach kurz Bescheid.\n\nVielen Dank im Voraus – wir würden uns freuen, Sie bei Ihrem Umzug unterstützen zu dürfen!\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge'
+                          },
+                          {
+                            id: 't5_default',
+                            name: 'Rechnung schicken',
+                            subject: 'Ihre Rechnung zum Umzug',
+                            body: '{{Kunde_Anrede}},\n\nvielen Dank nochmals für Ihren Auftrag und das entgegengebrachte Vertrauen!\n\nAnbei erhalten Sie die Rechnung zu Ihrem Umzug am {{Umzugsdatum}} über den Betrag von {{Angebot_Summe}}.\n\nWir hoffen, Sie sind in Ihrem neuen Zuhause gut angekommen und waren mit unserem Service rundum zufrieden. \n\nSollten Sie Rückfragen zur Rechnung haben, können Sie sich jederzeit gerne an uns wenden.\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge'
+                          }
+                        ];
+                        handleChange('communicationTemplates', [...(settings.communicationTemplates || []), ...defaults]);
+                      }
+                    }}
+                    className="btn-secondary py-2 px-4"
+                  >
+                    Standard-Vorlagen laden
+                  </button>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {(settings.communicationTemplates || []).map((tpl: any, idx: number) => (
+                  <div key={tpl.id} className="panel border-t-4 border-t-primary shadow-lg flex flex-col">
+                    <div className="flex justify-between items-start mb-2">
+                      <h3 className="font-bold text-text-main flex-1">{tpl.name}</h3>
+                      <button 
+                        onClick={() => {
+                          if (confirm('Vorlage wirklich löschen?')) {
+                            const newTemplates = settings.communicationTemplates.filter((t: any) => t.id !== tpl.id);
+                            handleChange('communicationTemplates', newTemplates);
+                          }
+                        }}
+                        className="text-red-400 hover:text-red-300 ml-2"
+                        title="Löschen"
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <div className="flex-1 space-y-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-text-muted uppercase mb-1">Vorlagen-Name (intern)</label>
+                        <input 
+                          type="text" 
+                          value={tpl.name} 
+                          onChange={e => {
+                            const newTemplates = [...settings.communicationTemplates];
+                            newTemplates[idx].name = e.target.value;
+                            handleChange('communicationTemplates', newTemplates);
+                          }} 
+                          className="input-field w-full text-sm" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-text-muted uppercase mb-1">Betreff (Für E-Mail)</label>
+                        <input 
+                          type="text" 
+                          value={tpl.subject} 
+                          onChange={e => {
+                            const newTemplates = [...settings.communicationTemplates];
+                            newTemplates[idx].subject = e.target.value;
+                            handleChange('communicationTemplates', newTemplates);
+                          }} 
+                          className="input-field w-full text-sm" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-text-muted uppercase mb-1">Nachrichtentext (WhatsApp & E-Mail)</label>
+                        <textarea 
+                          value={tpl.body} 
+                          onChange={e => {
+                            const newTemplates = [...settings.communicationTemplates];
+                            newTemplates[idx].body = e.target.value;
+                            handleChange('communicationTemplates', newTemplates);
+                          }} 
+                          className="input-field w-full h-48 text-xs font-mono whitespace-pre-wrap" 
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* TAB: Protokolle */}
           {activeTab === 'protokolle' && (
               <div className="space-y-8 animate-in fade-in duration-300">
                 <div className="panel border-t-4 border-t-structure">
-                  <h2 className="text-xl font-bold mb-4 text-white">Art des Protokolls</h2>
+                  <h2 className="text-xl font-bold mb-4 text-text-main">Art des Protokolls</h2>
                   <p className="text-sm text-text-muted mb-4">Verwalte hier die Kategorien für deine Protokolle, die im Angebot / Auftrag zur Auswahl stehen.</p>
                   <div className="flex gap-2 mb-4">
                     <input type="text" value={newProtocolType} onChange={e => setNewProtocolType(e.target.value)} placeholder="Neue Protokoll-Art..." className="input-field flex-1" onKeyDown={(e) => e.key === 'Enter' && addProtocolType()} />
@@ -632,8 +860,11 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="panel border-t-4 border-t-structure">
-                  <h2 className="text-xl font-bold mb-4 text-white">Vorlagen für Beschreibungen (Schadensbeschreibung etc.)</h2>
-                  <p className="text-sm text-text-muted mb-4">Hinterlege Standard-Sätze, die du beim Kunden mit einem Klick ins Protokoll einfügen kannst.</p>
+                  <h2 className="text-xl font-bold mb-4 text-text-main">Vorlagen für Beschreibungen (Schadensbeschreibung etc.)</h2>
+                  <div className="flex items-center justify-between mb-4">
+                    <p className="text-sm text-text-muted">Hinterlege Standard-Sätze, die du beim Kunden mit einem Klick ins Protokoll einfügen kannst.</p>
+                    <button onClick={loadSampleProtocols} className="text-xs btn-secondary py-1 px-3">Muster-Vorlagen laden</button>
+                  </div>
                   <div className="flex gap-2 mb-4">
                     <input type="text" value={newProtocolTemplate} onChange={e => setNewProtocolTemplate(e.target.value)} placeholder="Neuer Standard-Satz..." className="input-field flex-1" onKeyDown={(e) => e.key === 'Enter' && addProtocolTemplate()} />
                     <button onClick={addProtocolTemplate} className="btn-primary py-2 px-4 whitespace-nowrap">Hinzufügen</button>
@@ -653,13 +884,13 @@ export default function SettingsPage() {
           {/* TAB: System */}
           {activeTab === 'system' && (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-              <h2 className="text-xl font-bold text-white border-b border-structure pb-2 mb-4">System & Finanzen</h2>
+              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">System & Finanzen</h2>
               <p className="text-sm text-text-muted mb-4">Globale Parameter für Berechnungen, Steuern und Nummernkreise.</p>
               
               {!isSystemUnlocked ? (
                 <div className="bg-bg-dark border border-red-500/30 p-8 rounded-xl max-w-md mx-auto mt-12 text-center shadow-lg shadow-red-500/10">
                   <ServerStackIcon className="w-12 h-12 text-red-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-white mb-2">Geschützter Bereich</h3>
+                  <h3 className="text-xl font-bold text-text-main mb-2">Geschützter Bereich</h3>
                   <p className="text-sm text-text-muted mb-6">Bitte gib deinen 4-stelligen Admin-PIN ein, um Steuersätze und Nummernkreise zu bearbeiten.</p>
                   <div className="flex gap-2 justify-center">
                     <input 
@@ -688,30 +919,30 @@ export default function SettingsPage() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-white mb-1">Standard Steuersatz (%)</label>
+                  <label className="block text-sm font-medium text-text-main mb-1">Standard Steuersatz (%)</label>
                   <input type="number" value={settings.taxRate} onChange={e => handleChange('taxRate', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
                 </div>
                 <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-white mb-1">Mahngebühr pro Stufe (€)</label>
+                  <label className="block text-sm font-medium text-text-main mb-1">Mahngebühr pro Stufe (€)</label>
                   <input type="number" value={settings.dunningFee} onChange={e => handleChange('dunningFee', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
                 </div>
                 <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-white mb-1">Angebotsgültigkeit (Tage)</label>
+                  <label className="block text-sm font-medium text-text-main mb-1">Angebotsgültigkeit (Tage)</label>
                   <p className="text-xs text-text-muted mb-2">Angebote sind standardmäßig so viele Tage gültig.</p>
                   <input type="number" value={settings.quoteValidDays} onChange={e => handleChange('quoteValidDays', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
                 </div>
                 <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-white mb-1">Nächste Angebotsnummer (Start)</label>
+                  <label className="block text-sm font-medium text-text-main mb-1">Nächste Angebotsnummer (Start)</label>
                   <p className="text-xs text-text-muted mb-2">Das nächste Angebot beginnt mit dieser Nummer.</p>
                   <input type="number" value={settings.nextQuoteNumber} onChange={e => handleChange('nextQuoteNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
                 </div>
                 <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-white mb-1">Nächste Auftragsnummer (Start)</label>
+                  <label className="block text-sm font-medium text-text-main mb-1">Nächste Auftragsnummer (Start)</label>
                   <p className="text-xs text-text-muted mb-2">Der nächste bestätigte Auftrag beginnt mit dieser Nummer.</p>
                   <input type="number" value={settings.nextOrderNumber || 1} onChange={e => handleChange('nextOrderNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
                 </div>
                 <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-white mb-1">Nächste Rechnungsnummer (Start)</label>
+                  <label className="block text-sm font-medium text-text-main mb-1">Nächste Rechnungsnummer (Start)</label>
                   <p className="text-xs text-text-muted mb-2">Die nächste Rechnung beginnt mit dieser Nummer.</p>
                   <input type="number" value={settings.nextInvoiceNumber} onChange={e => handleChange('nextInvoiceNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
                 </div>
@@ -723,7 +954,7 @@ export default function SettingsPage() {
           {/* TAB: Leistungen & Zahlungen */}
           {activeTab === 'leistungen' && (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-              <h2 className="text-xl font-bold text-white border-b border-structure pb-2 mb-4">Leistungskatalog & Zahlungsarten</h2>
+              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">Leistungskatalog & Zahlungsarten</h2>
               
               <div className="space-y-6">
                 <div className="flex justify-between items-center">
@@ -736,7 +967,7 @@ export default function SettingsPage() {
                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-structure pb-2 mb-3 gap-2">
                         <div className="flex-1 w-full sm:w-auto flex items-center gap-2">
                           <span className="text-text-muted text-sm font-bold">Kategorie:</span>
-                          <input type="text" value={cat.category} onChange={e => updateCategoryName(cIdx, e.target.value)} className="bg-transparent border-none text-white text-lg font-bold focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 w-full sm:w-auto" />
+                          <input type="text" value={cat.category} onChange={e => updateCategoryName(cIdx, e.target.value)} className="bg-transparent border-none text-text-main text-lg font-bold focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 w-full sm:w-auto" />
                         </div>
                         <div className="flex items-center gap-4">
                           <button onClick={() => addCatalogItem(cIdx)} className="text-primary hover:underline text-xs">+ Element hinzufügen</button>
@@ -766,7 +997,7 @@ export default function SettingsPage() {
                 <h3 className="text-lg font-semibold text-primary border-t border-structure pt-6">Zahlungsarten</h3>
                 {settings.paymentMethods.map((pm: any, idx: number) => (
                   <div key={idx} className="bg-bg-dark border border-structure p-4 rounded-xl space-y-3">
-                    <div className="font-bold text-white text-lg">{pm.name}</div>
+                    <div className="font-bold text-text-main text-lg">{pm.name}</div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <label className="block text-xs text-text-muted mb-1">Text für Angebot</label>

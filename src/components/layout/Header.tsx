@@ -1,6 +1,7 @@
 "use client";
-import { Bars3Icon, PlusIcon, ArrowRightOnRectangleIcon } from '@heroicons/react/24/outline';
+import { Bars3Icon, PlusIcon, ArrowRightOnRectangleIcon, SunIcon, MoonIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
 import { useState } from 'react';
 import { SlideOver } from '@/components/ui/SlideOver';
 import { QuickCreateCustomer } from '@/components/customers/QuickCreateCustomer';
@@ -8,6 +9,7 @@ import { NotificationBell } from '@/components/ui/NotificationBell';
 
 export function Header({ onMenuClick }: { onMenuClick: () => void }) {
   const { profile, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [isClockedIn, setIsClockedIn] = useState(false);
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
 
@@ -15,7 +17,13 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
     <>
       <header className="h-16 bg-bg-panel border-b border-structure flex items-center justify-between px-4 lg:px-8 shadow-sm">
         <div className="flex items-center gap-4">
-          {/* Logo or other left-aligned items can go here */}
+          <button 
+            onClick={onMenuClick}
+            className="md:hidden p-2 -ml-2 text-text-muted hover:text-text-main transition-colors"
+            title="Menü öffnen"
+          >
+            <Bars3Icon className="w-6 h-6" />
+          </button>
         </div>
 
         <div className="flex items-center gap-3 lg:gap-6">
@@ -32,6 +40,15 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
 
           {/* Anti-Vergess System (Glocke) */}
           <NotificationBell />
+
+          {/* Theme Toggle */}
+          <button 
+            onClick={toggleTheme}
+            className="p-2 text-text-muted hover:text-text-main hover:bg-structure rounded-full transition-colors"
+            title={theme === 'dark' ? 'Helles Design aktivieren' : 'Dunkles Design aktivieren'}
+          >
+            {theme === 'dark' ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+          </button>
 
           {/* User Menu */}
           <div className="flex items-center gap-3 pl-2 border-l border-structure md:border-none">

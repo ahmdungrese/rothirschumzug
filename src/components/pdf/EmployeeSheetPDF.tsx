@@ -3,7 +3,8 @@ import { COMPANY_DETAILS } from '@/lib/constants';
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 40 },
+  headerContainer: { alignItems: 'center', marginBottom: 30 },
+  logoTextPrimary: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#8F1627', textTransform: 'uppercase', letterSpacing: 2 },
   companyInfo: { textAlign: 'right', fontSize: 9, color: '#666' },
   title: { fontSize: 18, fontFamily: 'Helvetica-Bold', marginBottom: 20, color: '#8F1627' },
   section: { marginBottom: 20 },
@@ -15,18 +16,20 @@ const styles = StyleSheet.create({
   footer: { position: 'absolute', bottom: 30, left: 40, right: 40, textAlign: 'center', fontSize: 8, color: '#999', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10 },
 });
 
-export const EmployeeSheetPDF = ({ order, customer }: { order: any, customer: any }) => (
-  <Document>
+export const EmployeeSheetPDF = ({ order, customer, employeeName }: { order: any, customer: any, employeeName?: string }) => {
+  const docTitle = `Laufzettel - ${customer?.lastName || 'Kunde'}`;
+  return (
+  <Document title={docTitle}>
     <Page size="A4" style={styles.page}>
-      <View style={styles.header}>
-        <Text style={{ fontSize: 24, fontFamily: 'Helvetica-Bold', color: '#8F1627' }}>Rothirsch Umzüge</Text>
-        <View style={styles.companyInfo}>
-          <Text>{COMPANY_DETAILS.name}</Text>
-          <Text>{COMPANY_DETAILS.phone}</Text>
-        </View>
+      <View style={styles.headerContainer}>
+        <Text style={styles.logoTextPrimary}>ROTHIRSCH UMZUG</Text>
       </View>
 
       <Text style={styles.title}>Laufzettel für Mitarbeiter</Text>
+      <Text style={{ fontSize: 11, marginBottom: 20, color: '#666' }}>
+        Auftrag/Angebot: {order?.contractNumber || order?.orderNumber || 'Entwurf'}
+        {employeeName && ` | Sachbearbeiter: ${employeeName}`}
+      </Text>
 
       <View style={styles.section}>
         <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 11 }}>Kunde:</Text>
@@ -121,3 +124,4 @@ export const EmployeeSheetPDF = ({ order, customer }: { order: any, customer: an
     </Page>
   </Document>
 );
+};

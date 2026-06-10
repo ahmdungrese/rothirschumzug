@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
 :root {
+  /* Default: Dark Mode */
   --color-primary: #8F1627;
   --color-primary-hover: #a11a2d;
   --color-background-dark: #0A0F13;
@@ -11,6 +12,16 @@
   --color-text-muted: #797979;
   --color-doc-bg: #F1F1F1;
 }
+
+:root.light-mode {
+  --color-background-dark: #F8FAFC;
+  --color-background-panel: #FFFFFF;
+  --color-structure: #E2E8F0;
+  --color-inactive: #CBD5E1;
+  --color-text-main: #0F172A;
+  --color-text-muted: #64748B;
+}
+
 
 @theme inline {
   --color-primary: var(--color-primary);
@@ -37,15 +48,15 @@ body {
 
 /* Base custom utilities */
 .btn-primary {
-  @apply bg-primary text-text-main font-semibold py-3 px-6 rounded-lg transition-colors duration-200 hover:bg-primary-hover flex items-center justify-center gap-2 shadow-lg shadow-black/20;
+  @apply bg-primary text-white font-semibold py-2 px-4 md:py-3 md:px-6 rounded-lg transition-colors duration-200 hover:bg-primary-hover flex items-center justify-center gap-2 shadow-lg shadow-black/20;
 }
 
 .btn-secondary {
-  @apply bg-structure text-text-main font-semibold py-3 px-6 rounded-lg transition-colors duration-200 hover:bg-inactive flex items-center justify-center gap-2;
+  @apply bg-structure text-text-main font-semibold py-2 px-4 md:py-3 md:px-6 rounded-lg transition-colors duration-200 hover:bg-inactive flex items-center justify-center gap-2;
 }
 
 .panel {
-  @apply bg-bg-panel rounded-xl border border-structure p-6 shadow-xl shadow-black/40;
+  @apply bg-bg-panel rounded-xl border border-structure p-4 md:p-6 shadow-xl shadow-black/40;
 }
 
 .input-field {

@@ -12,6 +12,7 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
   const [type, setType] = useState<"privat" | "firma">("privat");
   const [lastName, setLastName] = useState("");
   const [firstName, setFirstName] = useState("");
+  const [salutation, setSalutation] = useState("");
   const [street, setStreet] = useState("");
   const [houseNr, setHouseNr] = useState("");
   const [zip, setZip] = useState("");
@@ -35,9 +36,10 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
 
       const addPromise = addDoc(collection(db, getCol('customers')), {
         type,
-        lastName,
-        firstName,
-        street,
+        lastName: lastName.trim(),
+        firstName: firstName.trim(),
+        salutation,
+        street: street.trim(),
         houseNr,
         zip,
         city,
@@ -82,27 +84,41 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
       <div className="space-y-4">
         
         <div className="flex gap-4 p-2 bg-bg-dark rounded-lg border border-structure">
-          <label className="flex items-center gap-2 text-white text-sm cursor-pointer">
+          <label className="flex items-center gap-2 text-text-main text-sm cursor-pointer">
             <input type="radio" checked={type === 'privat'} onChange={() => setType('privat')} className="accent-primary" /> 
             Privatperson
           </label>
-          <label className="flex items-center gap-2 text-white text-sm cursor-pointer">
+          <label className="flex items-center gap-2 text-text-main text-sm cursor-pointer">
             <input type="radio" checked={type === 'firma'} onChange={() => setType('firma')} className="accent-primary" /> 
             Firma
           </label>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-text-muted mb-1">{type === 'firma' ? 'Firmenname' : 'Nachname'} *</label>
-          <input 
-            type="text" 
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            className="input-field" 
-            placeholder={type === 'firma' ? 'Muster GmbH' : 'Müller'}
-            required 
-            autoFocus
-          />
+        <div className="flex gap-3">
+          <div className="w-1/3">
+            <label className="block text-sm font-medium text-text-muted mb-1">Anrede</label>
+            <select 
+              value={salutation} 
+              onChange={(e) => setSalutation(e.target.value)}
+              className="input-field w-full"
+            >
+              <option value="">Keine</option>
+              <option value="Herr">Herr</option>
+              <option value="Frau">Frau</option>
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-text-muted mb-1">{type === 'firma' ? 'Firmenname' : 'Nachname'} *</label>
+            <input 
+              type="text" 
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              className="input-field w-full" 
+              placeholder={type === 'firma' ? 'Muster GmbH' : 'Müller'}
+              required 
+              autoFocus
+            />
+          </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-text-muted mb-1">{type === 'firma' ? 'Ansprechpartner (Vorname)' : 'Vorname'} (Optional)</label>
