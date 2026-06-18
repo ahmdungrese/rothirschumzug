@@ -205,6 +205,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             // If we already loaded a billingAddress from the order, we don't want to overwrite the form with the customer profile again.
             // So we only merge if the fields are empty or if we didn't have an order.
             type: prev.lastName ? prev.type : (c.type || 'privat'),
+            salutation: prev.lastName ? prev.salutation : (c.salutation || ''),
             firstName: prev.lastName ? prev.firstName : (c.firstName || ''),
             lastName: prev.lastName ? prev.lastName : (c.lastName || ''),
             email: prev.lastName ? prev.email : (c.email || ''),
@@ -966,7 +967,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           }} disabled={isSaving} className="btn-secondary">
             Abbrechen
           </button>
-          <button onClick={() => saveOrder(isInvoice ? 'invoice_open' : orderStatus === 'draft' ? 'quote' : orderStatus)} disabled={isSaving} className="btn-primary shadow-lg shadow-primary/30 flex items-center gap-2">
+          <button onClick={() => saveOrder(isInvoice ? 'invoice_open' : orderStatus === 'draft' ? 'quote' : (orderStatus as 'draft' | 'quote' | 'invoice_open'))} disabled={isSaving} className="btn-primary shadow-lg shadow-primary/30 flex items-center gap-2">
             {isSaving && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
             {isSaving ? 'Speichert...' : (isInvoice ? 'Als Rechnung speichern' : 'Speichern')}
           </button>

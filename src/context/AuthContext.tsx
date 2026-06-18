@@ -12,6 +12,8 @@ interface UserProfile {
   email: string | null;
   role: "admin" | "office" | "teamlead";
   displayName: string | null;
+  canEditPrices?: boolean;
+  canViewPrices?: boolean;
 }
 
 interface AuthContextType {

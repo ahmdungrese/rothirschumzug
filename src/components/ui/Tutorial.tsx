@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { Joyride, Step, CallBackProps, STATUS } from 'react-joyride';
+import { Joyride, Step, STATUS } from 'react-joyride';
 
 export function Tutorial() {
   const [run, setRun] = useState(false);
@@ -31,7 +31,6 @@ export function Tutorial() {
       target: 'body',
       placement: 'center',
       content: 'Willkommen bei Rothirsch Umzüge! Wir zeigen Ihnen kurz die wichtigsten Funktionen Ihres neuen Dashboards.',
-      disableBeacon: true,
     },
     {
       target: '#nav-dashboard',
@@ -59,32 +58,20 @@ export function Tutorial() {
     }
   ];
 
-  const handleJoyrideCallback = (data: CallBackProps) => {
-    const { status } = data;
-    const finishedStatuses: string[] = [STATUS.FINISHED, STATUS.SKIPPED];
-
-    if (finishedStatuses.includes(status)) {
-      setRun(false);
-      localStorage.setItem('rothirsch_tutorial_completed', 'true');
-    }
-  };
-
   return (
+    // @ts-ignore
     <Joyride
       steps={steps}
       run={run}
       continuous={true}
       scrollToFirstStep={true}
-      showProgress={true}
-      showSkipButton={true}
-      callback={handleJoyrideCallback}
-      styles={{
+      styles={({
         options: {
           primaryColor: '#e0592a', // Primary orange color of Rothirsch
           textColor: '#333',
           zIndex: 10000,
-        },
-      }}
+        }
+      }) as any}
       locale={{
         back: 'Zurück',
         close: 'Schließen',

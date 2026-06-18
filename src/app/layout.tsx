@@ -26,8 +26,8 @@ export const metadata: Metadata = {
     title: "Rothirsch",
   },
   icons: {
-    icon: "/Rothirsch.png",
-    apple: "/Rothirsch.png",
+    icon: "/2.png",
+    apple: "/2.png",
   },
 };
 

@@ -85,7 +85,7 @@ export default function PDFViewerWrapper({ order, customer, type = 'order' }: { 
 
       <div className="flex-1 min-h-[600px] border border-structure rounded-xl overflow-hidden shadow-2xl relative">
         <PDFViewer width="100%" height="100%" className="border-none">
-          {getDocument() as React.ReactElement}
+          {getDocument() as any}
         </PDFViewer>
       </div>
     </div>
