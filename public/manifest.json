@@ -1,7 +1,7 @@
 {
-  "name": "Rothirsch ERP",
+  "name": "Rothirsch Umzüge",
   "short_name": "Rothirsch",
-  "description": "ERP und CRM System für Rothirsch Umzüge",
+  "description": "Internes System für Umzugslogistik",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#0d1117",

@@ -1,4 +1,4 @@
-import { OrderEditor } from "@/components/orders/OrderEditor";
+import { ResponsiveOrderWrapper } from "@/components/orders/ResponsiveOrderWrapper";
 import Link from "next/link";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
 
@@ -18,7 +18,7 @@ export default async function NewOrderPage({ params }: { params: Promise<{ id: s
           <p className="text-text-muted mt-1">Legen Sie hier die Logistik-Parameter und Leistungen fest.</p>
         </div>
       </div>
-      <OrderEditor />
+      <ResponsiveOrderWrapper />
     </div>
   );
 }

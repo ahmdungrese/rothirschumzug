@@ -732,7 +732,7 @@ export default function SettingsPage() {
                   </button>
                   <button 
                     onClick={() => {
-                      if(confirm('Möchtest du die Standard-Vorlagen laden? Dies überschreibt keine Vorlagen, sondern fügt die Standard-Texte inkl. Platzhalter (wieder) hinzu.')) {
+                      if(confirm('Möchtest du die Standard-Vorlagen laden? Bereits vorhandene Standard-Vorlagen werden nicht doppelt hinzugefügt.')) {
                         const defaults = [
                           {
                             id: 't1_default',
@@ -765,7 +765,27 @@ export default function SettingsPage() {
                             body: '{{Kunde_Anrede}},\n\nvielen Dank nochmals für Ihren Auftrag und das entgegengebrachte Vertrauen!\n\nAnbei erhalten Sie die Rechnung zu Ihrem Umzug am {{Umzugsdatum}} über den Betrag von {{Angebot_Summe}}.\n\nWir hoffen, Sie sind in Ihrem neuen Zuhause gut angekommen und waren mit unserem Service rundum zufrieden. \n\nSollten Sie Rückfragen zur Rechnung haben, können Sie sich jederzeit gerne an uns wenden.\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge'
                           }
                         ];
-                        handleChange('communicationTemplates', [...(settings.communicationTemplates || []), ...defaults]);
+                        
+                        const currentTemplates = settings.communicationTemplates || [];
+                        const newTemplates = [...currentTemplates];
+                        
+                        defaults.forEach(defTpl => {
+                          // Falls es schon eine Vorlage mit dieser ID gibt, einen neuen Timestamp anfügen, 
+                          // damit die ID immer unique ist. Oder besser: Nur hinzufügen, wenn sie noch nicht existiert.
+                          if (!currentTemplates.some((t: any) => t.id === defTpl.id)) {
+                            newTemplates.push(defTpl);
+                          } else {
+                            // Wenn sie schon existiert (weil der User sie vielleicht behalten will), 
+                            // fügen wir sie trotzdem nochmal hinzu aber mit neuer ID, falls der User das wollte.
+                            // Noch besser: Wir fügen sie mit unique ID hinzu.
+                            newTemplates.push({
+                              ...defTpl,
+                              id: `${defTpl.id}_${Date.now()}`
+                            });
+                          }
+                        });
+                        
+                        handleChange('communicationTemplates', newTemplates);
                       }
                     }}
                     className="btn-secondary py-2 px-4"
@@ -777,7 +797,7 @@ export default function SettingsPage() {
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {(settings.communicationTemplates || []).map((tpl: any, idx: number) => (
-                  <div key={tpl.id} className="panel border-t-4 border-t-primary shadow-lg flex flex-col">
+                  <div key={`${tpl.id || 'tpl'}-${idx}`} className="panel border-t-4 border-t-primary shadow-lg flex flex-col">
                     <div className="flex justify-between items-start mb-2">
                       <h3 className="font-bold text-text-main flex-1">{tpl.name}</h3>
                       <button 

@@ -17,7 +17,7 @@ import { Providers } from "@/components/Providers";
 import { PwaRegister } from "@/components/pwa/PwaRegister";
 
 export const metadata: Metadata = {
-  title: "Rothirsch ERP & CRM",
+  title: "Rothirsch Umzüge",
   description: "Internes System für Umzugslogistik",
   manifest: "/manifest.json",
   appleWebApp: {
@@ -26,6 +26,7 @@ export const metadata: Metadata = {
     title: "Rothirsch",
   },
   icons: {
+    icon: "/Rothirsch.png",
     apple: "/Rothirsch.png",
   },
 };
