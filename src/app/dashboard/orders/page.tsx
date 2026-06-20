@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, doc, updateDoc, where, Timestamp } from 'firebase/firestore';
-import { DocumentCheckIcon, DocumentTextIcon, DocumentIcon, BanknotesIcon, TruckIcon } from '@heroicons/react/24/outline';
+import { DocumentCheckIcon, DocumentTextIcon, DocumentIcon, BanknotesIcon, TruckIcon, PlusIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { PaymentManager } from '@/components/orders/PaymentManager';
@@ -111,9 +111,18 @@ export default function OrdersPage() {
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-text-main">Aufträge & Disposition</h1>
-        <p className="text-text-muted mt-1">Verwalten Sie Angebote, teilen Sie Fahrzeuge/Mitarbeiter ein und erstellen Sie Rechnungen.</p>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-text-main">Aufträge & Disposition</h1>
+          <p className="text-text-muted mt-1">Verwalten Sie Angebote, teilen Sie Fahrzeuge/Mitarbeiter ein und erstellen Sie Rechnungen.</p>
+        </div>
+        <Link 
+          href="/dashboard/orders/new" 
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors font-medium shadow-lg shadow-primary/20 w-fit"
+        >
+          <PlusIcon className="w-5 h-5" />
+          Neues Angebot
+        </Link>
       </div>
 
       <div className="panel border-t-4 border-t-primary shadow-xl overflow-hidden">

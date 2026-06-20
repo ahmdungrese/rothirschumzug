@@ -107,9 +107,9 @@ export function DispoModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-bg-panel border border-structure shadow-2xl rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
-        <div className="flex justify-between items-start p-6 border-b border-structure bg-bg-dark rounded-t-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="relative glass-panel bg-[#131D26]/90 w-full max-w-5xl max-h-[90vh] flex flex-col shadow-[0_0_50px_rgba(143,22,39,0.15)]">
+        <div className="flex justify-between items-start p-6 border-b border-white/10 bg-black/20 rounded-t-2xl shrink-0">
           <div>
             <h2 className="text-2xl font-bold text-text-main flex items-center gap-2">
               <TruckIcon className="w-7 h-7 text-primary" /> 
@@ -119,30 +119,30 @@ export function DispoModal({
             
             {dayOrders.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-4 text-sm font-semibold">
-                <span className="bg-bg-panel border border-structure px-3 py-1.5 rounded-lg text-text-main flex items-center gap-2">
+                <span className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg text-text-main flex items-center gap-2 shadow-sm">
                   <UserGroupIcon className="w-4 h-4 text-primary" /> Gesamt Helfer: <span className="text-primary text-base">{totalHelpers}</span>
                 </span>
-                <span className="bg-bg-panel border border-structure px-3 py-1.5 rounded-lg text-text-main flex items-center gap-2">
+                <span className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg text-text-main flex items-center gap-2 shadow-sm">
                   <TruckIcon className="w-4 h-4 text-orange-400" /> Gesamt 3,5t: <span className="text-orange-400 text-base">{totalKoffer35t}</span>
                 </span>
-                <span className="bg-bg-panel border border-structure px-3 py-1.5 rounded-lg text-text-main flex items-center gap-2">
+                <span className="bg-white/5 border border-white/10 px-3 py-1.5 rounded-lg text-text-main flex items-center gap-2 shadow-sm">
                   <TruckIcon className="w-4 h-4 text-green-400" /> Gesamt 7,5t: <span className="text-green-400 text-base">{totalLkw7t}</span>
                 </span>
               </div>
             )}
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-structure rounded-full transition-colors mt-1">
-            <XMarkIcon className="w-6 h-6 text-text-main" />
+          <button onClick={onClose} className="p-2 bg-white/5 hover:bg-white/10 rounded-full transition-colors mt-1 border border-white/10">
+            <XMarkIcon className="w-5 h-5 text-text-main" />
           </button>
         </div>
         
-        <div className="p-6 overflow-y-auto flex-1">
+        <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
           {dayTasks.length > 0 && (
             <div className="mb-8">
-              <h3 className="text-lg font-bold text-white mb-4 border-b border-structure pb-2">Aufgaben für heute</h3>
+              <h3 className="text-sm uppercase tracking-wider font-bold text-text-muted mb-4 border-b border-white/10 pb-2">Aufgaben für heute</h3>
               <div className="space-y-2">
                 {dayTasks.map((task, idx) => (
-                  <div key={`${task.id}-${task.type}-${idx}`} className={`flex items-center gap-3 p-3 rounded-lg border ${task.isDone ? 'bg-green-500/10 border-green-500/30 text-text-muted' : 'bg-bg-dark border-structure text-text-main'}`}>
+                  <div key={`${task.id}-${task.type}-${idx}`} className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${task.isDone ? 'bg-green-500/10 border-green-500/30 text-text-muted' : 'bg-black/20 border-white/10 text-text-main hover:bg-white/5'}`}>
                     <input 
                       type="checkbox" 
                       checked={task.isDone}
@@ -159,10 +159,10 @@ export function DispoModal({
             </div>
           )}
 
-          <h3 className="text-lg font-bold text-white mb-4 border-b border-structure pb-2">Umzüge ({dayOrders.length})</h3>
+          <h3 className="text-sm uppercase tracking-wider font-bold text-text-muted mb-4 border-b border-white/10 pb-2">Umzüge ({dayOrders.length})</h3>
           
           {dayOrders.length === 0 ? (
-            <div className="text-center p-12 text-text-muted bg-bg-dark/50 rounded-xl border border-structure/50">Keine Umzüge an diesem Tag.</div>
+            <div className="text-center p-12 text-text-muted bg-black/20 rounded-xl border border-white/5">Keine Umzüge an diesem Tag.</div>
           ) : (
             <div className="space-y-6">
               {dayOrders.map(order => {
@@ -171,7 +171,7 @@ export function DispoModal({
                 const lkw7tCount = order.disposition?.lkw7t || 0;
                 
                 return (
-                  <div key={order.id} className="bg-bg-dark border border-structure rounded-xl p-5 shadow-inner">
+                  <div key={order.id} className="bg-white/5 border border-white/10 rounded-xl p-5 shadow-lg">
                     <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-4">
                       <div>
                         <h3 className="text-xl font-bold text-text-main mb-2">{order.customerName}</h3>
@@ -185,13 +185,13 @@ export function DispoModal({
                         </div>
                       </div>
                       <div className="text-right flex flex-col items-end gap-2">
-                        <span className="bg-primary/20 text-primary border border-primary/30 px-3 py-1 rounded-full text-xs font-bold uppercase">
+                        <span className="bg-primary/20 text-primary border border-primary/30 px-3 py-1 rounded-full text-xs font-bold uppercase shadow-sm">
                           Umzug
                         </span>
                         <PDFDownloadLink
                           document={<EmployeeSheetPDF order={order} customer={{ firstName: order.customerName, lastName: '' }} />}
                           fileName={`Laufzettel_${order.customerName?.replace(/\s+/g, '_') || 'Kunde'}.pdf`}
-                          className="btn-secondary py-1.5 px-3 text-xs flex items-center gap-2 hover:bg-primary/20 hover:text-primary mt-2"
+                          className="btn-secondary py-1.5 px-3 text-xs flex items-center gap-2 mt-2"
                         >
                           {({ loading }) => (
                             <>
@@ -203,39 +203,39 @@ export function DispoModal({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 border-t border-structure pt-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 border-t border-white/10 pt-4">
                       {/* Kapazitäten anpassen */}
                       <div className="col-span-1 md:col-span-2">
                         <h4 className="font-semibold text-text-main flex items-center gap-2 mb-3">
-                          <UserGroupIcon className="w-5 h-5 text-text-muted" /> Benötigte Kapazitäten
+                          <UserGroupIcon className="w-5 h-5 text-primary" /> Benötigte Kapazitäten
                         </h4>
                         <p className="text-xs text-text-muted mb-4">Diese Werte werden automatisch aus deiner initialen Planung (Auftrags-Editor) übernommen. Du kannst sie hier bei Bedarf anpassen.</p>
                         
                         <div className="flex flex-wrap gap-4">
-                          <div className="flex items-center justify-between p-3 border border-structure rounded-xl bg-bg-panel min-w-[200px]">
+                          <div className="flex items-center justify-between p-3 border border-white/10 rounded-xl bg-black/20 min-w-[200px]">
                             <span className="font-medium text-sm">Umzugshelfer</span>
                             <div className="flex items-center gap-3">
-                              <button type="button" onClick={() => updateResource(order.id, 'helpers', helpersCount - 1)} className="btn-secondary py-0.5 px-2">-</button>
+                              <button type="button" onClick={() => updateResource(order.id, 'helpers', helpersCount - 1)} className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-text-main transition-colors">-</button>
                               <span className="font-bold w-4 text-center">{helpersCount}</span>
-                              <button type="button" onClick={() => updateResource(order.id, 'helpers', helpersCount + 1)} className="btn-secondary py-0.5 px-2">+</button>
+                              <button type="button" onClick={() => updateResource(order.id, 'helpers', helpersCount + 1)} className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-text-main transition-colors">+</button>
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-between p-3 border border-structure rounded-xl bg-bg-panel min-w-[200px]">
+                          <div className="flex items-center justify-between p-3 border border-white/10 rounded-xl bg-black/20 min-w-[200px]">
                             <span className="font-medium text-sm">Koffer 3,5 Tonnen</span>
                             <div className="flex items-center gap-3">
-                              <button type="button" onClick={() => updateResource(order.id, 'koffer35t', koffer35tCount - 1)} className="btn-secondary py-0.5 px-2">-</button>
+                              <button type="button" onClick={() => updateResource(order.id, 'koffer35t', koffer35tCount - 1)} className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-text-main transition-colors">-</button>
                               <span className="font-bold w-4 text-center">{koffer35tCount}</span>
-                              <button type="button" onClick={() => updateResource(order.id, 'koffer35t', koffer35tCount + 1)} className="btn-secondary py-0.5 px-2">+</button>
+                              <button type="button" onClick={() => updateResource(order.id, 'koffer35t', koffer35tCount + 1)} className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-text-main transition-colors">+</button>
                             </div>
                           </div>
 
-                          <div className="flex items-center justify-between p-3 border border-structure rounded-xl bg-bg-panel min-w-[200px]">
+                          <div className="flex items-center justify-between p-3 border border-white/10 rounded-xl bg-black/20 min-w-[200px]">
                             <span className="font-medium text-sm">LKW 7,5 Tonnen</span>
                             <div className="flex items-center gap-3">
-                              <button type="button" onClick={() => updateResource(order.id, 'lkw7t', lkw7tCount - 1)} className="btn-secondary py-0.5 px-2">-</button>
+                              <button type="button" onClick={() => updateResource(order.id, 'lkw7t', lkw7tCount - 1)} className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-text-main transition-colors">-</button>
                               <span className="font-bold w-4 text-center">{lkw7tCount}</span>
-                              <button type="button" onClick={() => updateResource(order.id, 'lkw7t', lkw7tCount + 1)} className="btn-secondary py-0.5 px-2">+</button>
+                              <button type="button" onClick={() => updateResource(order.id, 'lkw7t', lkw7tCount + 1)} className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-text-main transition-colors">+</button>
                             </div>
                           </div>
                         </div>
@@ -250,14 +250,14 @@ export function DispoModal({
                         if (!hasTasks) return null;
                         
                         return (
-                          <div className="col-span-1 md:col-span-2 border-t border-structure pt-4 mt-2">
+                          <div className="col-span-1 md:col-span-2 border-t border-white/10 pt-4 mt-2">
                             <h4 className="font-semibold text-text-main flex items-center gap-2 mb-3">
-                              <ClipboardDocumentListIcon className="w-5 h-5 text-text-muted" /> Aufgaben (System & Checkliste)
+                              <ClipboardDocumentListIcon className="w-5 h-5 text-primary" /> Aufgaben (System & Checkliste)
                             </h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               {systemTickets.map((task: any) => (
-                                <div key={task.id} className="flex items-center gap-3 p-3 bg-bg-panel border border-structure rounded-lg">
-                                  <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${task.done ? 'bg-green-500 text-white' : 'bg-structure text-transparent'}`}>
+                                <div key={task.id} className="flex items-center gap-3 p-3 bg-black/20 border border-white/10 rounded-lg">
+                                  <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${task.done ? 'bg-green-500 text-white' : 'bg-white/10 text-transparent'}`}>
                                     <CheckIcon className="w-3 h-3" />
                                   </div>
                                   <span className={`text-sm ${task.done ? 'text-text-muted line-through' : 'text-text-main'}`}>{task.title}</span>
@@ -268,12 +268,12 @@ export function DispoModal({
                               ))}
                               
                               {manualChecklist.map((task: any) => (
-                                <div key={task.id} className="flex items-center gap-3 p-3 bg-bg-panel border border-structure rounded-lg">
-                                  <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${task.done ? 'bg-green-500 text-white' : 'bg-structure text-transparent'}`}>
+                                <div key={task.id} className="flex items-center gap-3 p-3 bg-black/20 border border-white/10 rounded-lg">
+                                  <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 ${task.done ? 'bg-green-500 text-white' : 'bg-white/10 text-transparent'}`}>
                                     <CheckIcon className="w-3 h-3" />
                                   </div>
                                   <span className={`text-sm ${task.done ? 'text-text-muted line-through' : 'text-text-main'}`}>{task.text}</span>
-                                  <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-structure/50 text-text-muted uppercase font-bold">
+                                  <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-text-muted uppercase font-bold border border-white/5">
                                     Manuell
                                   </span>
                                 </div>

@@ -46,6 +46,8 @@ export default function CustomerProfilePage() {
   const [routeInfo, setRouteInfo] = useState<{ distanceKm: number, durationMinutes: number } | null>(null);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
+  
+  const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'finances' | 'claims'>('overview');
 
   useEffect(() => {
     // Fetch Customer
@@ -317,15 +319,20 @@ export default function CustomerProfilePage() {
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-20">
+    <div className="space-y-6 animate-in fade-in duration-500 pb-20 relative max-w-7xl mx-auto">
       
+      {/* Background Graphic */}
+      <div className="fixed inset-0 pointer-events-none opacity-[0.03] flex items-center justify-center z-[-1] overflow-hidden">
+        <img src="/login-logo.png" alt="" className="w-full max-w-[800px] object-contain blur-[2px]" />
+      </div>
+
       {/* 360-Degree Header Card */}
-      <div className="panel bg-gradient-to-br from-bg-panel to-bg-dark border-l-4 border-l-primary relative overflow-hidden shadow-xl">
-        <div className="absolute right-0 top-0 opacity-5 pointer-events-none">
-          <UserCircleIcon className="w-64 h-64 -mt-12 -mr-12" />
+      <div className="glass-panel relative overflow-hidden shadow-2xl p-0">
+        <div className="absolute right-0 top-0 opacity-[0.02] pointer-events-none">
+          <UserCircleIcon className="w-96 h-96 -mt-12 -mr-12" />
         </div>
 
-        <div className="flex flex-col md:flex-row items-start gap-6 relative z-10">
+        <div className="p-6 md:p-8 flex flex-col md:flex-row items-start gap-8 relative z-10 border-b border-white/5">
           <div className="shrink-0">
             <Image src="/5.png" alt="Customer Profile" width={100} height={100} className="rounded-full border-2 border-structure object-cover bg-bg-dark shadow-lg" />
           </div>
@@ -502,7 +509,7 @@ export default function CustomerProfilePage() {
             )}
           </div>
           
-          <div className="shrink-0 mt-4 md:mt-0 flex flex-col gap-3">
+          <div className="shrink-0 mt-4 md:mt-0 flex flex-col gap-3 min-w-[200px]">
             <button 
               onClick={() => router.push(`/dashboard/customers/${customerId}/new-order`)}
               className="btn-primary shadow-lg shadow-primary/20 w-full justify-center"
@@ -516,6 +523,34 @@ export default function CustomerProfilePage() {
               <DocumentTextIcon className="w-5 h-5" /> Neue Rechnung
             </button>
           </div>
+        </div>
+
+        {/* Custom Tabs */}
+        <div className="flex overflow-x-auto custom-scrollbar px-6 py-2 gap-2 bg-black/20">
+          <button 
+            onClick={() => setActiveTab('overview')} 
+            className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${activeTab === 'overview' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-text-main hover:bg-white/5'}`}
+          >
+            Akte & Übersicht
+          </button>
+          <button 
+            onClick={() => setActiveTab('documents')} 
+            className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${activeTab === 'documents' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-text-main hover:bg-white/5'}`}
+          >
+            Angebote & Dokumente
+          </button>
+          <button 
+            onClick={() => setActiveTab('finances')} 
+            className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${activeTab === 'finances' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-text-main hover:bg-white/5'}`}
+          >
+            Finanzen & Rechnungen
+          </button>
+          <button 
+            onClick={() => setActiveTab('claims')} 
+            className={`px-4 py-2 text-sm font-bold rounded-lg transition-colors whitespace-nowrap ${activeTab === 'claims' ? 'bg-primary text-white shadow-md' : 'text-text-muted hover:text-text-main hover:bg-white/5'}`}
+          >
+            Reklamationen ({claims.length})
+          </button>
         </div>
       </div>
 
@@ -753,426 +788,441 @@ export default function CustomerProfilePage() {
       )}
 
       {/* Tabs / Content Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="panel">
-            <h3 className="text-lg font-semibold mb-4 border-b border-structure pb-3 text-text-main flex items-center gap-2">
-              <DocumentTextIcon className="w-6 h-6" /> Historie (Angebote, Aufträge, Rechnungen & Protokolle)
-            </h3>
-            
-            {orders.length === 0 ? (
-              <div className="text-center py-12 text-text-muted italic border-2 border-dashed border-structure rounded-xl bg-bg-dark/30">
-                Noch keine Dokumente vorhanden.
-                <div className="mt-4">
-                  <button 
-                    onClick={() => router.push(`/dashboard/customers/${customerId}/new-order`)}
-                    className="text-primary hover:text-primary-hover font-medium underline underline-offset-4"
-                  >
-                    Erstes Angebot erstellen
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {orders.map(order => {
-                  const isInvoice = order.status === 'invoice_open' || order.status === 'invoice_paid' || order.status === 'invoice_overdue';
-                  const isConfirmed = order.status === 'confirmed' || order.status === 'completed';
-                  const isQuote = order.status === 'quote';
-                  const isClarification = order.status === 'clarification';
-                  const isRejected = order.status === 'rejected';
-                  
-                  const getStatusBadge = () => {
-                    switch(order.status) {
-                      case 'draft': return <span className="px-2 py-1 bg-structure text-text-muted rounded text-xs font-semibold uppercase tracking-wider">Entwurf</span>;
-                      case 'clarification': return <span className="px-2 py-1 bg-yellow-500/20 text-yellow-500 rounded text-xs font-semibold uppercase tracking-wider">In Klärung</span>;
-                      case 'quote': return <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs font-semibold uppercase tracking-wider">Angebot</span>;
-                      case 'confirmed': return <span className="px-2 py-1 bg-primary/20 text-primary rounded text-xs font-semibold uppercase tracking-wider">Bestätigt</span>;
-                      case 'completed': return <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-semibold uppercase tracking-wider">Erledigt</span>;
-                      case 'invoice_open': return <span className="px-2 py-1 bg-orange-500/20 text-orange-400 rounded text-xs font-semibold uppercase tracking-wider">Rechnung offen</span>;
-                      case 'invoice_paid': return <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-semibold uppercase tracking-wider">Rechnung bezahlt</span>;
-                      case 'invoice_overdue': return <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs font-semibold uppercase tracking-wider">In Mahnung</span>;
-                      case 'invoice_cancelled': return <span className="px-2 py-1 bg-red-900/30 text-red-500 rounded text-xs font-semibold uppercase tracking-wider line-through">Storniert</span>;
-                      case 'rejected': return <span className="px-2 py-1 bg-red-900/30 text-red-400 rounded text-xs font-semibold uppercase tracking-wider line-through">Abgelehnt</span>;
-                      case 'archived': return <span className="px-2 py-1 bg-structure text-text-muted rounded text-xs font-semibold uppercase tracking-wider">Archiviert</span>;
-                      default: return null;
-                    }
-                  };
-
-                  return (
-                  <div key={order.id} className="flex flex-col gap-4 p-4 rounded-xl border border-structure bg-bg-dark hover:border-primary/50 transition-colors">
-                    
-                    {/* Top Row: Info & Price (Clickable) */}
-                    <div 
-                      onClick={() => { setSelectedOrder(order); setPdfType('order'); }}
-                      className="flex flex-wrap md:flex-nowrap justify-between items-start gap-4 cursor-pointer hover:bg-white/5 p-2 -m-2 rounded-lg transition-colors group"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`p-3 rounded-lg shrink-0 transition-transform group-hover:scale-105 ${isInvoice ? 'bg-purple-500/20 text-purple-400' : isConfirmed ? 'bg-green-500/20 text-green-400' : isQuote ? 'bg-primary/20 text-primary' : isClarification ? 'bg-yellow-500/20 text-yellow-500' : 'bg-structure text-text-muted'}`}>
-                          <DocumentTextIcon className="w-6 h-6" />
-                        </div>
-                        <div>
-                          <h4 className="font-semibold text-text-main group-hover:text-primary transition-colors">
-                            {isInvoice ? 'Rechnung' : isQuote ? 'Angebot' : isConfirmed ? 'Auftrag' : 'Entwurf'} 
-                            {order.orderNumber ? ` #${order.orderNumber}` : ''}
-                          </h4>
-                          <div className="flex items-center gap-2 mt-1">
-                            {getStatusBadge()}
-                            <span className="text-sm text-text-muted">
-                              {new Date(order.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')} • {order.services?.length || 0} Leistungen
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="text-right shrink-0">
-                        <div className="text-sm text-text-muted">Brutto</div>
-                        <div className="font-bold text-text-main text-lg">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
-                      </div>
+      <div className="mt-6 animate-in fade-in duration-300">
+        
+        {/* TAB: ÜBERSICHT & DOKUMENTE */}
+        <div className={activeTab === 'overview' ? "grid grid-cols-1 lg:grid-cols-3 gap-6" : "space-y-6"}>
+          
+          {(activeTab === 'overview' || activeTab === 'documents') && (
+            <div className={activeTab === 'overview' ? "lg:col-span-2 space-y-6" : "space-y-6"}>
+              <div className="glass-panel p-6 rounded-2xl shadow-xl">
+                <h3 className="text-xl font-bold mb-6 pb-4 border-b border-white/5 text-text-main flex items-center gap-3">
+                  <DocumentTextIcon className="w-7 h-7 text-primary" /> Historie (Angebote, Aufträge, Rechnungen & Protokolle)
+                </h3>
+                
+                {orders.length === 0 ? (
+                  <div className="text-center py-16 text-text-muted italic border-2 border-dashed border-white/10 rounded-2xl bg-black/10">
+                    Noch keine Dokumente vorhanden.
+                    <div className="mt-6">
+                      <button 
+                        onClick={() => router.push(`/dashboard/customers/${customerId}/new-order`)}
+                        className="btn-primary shadow-lg shadow-primary/20"
+                      >
+                        Erstes Angebot erstellen
+                      </button>
                     </div>
-
-                    {/* Disposition Info Box */}
-                    {['confirmed', 'completed', 'invoice_open', 'invoice_overdue', 'invoice_paid'].includes(order.status) && order.disposition && (
-                      <div className="bg-blue-500/10 border border-blue-500/20 p-3 rounded-lg flex items-center justify-between text-sm">
-                        <div>
-                          <div className="text-blue-400 font-semibold mb-1 flex items-center gap-1">
-                            <TruckIcon className="w-4 h-4" /> Grob-Disposition
-                          </div>
-                          <div className="text-text-main">
-                            {order.disposition.movingDateStr ? (
-                              <span>{new Date(order.disposition.movingDateStr).toLocaleDateString('de-DE')} {order.disposition.movingTimeStr ? `um ${order.disposition.movingTimeStr} Uhr` : ''}</span>
-                            ) : (
-                              <span className="italic text-text-muted">Kein Datum</span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-right text-text-muted">
-                          <div><span className="font-semibold text-text-main">{order.disposition.helpers || 0}</span> Helfer</div>
-                          <div className="text-xs mt-0.5">
-                            {order.disposition.koffer35t > 0 && <span>{order.disposition.koffer35t}x 3,5t </span>}
-                            {order.disposition.lkw7t > 0 && <span>{order.disposition.lkw7t}x 7,5t</span>}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Bottom Row: Workflow Actions & Button Controls */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mt-2 pt-4 border-t border-structure/50">
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {orders.map(order => {
+                      const isInvoice = order.status === 'invoice_open' || order.status === 'invoice_paid' || order.status === 'invoice_overdue';
+                      const isConfirmed = order.status === 'confirmed' || order.status === 'completed';
+                      const isQuote = order.status === 'quote';
+                      const isClarification = order.status === 'clarification';
+                      const isRejected = order.status === 'rejected';
                       
-                      {/* Secondary Action Controls */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        {isInvoice && (
-                          <div className="flex items-center gap-2">
-                            {order.status === 'invoice_open' && (
-                              <button 
-                                onClick={() => setPaymentOrder(order)}
-                                className="btn-secondary py-1.5 px-3 text-xs shrink-0 border-green-500/50 text-green-400 hover:bg-green-500/10"
-                                title="Teilzahlung oder vollständige Zahlung erfassen"
-                              >
-                                Zahlung erfassen
-                              </button>
-                            )}
-                            <div className="flex flex-col gap-1">
-                              <button 
-                                onClick={() => {
-                                  if (confirm('Möchten Sie diese Rechnung stornieren und sofort einen NEUEN Entwurf zur Korrektur erstellen?')) {
-                                    handleStorno(order, true);
-                                  }
-                                }}
-                                className="btn-secondary py-1.5 px-3 text-xs shrink-0 border-red-500/50 text-red-400 hover:bg-red-500/10"
-                                title="Rechnung stornieren und Kopie als Entwurf anlegen"
-                              >
-                                Stornieren & Neu
-                              </button>
-                              <button 
-                                onClick={() => {
-                                  if (confirm('Möchten Sie diese Rechnung WIRKLICH stornieren OHNE einen neuen Entwurf zu erstellen?')) {
-                                    handleStorno(order, false);
-                                  }
-                                }}
-                                className="text-[10px] text-text-muted hover:text-red-400 underline underline-offset-2 text-center"
-                                title="Nur stornieren, kein neuer Entwurf"
-                              >
-                                Nur Stornieren
-                              </button>
+                      const getStatusBadge = () => {
+                        switch(order.status) {
+                          case 'draft': return <span className="px-2 py-1 bg-white/5 text-text-muted rounded text-xs font-semibold uppercase tracking-wider">Entwurf</span>;
+                          case 'clarification': return <span className="px-2 py-1 bg-yellow-500/20 text-yellow-500 rounded text-xs font-semibold uppercase tracking-wider shadow-sm shadow-yellow-500/10">In Klärung</span>;
+                          case 'quote': return <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs font-semibold uppercase tracking-wider shadow-sm shadow-blue-500/10">Angebot</span>;
+                          case 'confirmed': return <span className="px-2 py-1 bg-primary/20 text-primary rounded text-xs font-semibold uppercase tracking-wider shadow-sm shadow-primary/10">Bestätigt</span>;
+                          case 'completed': return <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-semibold uppercase tracking-wider shadow-sm shadow-green-500/10">Erledigt</span>;
+                          case 'invoice_open': return <span className="px-2 py-1 bg-orange-500/20 text-orange-400 rounded text-xs font-semibold uppercase tracking-wider shadow-sm shadow-orange-500/10">Rechnung offen</span>;
+                          case 'invoice_paid': return <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-semibold uppercase tracking-wider shadow-sm shadow-green-500/10">Rechnung bezahlt</span>;
+                          case 'invoice_overdue': return <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs font-semibold uppercase tracking-wider shadow-sm shadow-red-500/10">In Mahnung</span>;
+                          case 'invoice_cancelled': return <span className="px-2 py-1 bg-red-900/30 text-red-500 rounded text-xs font-semibold uppercase tracking-wider line-through">Storniert</span>;
+                          case 'rejected': return <span className="px-2 py-1 bg-red-900/30 text-red-400 rounded text-xs font-semibold uppercase tracking-wider line-through">Abgelehnt</span>;
+                          case 'archived': return <span className="px-2 py-1 bg-white/5 text-text-muted rounded text-xs font-semibold uppercase tracking-wider">Archiviert</span>;
+                          default: return null;
+                        }
+                      };
+
+                      return (
+                      <div key={order.id} className="flex flex-col gap-4 p-5 rounded-xl border border-white/5 bg-black/20 hover:border-primary/50 transition-colors shadow-sm hover:shadow-md">
+                        
+                        {/* Top Row: Info & Price (Clickable) */}
+                        <div 
+                          onClick={() => { setSelectedOrder(order); setPdfType('order'); }}
+                          className="flex flex-wrap md:flex-nowrap justify-between items-start gap-4 cursor-pointer hover:bg-white/[0.02] p-3 -m-3 rounded-lg transition-colors group"
+                        >
+                          <div className="flex items-center gap-5">
+                            <div className={`p-4 rounded-xl shrink-0 transition-transform group-hover:scale-105 shadow-inner ${isInvoice ? 'bg-purple-500/20 text-purple-400 border border-purple-500/20' : isConfirmed ? 'bg-green-500/20 text-green-400 border border-green-500/20' : isQuote ? 'bg-primary/20 text-primary border border-primary/20' : isClarification ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/20' : 'bg-black/40 text-text-muted border border-white/5'}`}>
+                              <DocumentTextIcon className="w-7 h-7" />
+                            </div>
+                            <div>
+                              <h4 className="text-lg font-bold text-text-main group-hover:text-primary transition-colors">
+                                {isInvoice ? 'Rechnung' : isQuote ? 'Angebot' : isConfirmed ? 'Auftrag' : 'Entwurf'} 
+                                {order.orderNumber ? ` #${order.orderNumber}` : ''}
+                              </h4>
+                              <div className="flex items-center gap-3 mt-2">
+                                {getStatusBadge()}
+                                <span className="text-sm text-text-muted font-medium">
+                                  {new Date(order.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')} • {order.services?.length || 0} Leistungen
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        )}
-                        
-                        <div className="h-6 w-px bg-structure mx-1 hidden sm:block"></div>
+                          
+                          <div className="text-right shrink-0">
+                            <div className="text-sm text-text-muted font-medium uppercase tracking-wider mb-1">Brutto</div>
+                            <div className="font-bold text-text-main text-xl">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
+                          </div>
+                        </div>
 
-                        <button 
-                          onClick={() => setProtocolOrder(order)}
-                          className="btn-secondary py-1.5 px-3 text-xs shrink-0 border-orange-500/50 text-orange-400 hover:bg-orange-500/10 flex items-center gap-1"
-                        >
-                          <ClipboardDocumentIcon className="w-4 h-4" /> Protokoll
-                        </button>
-                        
-                        <button 
-                          onClick={() => { setSelectedOrder(order); setPdfType('order'); }}
-                          className="btn-secondary py-1.5 px-3 text-xs shrink-0 flex items-center gap-1"
-                        >
-                          <DocumentArrowDownIcon className="w-4 h-4" /> PDFs ansehen
-                        </button>
-
-                        <button 
-                          onClick={() => setMessageOrder(order)}
-                          className="btn-secondary py-1.5 px-3 text-xs shrink-0 border-blue-500/50 text-blue-400 hover:bg-blue-500/10 flex items-center gap-1"
-                        >
-                          <EnvelopeIcon className="w-4 h-4" /> Nachricht senden
-                        </button>
-                        
-                        <div className="h-6 w-px bg-structure mx-1 hidden sm:block"></div>
-                        
-                        <button 
-                          onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/${order.id}`)}
-                          className="p-1.5 text-text-muted hover:text-primary transition-colors bg-bg-panel rounded border border-structure"
-                          title="Bearbeiten"
-                        >
-                          <PencilIcon className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => deleteOrder(order.id)}
-                          className="p-1.5 text-text-muted hover:text-red-400 transition-colors bg-bg-panel rounded border border-structure"
-                          title="Löschen"
-                        >
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      {/* Primary Workflow Status Actions - MOVED TO THE RIGHT */}
-                      <div className="flex flex-wrap items-center justify-end gap-2 bg-black/20 p-1.5 rounded-lg border border-structure/50 mt-4 md:mt-0 md:ml-auto w-full md:w-auto">
-                        {(order.status === 'draft' || order.status === 'clarification' || order.status === 'rejected') && (
-                          <>
-                            <button onClick={() => handleUpdateOrderStatus(order, 'quote')} className="flex items-center gap-1 text-xs font-semibold px-4 py-2 rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20">
-                              Entwurf abschließen (Angebot)
-                            </button>
-                            {order.status !== 'rejected' && (
-                              <button onClick={() => handleUpdateOrderStatus(order, 'rejected')} className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors" title="Kunde hat abgesagt">
-                                Abgelehnt
-                              </button>
-                            )}
-                          </>
-                        )}
-                        {isQuote && (
-                          <>
-                            <button onClick={() => handleUpdateOrderStatus(order, 'draft')} className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded text-text-muted hover:text-text-main hover:bg-structure transition-colors" title="Zurück zum Entwurf">
-                              <ArrowUturnLeftIcon className="w-3.5 h-3.5" /> Zurück
-                            </button>
-                            <button onClick={() => handleUpdateOrderStatus(order, 'clarification')} className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded border border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10 transition-colors" title="Kunde hat noch Fragen">
-                              In Klärung
-                            </button>
-                            <button onClick={() => handleUpdateOrderStatus(order, 'rejected')} className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors" title="Kunde hat abgesagt">
-                              Abgelehnt
-                            </button>
-                            <button onClick={() => setDispoOrder(order)} className="flex items-center gap-1 text-xs font-semibold px-4 py-2 rounded bg-green-500 text-white hover:bg-green-600 transition-colors shadow-lg shadow-green-500/20">
-                              <CheckIcon className="w-4 h-4" /> Angebot bestätigt
-                            </button>
-                          </>
-                        )}
-                        {order.status === 'confirmed' && (
-                          <>
-                            <button onClick={() => safeRevertStatus(order, 'quote')} className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded text-text-muted hover:text-text-main hover:bg-structure transition-colors" title="Zurück zum Angebot">
-                              <ArrowUturnLeftIcon className="w-3.5 h-3.5" /> Zurück
-                            </button>
-                            <button onClick={() => handleUpdateOrderStatus(order, 'completed')} className="flex items-center gap-1 text-xs font-semibold px-4 py-2 rounded bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-lg shadow-orange-500/20">
-                              Umzug abgeschlossen
-                            </button>
-                          </>
-                        )}
-                        {order.status === 'completed' && (
-                          <>
-                            <button onClick={() => safeRevertStatus(order, 'confirmed')} className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded text-text-muted hover:text-text-main hover:bg-structure transition-colors" title="Zurück zum Auftrag">
-                              <ArrowUturnLeftIcon className="w-3.5 h-3.5" /> Zurück
-                            </button>
-                            <span className="flex items-center gap-1 text-xs font-semibold px-4 py-2 rounded bg-structure text-text-main">
-                              <CheckCircleIcon className="w-4 h-4" /> Finalisiert
-                            </span>
-                          </>
-                        )}
-                        {isInvoice && (
-                          <span className="flex items-center gap-1 text-xs font-semibold px-4 py-2 rounded bg-structure text-text-main">
-                            <CheckCircleIcon className="w-4 h-4" /> Finalisiert
-                          </span>
-                        )}
-                      </div>
-                      
-                    </div>
-                    
-                    {/* Protokolle anzeigen */}
-                    {order.protocols && order.protocols.length > 0 && (
-                      <div className="mt-2 pt-3 border-t border-structure/50">
-                        <h5 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Hinterlegte Protokolle</h5>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          {order.protocols.map((proto: any) => (
-                            <div key={proto.id} className="bg-bg-panel border border-orange-500/20 rounded-lg p-3 flex items-start gap-3 shadow-inner relative group">
-                              <DocumentTextIcon className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" />
-                              <div className="flex-1">
-                                <div className="font-medium text-sm text-text-main">{proto.type}</div>
-                                <div className="text-xs text-text-muted mt-1 italic">"{proto.text}"</div>
-                                {proto.signature && (
-                                  <div className="mt-2 flex items-center gap-2 text-xs text-green-400">
-                                    <CheckCircleIcon className="w-4 h-4" /> Unterschrieben
-                                  </div>
+                        {/* Disposition Info Box */}
+                        {['confirmed', 'completed', 'invoice_open', 'invoice_overdue', 'invoice_paid'].includes(order.status) && order.disposition && (
+                          <div className="bg-blue-500/10 border border-blue-500/20 p-4 rounded-xl flex items-center justify-between text-sm shadow-inner">
+                            <div>
+                              <div className="text-blue-400 font-bold mb-1.5 flex items-center gap-2">
+                                <TruckIcon className="w-5 h-5" /> Grob-Disposition
+                              </div>
+                              <div className="text-text-main font-medium">
+                                {order.disposition.movingDateStr ? (
+                                  <span>{new Date(order.disposition.movingDateStr).toLocaleDateString('de-DE')} {order.disposition.movingTimeStr ? `um ${order.disposition.movingTimeStr} Uhr` : ''}</span>
+                                ) : (
+                                  <span className="italic text-text-muted">Kein Datum</span>
                                 )}
                               </div>
-                              <button 
-                                onClick={async () => {
-                                  if(confirm("Möchten Sie dieses Protokoll wirklich löschen? Die Unterschrift geht dabei unwiderruflich verloren.")) {
-                                    try {
-                                      const updatedProtocols = order.protocols.filter((p: any) => p.id !== proto.id);
-                                      await updateDoc(doc(db, getCol('orders'), order.id), { protocols: updatedProtocols });
-                                      toast.success("Protokoll gelöscht!");
-                                    } catch (e) {
-                                      toast.error("Fehler beim Löschen");
-                                    }
-                                  }
-                                }}
-                                className="absolute top-2 right-2 p-1.5 text-text-muted hover:text-red-400 bg-bg-dark rounded opacity-0 group-hover:opacity-100 transition-opacity border border-structure"
-                                title="Protokoll löschen"
-                              >
-                                <TrashIcon className="w-3.5 h-3.5" />
-                              </button>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Checkliste anzeigen (System + Manuell) */}
-                    {(() => {
-                      const systemTickets = generateTickets(order, customer);
-                      const manualChecklist = order.checklist || [];
-                      const hasTasks = systemTickets.length > 0 || manualChecklist.length > 0;
-                      
-                      if (!hasTasks) return null;
-                      
-                      return (
-                        <div className="mt-2 pt-3 border-t border-structure/50">
-                          <h5 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2 flex items-center gap-2">
-                            <ClipboardDocumentListIcon className="w-4 h-4" />
-                            Aufgaben (System & Checkliste)
-                          </h5>
-                          <div className="space-y-2">
-                            {/* System Tickets */}
-                            {systemTickets.map((task: any) => (
-                              <label key={task.id} className="flex items-center gap-3 p-2 bg-bg-panel border border-structure rounded hover:border-primary/50 cursor-pointer transition-colors">
-                                <input 
-                                  type="checkbox" 
-                                  checked={task.done}
-                                  onChange={async (e) => {
-                                    const updatedStates = order.ticketStates || {};
-                                    updatedStates[task.id] = e.target.checked;
-                                    try {
-                                      await updateDoc(doc(db, getCol('orders'), order.id), { ticketStates: updatedStates });
-                                      toast.success("System-Aufgabe aktualisiert");
-                                    } catch(err) {
-                                      toast.error("Fehler beim Aktualisieren");
-                                    }
-                                  }}
-                                  className="accent-primary w-4 h-4 rounded cursor-pointer"
-                                />
-                                <span className={`text-sm ${task.done ? 'text-text-muted line-through' : 'text-text-main'}`}>
-                                  {task.title}
-                                </span>
-                                <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded uppercase font-bold ${task.type === 'warning' ? 'bg-red-500/10 text-red-400' : task.type === 'action' ? 'bg-primary/10 text-primary' : 'bg-blue-500/10 text-blue-400'}`}>
-                                  System
-                                </span>
-                              </label>
-                            ))}
-                            
-                            {/* Manuelle Checkliste */}
-                            {manualChecklist.map((task: any) => (
-                              <label key={task.id} className="flex items-center gap-3 p-2 bg-bg-panel border border-structure rounded hover:border-primary/50 cursor-pointer transition-colors">
-                                <input 
-                                  type="checkbox" 
-                                  checked={task.done}
-                                  onChange={async (e) => {
-                                    const updatedChecklist = order.checklist.map((t:any) => 
-                                      t.id === task.id ? { ...t, done: e.target.checked } : t
-                                    );
-                                    try {
-                                      await updateDoc(doc(db, getCol('orders'), order.id), { checklist: updatedChecklist });
-                                      toast.success("Manuelle Aufgabe aktualisiert");
-                                    } catch(err) {
-                                      toast.error("Fehler beim Aktualisieren");
-                                    }
-                                  }}
-                                  className="accent-primary w-4 h-4 rounded cursor-pointer"
-                                />
-                                <span className={`text-sm ${task.done ? 'text-text-muted line-through' : 'text-text-main'}`}>{task.text}</span>
-                                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-structure/50 text-text-muted uppercase font-bold">
-                                  Manuell
-                                </span>
-                              </label>
-                            ))}
+                            <div className="text-right text-text-muted">
+                              <div><span className="font-bold text-text-main text-base">{order.disposition.helpers || 0}</span> Helfer</div>
+                              <div className="text-xs mt-1 font-medium">
+                                {order.disposition.koffer35t > 0 && <span>{order.disposition.koffer35t}x 3,5t </span>}
+                                {order.disposition.lkw7t > 0 && <span>{order.disposition.lkw7t}x 7,5t</span>}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })()}
-                  </div>
-                );})}
-              </div>
-            )}
-          </div>
-        </div>
-        
-        <div className="space-y-6">
-          <div className="panel border-t-4 border-t-structure shadow-lg">
-            <h3 className="text-lg font-semibold mb-4 border-b border-structure pb-3 text-text-main">
-              <BanknotesIcon className="w-6 h-6" /> Finanzübersicht
-            </h3>
-            <div className="space-y-4 text-sm">
-              <div className="flex justify-between items-center p-3 bg-bg-dark rounded-lg">
-                <span className="text-text-muted">Gesamtumsatz (Angebote):</span>
-                <span className="font-semibold text-primary text-base">€ {totalRevenue.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-bg-dark rounded-lg border border-transparent">
-                <span className="text-text-muted">Offene Posten:</span>
-                <span className={`font-semibold text-base ${openItems > 0 ? 'text-primary' : 'text-text-main'}`}>€ {openItems.toFixed(2)}</span>
-              </div>
-            </div>
-          </div>
+                        )}
 
-          <div className="panel border-t-4 border-t-red-500 shadow-lg">
-            <div className="flex justify-between items-center mb-4 border-b border-structure pb-3">
-              <h3 className="text-lg font-semibold text-red-400">
-                <ExclamationTriangleIcon className="w-6 h-6" /> Reklamationen & Schäden
-              </h3>
-              <button 
-                onClick={() => setShowClaimModal(true)}
-                className="btn-secondary py-1 px-3 text-xs border-red-500/50 text-red-400 hover:bg-red-500/10"
-              >
-                + Schaden melden
-              </button>
+                        {/* Bottom Row: Workflow Actions & Button Controls */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mt-3 pt-5 border-t border-white/5">
+                          
+                          {/* Secondary Action Controls */}
+                          <div className="flex flex-wrap items-center gap-2">
+                            {isInvoice && (
+                              <div className="flex items-center gap-2">
+                                {order.status === 'invoice_open' && (
+                                  <button 
+                                    onClick={() => setPaymentOrder(order)}
+                                    className="btn-secondary py-2 px-4 text-xs font-bold shrink-0 border-green-500/50 text-green-400 hover:bg-green-500/10 shadow-sm"
+                                    title="Teilzahlung oder vollständige Zahlung erfassen"
+                                  >
+                                    Zahlung erfassen
+                                  </button>
+                                )}
+                                <div className="flex flex-col gap-1.5">
+                                  <button 
+                                    onClick={() => {
+                                      if (confirm('Möchten Sie diese Rechnung stornieren und sofort einen NEUEN Entwurf zur Korrektur erstellen?')) {
+                                        handleStorno(order, true);
+                                      }
+                                    }}
+                                    className="btn-secondary py-1.5 px-3 text-xs font-bold shrink-0 border-red-500/50 text-red-400 hover:bg-red-500/10"
+                                    title="Rechnung stornieren und Kopie als Entwurf anlegen"
+                                  >
+                                    Stornieren & Neu
+                                  </button>
+                                  <button 
+                                    onClick={() => {
+                                      if (confirm('Möchten Sie diese Rechnung WIRKLICH stornieren OHNE einen neuen Entwurf zu erstellen?')) {
+                                        handleStorno(order, false);
+                                      }
+                                    }}
+                                    className="text-[10px] text-text-muted hover:text-red-400 font-medium underline underline-offset-2 text-center"
+                                    title="Nur stornieren, kein neuer Entwurf"
+                                  >
+                                    Nur Stornieren
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                            
+                            <div className="h-8 w-px bg-white/10 mx-2 hidden sm:block"></div>
+
+                            <button 
+                              onClick={() => setProtocolOrder(order)}
+                              className="btn-secondary py-2 px-4 text-xs font-bold shrink-0 border-orange-500/50 text-orange-400 hover:bg-orange-500/10 flex items-center gap-2 shadow-sm"
+                            >
+                              <ClipboardDocumentIcon className="w-4 h-4" /> Protokoll
+                            </button>
+                            
+                            <button 
+                              onClick={() => { setSelectedOrder(order); setPdfType('order'); }}
+                              className="btn-secondary py-2 px-4 text-xs font-bold shrink-0 flex items-center gap-2 shadow-sm border-white/10"
+                            >
+                              <DocumentArrowDownIcon className="w-4 h-4" /> PDFs ansehen
+                            </button>
+
+                            <button 
+                              onClick={() => setMessageOrder(order)}
+                              className="btn-secondary py-2 px-4 text-xs font-bold shrink-0 border-blue-500/50 text-blue-400 hover:bg-blue-500/10 flex items-center gap-2 shadow-sm"
+                            >
+                              <EnvelopeIcon className="w-4 h-4" /> Nachricht senden
+                            </button>
+                            
+                            <div className="h-8 w-px bg-white/10 mx-2 hidden sm:block"></div>
+                            
+                            <button 
+                              onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/${order.id}`)}
+                              className="p-2 text-text-muted hover:text-primary transition-colors bg-black/40 rounded-lg border border-white/5 shadow-sm hover:border-primary/50"
+                              title="Bearbeiten"
+                            >
+                              <PencilIcon className="w-4 h-4" />
+                            </button>
+                            <button 
+                              onClick={() => deleteOrder(order.id)}
+                              className="p-2 text-text-muted hover:text-red-400 transition-colors bg-black/40 rounded-lg border border-white/5 shadow-sm hover:border-red-500/50"
+                              title="Löschen"
+                            >
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          {/* Primary Workflow Status Actions - MOVED TO THE RIGHT */}
+                          <div className="flex flex-wrap items-center justify-end gap-2 bg-black/40 p-2 rounded-xl border border-white/5 mt-5 md:mt-0 md:ml-auto w-full md:w-auto shadow-inner">
+                            {(order.status === 'draft' || order.status === 'clarification' || order.status === 'rejected') && (
+                              <>
+                                <button onClick={() => handleUpdateOrderStatus(order, 'quote')} className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20">
+                                  Entwurf abschließen
+                                </button>
+                                {order.status !== 'rejected' && (
+                                  <button onClick={() => handleUpdateOrderStatus(order, 'rejected')} className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors" title="Kunde hat abgesagt">
+                                    Abgelehnt
+                                  </button>
+                                )}
+                              </>
+                            )}
+                            {isQuote && (
+                              <>
+                                <button onClick={() => handleUpdateOrderStatus(order, 'draft')} className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors" title="Zurück zum Entwurf">
+                                  <ArrowUturnLeftIcon className="w-4 h-4" /> Zurück
+                                </button>
+                                <button onClick={() => handleUpdateOrderStatus(order, 'clarification')} className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg border border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10 transition-colors" title="Kunde hat noch Fragen">
+                                  In Klärung
+                                </button>
+                                <button onClick={() => handleUpdateOrderStatus(order, 'rejected')} className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors" title="Kunde hat abgesagt">
+                                  Abgelehnt
+                                </button>
+                                <button onClick={() => setDispoOrder(order)} className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors shadow-lg shadow-green-500/20">
+                                  <CheckIcon className="w-4 h-4" /> Angebot bestätigt
+                                </button>
+                              </>
+                            )}
+                            {order.status === 'confirmed' && (
+                              <>
+                                <button onClick={() => safeRevertStatus(order, 'quote')} className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors" title="Zurück zum Angebot">
+                                  <ArrowUturnLeftIcon className="w-4 h-4" /> Zurück
+                                </button>
+                                <button onClick={() => handleUpdateOrderStatus(order, 'completed')} className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-lg shadow-orange-500/20">
+                                  Umzug abgeschlossen
+                                </button>
+                              </>
+                            )}
+                            {order.status === 'completed' && (
+                              <>
+                                <button onClick={() => safeRevertStatus(order, 'confirmed')} className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors" title="Zurück zum Auftrag">
+                                  <ArrowUturnLeftIcon className="w-4 h-4" /> Zurück
+                                </button>
+                                <span className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg bg-white/5 text-text-main">
+                                  <CheckCircleIcon className="w-4 h-4 text-green-400" /> Finalisiert
+                                </span>
+                              </>
+                            )}
+                            {isInvoice && (
+                              <span className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg bg-white/5 text-text-main">
+                                <CheckCircleIcon className="w-4 h-4 text-green-400" /> Finalisiert
+                              </span>
+                            )}
+                          </div>
+                          
+                        </div>
+                        
+                        {/* Protokolle anzeigen */}
+                        {order.protocols && order.protocols.length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-white/5">
+                            <h5 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Hinterlegte Protokolle</h5>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {order.protocols.map((proto: any) => (
+                                <div key={proto.id} className="bg-black/40 border border-orange-500/20 rounded-xl p-4 flex items-start gap-4 shadow-inner relative group">
+                                  <DocumentTextIcon className="w-6 h-6 text-orange-400 shrink-0 mt-0.5" />
+                                  <div className="flex-1">
+                                    <div className="font-bold text-sm text-text-main">{proto.type}</div>
+                                    <div className="text-xs text-text-muted mt-1.5 italic font-medium">"{proto.text}"</div>
+                                    {proto.signature && (
+                                      <div className="mt-3 flex items-center gap-2 text-xs font-bold text-green-400">
+                                        <CheckCircleIcon className="w-4 h-4" /> Unterschrieben
+                                      </div>
+                                    )}
+                                  </div>
+                                  <button 
+                                    onClick={async () => {
+                                      if(confirm("Möchten Sie dieses Protokoll wirklich löschen? Die Unterschrift geht dabei unwiderruflich verloren.")) {
+                                        try {
+                                          const updatedProtocols = order.protocols.filter((p: any) => p.id !== proto.id);
+                                          await updateDoc(doc(db, getCol('orders'), order.id), { protocols: updatedProtocols });
+                                          toast.success("Protokoll gelöscht!");
+                                        } catch (e) {
+                                          toast.error("Fehler beim Löschen");
+                                        }
+                                      }
+                                    }}
+                                    className="absolute top-3 right-3 p-2 text-text-muted hover:text-red-400 bg-white/5 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity border border-white/5 hover:border-red-500/50"
+                                    title="Protokoll löschen"
+                                  >
+                                    <TrashIcon className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Checkliste anzeigen (System + Manuell) */}
+                        {(() => {
+                          const systemTickets = generateTickets(order, customer);
+                          const manualChecklist = order.checklist || [];
+                          const hasTasks = systemTickets.length > 0 || manualChecklist.length > 0;
+                          
+                          if (!hasTasks) return null;
+                          
+                          return (
+                            <div className="mt-4 pt-4 border-t border-white/5">
+                              <h5 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <ClipboardDocumentListIcon className="w-4 h-4" />
+                                Aufgaben (System & Checkliste)
+                              </h5>
+                              <div className="space-y-2">
+                                {/* System Tickets */}
+                                {systemTickets.map((task: any) => (
+                                  <label key={task.id} className="flex items-center gap-3 p-3 bg-black/40 border border-white/5 rounded-xl hover:border-primary/50 cursor-pointer transition-colors shadow-inner">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={task.done}
+                                      onChange={async (e) => {
+                                        const updatedStates = order.ticketStates || {};
+                                        updatedStates[task.id] = e.target.checked;
+                                        try {
+                                          await updateDoc(doc(db, getCol('orders'), order.id), { ticketStates: updatedStates });
+                                          toast.success("System-Aufgabe aktualisiert");
+                                        } catch(err) {
+                                          toast.error("Fehler beim Aktualisieren");
+                                        }
+                                      }}
+                                      className="accent-primary w-5 h-5 rounded cursor-pointer"
+                                    />
+                                    <span className={`text-sm font-medium ${task.done ? 'text-text-muted line-through' : 'text-text-main'}`}>
+                                      {task.title}
+                                    </span>
+                                    <span className={`ml-auto text-[10px] px-2 py-1 rounded uppercase font-bold tracking-wider ${task.type === 'warning' ? 'bg-red-500/10 text-red-400' : task.type === 'action' ? 'bg-primary/10 text-primary' : 'bg-blue-500/10 text-blue-400'}`}>
+                                      System
+                                    </span>
+                                  </label>
+                                ))}
+                                
+                                {/* Manuelle Checkliste */}
+                                {manualChecklist.map((task: any) => (
+                                  <label key={task.id} className="flex items-center gap-3 p-3 bg-black/40 border border-white/5 rounded-xl hover:border-primary/50 cursor-pointer transition-colors shadow-inner">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={task.done}
+                                      onChange={async (e) => {
+                                        const updatedChecklist = order.checklist.map((t:any) => 
+                                          t.id === task.id ? { ...t, done: e.target.checked } : t
+                                        );
+                                        try {
+                                          await updateDoc(doc(db, getCol('orders'), order.id), { checklist: updatedChecklist });
+                                          toast.success("Manuelle Aufgabe aktualisiert");
+                                        } catch(err) {
+                                          toast.error("Fehler beim Aktualisieren");
+                                        }
+                                      }}
+                                      className="accent-primary w-5 h-5 rounded cursor-pointer"
+                                    />
+                                    <span className={`text-sm font-medium ${task.done ? 'text-text-muted line-through' : 'text-text-main'}`}>{task.text}</span>
+                                    <span className="ml-auto text-[10px] px-2 py-1 rounded bg-white/5 text-text-muted uppercase font-bold tracking-wider">
+                                      Manuell
+                                    </span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    );})}
+                  </div>
+                )}
+              </div>
             </div>
-            
-            <div className="space-y-3">
-              {claims.length === 0 ? (
-                <p className="text-sm text-text-muted italic text-center py-4">Keine gemeldeten Schäden.</p>
-              ) : (
-                claims.map(claim => (
-                  <div key={claim.id} className="bg-bg-dark border border-structure rounded-lg p-3">
-                    <div className="flex justify-between items-start mb-2">
-                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${
-                        claim.status === 'Neu' ? 'bg-red-500/20 text-red-400' :
-                        claim.status === 'Erledigt' ? 'bg-green-500/20 text-green-400' :
-                        'bg-blue-500/20 text-blue-400'
-                      }`}>
-                        {claim.status}
-                      </span>
-                      <span className="text-xs text-text-muted">
-                        {new Date(claim.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')}
-                      </span>
+          )}
+
+          {/* TAB: ÜBERSICHT (Side Column) / FINANZEN & REKLAMATIONEN */}
+          {(activeTab === 'overview' || activeTab === 'finances' || activeTab === 'claims') && (
+            <div className="space-y-6">
+              
+              {(activeTab === 'overview' || activeTab === 'finances') && (
+                <div className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-structure">
+                  <h3 className="text-xl font-bold mb-6 pb-4 border-b border-white/5 text-text-main flex items-center gap-3">
+                    <BanknotesIcon className="w-7 h-7 text-green-400" /> Finanzübersicht
+                  </h3>
+                  <div className="space-y-4 text-sm">
+                    <div className="flex justify-between items-center p-4 bg-black/20 rounded-xl border border-white/5 shadow-inner">
+                      <span className="text-text-muted font-bold uppercase tracking-wider text-xs">Gesamtumsatz (Angebote):</span>
+                      <span className="font-bold text-primary text-xl">€ {totalRevenue.toFixed(2)}</span>
                     </div>
-                    <p className="text-sm text-text-main line-clamp-2">{claim.description}</p>
-                    {claim.insuranceId && (
-                      <p className="text-xs text-text-muted mt-2">Versicherung: {claim.insuranceId}</p>
+                    <div className="flex justify-between items-center p-4 bg-black/20 rounded-xl border border-white/5 shadow-inner">
+                      <span className="text-text-muted font-bold uppercase tracking-wider text-xs">Offene Posten:</span>
+                      <span className={`font-bold text-xl ${openItems > 0 ? 'text-red-400' : 'text-text-main'}`}>€ {openItems.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {(activeTab === 'overview' || activeTab === 'claims') && (
+                <div className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-red-500">
+                  <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
+                    <h3 className="text-xl font-bold text-red-400 flex items-center gap-3">
+                      <ExclamationTriangleIcon className="w-7 h-7" /> Reklamationen
+                    </h3>
+                    <button 
+                      onClick={() => setShowClaimModal(true)}
+                      className="btn-secondary py-1.5 px-4 text-xs font-bold border-red-500/50 text-red-400 hover:bg-red-500/10 shadow-sm"
+                    >
+                      + Schaden melden
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {claims.length === 0 ? (
+                      <p className="text-sm text-text-muted italic text-center py-6 bg-black/10 rounded-xl border border-white/5">Keine gemeldeten Schäden.</p>
+                    ) : (
+                      claims.map(claim => (
+                        <div key={claim.id} className="bg-black/20 border border-white/5 rounded-xl p-4 shadow-sm hover:border-red-500/30 transition-colors">
+                          <div className="flex justify-between items-start mb-3">
+                            <span className={`text-xs px-2.5 py-1 rounded uppercase font-bold tracking-wider ${
+                              claim.status === 'Neu' ? 'bg-red-500/20 text-red-400' :
+                              claim.status === 'Erledigt' ? 'bg-green-500/20 text-green-400' :
+                              'bg-blue-500/20 text-blue-400'
+                            }`}>
+                              {claim.status}
+                            </span>
+                            <span className="text-xs font-medium text-text-muted">
+                              {new Date(claim.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')}
+                            </span>
+                          </div>
+                          <p className="text-sm text-text-main line-clamp-3 font-medium">{claim.description}</p>
+                          {claim.insuranceId && (
+                            <p className="text-xs font-bold text-text-muted mt-3 pt-3 border-t border-white/5">Versicherung: <span className="text-text-main">{claim.insuranceId}</span></p>
+                          )}
+                        </div>
+                      ))
                     )}
                   </div>
-                ))
+                </div>
               )}
             </div>
-          </div>
+          )}
         </div>
       </div>
 

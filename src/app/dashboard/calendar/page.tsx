@@ -63,35 +63,40 @@ export default function CalendarPage() {
   const blanksArray = Array.from({ length: firstDay }, (_, i) => i);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500 pb-20">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-bg-panel border border-structure p-6 rounded-xl shadow-lg">
+    <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500 pb-20 relative">
+      {/* Background Graphic */}
+      <div className="fixed inset-0 pointer-events-none opacity-[0.03] flex items-center justify-center z-[-1] overflow-hidden">
+        <img src="/login-logo.png" alt="" className="w-full max-w-[800px] object-contain blur-[2px]" />
+      </div>
+
+      <div className="glass-panel flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 rounded-2xl">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-text-main flex items-center gap-3">
             <CalendarDaysIcon className="w-8 h-8 text-primary" /> Einsatzplanung
           </h1>
           <p className="text-text-muted mt-1">Verwalten Sie hier alle operativen Umzüge und Termine.</p>
         </div>
-        <div className="flex items-center gap-4">
-          <button onClick={prevMonth} className="p-2 hover:bg-structure rounded-full transition-colors text-text-main">
-            <ChevronLeftIcon className="w-6 h-6" />
+        <div className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-full px-2 py-1 shadow-inner">
+          <button onClick={prevMonth} className="p-2 hover:bg-white/10 rounded-full transition-colors text-text-main">
+            <ChevronLeftIcon className="w-5 h-5" />
           </button>
-          <h2 className="text-xl font-bold text-text-main w-48 text-center">
+          <h2 className="text-lg font-bold text-text-main w-40 text-center tracking-wide">
             {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
           </h2>
-          <button onClick={nextMonth} className="p-2 hover:bg-structure rounded-full transition-colors text-text-main">
-            <ChevronRightIcon className="w-6 h-6" />
+          <button onClick={nextMonth} className="p-2 hover:bg-white/10 rounded-full transition-colors text-text-main">
+            <ChevronRightIcon className="w-5 h-5" />
           </button>
         </div>
       </div>
 
-      <div className="panel min-h-[600px] p-0 overflow-hidden">
+      <div className="glass-panel min-h-[600px] p-0 overflow-hidden mt-6">
         {loading ? (
           <div className="flex justify-center p-12"><div className="animate-spin h-8 w-8 border-t-2 border-primary rounded-full"></div></div>
         ) : (
           <div className="w-full">
-            <div className="grid grid-cols-7 border-b border-structure bg-bg-dark">
+            <div className="grid grid-cols-7 border-b border-white/10 bg-black/20">
               {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(day => (
-                <div key={day} className="p-4 text-center font-bold text-text-muted text-sm uppercase tracking-wider">
+                <div key={day} className="p-4 text-center font-bold text-text-muted text-xs uppercase tracking-wider">
                   {day}
                 </div>
               ))}
@@ -99,7 +104,7 @@ export default function CalendarPage() {
             
             <div className="grid grid-cols-7 auto-rows-fr">
               {blanksArray.map(b => (
-                <div key={`blank-${b}`} className="min-h-[120px] p-2 border-b border-r border-structure/30 bg-bg-dark/30"></div>
+                <div key={`blank-${b}`} className="min-h-[120px] p-2 border-b border-r border-white/5 bg-black/10"></div>
               ))}
               
               {daysArray.map(day => {
@@ -130,7 +135,7 @@ export default function CalendarPage() {
                         type: 'move',
                         title: 'Umzug: ' + o.customerName,
                         address: o.logistics?.a_city || o.logistics?.loadingAddress?.split(',')[0] || 'Keine Adresse',
-                        color: 'bg-orange-500/20 border-orange-500/30 text-orange-400 hover:bg-orange-500/30',
+                        color: 'bg-orange-500/20 border-orange-500/30 text-orange-300 hover:bg-orange-500/40',
                         orderId: o.id,
                         customerId: o.customerId,
                         isDone,
@@ -152,7 +157,7 @@ export default function CalendarPage() {
                           type: 'parking',
                           title: 'Halteverbot aufstellen',
                           address: o.customerName,
-                          color: 'bg-red-500/20 border-red-500/30 text-red-400 hover:bg-red-500/30',
+                          color: 'bg-yellow-500/20 border-yellow-500/30 text-yellow-300 hover:bg-yellow-500/40',
                           orderId: o.id,
                           customerId: o.customerId,
                           isDone: !!o.ticketStates?.halteverbot
@@ -174,7 +179,7 @@ export default function CalendarPage() {
                           type: 'boxes',
                           title: 'Kartons liefern',
                           address: o.customerName,
-                          color: 'bg-blue-500/20 border-blue-500/30 text-blue-400 hover:bg-blue-500/30',
+                          color: 'bg-blue-500/20 border-blue-500/30 text-blue-300 hover:bg-blue-500/40',
                           orderId: o.id,
                           customerId: o.customerId,
                           isDone: !!o.ticketStates?.kartons_liefern
@@ -192,7 +197,7 @@ export default function CalendarPage() {
                       type: 'viewing',
                       title: 'Besichtigung',
                       address: o.customerName,
-                      color: 'bg-primary/20 border-primary/30 text-primary hover:bg-primary/30',
+                      color: 'bg-primary/20 border-primary/30 text-primary-hover hover:bg-primary/40',
                       orderId: o.id,
                       customerId: o.customerId,
                       isDone: !!o.ticketStates?.viewing_requested
@@ -206,31 +211,31 @@ export default function CalendarPage() {
                   <div 
                     key={`day-${day}`} 
                     onClick={() => setSelectedDateStr(dateStr)}
-                    className={`min-h-[120px] p-2 border-b border-r border-structure/30 relative group hover:bg-structure/10 transition-colors cursor-pointer ${isToday ? 'bg-primary/5' : ''}`}
+                    className={`min-h-[120px] p-2 border-b border-r border-white/5 relative group hover:bg-white/[0.04] transition-colors cursor-pointer ${isToday ? 'bg-primary/10' : 'bg-transparent'}`}
                   >
-                    <div className={`text-right font-semibold text-sm mb-2 ${isToday ? 'text-primary' : 'text-text-muted'}`}>
+                    <div className={`text-right font-bold text-sm mb-2 ${isToday ? 'text-primary' : 'text-text-muted'}`}>
                       {isToday && <span className="bg-primary text-white text-[10px] px-1.5 py-0.5 rounded mr-2 uppercase tracking-wider">Heute</span>}
                       {day}
                     </div>
                     
-                    <div className="space-y-1">
+                    <div className="space-y-1.5">
                       {dayEvents.map((event: any) => (
                         <Link 
                           key={event.id} 
                           href={event.type === 'move' ? `/dashboard/orders` : `/dashboard/customers/${event.customerId}`}
-                          className={`block border p-1.5 rounded text-xs transition-colors ${event.color} ${event.isDone ? 'opacity-40 grayscale-[0.5]' : ''}`}
+                          className={`block border p-1.5 rounded-lg text-xs transition-all shadow-sm ${event.color} ${event.isDone ? 'opacity-30 grayscale' : ''}`}
                         >
                           <div className="font-bold truncate flex items-center gap-1">
                             {event.isDone && <CheckIcon className="w-3 h-3 shrink-0" />}
-                            <span className={event.isDone ? 'line-through decoration-black/30' : ''}>
-                              {event.disposition?.movingTimeStr && <span className="mr-1">{event.disposition.movingTimeStr}</span>}
+                            <span className={event.isDone ? 'line-through' : ''}>
+                              {event.disposition?.movingTimeStr && <span className="mr-1 opacity-80">{event.disposition.movingTimeStr}</span>}
                               {event.title}
                             </span>
                           </div>
                           <div className="opacity-80 truncate mt-0.5">{event.address}</div>
                           {event.type === 'move' && event.disposition && (
-                            <div className="mt-1 pt-1 border-t border-current/20 text-[10px] leading-tight flex flex-wrap gap-x-2 gap-y-0.5">
-                              {event.disposition.helpers > 0 && <span className="font-semibold">{event.disposition.helpers} Helfer</span>}
+                            <div className="mt-1 pt-1 border-t border-current/20 text-[10px] leading-tight flex flex-wrap gap-x-2 gap-y-0.5 opacity-90">
+                              {event.disposition.helpers > 0 && <span>{event.disposition.helpers} Helfer</span>}
                               {event.disposition.koffer35t > 0 && <span>{event.disposition.koffer35t}x 3,5t</span>}
                               {event.disposition.lkw7t > 0 && <span>{event.disposition.lkw7t}x 7,5t</span>}
                             </div>
