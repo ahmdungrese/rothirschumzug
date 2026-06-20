@@ -158,12 +158,18 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
   }, [isFlatRate, flatRateNet, services]);
 
   const saveOrder = async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      toast.error('Speichern fehlgeschlagen: Du bist offline! Bitte warte auf eine Internetverbindung.', { duration: 5000 });
+      return;
+    }
+
     if (!customer.lastName) {
       toast.error("Nachname des Kunden ist ein Pflichtfeld.");
       setStep(1); return;
     }
 
     setIsSaving(true);
+    const toastId = toast.loading("Speichere Daten in der Cloud...");
     try {
       let signatureBase64 = null;
       if (sigCanvas.current && !sigCanvas.current.isEmpty()) {
@@ -205,7 +211,7 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
 
       if (orderId) {
         await updateDoc(doc(db, getCol('orders'), orderId), payload);
-        toast.success("Besichtigung erfolgreich aktualisiert!");
+        toast.success("Besichtigung erfolgreich und sicher aktualisiert!", { id: toastId });
       } else {
         payload.status = 'draft';
         payload.orderNumber = settings?.nextQuoteNumber ? `ANG-${new Date().getFullYear()}-${settings.nextQuoteNumber}` : `ANG-${Date.now()}`;
@@ -216,14 +222,14 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
         if (settings?.nextQuoteNumber) {
           await updateDoc(doc(db, getCol('system'), 'settings'), { nextQuoteNumber: settings.nextQuoteNumber + 1 });
         }
-        toast.success("Besichtigung erfolgreich gespeichert!");
+        toast.success("Besichtigung erfolgreich und sicher gespeichert!", { id: toastId });
       }
       
       if (onClose) onClose();
       else router.push(`/dashboard/customers/${finalCustomerId}`);
     } catch (e) {
       console.error(e);
-      toast.error("Fehler beim Speichern.");
+      toast.error("Fehler beim Speichern. Bitte überprüfe deine Internetverbindung.", { id: toastId, duration: 5000 });
     } finally {
       setIsSaving(false);
     }

@@ -69,6 +69,9 @@ export const EmployeeSheetPDF = ({ order, customer, employeeName }: { order: any
         <Text>Möbellift benötigt: {(order?.logistics?.a_furnitureLift || order?.logistics?.b_furnitureLift) ? 'Ja' : 'Nein'}</Text>
         <Text>Halteverbotszone: {(order?.logistics?.a_parking || order?.logistics?.b_parking) ? 'Ja, wird eingerichtet' : 'Nein'}</Text>
         <Text style={{ marginTop: 5, fontFamily: 'Helvetica-Bold', color: '#8F1627' }}>
+          Geplantes Team: {order?.disposition?.helpers || 0} Helfer | {order?.disposition?.koffer35t || 0}x 3,5t LKW | {order?.disposition?.lkw7t || 0}x 7,5t LKW
+        </Text>
+        <Text style={{ marginTop: 5, fontFamily: 'Helvetica-Bold', color: '#8F1627' }}>
           Zahlungsmethode: {order?.paymentMethod || 'Nicht angegeben'}
         </Text>
       </View>

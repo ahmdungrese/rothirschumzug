@@ -74,59 +74,6 @@ export function DispoModal({
     }
   });
 
-  const availableVehicles: string[] = settings?.vehicles || [];
-  const availableEmployees: string[] = settings?.employees || [];
-
-  // Berechne belegte Ressourcen für diesen Tag (über alle Aufträge)
-  const getUsedResources = () => {
-    const usedVehicles = new Set<string>();
-    const usedEmployees = new Set<string>();
-    
-    dayOrders.forEach(o => {
-      const v = o.disposition?.assignedVehicles || [];
-      const e = o.disposition?.assignedEmployees || [];
-      v.forEach((x: string) => usedVehicles.add(x));
-      e.forEach((x: string) => usedEmployees.add(x));
-    });
-    return { usedVehicles, usedEmployees };
-  };
-
-  const { usedVehicles, usedEmployees } = getUsedResources();
-
-  const handleToggleVehicle = async (orderId: string, vehicle: string, currentAssigned: string[]) => {
-    const isAssigned = currentAssigned.includes(vehicle);
-    let newAssigned;
-    if (isAssigned) {
-      newAssigned = currentAssigned.filter(v => v !== vehicle);
-    } else {
-      if (usedVehicles.has(vehicle)) {
-        toast.error(`Fahrzeug "${vehicle}" ist heute schon verplant!`);
-        return;
-      }
-      newAssigned = [...currentAssigned, vehicle];
-    }
-    await updateDoc(doc(db, getCol('orders'), orderId), {
-      'disposition.assignedVehicles': newAssigned
-    });
-  };
-
-  const handleToggleEmployee = async (orderId: string, employee: string, currentAssigned: string[]) => {
-    const isAssigned = currentAssigned.includes(employee);
-    let newAssigned;
-    if (isAssigned) {
-      newAssigned = currentAssigned.filter(e => e !== employee);
-    } else {
-      if (usedEmployees.has(employee)) {
-        toast.error(`Mitarbeiter "${employee}" ist heute schon eingeteilt!`);
-        return;
-      }
-      newAssigned = [...currentAssigned, employee];
-    }
-    await updateDoc(doc(db, getCol('orders'), orderId), {
-      'disposition.assignedEmployees': newAssigned
-    });
-  };
-
   const handleToggleTask = async (orderId: string, ticketId: string, currentState: boolean) => {
     try {
       await updateDoc(doc(db, getCol('orders'), orderId), {
@@ -138,18 +85,53 @@ export function DispoModal({
     }
   };
 
+  const updateResource = async (orderId: string, field: string, value: number) => {
+    try {
+      await updateDoc(doc(db, getCol('orders'), orderId), {
+        [`disposition.${field}`]: Math.max(0, value)
+      });
+    } catch (e) {
+      toast.error("Fehler beim Speichern");
+    }
+  };
+
+  // Summen berechnen
+  let totalHelpers = 0;
+  let totalKoffer35t = 0;
+  let totalLkw7t = 0;
+
+  dayOrders.forEach(o => {
+    totalHelpers += o.disposition?.helpers || 0;
+    totalKoffer35t += o.disposition?.koffer35t || 0;
+    totalLkw7t += o.disposition?.lkw7t || 0;
+  });
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-bg-panel border border-structure shadow-2xl rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
-        <div className="flex justify-between items-center p-6 border-b border-structure bg-bg-dark rounded-t-2xl">
+        <div className="flex justify-between items-start p-6 border-b border-structure bg-bg-dark rounded-t-2xl">
           <div>
             <h2 className="text-2xl font-bold text-text-main flex items-center gap-2">
               <TruckIcon className="w-7 h-7 text-primary" /> 
               Ressourcen-Planung
             </h2>
             <p className="text-primary mt-1">{displayDate}</p>
+            
+            {dayOrders.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-4 text-sm font-semibold">
+                <span className="bg-bg-panel border border-structure px-3 py-1.5 rounded-lg text-text-main flex items-center gap-2">
+                  <UserGroupIcon className="w-4 h-4 text-primary" /> Gesamt Helfer: <span className="text-primary text-base">{totalHelpers}</span>
+                </span>
+                <span className="bg-bg-panel border border-structure px-3 py-1.5 rounded-lg text-text-main flex items-center gap-2">
+                  <TruckIcon className="w-4 h-4 text-orange-400" /> Gesamt 3,5t: <span className="text-orange-400 text-base">{totalKoffer35t}</span>
+                </span>
+                <span className="bg-bg-panel border border-structure px-3 py-1.5 rounded-lg text-text-main flex items-center gap-2">
+                  <TruckIcon className="w-4 h-4 text-green-400" /> Gesamt 7,5t: <span className="text-green-400 text-base">{totalLkw7t}</span>
+                </span>
+              </div>
+            )}
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-structure rounded-full transition-colors">
+          <button onClick={onClose} className="p-2 hover:bg-structure rounded-full transition-colors mt-1">
             <XMarkIcon className="w-6 h-6 text-text-main" />
           </button>
         </div>
@@ -184,8 +166,9 @@ export function DispoModal({
           ) : (
             <div className="space-y-6">
               {dayOrders.map(order => {
-                const assignedVehicles = order.disposition?.assignedVehicles || [];
-                const assignedEmployees = order.disposition?.assignedEmployees || [];
+                const helpersCount = order.disposition?.helpers || 0;
+                const koffer35tCount = order.disposition?.koffer35t || 0;
+                const lkw7tCount = order.disposition?.lkw7t || 0;
                 
                 return (
                   <div key={order.id} className="bg-bg-dark border border-structure rounded-xl p-5 shadow-inner">
@@ -221,65 +204,40 @@ export function DispoModal({
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6 border-t border-structure pt-4">
-                      {/* Fahrzeuge */}
-                      <div>
+                      {/* Kapazitäten anpassen */}
+                      <div className="col-span-1 md:col-span-2">
                         <h4 className="font-semibold text-text-main flex items-center gap-2 mb-3">
-                          <TruckIcon className="w-5 h-5 text-text-muted" /> Fahrzeuge zuweisen
+                          <UserGroupIcon className="w-5 h-5 text-text-muted" /> Benötigte Kapazitäten
                         </h4>
-                        <div className="flex flex-wrap gap-2">
-                          {availableVehicles.map(veh => {
-                            const isAssignedToThis = assignedVehicles.includes(veh);
-                            const isAssignedOther = !isAssignedToThis && usedVehicles.has(veh);
-                            
-                            return (
-                                <button
-                                  key={veh}
-                                  onClick={() => handleToggleVehicle(order.id, veh, assignedVehicles)}
-                                  disabled={isAssignedOther || profile?.role === 'teamlead'}
-                                  className={`px-3 py-1.5 rounded-lg text-sm border transition-all ${
-                                    isAssignedToThis 
-                                      ? 'bg-primary border-primary text-white shadow-lg shadow-primary/20' 
-                                      : isAssignedOther 
-                                        ? 'bg-structure/50 border-structure/50 text-text-muted opacity-50 cursor-not-allowed'
-                                        : 'bg-bg-panel border-structure text-text-main hover:border-primary/50'
-                                  } ${profile?.role === 'teamlead' && !isAssignedToThis ? 'hidden' : ''}`}
-                                >
-                                {veh}
-                              </button>
-                            );
-                          })}
-                          {availableVehicles.length === 0 && <span className="text-xs text-text-muted">Keine Fahrzeuge in den Einstellungen angelegt.</span>}
-                        </div>
-                      </div>
+                        <p className="text-xs text-text-muted mb-4">Diese Werte werden automatisch aus deiner initialen Planung (Auftrags-Editor) übernommen. Du kannst sie hier bei Bedarf anpassen.</p>
+                        
+                        <div className="flex flex-wrap gap-4">
+                          <div className="flex items-center justify-between p-3 border border-structure rounded-xl bg-bg-panel min-w-[200px]">
+                            <span className="font-medium text-sm">Umzugshelfer</span>
+                            <div className="flex items-center gap-3">
+                              <button type="button" onClick={() => updateResource(order.id, 'helpers', helpersCount - 1)} className="btn-secondary py-0.5 px-2">-</button>
+                              <span className="font-bold w-4 text-center">{helpersCount}</span>
+                              <button type="button" onClick={() => updateResource(order.id, 'helpers', helpersCount + 1)} className="btn-secondary py-0.5 px-2">+</button>
+                            </div>
+                          </div>
 
-                      {/* Mitarbeiter */}
-                      <div>
-                        <h4 className="font-semibold text-text-main flex items-center gap-2 mb-3">
-                          <UserGroupIcon className="w-5 h-5 text-text-muted" /> Team einteilen
-                        </h4>
-                        <div className="flex flex-wrap gap-2">
-                          {availableEmployees.map(emp => {
-                            const isAssignedToThis = assignedEmployees.includes(emp);
-                            const isAssignedOther = !isAssignedToThis && usedEmployees.has(emp);
-                            
-                            return (
-                                <button
-                                  key={emp}
-                                  onClick={() => handleToggleEmployee(order.id, emp, assignedEmployees)}
-                                  disabled={isAssignedOther || profile?.role === 'teamlead'}
-                                  className={`px-3 py-1.5 rounded-lg text-sm border transition-all ${
-                                    isAssignedToThis 
-                                      ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' 
-                                      : isAssignedOther 
-                                        ? 'bg-structure/50 border-structure/50 text-text-muted opacity-50 cursor-not-allowed'
-                                        : 'bg-bg-panel border-structure text-text-main hover:border-blue-500/50'
-                                  } ${profile?.role === 'teamlead' && !isAssignedToThis ? 'hidden' : ''}`}
-                                >
-                                {emp}
-                              </button>
-                            );
-                          })}
-                          {availableEmployees.length === 0 && <span className="text-xs text-text-muted">Keine Mitarbeiter in den Einstellungen angelegt.</span>}
+                          <div className="flex items-center justify-between p-3 border border-structure rounded-xl bg-bg-panel min-w-[200px]">
+                            <span className="font-medium text-sm">Koffer 3,5 Tonnen</span>
+                            <div className="flex items-center gap-3">
+                              <button type="button" onClick={() => updateResource(order.id, 'koffer35t', koffer35tCount - 1)} className="btn-secondary py-0.5 px-2">-</button>
+                              <span className="font-bold w-4 text-center">{koffer35tCount}</span>
+                              <button type="button" onClick={() => updateResource(order.id, 'koffer35t', koffer35tCount + 1)} className="btn-secondary py-0.5 px-2">+</button>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between p-3 border border-structure rounded-xl bg-bg-panel min-w-[200px]">
+                            <span className="font-medium text-sm">LKW 7,5 Tonnen</span>
+                            <div className="flex items-center gap-3">
+                              <button type="button" onClick={() => updateResource(order.id, 'lkw7t', lkw7tCount - 1)} className="btn-secondary py-0.5 px-2">-</button>
+                              <span className="font-bold w-4 text-center">{lkw7tCount}</span>
+                              <button type="button" onClick={() => updateResource(order.id, 'lkw7t', lkw7tCount + 1)} className="btn-secondary py-0.5 px-2">+</button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                       

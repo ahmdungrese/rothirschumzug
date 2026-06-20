@@ -15,6 +15,7 @@ const geistMono = Geist_Mono({
 import { Toaster } from 'react-hot-toast';
 import { Providers } from "@/components/Providers";
 import { PwaRegister } from "@/components/pwa/PwaRegister";
+import { NetworkMonitor } from "@/components/NetworkMonitor";
 
 export const metadata: Metadata = {
   title: "Rothirsch Umzüge",
@@ -46,6 +47,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#f97316" />
       </head>
       <body className="h-full flex flex-col bg-bg-dark text-text-main">
+        <NetworkMonitor />
         <PwaRegister />
         <Providers>{children}</Providers>
         <Toaster 

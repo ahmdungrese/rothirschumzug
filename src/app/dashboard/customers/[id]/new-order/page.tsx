@@ -14,8 +14,6 @@ export default async function NewOrderPage({ params }: { params: Promise<{ id: s
               <ArrowLeftIcon className="w-4 h-4" /> Zurück zur Kundenakte
             </Link>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-text-main">Angebot / Auftrag erstellen</h1>
-          <p className="text-text-muted mt-1">Legen Sie hier die Logistik-Parameter und Leistungen fest.</p>
         </div>
       </div>
       <ResponsiveOrderWrapper />

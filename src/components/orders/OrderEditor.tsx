@@ -181,6 +181,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             setCustomerData(prev => ({
               ...prev,
               type: data.billingAddress.type || 'privat',
+              salutation: data.billingAddress.salutation || '',
               firstName: data.billingAddress.firstName || '',
               lastName: data.billingAddress.lastName || '',
               street: data.billingAddress.street || '',
@@ -284,7 +285,15 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const [errorMessage, setErrorMessage] = useState('');
 
   const saveOrder = async (status: 'draft' | 'quote' | 'invoice_open') => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      toast.error('Speichern fehlgeschlagen: Du bist offline!', { duration: 5000 });
+      setErrorMessage('Kein Internet! Bitte warte auf eine Verbindung.');
+      setTimeout(() => setErrorMessage(''), 5000);
+      return;
+    }
+
     if (!urlCustomerId && (!customerData.lastName)) {
+      toast.error("Bitte mindestens Nachname/Firmenname ausfüllen!");
       setErrorMessage("Bitte mindestens Nachname/Firmenname ausfüllen!");
       setTimeout(() => setErrorMessage(''), 4000);
       return;
@@ -354,9 +363,11 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         }
       }
       setSaveStatus('success');
+      toast.success(orderId ? "Änderungen erfolgreich gespeichert!" : "Neues Angebot erfolgreich erstellt!");
       router.push(`/dashboard/customers/${finalCustomerId}`);
     } catch (e) {
       console.error(e); 
+      toast.error("Systemfehler beim Speichern. Bitte erneut versuchen.");
       setErrorMessage("Systemfehler beim Speichern. Bitte erneut versuchen.");
       setSaveStatus('error');
       setTimeout(() => { setErrorMessage(''); setSaveStatus('idle'); }, 4000);
@@ -378,9 +389,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             {isInvoice ? 'Erstellen Sie eine direkte Rechnung.' : 'Erstellen Sie ein detailliertes Umzugsangebot.'}
           </p>
         </div>
-      </div>
-
-      {/* 1. Kundeninformationen */}
+      </div>{/* 1. Kundeninformationen */}
       <section className="panel border-t-4 border-t-primary shadow-lg">
         <h2 className="text-xl font-bold mb-4 text-text-main border-b border-structure pb-2">Kundeninformationen</h2>
         {!urlCustomerId && (

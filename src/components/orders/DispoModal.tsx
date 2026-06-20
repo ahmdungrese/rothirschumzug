@@ -41,6 +41,33 @@ export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose:
     }
   }, [order]);
 
+  const generateTodos = (currentHelpers: number, currentKoffer: number, currentLkw: number) => {
+    const todos = order.todos || [];
+    
+    // Halteverbot
+    if (order.logistics?.noParkingZone && !todos.some((t:any) => t.title === 'Halteverbot beantragen')) {
+      todos.push({ id: 'todo_' + Date.now() + 1, title: 'Halteverbot beantragen', isDone: false });
+    }
+    // Möbellift
+    if (order.logistics?.furnitureLift && !todos.some((t:any) => t.title === 'Möbellift reservieren')) {
+      todos.push({ id: 'todo_' + Date.now() + 2, title: 'Möbellift reservieren', isDone: false });
+    }
+    // Kartons
+    if (order.services?.some((s: any) => s.name.toLowerCase().includes('karton')) && !todos.some((t:any) => t.title === 'Umzugskartons ausliefern')) {
+      todos.push({ id: 'todo_' + Date.now() + 3, title: 'Umzugskartons ausliefern', isDone: false });
+    }
+    // Fahrzeuge
+    if ((currentKoffer > 0 || currentLkw > 0) && !todos.some((t:any) => t.title.includes('Fahrzeug mieten'))) {
+      todos.push({ id: 'todo_' + Date.now() + 4, title: `Fahrzeug mieten (${currentKoffer}x 3,5t | ${currentLkw}x 7,5t)`, isDone: false });
+    }
+    // Mitarbeiter
+    if (currentHelpers > 0 && !todos.some((t:any) => t.title === 'Mitarbeiter einteilen')) {
+      todos.push({ id: 'todo_' + Date.now() + 5, title: 'Mitarbeiter einteilen', isDone: false });
+    }
+    
+    return todos;
+  };
+
   const confirmAndDispatch = async () => {
     if (!movingDate) {
       toast.error('Bitte ein Datum auswählen.');
@@ -58,28 +85,7 @@ export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose:
         lkw7t
       };
 
-      const todos = order.todos || [];
-      
-      // Halteverbot
-      if (order.logistics?.noParkingZone && !todos.some((t:any) => t.title === 'Halteverbot beantragen')) {
-        todos.push({ id: 'todo_' + Date.now() + 1, title: 'Halteverbot beantragen', isDone: false });
-      }
-      // Möbellift
-      if (order.logistics?.furnitureLift && !todos.some((t:any) => t.title === 'Möbellift reservieren')) {
-        todos.push({ id: 'todo_' + Date.now() + 2, title: 'Möbellift reservieren', isDone: false });
-      }
-      // Kartons
-      if (order.services?.some((s: any) => s.name.toLowerCase().includes('karton')) && !todos.some((t:any) => t.title === 'Umzugskartons ausliefern')) {
-        todos.push({ id: 'todo_' + Date.now() + 3, title: 'Umzugskartons ausliefern', isDone: false });
-      }
-      // Fahrzeuge
-      if ((koffer35t > 0 || lkw7t > 0) && !todos.some((t:any) => t.title.includes('Fahrzeug mieten'))) {
-        todos.push({ id: 'todo_' + Date.now() + 4, title: `Fahrzeug mieten (${koffer35t}x 3,5t | ${lkw7t}x 7,5t)`, isDone: false });
-      }
-      // Mitarbeiter
-      if (helpers > 0 && !todos.some((t:any) => t.title === 'Mitarbeiter einteilen')) {
-        todos.push({ id: 'todo_' + Date.now() + 5, title: 'Mitarbeiter einteilen', isDone: false });
-      }
+      const todos = generateTodos(helpers, koffer35t, lkw7t);
 
       await updateDoc(doc(db, getCol('orders'), order.id), {
         status: 'confirmed',
@@ -98,9 +104,31 @@ export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose:
     }
   };
 
+  const confirmOnly = async () => {
+    setIsSaving(true);
+    try {
+      // Wenn wir nur bestätigen, übernehmen wir trotzdem die System-Todos (ohne Helfer/Auto spezifische Todos)
+      const todos = generateTodos(0, 0, 0); 
+      
+      await updateDoc(doc(db, getCol('orders'), order.id), {
+        status: 'confirmed',
+        todos: todos
+      });
+      
+      toast.success("Auftrag bestätigt (Ressourcen können später im Kalender geplant werden)!");
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (e) {
+      console.error(e);
+      toast.error("Fehler beim Bestätigen.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-bg-panel border border-structure rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+      <div className="bg-bg-panel border border-structure rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
         <div className="p-4 border-b border-structure flex justify-between items-center bg-bg-dark shrink-0">
           <h2 className="text-xl font-bold text-text-main flex items-center gap-2">
             <TruckIcon className="w-6 h-6 text-primary" /> Grob-Disposition
@@ -111,6 +139,10 @@ export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose:
         </div>
         
         <div className="p-6 space-y-6 overflow-y-auto">
+          <p className="text-sm text-text-muted">
+            Der Kunde hat das Angebot angenommen! Du kannst jetzt direkt die Kapazitäten für diesen Umzug eintragen, oder ihn einfach bestätigen und die Planung später im Kalender nachholen.
+          </p>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-text-muted mb-2">Umzugsdatum</label>
@@ -166,11 +198,17 @@ export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose:
           </div>
         </div>
         
-        <div className="p-4 border-t border-structure bg-bg-dark flex justify-end gap-3 shrink-0">
-          <button onClick={onClose} className="btn-secondary">Später disponieren</button>
-          <button onClick={confirmAndDispatch} disabled={isSaving} className="btn-primary">
-            {isSaving ? 'Speichert...' : 'Bestätigen & Blockieren'}
-          </button>
+        <div className="p-4 border-t border-structure bg-bg-dark flex flex-col sm:flex-row justify-between gap-3 shrink-0">
+          <button onClick={onClose} className="btn-secondary border-structure/50 hover:bg-structure/30">Abbrechen</button>
+          
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button onClick={confirmOnly} disabled={isSaving} className="btn-secondary bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 text-sm">
+              Nur Bestätigen (Planung später)
+            </button>
+            <button onClick={confirmAndDispatch} disabled={isSaving} className="btn-primary text-sm">
+              {isSaving ? 'Speichert...' : 'Bestätigen & Planen'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
