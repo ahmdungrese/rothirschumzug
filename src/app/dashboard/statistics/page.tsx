@@ -8,6 +8,7 @@ import {
   PieChart, Pie, Cell, LineChart, Line
 } from 'recharts';
 import { ChartBarIcon, CurrencyEuroIcon, UsersIcon, CursorArrowRaysIcon } from '@heroicons/react/24/outline';
+import { MonthlyExportPanel } from '@/components/finances/MonthlyExportPanel';
 
 const COLORS = ['#e11d48', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899'];
 
@@ -190,6 +191,8 @@ export default function StatisticsPage() {
         </h1>
         <p className="text-text-muted mt-1">Live-Analyse aus deinen Echtzeit-Daten (Gesamtzeitraum / Letzte 30 Tage).</p>
       </section>
+
+      <MonthlyExportPanel />
 
       {/* KPIs */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

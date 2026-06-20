@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon } from '@heroicons/react/24/outline';
+import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon, CalendarIcon, LinkIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
 import { TeamAccessManager } from '@/components/settings/TeamAccessManager';
 import { ActivityLogViewer } from '@/components/settings/ActivityLogViewer';
 import { getCol } from '@/lib/demoMode';
@@ -18,6 +18,7 @@ const TABS = [
   { id: 'vorlagen', name: 'Nachrichten-Vorlagen', icon: DocumentTextIcon },
   { id: 'protokolle', name: 'Protokolle & Vorlagen', icon: DocumentTextIcon },
   { id: 'system', name: 'System & Finanzen', icon: ServerStackIcon },
+  { id: 'integration', name: 'Kalender & APIs', icon: CalendarIcon },
 ];
 
 export default function SettingsPage() {
@@ -899,6 +900,137 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </div>
+          )}
+
+          {/* TAB: Integration (Kalender & APIs) */}
+          {activeTab === 'integration' && (
+            <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">Kalender-Integration (Echtzeit-Sync)</h2>
+              <p className="text-sm text-text-muted mb-6">
+                Verknüpfe hier dein Microsoft Outlook oder Google Calendar Konto. Sobald ein Termin (Besichtigung/Umzug) in der App gespeichert wird, taucht er automatisch in Echtzeit in deinem Kalender auf.
+              </p>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                {/* Outlook Box */}
+                <div className="bg-bg-dark border border-structure p-6 rounded-xl relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <CalendarIcon className="w-24 h-24 text-blue-500" />
+                  </div>
+                  <h3 className="text-lg font-bold text-text-main mb-2">Microsoft Outlook</h3>
+                  <p className="text-sm text-text-muted mb-6 relative z-10">
+                    Synchronisiert Termine direkt über die Microsoft Graph API in dein Outlook-Konto (Office 365 oder privat).
+                  </p>
+                  
+                  <div className="space-y-4 relative z-10">
+                    <div>
+                      <label className="block text-xs font-bold text-text-muted uppercase mb-1">Azure Client-ID</label>
+                      <input type="text" placeholder="z.B. 8a2c...-..." className="input-field w-full bg-bg-panel" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-text-muted uppercase mb-1">Azure Client-Secret</label>
+                      <input type="password" placeholder="Dein geheimer Schlüssel" className="input-field w-full bg-bg-panel" />
+                    </div>
+                    <button className="btn-secondary w-full flex items-center justify-center gap-2 border-blue-500/50 text-blue-400 hover:bg-blue-500/10">
+                      <LinkIcon className="w-5 h-5" /> Mit Outlook verknüpfen
+                    </button>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-structure relative z-10">
+                    <details className="text-sm">
+                      <summary className="text-primary font-medium cursor-pointer hover:underline">Einrichtungshilfe (Azure)</summary>
+                      <ul className="list-disc list-inside mt-2 text-text-muted space-y-1 text-xs">
+                        <li>Gehe ins <a href="https://portal.azure.com" target="_blank" className="text-blue-400 hover:underline">Azure Portal</a> (App Registrations)</li>
+                        <li>Erstelle eine "Neue Registrierung"</li>
+                        <li>Wähle "Beliebige Kontotypen (inkl. privat)"</li>
+                        <li>Umleitungs-URI (Web): <code>http://localhost:3000/api/calendar/auth/microsoft/callback</code></li>
+                        <li>Füge unter "API-Berechtigungen" <code>Calendars.ReadWrite</code> und <code>offline_access</code> (Microsoft Graph) hinzu.</li>
+                        <li>Generiere ein Client-Secret unter "Zertifikate & Geheimnisse".</li>
+                      </ul>
+                    </details>
+                  </div>
+                </div>
+
+                {/* Google Box */}
+                <div className="bg-bg-dark border border-structure p-6 rounded-xl relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <CalendarIcon className="w-24 h-24 text-red-500" />
+                  </div>
+                  <h3 className="text-lg font-bold text-text-main mb-2">Google Calendar</h3>
+                  <p className="text-sm text-text-muted mb-6 relative z-10">
+                    Synchronisiert Termine direkt über die Google Calendar API in dein Google Workspace oder privates Google Konto.
+                  </p>
+                  
+                  <div className="space-y-4 relative z-10">
+                    <div>
+                      <label className="block text-xs font-bold text-text-muted uppercase mb-1">Google Client-ID</label>
+                      <input type="text" placeholder="z.B. 123...apps.googleusercontent.com" className="input-field w-full bg-bg-panel" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-text-muted uppercase mb-1">Google Client-Secret</label>
+                      <input type="password" placeholder="Dein geheimer Schlüssel" className="input-field w-full bg-bg-panel" />
+                    </div>
+                    <button className="btn-secondary w-full flex items-center justify-center gap-2 border-red-500/50 text-red-400 hover:bg-red-500/10">
+                      <LinkIcon className="w-5 h-5" /> Mit Google verknüpfen
+                    </button>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-structure relative z-10">
+                    <details className="text-sm">
+                      <summary className="text-primary font-medium cursor-pointer hover:underline">Einrichtungshilfe (Google)</summary>
+                      <ul className="list-disc list-inside mt-2 text-text-muted space-y-1 text-xs">
+                        <li>Gehe in die <a href="https://console.cloud.google.com" target="_blank" className="text-blue-400 hover:underline">Google Cloud Console</a></li>
+                        <li>Aktiviere die "Google Calendar API"</li>
+                        <li>Richte den "OAuth-Zustimmungsbildschirm" (Extern) ein</li>
+                        <li>Erstelle unter "Anmeldedaten" eine OAuth-Client-ID (Webanwendung)</li>
+                        <li>Autorisierte Weiterleitungs-URIs: <code>http://localhost:3000/api/calendar/auth/google/callback</code></li>
+                      </ul>
+                    </details>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* E-Mail / SMTP Box */}
+              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4 mt-8">E-Mail Versand (SMTP)</h2>
+              <p className="text-sm text-text-muted mb-6">
+                Damit die App in deinem Namen E-Mails (z.B. Angebote, Rechnungen) direkt an Kunden senden kann, benötigt sie Zugang zu deinem Postausgangsserver (z.B. Ionos).
+              </p>
+
+              <div className="bg-bg-dark border border-structure p-6 rounded-xl relative overflow-hidden group max-w-3xl">
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <EnvelopeIcon className="w-24 h-24 text-primary" />
+                </div>
+                <h3 className="text-lg font-bold text-text-main mb-6 relative z-10">Ionos / Webmail Zugangsdaten</h3>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+                  <div className="md:col-span-2">
+                    <label className="block text-xs font-bold text-text-muted uppercase mb-1">Absender Name</label>
+                    <input type="text" value={settings.companyName || ''} onChange={e => handleChange('companyName', e.target.value)} placeholder="z.B. Rothirsch Umzüge" className="input-field w-full bg-bg-panel" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-text-muted uppercase mb-1">SMTP Server (Host)</label>
+                    <input type="text" value={settings.smtpHost || 'smtp.ionos.de'} onChange={e => handleChange('smtpHost', e.target.value)} placeholder="z.B. smtp.ionos.de" className="input-field w-full bg-bg-panel" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-text-muted uppercase mb-1">SMTP Port</label>
+                    <input type="number" value={settings.smtpPort || 465} onChange={e => handleChange('smtpPort', Number(e.target.value))} placeholder="465" className="input-field w-full bg-bg-panel" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-text-muted uppercase mb-1">E-Mail Adresse (Benutzername)</label>
+                    <input type="email" value={settings.smtpUser || ''} onChange={e => handleChange('smtpUser', e.target.value)} placeholder="info@rothirsch-umzug.de" className="input-field w-full bg-bg-panel" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-text-muted uppercase mb-1">E-Mail Passwort</label>
+                    <input type="password" value={settings.smtpPass || ''} onChange={e => handleChange('smtpPass', e.target.value)} placeholder="Dein E-Mail Passwort" className="input-field w-full bg-bg-panel" />
+                  </div>
+                </div>
+                <p className="text-xs text-text-muted mt-4 relative z-10 italic">
+                  Hinweis: Das Passwort wird verschlüsselt gespeichert. Bei Ionos ist der Standard-Port für SSL 465.
+                </p>
+              </div>
+
+            </div>
           )}
 
           {/* TAB: System */}

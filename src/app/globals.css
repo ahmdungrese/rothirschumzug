@@ -1,15 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  /* Default: Dark Mode */
+  /* Default: Dark Mode - Premium Aesthetic */
   --color-primary: #8F1627;
   --color-primary-hover: #a11a2d;
-  --color-background-dark: #0A0F13;
-  --color-background-panel: #131D26;
-  --color-structure: #2D4558;
+  --color-background-dark: #0f161e;
+  --color-background-panel: rgba(255, 255, 255, 0.04);
+  --color-structure: rgba(255, 255, 255, 0.08);
   --color-inactive: #273B4B;
   --color-text-main: #FFFFFF;
-  --color-text-muted: #797979;
+  --color-text-muted: #94a3b8;
   --color-doc-bg: #F1F1F1;
 }
 
@@ -21,7 +21,6 @@
   --color-text-main: #0F172A;
   --color-text-muted: #64748B;
 }
-
 
 @theme inline {
   --color-primary: var(--color-primary);
@@ -39,7 +38,7 @@
 }
 
 body {
-  background-color: var(--color-background-dark);
+  background-color: var(--color-bg-dark);
   color: var(--color-text-main);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -48,17 +47,30 @@ body {
 
 /* Base custom utilities */
 .btn-primary {
-  @apply bg-primary text-white font-semibold py-2 px-4 md:py-3 md:px-6 rounded-lg transition-colors duration-200 hover:bg-primary-hover flex items-center justify-center gap-2 shadow-lg shadow-black/20;
+  @apply bg-primary text-white font-semibold py-2 px-4 md:py-3 md:px-6 rounded-lg transition-all duration-200 hover:bg-primary-hover flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:shadow-primary/40;
 }
 
 .btn-secondary {
-  @apply bg-structure text-text-main font-semibold py-2 px-4 md:py-3 md:px-6 rounded-lg transition-colors duration-200 hover:bg-inactive flex items-center justify-center gap-2;
+  @apply bg-white/5 backdrop-blur-sm border border-white/10 text-text-main font-semibold py-2 px-4 md:py-3 md:px-6 rounded-lg transition-all duration-200 hover:bg-white/10 flex items-center justify-center gap-2;
 }
 
+/* Glassmorphism & Kanban Styles */
 .panel {
-  @apply bg-bg-panel rounded-xl border border-structure p-4 md:p-6 shadow-xl shadow-black/40;
+  @apply bg-bg-panel backdrop-blur-xl rounded-xl border border-structure p-4 md:p-6 shadow-2xl;
+}
+
+.glass-panel {
+  @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl;
+}
+
+.kanban-col {
+  @apply flex flex-col gap-3 p-3 bg-white/[0.02] border border-white/[0.05] rounded-xl h-full backdrop-blur-md;
+}
+
+.kanban-card {
+  @apply bg-white/[0.04] hover:bg-white/[0.08] transition-all duration-300 border border-white/[0.08] hover:border-white/[0.15] rounded-lg p-4 shadow-lg flex flex-col;
 }
 
 .input-field {
-  @apply bg-bg-dark border border-structure text-text-main rounded-lg px-4 py-3 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all duration-200 w-full placeholder-text-muted/50;
+  @apply bg-black/20 border border-white/10 text-text-main rounded-lg px-4 py-3 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all duration-200 w-full placeholder-text-muted/50 backdrop-blur-sm;
 }

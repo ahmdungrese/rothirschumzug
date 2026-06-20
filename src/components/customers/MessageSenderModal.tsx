@@ -5,6 +5,9 @@ import { doc, getDoc } from 'firebase/firestore';
 import { getCol } from '@/lib/demoMode';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
+import { pdf } from '@react-pdf/renderer';
+import { OrderPDF } from '../pdf/OrderPDF';
+import { InvoicePDF } from '../pdf/InvoicePDF';
 
 export function MessageSenderModal({ 
   order, 
@@ -19,6 +22,9 @@ export function MessageSenderModal({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [attachmentType, setAttachmentType] = useState<'none' | 'order' | 'invoice'>('none');
+  const [settings, setSettings] = useState<any>(null);
   const { profile } = useAuth();
   
   useEffect(() => {
@@ -26,12 +32,16 @@ export function MessageSenderModal({
     const loadSettings = async () => {
       try {
         const docSnap = await getDoc(doc(db, getCol('system'), 'settings'));
-        if (docSnap.exists() && docSnap.data().communicationTemplates) {
-          const tpls = docSnap.data().communicationTemplates;
-          setTemplates(tpls);
-          if (tpls.length > 0) {
-            setSelectedTemplateId(tpls[0].id);
-            applyTemplate(tpls[0], order, customer, profile);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setSettings(data);
+          if (data.communicationTemplates) {
+            const tpls = data.communicationTemplates;
+            setTemplates(tpls);
+            if (tpls.length > 0) {
+              setSelectedTemplateId(tpls[0].id);
+              applyTemplate(tpls[0], order, customer, profile);
+            }
           }
         }
       } catch (e) {
@@ -100,6 +110,11 @@ export function MessageSenderModal({
     const tpl = templates.find(t => t.id === tId);
     if (tpl) {
       applyTemplate(tpl, order, customer, profile);
+      
+      // Auto-Select Attachment Type based on Template Name
+      if (tpl.name.toLowerCase().includes('angebot')) setAttachmentType('order');
+      else if (tpl.name.toLowerCase().includes('rechnung')) setAttachmentType('invoice');
+      else setAttachmentType('none');
     }
   };
 
@@ -108,9 +123,78 @@ export function MessageSenderModal({
     toast.success('Text kopiert! Ideal für den Check24-Chat.');
   };
 
-  const handleEmail = () => {
+  const handleEmail = async () => {
     const email = customer?.email || '';
-    window.location.href = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    if (!email) return toast.error('Keine E-Mail-Adresse beim Kunden hinterlegt!');
+    if (!settings?.smtpHost) return toast.error('Keine SMTP E-Mail Server-Daten in den Einstellungen hinterlegt!');
+
+    setIsSending(true);
+    const loadingToast = toast.loading('Generiere PDF und versende E-Mail...');
+
+    try {
+      const formData = new FormData();
+      formData.append('smtpHost', settings.smtpHost);
+      formData.append('smtpPort', settings.smtpPort || '465');
+      formData.append('smtpUser', settings.smtpUser);
+      formData.append('smtpPass', settings.smtpPass);
+      formData.append('fromName', settings.companyName || 'Rothirsch Umzüge');
+      
+      formData.append('to', email);
+      formData.append('subject', subject);
+      formData.append('text', body);
+
+      const managerName = profile?.displayName || profile?.email || 'Mitarbeiter';
+      const company = settings.companyName || 'Rothirsch Umzüge';
+      const customerName = customer?.type === 'firma' ? customer?.lastName : `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim();
+      const safeCustomerName = customerName || 'Kunde';
+      const orderNum = order?.orderNumber || 'Entwurf';
+
+      // Generate PDF on the fly if needed
+      if (attachmentType !== 'none') {
+        let pdfComponent;
+        let fileName = 'Dokument.pdf';
+
+        if (attachmentType === 'order') {
+          pdfComponent = <OrderPDF order={order} customer={customer} settings={settings} employeeName={managerName} />;
+          fileName = `Angebot ${orderNum} - ${company} - ${safeCustomerName}.pdf`;
+        } else if (attachmentType === 'invoice') {
+          pdfComponent = <InvoicePDF order={order} customer={customer} settings={settings} employeeName={managerName} />;
+          fileName = `Rechnung ${order?.invoiceNumber || orderNum} - ${company}.pdf`;
+        }
+
+        if (pdfComponent) {
+          const asPdf = pdf([]);
+          asPdf.updateContainer(pdfComponent);
+          const blob = await asPdf.toBlob();
+          formData.append('file', blob, fileName);
+          formData.append('fileName', fileName);
+        }
+      } else {
+        // We still need a dummy file to satisfy the API route if we make it required, 
+        // OR we can adjust the API route to handle no attachments.
+        // For now, let's create a tiny dummy blob if absolutely needed, or the API route will fail.
+        // Wait, the API route currently says: if(!file) return error. 
+        // I will adjust the API route to make file optional.
+      }
+
+      const res = await fetch('/api/email/send', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        toast.success('E-Mail erfolgreich gesendet!', { id: loadingToast });
+        onClose();
+      } else {
+        toast.error(`Fehler: ${data.error}`, { id: loadingToast });
+      }
+    } catch (e: any) {
+      console.error(e);
+      toast.error('Kritischer Fehler beim Senden.', { id: loadingToast });
+    } finally {
+      setIsSending(false);
+    }
   };
 
   const handleWhatsApp = () => {
@@ -179,6 +263,22 @@ export function MessageSenderModal({
             />
           </div>
 
+          <div className="bg-bg-dark border border-structure p-3 rounded-lg flex items-center justify-between mt-4">
+            <div>
+              <span className="block text-sm font-semibold text-text-main">PDF-Anhang</span>
+              <span className="text-xs text-text-muted">Welches Dokument soll generiert und an die Mail angehängt werden?</span>
+            </div>
+            <select 
+              value={attachmentType} 
+              onChange={e => setAttachmentType(e.target.value as any)}
+              className="input-field text-sm"
+            >
+              <option value="none">Kein Anhang</option>
+              <option value="order">Angebot (PDF)</option>
+              <option value="invoice">Rechnung (PDF)</option>
+            </select>
+          </div>
+
         </div>
 
         {/* Footer actions */}
@@ -193,10 +293,11 @@ export function MessageSenderModal({
           
           <button 
             onClick={handleEmail}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors font-semibold shadow-lg shadow-blue-500/20"
+            disabled={isSending}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg transition-colors font-semibold shadow-lg shadow-blue-500/20"
           >
             <EnvelopeIcon className="w-5 h-5" />
-            Per E-Mail senden
+            {isSending ? 'Wird gesendet...' : 'Per E-Mail senden'}
           </button>
 
           <button 

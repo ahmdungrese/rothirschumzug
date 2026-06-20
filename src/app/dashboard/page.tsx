@@ -1,24 +1,20 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { collection, query, onSnapshot, where, Timestamp, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
-import { PlusIcon, ClipboardDocumentListIcon, ExclamationTriangleIcon, MapPinIcon, CheckIcon, ShieldExclamationIcon, InformationCircleIcon } from '@heroicons/react/24/outline';
+import { 
+  XMarkIcon, ArchiveBoxIcon, MapIcon, ArrowUpOnSquareIcon, 
+  DocumentTextIcon, TruckIcon, CheckIcon, MapPinIcon
+} from '@heroicons/react/24/outline';
 import { getCol } from '@/lib/demoMode';
-import { generateTickets } from '@/lib/ticketEngine';
+import { generateTickets, SystemTicket } from '@/lib/ticketEngine';
 
 export default function DashboardPage() {
   const { profile } = useAuth();
   
-  const [stats, setStats] = useState({
-    monthlyRevenue: 0,
-    openItems: 0,
-    overdueCount: 0
-  });
-  
-  const [activeTodos, setActiveTodos] = useState<any[]>([]);
-  const [logisticsWarnings, setLogisticsWarnings] = useState<any[]>([]);
+  const [activeTodos, setActiveTodos] = useState<SystemTicket[]>([]);
   const [kanbanOrders, setKanbanOrders] = useState<{
     drafts: any[],
     quotes: any[],
@@ -26,9 +22,10 @@ export default function DashboardPage() {
     invoicing: any[]
   }>({ drafts: [], quotes: [], confirmed: [], invoicing: [] });
   const [orders, setOrders] = useState<any[]>([]);
+  
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
 
   useEffect(() => {
-    // We need both orders and customers to generate accurate tickets (e.g. phone number missing)
     const qOrders = query(collection(db, getCol('orders')));
     const qCustomers = query(collection(db, getCol('customers')));
     
@@ -36,62 +33,14 @@ export default function DashboardPage() {
     let currentCustomers: Record<string, any> = {};
 
     const processDashboardData = () => {
-      let revenue = 0;
-      let openSum = 0;
-      let overdue = 0;
-      let logistics: any[] = [];
-      let allTodos: any[] = [];
-
-      const now = new Date();
-      const currentMonth = now.getMonth();
-      const currentYear = now.getFullYear();
+      let allTodos: SystemTicket[] = [];
 
       currentOrders.forEach((o: any) => {
-        // Financials
-        const orderDate = o.createdAt?.toDate() || new Date();
-        const isCurrentMonth = orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
-        
-        const totalGross = o.totals?.gross || 0;
-        let totalPaid = 0;
-        
-        if (o.payments && Array.isArray(o.payments)) {
-          o.payments.forEach((p: any) => {
-            const pDate = p.date?.toDate() || new Date();
-            if (pDate.getMonth() === currentMonth && pDate.getFullYear() === currentYear) {
-              revenue += p.amount;
-            }
-            totalPaid += p.amount;
-          });
-        } else if (o.status === 'invoice_paid' && isCurrentMonth) {
-          revenue += totalGross;
-          totalPaid = totalGross;
-        }
-
-        const remaining = Math.max(0, totalGross - totalPaid);
-
-        if ((o.status === 'invoice_open' || o.status === 'invoice_overdue') && remaining > 0) {
-          openSum += remaining;
-        }
-        if (o.status === 'invoice_overdue') {
-          overdue++;
-        }
-
-        // Logistics Warnings (Halteverbot/Möbellift) for confirmed orders/quotes
-        if (o.logistics) {
-          if (o.logistics.noParkingZone && !o.logistics.noParkingZoneConfirmed) {
-            logistics.push({ id: o.id, type: 'Halteverbot', customer: o.customerId });
-          }
-          if (o.logistics.furnitureLift && !o.logistics.furnitureLiftConfirmed) {
-            logistics.push({ id: o.id, type: 'Möbellift', customer: o.customerId });
-          }
-        }
-        
-        // Tickets via Engine generieren
         const customerData = currentCustomers[o.customerId] || null;
         const systemTickets = generateTickets(o, customerData);
         systemTickets.forEach(t => {
           if (!t.done) {
-            allTodos.push({ ...t, orderId: o.id, customerName: o.customerName || 'Kunde', customerId: o.customerId });
+            allTodos.push(t);
           }
         });
 
@@ -99,17 +48,23 @@ export default function DashboardPage() {
         if (o.status === 'confirmed' && o.checklist && Array.isArray(o.checklist)) {
           o.checklist.forEach((t: any) => {
             if (!t.done) {
-              allTodos.push({ id: `manual_${t.id}`, title: t.text, phase: 2, type: 'info', done: false, orderId: o.id, customerName: o.customerName || 'Kunde', customerId: o.customerId });
+              allTodos.push({ 
+                id: `manual_${t.id}`, 
+                title: t.text, 
+                phase: 2, 
+                type: 'info', 
+                done: false, 
+                orderId: o.id, 
+                customerName: o.customerName || 'Kunde', 
+                kanbanCategory: 'general' 
+              });
             }
           });
         }
       });
 
-      setStats({ monthlyRevenue: revenue, openItems: openSum, overdueCount: overdue });
-      setLogisticsWarnings(logistics);
       setActiveTodos(allTodos);
       
-      // Kanban Board Data
       setKanbanOrders({
         drafts: currentOrders.filter(o => {
           if (o.status !== 'draft' && o.status !== 'quote') return false;
@@ -149,254 +104,339 @@ export default function DashboardPage() {
     };
   }, []);
 
+  const markTodoDone = async (todo: SystemTicket, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    // Optimistic UI update
+    setActiveTodos(prev => prev.filter(t => t.id !== todo.id || t.orderId !== todo.orderId));
+    
+    try {
+      if (todo.id.startsWith('manual_')) {
+        const realId = todo.id.replace('manual_', '');
+        const parentOrder = orders.find((o: any) => o.id === todo.orderId);
+        if (parentOrder && parentOrder.checklist) {
+          const updatedChecklist = parentOrder.checklist.map((t:any) => 
+            t.id === realId ? { ...t, done: true } : t
+          );
+          await updateDoc(doc(db, getCol('orders'), todo.orderId as string), { checklist: updatedChecklist });
+        }
+      } else {
+        const parentOrder = orders.find((o: any) => o.id === todo.orderId);
+        if (parentOrder) {
+          const updatedStates = parentOrder.ticketStates || {};
+          updatedStates[todo.id] = true;
+          await updateDoc(doc(db, getCol('orders'), todo.orderId as string), { ticketStates: updatedStates });
+        }
+      }
+    } catch (err) {
+      console.error("Fehler beim Abhaken", err);
+    }
+  };
+
+  const getDueDateBadge = (status?: 'neutral' | 'due' | 'overdue', text?: string) => {
+    if (status === 'overdue') return <span className="bg-red-500/20 text-red-500 text-[10px] font-bold px-2 py-0.5 rounded shadow-[0_0_8px_rgba(239,68,68,0.5)] border border-red-500/30">{text}</span>;
+    if (status === 'due') return <span className="bg-yellow-500/20 text-yellow-400 text-[10px] font-bold px-2 py-0.5 rounded shadow-[0_0_8px_rgba(234,179,8,0.3)] border border-yellow-500/30">{text}</span>;
+    return null;
+  };
+
+  const renderTaskCard = (todo: SystemTicket) => {
+    const parentOrder = orders.find(o => o.id === todo.orderId);
+    const orderDate = parentOrder?.orderMeta?.movingDateFrom ? new Date(parentOrder.orderMeta.movingDateFrom).toLocaleDateString('de-DE') : 'TBA';
+    
+    return (
+      <div key={todo.id + todo.orderId} className="kanban-card">
+        <div className="flex justify-between items-start mb-2">
+          <span className="font-semibold text-text-main text-sm truncate">{todo.customerName}</span>
+          {getDueDateBadge(todo.dueDateStatus, todo.dueDateText)}
+        </div>
+        <div className="text-xs text-text-muted mb-2 flex-1">
+          {todo.title}
+          <div className="mt-1 text-[10px] text-text-muted/70">Auszug: {parentOrder?.logistics?.a_street?.split(',')[0] || 'Unbekannt'}</div>
+          {orderDate !== 'TBA' && <div className="mt-0.5 text-[10px] text-text-muted/70">Datum: {orderDate}</div>}
+        </div>
+        <div className="mt-3 flex justify-between items-center border-t border-white/5 pt-2">
+          <button onClick={(e) => markTodoDone(todo, e)} className="text-text-muted hover:text-green-400 transition-colors">
+            <CheckIcon className="w-5 h-5" />
+          </button>
+          <div className="w-6 h-6 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center text-[10px] text-white">
+            {todo.customerName?.charAt(0) || 'U'}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500 pb-12">
-      {/* Zone 1: Kopfbereich & Quick Actions */}
-      <section className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6">
+    <div className="max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500 pb-12 relative min-h-screen">
+      {/* Background Graphic (Subtle) */}
+      <div className="fixed inset-0 pointer-events-none opacity-[0.03] flex items-center justify-center z-[-1] overflow-hidden">
+        <img src="/login-logo.png" alt="" className="w-full max-w-[800px] object-contain blur-[2px]" />
+      </div>
+
+      <header className="flex justify-between items-center pt-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-text-main">Dashboard</h1>
-          <p className="text-text-muted mt-1 text-sm md:text-base">Willkommen zurück, {profile?.displayName || 'Admin'}!</p>
+          <p className="text-text-muted mt-1 text-sm">Willkommen zurück, {profile?.displayName || 'Admin'}!</p>
+        </div>
+      </header>
+
+      {/* A. OPERATIVE AUFGABEN-LOGISTIK */}
+      <section className="glass-panel p-4 md:p-6">
+        <h2 className="text-sm md:text-base font-bold text-text-muted uppercase tracking-wider mb-4 flex items-center gap-2">
+          A. Operative Aufgaben-Logistik (To-Dos)
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 min-h-[300px]">
+          {/* Kartons */}
+          <div className="kanban-col">
+            <div className="flex justify-between items-center px-1 mb-2">
+              <h3 className="font-semibold text-text-main text-xs uppercase flex items-center gap-2"><ArchiveBoxIcon className="w-4 h-4 text-orange-400" /> KARTONS (LIEFERN)</h3>
+              <span className="text-[10px] text-text-muted">{activeTodos.filter(t => t.kanbanCategory === 'kartons').length} Aufg.</span>
+            </div>
+            <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
+              {activeTodos.filter(t => t.kanbanCategory === 'kartons').map(renderTaskCard)}
+            </div>
+          </div>
+          {/* Halteverbot */}
+          <div className="kanban-col">
+            <div className="flex justify-between items-center px-1 mb-2">
+              <h3 className="font-semibold text-text-main text-xs uppercase flex items-center gap-2"><MapIcon className="w-4 h-4 text-yellow-400" /> HALTEVERBOT (BEANTRAGEN)</h3>
+              <span className="text-[10px] text-text-muted">{activeTodos.filter(t => t.kanbanCategory === 'halteverbot').length} Aufg.</span>
+            </div>
+            <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
+              {activeTodos.filter(t => t.kanbanCategory === 'halteverbot').map(renderTaskCard)}
+            </div>
+          </div>
+          {/* Möbellift */}
+          <div className="kanban-col">
+            <div className="flex justify-between items-center px-1 mb-2">
+              <h3 className="font-semibold text-text-main text-xs uppercase flex items-center gap-2"><ArrowUpOnSquareIcon className="w-4 h-4 text-blue-400" /> MÖBELLIFT (BUCHEN)</h3>
+              <span className="text-[10px] text-text-muted">{activeTodos.filter(t => t.kanbanCategory === 'moebellift').length} Aufg.</span>
+            </div>
+            <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
+              {activeTodos.filter(t => t.kanbanCategory === 'moebellift').map(renderTaskCard)}
+            </div>
+          </div>
+          {/* Rechnung */}
+          <div className="kanban-col">
+            <div className="flex justify-between items-center px-1 mb-2">
+              <h3 className="font-semibold text-text-main text-xs uppercase flex items-center gap-2"><DocumentTextIcon className="w-4 h-4 text-green-400" /> RECHNUNG (ERSTELLEN)</h3>
+              <span className="text-[10px] text-text-muted">{activeTodos.filter(t => t.kanbanCategory === 'rechnung').length} Aufg.</span>
+            </div>
+            <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
+              {activeTodos.filter(t => t.kanbanCategory === 'rechnung').map(renderTaskCard)}
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* Zone 2: Ampelsystem (Kritische Warnungen) */}
-      {(stats.overdueCount > 0 || logisticsWarnings.length > 0) && (
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {stats.overdueCount > 0 && (
-            <div className="bg-red-900/20 border border-red-500/30 p-4 md:p-5 rounded-xl md:rounded-2xl flex items-start gap-3 md:gap-4 shadow-[0_0_15px_rgba(239,68,68,0.1)]">
-              <ExclamationTriangleIcon className="w-6 h-6 md:w-8 md:h-8 text-red-500 flex-shrink-0" />
-              <div>
-                <h3 className="text-red-400 font-bold mb-1 uppercase tracking-wider text-xs md:text-sm">Finanz-Warnung</h3>
-                <p className="text-red-200 text-xs md:text-sm">
-                  {stats.overdueCount} {stats.overdueCount === 1 ? 'Rechnung ist' : 'Rechnungen sind'} überfällig und im Mahnstatus.
-                </p>
-                <Link href="/dashboard/finances" className="text-red-400 text-[10px] md:text-xs font-semibold mt-2 inline-block hover:underline">
-                  Jetzt prüfen &rarr;
-                </Link>
-              </div>
-            </div>
-          )}
-          
-          {logisticsWarnings.length > 0 && (
-            <div className="bg-orange-900/20 border border-orange-500/30 p-4 md:p-5 rounded-xl md:rounded-2xl flex items-start gap-3 md:gap-4 shadow-[0_0_15px_rgba(249,115,22,0.1)]">
-              <ExclamationTriangleIcon className="w-6 h-6 md:w-8 md:h-8 text-orange-500 flex-shrink-0" />
-              <div>
-                <h3 className="text-orange-400 font-bold mb-1 uppercase tracking-wider text-xs md:text-sm">Logistik-Aktion erforderlich</h3>
-                <p className="text-orange-200 text-xs md:text-sm">
-                  {logisticsWarnings.length} unbestätigte Logistik-Aufgaben (Halteverbot / Möbellift).
-                </p>
-                <Link href="/dashboard/orders" className="text-orange-400 text-[10px] md:text-xs font-semibold mt-2 inline-block hover:underline">
-                  Disposition öffnen &rarr;
-                </Link>
-              </div>
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* Zone 3: Hauptbereich (Rollenbasiert) */}
-      {profile?.role === 'admin' ? (
-        <section className="space-y-4 md:space-y-6">
-          <h2 className="text-lg md:text-xl font-semibold text-text-main border-b border-structure pb-2">Chef-Übersicht (Live-Kennzahlen)</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-            <div className="panel border-t-4 border-t-green-500">
-              <h3 className="text-text-muted text-[10px] md:text-xs font-semibold uppercase tracking-wider">Bezahlt (Dieser Monat)</h3>
-              <p className="text-2xl md:text-3xl font-bold mt-1 md:mt-2 text-text-main">€ {stats.monthlyRevenue.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</p>
-            </div>
-            <div className="panel border-t-4 border-t-primary">
-              <h3 className="text-text-muted text-[10px] md:text-xs font-semibold uppercase tracking-wider">Offene Posten (Gesamt)</h3>
-              <p className="text-2xl md:text-3xl font-bold mt-1 md:mt-2 text-text-main">€ {stats.openItems.toLocaleString('de-DE', { minimumFractionDigits: 2 })}</p>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      {/* Zone 2.5: Aufgaben Zentrale (Tickets) */}
-      <section className="space-y-4 md:space-y-6">
-        <h2 className="text-lg md:text-xl font-semibold text-text-main border-b border-structure pb-2 flex items-center gap-2">
-          <ClipboardDocumentListIcon className="w-5 h-5 md:w-6 md:h-6 text-primary" /> 
-          Aufgaben-Zentrale
+      {/* B. VERTRIEBS-PIPELINE */}
+      <section className="glass-panel p-4 md:p-6 mt-8">
+        <h2 className="text-sm md:text-base font-bold text-text-muted uppercase tracking-wider mb-4 flex items-center gap-2">
+          B. Vertriebs-Pipeline (Kunden-Status)
         </h2>
-        <div className="panel border-t-4 border-t-primary">
-          <h3 className="font-semibold text-text-main text-sm md:text-base mb-3 md:mb-4">Offene System-Tickets ({activeTodos.length})</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 min-h-[400px]">
           
-          {activeTodos.length === 0 ? (
-            <div className="bg-bg-dark border border-structure rounded-lg p-6 text-center">
-              <p className="text-text-muted text-sm">Alles erledigt! Keine offenen Tickets.</p>
+          {/* Neu / Entwurf */}
+          <div className="kanban-col">
+             <div className="flex justify-between items-center px-1 mb-2">
+              <h3 className="font-semibold text-text-main text-xs uppercase">NEU / ENTWURF</h3>
+              <span className="text-[10px] text-text-muted">{kanbanOrders.drafts.length} Aufg.</span>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {activeTodos.map(todo => (
-                <div key={todo.id + todo.orderId} className={`bg-bg-dark border rounded-lg p-4 flex flex-col justify-between shadow-md transition-colors ${todo.type === 'warning' ? 'border-red-500/30 hover:border-red-500/60' : todo.type === 'action' ? 'border-primary/30 hover:border-primary/60' : 'border-structure hover:border-blue-500/50'}`}>
-                  <div>
-                    <div className="flex justify-between items-start mb-2">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded flex items-center gap-1 ${
-                        todo.type === 'warning' ? 'bg-red-500/10 text-red-400' : 
-                        todo.type === 'action' ? 'bg-primary/10 text-primary' : 
-                        'bg-blue-500/10 text-blue-400'
-                      }`}>
-                        {todo.type === 'warning' && <ExclamationTriangleIcon className="w-3 h-3" />}
-                        {todo.type === 'action' && <CheckIcon className="w-3 h-3" />}
-                        {todo.type === 'info' && <InformationCircleIcon className="w-3 h-3" />}
-                        Phase {todo.phase}
-                      </span>
-                    </div>
-                    <h4 className="text-text-main font-medium text-sm leading-snug">
-                      {todo.actionLink ? (
-                        <Link href={todo.actionLink} className="hover:text-primary hover:underline transition-colors">{todo.title}</Link>
-                      ) : (
-                        todo.title
-                      )}
-                    </h4>
-                    <Link href={`/dashboard/customers/${todo.customerId}`} className="text-text-muted text-xs hover:text-text-main mt-1 inline-block truncate max-w-[200px]">
-                      Für: {todo.customerName}
-                    </Link>
-                  </div>
-                  <div className="mt-4 pt-3 border-t border-structure flex justify-end">
-                    <button 
-                      onClick={async () => {
-                        // Optimistic UI update
-                        setActiveTodos(prev => prev.filter(t => t.id !== todo.id || t.orderId !== todo.orderId));
-                        
-                        try {
-                          if (todo.id.startsWith('manual_')) {
-                            // Manual checklist item
-                            const realId = todo.id.replace('manual_', '');
-                            const parentOrder = orders.find((o: any) => o.id === todo.orderId);
-                            if (parentOrder && parentOrder.checklist) {
-                              const updatedChecklist = parentOrder.checklist.map((t:any) => 
-                                t.id === realId ? { ...t, done: true } : t
-                              );
-                              await updateDoc(doc(db, getCol('orders'), todo.orderId), { checklist: updatedChecklist });
-                            }
-                          } else {
-                            // Engine ticket
-                            const parentOrder = orders.find((o: any) => o.id === todo.orderId);
-                            if (parentOrder) {
-                              const updatedStates = parentOrder.ticketStates || {};
-                              updatedStates[todo.id] = true;
-                              await updateDoc(doc(db, getCol('orders'), todo.orderId), { ticketStates: updatedStates });
-                            }
-                          }
-                        } catch (e) {
-                          console.error("Fehler beim Abhaken", e);
-                        }
-                      }}
-                      className="btn-secondary py-1 px-3 text-xs flex items-center gap-2 hover:bg-green-500/20 hover:text-green-400 hover:border-green-500/30"
-                    >
-                      <CheckIcon className="w-4 h-4" /> Erledigt
-                    </button>
+            <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
+              {kanbanOrders.drafts.map(order => (
+                <div key={order.id} onClick={() => setSelectedOrder(order)} className="kanban-card group border-red-500/20 hover:border-red-400/50">
+                  <span className="text-[10px] text-text-muted uppercase tracking-wider">Customer Ticket</span>
+                  <div className="font-semibold text-text-main mt-1 truncate group-hover:text-red-300 transition-colors">{order.customerName || 'Unbekannt'}</div>
+                  <div className="mt-3 flex justify-between items-center border-t border-white/5 pt-2">
+                     <CheckIcon className="w-4 h-4 text-text-muted/50 group-hover:text-text-muted transition-colors" />
+                     <div className="w-5 h-5 rounded-full bg-structure flex items-center justify-center text-[8px] text-white">
+                        {order.customerName?.charAt(0) || 'U'}
+                      </div>
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </div>
-      </section>
-
-      {/* Zone 4: Kanban Ticket-System (Auftrags-Pipeline) */}
-      <section className="space-y-4 md:space-y-6 mt-6 md:mt-8">
-        <h2 className="text-lg md:text-xl font-semibold text-text-main border-b border-structure pb-2 flex flex-col md:flex-row md:items-center justify-between gap-1 md:gap-2">
-          <span className="flex items-center gap-2"><ClipboardDocumentListIcon className="w-5 h-5 md:w-6 md:h-6 text-text-muted shrink-0" /> Ticket-System (Auftrags-Pipeline)</span>
-          <span className="text-xs md:text-sm font-normal text-text-muted">Live-Übersicht aller laufenden Projekte</span>
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 overflow-x-auto pb-4">
-          
-          {/* Spalte 1: Neu / Fehlende Daten */}
-          <div className="bg-bg-dark border border-structure rounded-xl flex flex-col max-h-[350px] md:max-h-none md:h-[500px] transition-all">
-            <div className="p-3 border-b border-structure bg-red-900/20 rounded-t-xl shrink-0 flex justify-between items-center">
-              <h3 className="font-semibold text-red-400 text-sm truncate">1. Neu / Fehlende Daten</h3>
-              <span className="bg-red-500/20 text-red-400 text-xs px-2 py-0.5 rounded-full shrink-0">{kanbanOrders.drafts.length}</span>
-            </div>
-            <div className="p-3 overflow-y-auto custom-scrollbar flex-1 space-y-3">
-              {kanbanOrders.drafts.map(order => (
-                <Link key={order.id} href={`/dashboard/customers/${order.customerId}/edit-order/${order.id}`} className="block bg-bg-panel border border-structure hover:border-primary/50 transition-colors rounded-lg p-3 shadow-md cursor-pointer">
-                  <div className="text-xs text-text-muted mb-1">{new Date(order.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')}</div>
-                  <div className="font-semibold text-text-main truncate">{order.customerName || 'Unbekannt'}</div>
-                  <div className="text-sm text-primary font-medium mt-2">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
-                </Link>
-              ))}
-              {kanbanOrders.drafts.length === 0 && <p className="text-text-muted text-xs text-center italic py-4">Keine Einträge</p>}
-            </div>
           </div>
 
-          {/* Spalte 2: Echter Kunde */}
-          <div className="bg-bg-dark border border-structure rounded-xl flex flex-col max-h-[350px] md:max-h-none md:h-[500px] transition-all">
-            <div className="p-3 border-b border-structure bg-yellow-900/20 rounded-t-xl shrink-0 flex justify-between items-center">
-              <h3 className="font-semibold text-yellow-400 text-sm truncate">2. Echter Kunde (In Klärung)</h3>
-              <span className="bg-yellow-500/20 text-yellow-400 text-xs px-2 py-0.5 rounded-full shrink-0">{kanbanOrders.quotes.length}</span>
+          {/* Angebot Erstellt */}
+          <div className="kanban-col">
+             <div className="flex justify-between items-center px-1 mb-2">
+              <h3 className="font-semibold text-text-main text-xs uppercase">ANGEBOT ERSTELLT</h3>
+              <span className="text-[10px] text-text-muted">{kanbanOrders.quotes.length} Aufg.</span>
             </div>
-            <div className="p-3 overflow-y-auto custom-scrollbar flex-1 space-y-3">
+            <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
               {kanbanOrders.quotes.map(order => (
-                <Link key={order.id} href={`/dashboard/orders`} className="block bg-bg-panel border border-blue-500/30 hover:border-blue-400 transition-colors rounded-lg p-3 shadow-md cursor-pointer">
-                  <div className="text-xs text-blue-400/70 mb-1">{order.orderNumber || 'Angebot'}</div>
-                  <div className="font-semibold text-text-main truncate">{order.customerName || 'Unbekannt'}</div>
-                  <div className="text-sm text-blue-400 font-medium mt-2">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
-                </Link>
-              ))}
-              {kanbanOrders.quotes.length === 0 && <p className="text-text-muted text-xs text-center italic py-4">Keine Einträge</p>}
-            </div>
-          </div>
-
-          {/* Spalte 3: Vorbereitung (Dispo) */}
-          <div className="bg-bg-dark border border-structure rounded-xl flex flex-col max-h-[350px] md:max-h-none md:h-[500px] transition-all">
-            <div className="p-3 border-b border-structure bg-green-900/20 rounded-t-xl shrink-0 flex justify-between items-center">
-              <h3 className="font-semibold text-green-400 text-sm truncate">3. Vorbereitung (Dispo)</h3>
-              <span className="bg-green-500/20 text-green-400 text-xs px-2 py-0.5 rounded-full shrink-0">{kanbanOrders.confirmed.length}</span>
-            </div>
-            <div className="p-3 overflow-y-auto custom-scrollbar flex-1 space-y-3">
-              {kanbanOrders.confirmed.map(order => (
-                <Link key={order.id} href={`/dashboard/orders`} className="block bg-bg-panel border border-orange-500/30 hover:border-orange-400 transition-colors rounded-lg p-3 shadow-md cursor-pointer">
-                  <div className="flex justify-between items-start mb-1">
-                    <div className="text-xs text-orange-400/70">{order.orderNumber || 'Auftrag'}</div>
-                    {order.disposition?.movingDate && (
-                      <div className="text-[10px] bg-orange-500/20 text-orange-400 px-1.5 py-0.5 rounded">
-                        {new Date(order.disposition.movingDate).toLocaleDateString('de-DE')}
+                <div key={order.id} onClick={() => setSelectedOrder(order)} className="kanban-card group border-yellow-500/20 hover:border-yellow-400/50">
+                  <span className="text-[10px] text-text-muted uppercase tracking-wider">Customer Ticket</span>
+                  <div className="font-semibold text-text-main mt-1 truncate group-hover:text-yellow-300 transition-colors">{order.customerName || 'Unbekannt'}</div>
+                  <div className="text-xs text-yellow-500/70 mt-1">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
+                  <div className="mt-3 flex justify-between items-center border-t border-white/5 pt-2">
+                     <CheckIcon className="w-4 h-4 text-text-muted/50 group-hover:text-text-muted transition-colors" />
+                     <div className="w-5 h-5 rounded-full bg-structure flex items-center justify-center text-[8px] text-white">
+                        {order.customerName?.charAt(0) || 'U'}
                       </div>
-                    )}
                   </div>
-                  <div className="font-semibold text-text-main truncate">{order.customerName || 'Unbekannt'}</div>
-                  <div className="text-xs text-text-muted mt-2 truncate flex items-center gap-1">
-                    <MapPinIcon className="w-3 h-3 text-orange-400 shrink-0" /> {order.logistics?.loadingAddress?.split(',')[0]} &rarr; {order.logistics?.unloadingAddress?.split(',')[0]}
-                  </div>
-                </Link>
+                </div>
               ))}
-              {kanbanOrders.confirmed.length === 0 && <p className="text-text-muted text-xs text-center italic py-4">Keine Einträge</p>}
             </div>
           </div>
 
-          {/* Spalte 4: Erledigt / Rechnung */}
-          <div className="bg-bg-dark border border-structure rounded-xl flex flex-col max-h-[350px] md:max-h-none md:h-[500px] transition-all">
-            <div className="p-3 border-b border-structure bg-purple-900/20 rounded-t-xl shrink-0 flex justify-between items-center">
-              <h3 className="font-semibold text-purple-400 text-sm truncate">4. Erledigt / Rechnung</h3>
-              <span className="bg-purple-500/20 text-purple-400 text-xs px-2 py-0.5 rounded-full shrink-0">{kanbanOrders.invoicing.length}</span>
+          {/* Umzug Bestätigt */}
+          <div className="kanban-col relative">
+             <div className="flex justify-between items-center px-1 mb-2">
+              <h3 className="font-semibold text-text-main text-xs uppercase">UMZUG BESTÄTIGT</h3>
+              <span className="text-[10px] text-text-muted">{kanbanOrders.confirmed.length} Aufg.</span>
             </div>
-            <div className="p-3 overflow-y-auto custom-scrollbar flex-1 space-y-3">
-              {kanbanOrders.invoicing.map(order => (
-                <Link key={order.id} href={`/dashboard/customers/${order.customerId}`} className={`block bg-bg-panel border transition-colors rounded-lg p-3 shadow-md cursor-pointer ${order.status === 'invoice_overdue' ? 'border-red-500/50 hover:border-red-400' : 'border-primary/30 hover:border-primary'}`}>
-                  <div className="flex justify-between items-start mb-1">
-                    <div className="text-xs text-text-muted">{order.invoiceNumber || order.orderNumber || 'Rechnung'}</div>
-                    {order.status === 'invoice_overdue' && (
-                      <div className="text-[10px] bg-red-500/20 text-red-400 px-1.5 py-0.5 rounded">Mahnung</div>
-                    )}
-                  </div>
-                  <div className="font-semibold text-text-main truncate">{order.customerName || 'Unbekannt'}</div>
-                  
-                  <div className="flex justify-between items-center mt-2">
-                    <div className="text-sm font-medium text-text-main">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
-                    <div className={`text-xs font-bold ${order.status === 'invoice_overdue' ? 'text-red-400' : 'text-primary'}`}>
-                      Offen: € {Math.max(0, (order.totals?.gross || 0) - (order.payments?.reduce((s:number,p:any)=>s+p.amount,0)||0)).toFixed(2)}
+            <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
+              {kanbanOrders.confirmed.map(order => (
+                <div key={order.id} onClick={() => setSelectedOrder(order)} className="kanban-card group border-primary/30 hover:border-primary/60 bg-primary/5">
+                  <span className="text-[10px] text-primary/70 uppercase tracking-wider">Customer Ticket</span>
+                  <div className="font-semibold text-text-main mt-1 truncate group-hover:text-primary-hover transition-colors">{order.customerName || 'Unbekannt'}</div>
+                  {order.orderMeta?.movingDateFrom && (
+                    <div className="text-[10px] text-text-muted mt-1 bg-white/5 px-2 py-0.5 rounded inline-block">
+                      {new Date(order.orderMeta.movingDateFrom).toLocaleDateString('de-DE')}
                     </div>
+                  )}
+                  <div className="mt-3 flex justify-between items-center border-t border-white/5 pt-2">
+                     <CheckIcon className="w-4 h-4 text-text-muted/50 group-hover:text-text-muted transition-colors" />
+                     <div className="w-5 h-5 rounded-full bg-structure flex items-center justify-center text-[8px] text-white">
+                        {order.customerName?.charAt(0) || 'U'}
+                      </div>
                   </div>
-                </Link>
+                </div>
               ))}
-              {kanbanOrders.invoicing.length === 0 && <p className="text-text-muted text-xs text-center italic py-4">Keine Einträge</p>}
+            </div>
+          </div>
+
+          {/* Abgeschlossen */}
+          <div className="kanban-col">
+             <div className="flex justify-between items-center px-1 mb-2">
+              <h3 className="font-semibold text-text-main text-xs uppercase">ABGESCHLOSSEN</h3>
+              <span className="text-[10px] text-text-muted">{kanbanOrders.invoicing.length} Aufg.</span>
+            </div>
+            <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
+              {kanbanOrders.invoicing.map(order => (
+                <div key={order.id} onClick={() => setSelectedOrder(order)} className="kanban-card group border-green-500/20 hover:border-green-400/50">
+                  <span className="text-[10px] text-text-muted uppercase tracking-wider">Customer Ticket</span>
+                  <div className="font-semibold text-text-main mt-1 truncate group-hover:text-green-300 transition-colors">{order.customerName || 'Unbekannt'}</div>
+                  <div className={`text-[10px] mt-1 font-bold ${order.status === 'invoice_overdue' ? 'text-red-400' : 'text-green-500/70'}`}>
+                    {order.status === 'invoice_overdue' ? 'MAHNUNG OFFEN' : 'RECHNUNG GESTELLT'}
+                  </div>
+                  <div className="mt-3 flex justify-between items-center border-t border-white/5 pt-2">
+                     <CheckIcon className="w-4 h-4 text-text-muted/50 group-hover:text-text-muted transition-colors" />
+                     <div className="w-5 h-5 rounded-full bg-structure flex items-center justify-center text-[8px] text-white">
+                        {order.customerName?.charAt(0) || 'U'}
+                      </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
         </div>
       </section>
+
+      {/* MODAL: Customer Pop-Up Profile */}
+      {selectedOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedOrder(null)}></div>
+          <div className="relative glass-panel bg-[#131D26]/90 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-[0_0_50px_rgba(143,22,39,0.15)] animate-in zoom-in-95 duration-200">
+            <button 
+              onClick={() => setSelectedOrder(null)}
+              className="absolute top-4 right-4 text-text-muted hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-1"
+            >
+              <XMarkIcon className="w-5 h-5" />
+            </button>
+            
+            <div className="p-6 md:p-8 space-y-6">
+              {/* Header */}
+              <div>
+                <h2 className="text-2xl font-bold text-text-main">{selectedOrder.customerName || 'Unbekannt'}</h2>
+                <div className="flex gap-4 mt-2 text-sm text-text-muted">
+                  {selectedOrder.orderMeta?.movingDateFrom && (
+                    <span className="flex items-center gap-1"><ClockIcon className="w-4 h-4" /> {new Date(selectedOrder.orderMeta.movingDateFrom).toLocaleDateString('de-DE')}</span>
+                  )}
+                  {selectedOrder.orderNumber && (
+                    <span className="flex items-center gap-1"><DocumentTextIcon className="w-4 h-4" /> #{selectedOrder.orderNumber}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Route */}
+              <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+                <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Route</h3>
+                <div className="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 text-sm">
+                  <div className="flex-1">
+                    <span className="text-text-muted block text-xs">Auszug</span>
+                    <span className="text-text-main font-medium">{selectedOrder.logistics?.a_street || '-'}</span><br/>
+                    <span className="text-text-muted text-xs">{selectedOrder.logistics?.a_postalCode} {selectedOrder.logistics?.a_city}</span>
+                  </div>
+                  <div className="hidden md:flex flex-col items-center justify-center text-primary">
+                    <TruckIcon className="w-5 h-5 mb-1" />
+                    <div className="h-px w-12 bg-primary/30"></div>
+                  </div>
+                  <div className="flex-1">
+                    <span className="text-text-muted block text-xs">Einzug</span>
+                    <span className="text-text-main font-medium">{selectedOrder.logistics?.b_street || '-'}</span><br/>
+                    <span className="text-text-muted text-xs">{selectedOrder.logistics?.b_postalCode} {selectedOrder.logistics?.b_city}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Services */}
+              <div>
+                <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Booked Services</h3>
+                <ul className="space-y-2">
+                  {selectedOrder.services?.map((s: any, idx: number) => (
+                    <li key={idx} className="flex items-center gap-2 text-sm text-text-main">
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
+                      {s.name}
+                    </li>
+                  ))}
+                  {!selectedOrder.services?.length && <li className="text-sm text-text-muted italic">Keine Services definiert</li>}
+                </ul>
+              </div>
+
+              {/* Checklist / Tasks for this specific order */}
+              <div>
+                <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Checklist (Aktive To-Dos)</h3>
+                <div className="space-y-2 bg-black/20 rounded-lg p-3 border border-white/5">
+                  {activeTodos.filter(t => t.orderId === selectedOrder.id).map(todo => (
+                    <div key={todo.id} className="flex items-center justify-between group">
+                      <label className="flex items-center gap-3 cursor-pointer text-sm text-text-main group-hover:text-white transition-colors">
+                        <input 
+                          type="checkbox" 
+                          checked={false} 
+                          onChange={() => markTodoDone(todo)}
+                          className="w-4 h-4 rounded border-structure bg-bg-dark text-primary focus:ring-primary focus:ring-offset-bg-panel"
+                        />
+                        {todo.title}
+                      </label>
+                      {getDueDateBadge(todo.dueDateStatus, todo.dueDateText)}
+                    </div>
+                  ))}
+                  {activeTodos.filter(t => t.orderId === selectedOrder.id).length === 0 && (
+                    <div className="text-sm text-green-400 flex items-center gap-2">
+                      <CheckIcon className="w-4 h-4" /> Alle System-Aufgaben erledigt!
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
+                 <Link href={`/dashboard/customers/${selectedOrder.customerId}/edit-order/${selectedOrder.id}`} className="btn-secondary">
+                   Auftrag bearbeiten
+                 </Link>
+                 <Link href={`/dashboard/customers/${selectedOrder.customerId}`} className="btn-primary">
+                   Kundenprofil öffnen
+                 </Link>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
