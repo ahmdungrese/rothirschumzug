@@ -140,8 +140,7 @@ export function MonthlyExportPanel() {
 
         const pdfComponent = <InvoicePDF order={order} customer={customerData} settings={settings} employeeName={managerName} />;
         
-        const asPdf = pdf([]);
-        asPdf.updateContainer(pdfComponent);
+        const asPdf = pdf(pdfComponent);
         const blob = await asPdf.toBlob();
         
         // Sanitize filename

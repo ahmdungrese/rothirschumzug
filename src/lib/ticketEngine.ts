@@ -134,7 +134,7 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
     if (status === 'completed') {
       // Rechnung erstellen: fällig 1 Tag nach Umzug (-1 Tage), überfällig <= -3 Tage
       // daysToMove is negative if move is in the past. e.g. move was yesterday -> daysToMove = -1.
-      let dueStatus = { status: 'neutral' as const, text: '' };
+      let dueStatus: { status: 'neutral' | 'due' | 'overdue', text: string } = { status: 'neutral', text: '' };
       if (daysToMove !== null) {
         if (daysToMove <= -3) {
           dueStatus = { status: 'overdue', text: 'ÜBERFÄLLIG' };

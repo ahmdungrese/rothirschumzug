@@ -163,8 +163,7 @@ export function MessageSenderModal({
         }
 
         if (pdfComponent) {
-          const asPdf = pdf([]);
-          asPdf.updateContainer(pdfComponent);
+          const asPdf = pdf(pdfComponent);
           const blob = await asPdf.toBlob();
           formData.append('file', blob, fileName);
           formData.append('fileName', fileName);
