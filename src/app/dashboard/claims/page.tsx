@@ -12,6 +12,25 @@ export default function ClaimsPage() {
   const [claims, setClaims] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [highlightedClaimId, setHighlightedClaimId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading && typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('claimId');
+      if (id) {
+        setHighlightedClaimId(id);
+        setTimeout(() => {
+          const el = document.getElementById(`claim-${id}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Remove the parameter from URL to prevent highlighting again on refresh if unwanted
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        }, 500);
+      }
+    }
+  }, [loading]);
 
   useEffect(() => {
     const q = query(collection(db, getCol('claims')));
@@ -75,7 +94,7 @@ export default function ClaimsPage() {
           </h2>
           <div className="space-y-3">
             {claims.filter(c => c.status === 'Neu').map(claim => (
-              <ClaimCard key={claim.id} claim={claim} updateStatus={updateStatus} onDelete={() => setDeleteConfirmId(claim.id)} />
+              <ClaimCard key={claim.id} claim={claim} updateStatus={updateStatus} onDelete={() => setDeleteConfirmId(claim.id)} isHighlighted={highlightedClaimId === claim.id} />
             ))}
           </div>
         </div>
@@ -88,7 +107,7 @@ export default function ClaimsPage() {
           </h2>
           <div className="space-y-3">
             {claims.filter(c => c.status === 'In Bearbeitung').map(claim => (
-              <ClaimCard key={claim.id} claim={claim} updateStatus={updateStatus} onDelete={() => setDeleteConfirmId(claim.id)} />
+              <ClaimCard key={claim.id} claim={claim} updateStatus={updateStatus} onDelete={() => setDeleteConfirmId(claim.id)} isHighlighted={highlightedClaimId === claim.id} />
             ))}
           </div>
         </div>
@@ -101,7 +120,7 @@ export default function ClaimsPage() {
           </h2>
           <div className="space-y-3">
             {claims.filter(c => c.status === 'An Versicherung gemeldet').map(claim => (
-              <ClaimCard key={claim.id} claim={claim} updateStatus={updateStatus} onDelete={() => setDeleteConfirmId(claim.id)} />
+              <ClaimCard key={claim.id} claim={claim} updateStatus={updateStatus} onDelete={() => setDeleteConfirmId(claim.id)} isHighlighted={highlightedClaimId === claim.id} />
             ))}
           </div>
         </div>
@@ -114,7 +133,7 @@ export default function ClaimsPage() {
           </h2>
           <div className="space-y-3">
             {claims.filter(c => c.status === 'Erledigt').map(claim => (
-              <ClaimCard key={claim.id} claim={claim} updateStatus={updateStatus} onDelete={() => setDeleteConfirmId(claim.id)} />
+              <ClaimCard key={claim.id} claim={claim} updateStatus={updateStatus} onDelete={() => setDeleteConfirmId(claim.id)} isHighlighted={highlightedClaimId === claim.id} />
             ))}
           </div>
         </div>
@@ -133,9 +152,9 @@ export default function ClaimsPage() {
   );
 }
 
-function ClaimCard({ claim, updateStatus, onDelete }: { claim: any, updateStatus: (id: string, s: string) => void, onDelete: () => void }) {
+function ClaimCard({ claim, updateStatus, onDelete, isHighlighted }: { claim: any, updateStatus: (id: string, s: string) => void, onDelete: () => void, isHighlighted?: boolean }) {
   return (
-    <div className="bg-bg-dark border border-structure p-4 rounded-xl shadow-lg hover:border-primary/50 transition-colors flex flex-col h-full">
+    <div id={`claim-${claim.id}`} className={`bg-bg-dark border p-4 rounded-xl shadow-lg transition-all duration-500 flex flex-col h-full ${isHighlighted ? 'border-primary ring-2 ring-primary/50 bg-primary/5 shadow-primary/20 scale-[1.02]' : 'border-structure hover:border-primary/50'}`}>
       <div className="flex justify-between items-start mb-2">
         <Link href={`/dashboard/customers/${claim.customerId}`} className="font-semibold text-text-main hover:text-primary transition-colors text-sm truncate">
           {claim.customerName}

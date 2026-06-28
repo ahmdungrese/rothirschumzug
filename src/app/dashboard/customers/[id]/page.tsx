@@ -1,11 +1,12 @@
 "use client";
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, collection, query, where, onSnapshot, updateDoc, deleteDoc, serverTimestamp, getDoc, addDoc } from 'firebase/firestore';
 import { PlusIcon, UserCircleIcon, PhoneIcon, MapPinIcon, DocumentTextIcon, XMarkIcon, EnvelopeIcon, StarIcon, CheckCircleIcon, PencilIcon, TrashIcon, CheckIcon, TruckIcon, CheckBadgeIcon, ClipboardDocumentIcon, ClipboardDocumentListIcon, DocumentArrowDownIcon, BanknotesIcon, ExclamationTriangleIcon, ArchiveBoxIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import Image from 'next/image';
+import Link from 'next/link';
 import { PDFGenerator } from '@/components/pdf/PDFGenerator';
 import { generateTickets } from '@/lib/ticketEngine';
 import { SignaturePad } from '@/components/ui/SignaturePad';
@@ -24,6 +25,7 @@ export default function CustomerProfilePage() {
   const { profile } = useAuth();
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const customerId = params.id as string;
   const [customer, setCustomer] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
@@ -43,7 +45,7 @@ export default function CustomerProfilePage() {
   const [paymentOrder, setPaymentOrder] = useState<any>(null);
   const [messageOrder, setMessageOrder] = useState<any>(null);
 
-  const [routeInfo, setRouteInfo] = useState<{ distanceKm: number, durationMinutes: number } | null>(null);
+  const [routeInfo, setRouteInfo] = useState<{ direct: { distanceKm: number, durationMinutes: number }, total: { distanceKm: number, durationMinutes: number } } | null>(null);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   
@@ -98,20 +100,55 @@ export default function CustomerProfilePage() {
     };
   }, [customerId]);
 
+  useEffect(() => {
+    const orderId = searchParams.get('orderId');
+    const typeParam = searchParams.get('pdfType');
+    
+    if (orders.length > 0 && orderId && !selectedOrder) {
+      const targetOrder = orders.find(o => o.id === orderId);
+      if (targetOrder) {
+        setSelectedOrder(targetOrder);
+        if (typeParam === 'invoice' || typeParam === 'order' || typeParam === 'contract' || typeParam === 'employee' || typeParam === 'protocol') {
+          setPdfType(typeParam as any);
+        }
+        // Remove the orderId from URL to prevent reopening on close
+        router.replace(`/dashboard/customers/${customerId}`, { scroll: false });
+      }
+    }
+  }, [orders, searchParams, selectedOrder]);
+
   const handleCalculateRoute = async () => {
     if (orders.length > 0) {
       const activeOrder = orders.find(o => o.status === 'confirmed' || o.status === 'quote') || orders[0];
       if (activeOrder && activeOrder.logistics) {
         const addressA = `${activeOrder.logistics.a_street || ''} ${activeOrder.logistics.a_houseNr || ''}, ${activeOrder.logistics.a_zip || ''} ${activeOrder.logistics.a_city || ''}`.trim();
         const addressB = `${activeOrder.logistics.b_street || ''} ${activeOrder.logistics.b_houseNr || ''}, ${activeOrder.logistics.b_zip || ''} ${activeOrder.logistics.b_city || ''}`.trim();
+        const baseAddress = "Bochum, Germany"; // Hauptsitz
         
         if (addressA.length > 5 && addressB.length > 5 && addressA !== addressB) {
           setIsCalculatingRoute(true);
           setRouteError(null);
           try {
-            const res = await calculateRoute(addressA, addressB);
-            if (res) {
-              setRouteInfo(res);
+            const resDirect = await calculateRoute(addressA, addressB);
+            
+            // Calculate base -> A, B -> base
+            const resBaseToA = await calculateRoute(baseAddress, addressA);
+            const resBToBase = await calculateRoute(addressB, baseAddress);
+
+            if (resDirect && resBaseToA && resBToBase) {
+              const totalDistance = resBaseToA.distanceKm + resDirect.distanceKm + resBToBase.distanceKm;
+              const totalDuration = resBaseToA.durationMinutes + resDirect.durationMinutes + resBToBase.durationMinutes;
+              
+              setRouteInfo({
+                direct: resDirect,
+                total: { distanceKm: Math.round(totalDistance * 10) / 10, durationMinutes: totalDuration }
+              });
+              setRouteError(null);
+            } else if (resDirect) {
+              setRouteInfo({
+                direct: resDirect,
+                total: resDirect
+              });
               setRouteError(null);
             } else {
               setRouteInfo(null);
@@ -205,6 +242,30 @@ export default function CustomerProfilePage() {
     } catch (error) {
       console.error("Fehler beim Update des Status", error);
       toast.error("Ein Fehler ist aufgetreten.");
+    }
+  };
+
+  const handleDeleteSignature = async (key: string) => {
+    if (!confirm('Möchten Sie diese Unterschrift wirklich löschen?')) return;
+    try {
+      if (!selectedOrder?.id) return;
+      await updateDoc(doc(db, getCol('orders'), selectedOrder.id), {
+        [key]: null,
+        [`${key}Date`]: null,
+        [`${key}Place`]: null,
+        [`${key}DateString`]: null
+      });
+      setSelectedOrder((prev: any) => ({
+        ...prev,
+        [key]: null,
+        [`${key}Date`]: null,
+        [`${key}Place`]: null,
+        [`${key}DateString`]: null
+      }));
+      toast.success('Unterschrift erfolgreich gelöscht!');
+    } catch (error) {
+      console.error('Fehler beim Löschen der Unterschrift:', error);
+      toast.error('Fehler beim Löschen.');
     }
   };
 
@@ -409,7 +470,7 @@ export default function CustomerProfilePage() {
               <>
                 <div className="flex items-center gap-3 mb-2 flex-wrap">
                   <h1 className="text-3xl font-bold text-text-main tracking-tight">
-                    {customer.type === 'firma' ? customer.lastName : `${customer.firstName} ${customer.lastName}`}
+                    {customer.type === 'firma' ? customer.lastName : `${customer.salutation ? customer.salutation + ' ' : ''}${customer.firstName} ${customer.lastName}`.trim()}
                   </h1>
                   {customer.source && (
                     <span className="bg-primary/20 text-primary px-3 py-1 rounded-full text-sm font-semibold border border-primary/30 flex items-center gap-1 shadow-sm">
@@ -490,18 +551,33 @@ export default function CustomerProfilePage() {
                   })()}
 
                   {(routeInfo || routeError) && (
-                    <div className={`col-span-1 md:col-span-2 border rounded-lg p-3 flex items-center justify-between text-sm animate-in fade-in duration-300 ${routeError ? 'bg-red-500/10 border-red-500/30' : 'bg-primary/10 border-primary/30'}`}>
-                      <div className="flex items-center gap-3">
-                        <TruckIcon className="w-6 h-6 text-text-muted" />
-                        <div>
-                          <span className="text-text-muted">Aktuelle Route: </span>
-                          {routeError ? (
-                            <span className="text-red-400 font-medium">{routeError}</span>
-                          ) : routeInfo ? (
-                            <span className="text-primary font-bold">{routeInfo.distanceKm} km <span className="text-text-muted font-normal">(Fahrzeit: ca. {Math.floor(routeInfo.durationMinutes/60)}h {routeInfo.durationMinutes%60}min)</span></span>
-                          ) : null}
+                    <div className={`col-span-1 md:col-span-2 border rounded-lg p-4 flex flex-col md:flex-row items-start md:items-center justify-between text-sm animate-in fade-in duration-300 gap-4 ${routeError ? 'bg-red-500/10 border-red-500/30' : 'bg-primary/5 border-primary/20 shadow-inner'}`}>
+                      {routeError ? (
+                        <div className="flex items-center gap-3 w-full">
+                          <TruckIcon className="w-6 h-6 text-red-400" />
+                          <span className="text-red-400 font-medium">{routeError}</span>
                         </div>
-                      </div>
+                      ) : routeInfo ? (
+                        <>
+                          <div className="flex items-start gap-3 flex-1">
+                            <TruckIcon className="w-6 h-6 text-text-muted shrink-0" />
+                            <div>
+                              <div className="text-xs text-text-muted font-bold uppercase tracking-wider mb-0.5">Strecke A ➔ B</div>
+                              <div className="text-text-main font-bold">{routeInfo.direct.distanceKm} km</div>
+                              <div className="text-xs text-text-muted">ca. {Math.floor(routeInfo.direct.durationMinutes/60)}h {routeInfo.direct.durationMinutes%60}min</div>
+                            </div>
+                          </div>
+                          <div className="hidden md:block w-px h-10 bg-structure"></div>
+                          <div className="flex items-start gap-3 flex-1">
+                            <TruckIcon className="w-6 h-6 text-primary shrink-0" />
+                            <div>
+                              <div className="text-xs text-primary font-bold uppercase tracking-wider mb-0.5">Gesamt ab Betriebshof</div>
+                              <div className="text-primary font-bold">{routeInfo.total.distanceKm} km <span className="text-xs font-normal text-text-muted ml-1">(Bochum ➔ A ➔ B ➔ Bochum)</span></div>
+                              <div className="text-xs text-text-muted">ca. {Math.floor(routeInfo.total.durationMinutes/60)}h {routeInfo.total.durationMinutes%60}min</div>
+                            </div>
+                          </div>
+                        </>
+                      ) : null}
                     </div>
                   )}
                 </div>
@@ -635,7 +711,10 @@ export default function CustomerProfilePage() {
                           {/* 1. AGB Signature */}
                           <div>
                         {selectedOrder.signatureAGB ? (
-                          <div className="panel border border-green-500/30 bg-green-500/5 rounded-xl p-4 shadow-inner">
+                          <div className="panel border border-green-500/30 bg-green-500/5 rounded-xl p-4 shadow-inner relative">
+                            <button onClick={() => handleDeleteSignature('signatureAGB')} className="absolute top-4 right-4 p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors" title="Unterschrift löschen">
+                              <TrashIcon className="w-5 h-5" />
+                            </button>
                             <h4 className="font-semibold text-green-400 mb-2 flex items-center gap-2"><CheckBadgeIcon className="w-5 h-5" /> AGBs akzeptiert</h4>
                             <p className="text-xs text-text-muted mb-4">Unterschrift vom: {selectedOrder.signatureAGBDate ? new Date(selectedOrder.signatureAGBDate?.toMillis?.() || Date.now()).toLocaleString('de-DE') : 'Gerade eben'}</p>
                             <div className="bg-white rounded-lg p-2 shadow-sm">
@@ -665,7 +744,10 @@ export default function CustomerProfilePage() {
                       {/* 2. Order Signature */}
                       <div>
                         {selectedOrder.signatureOrder ? (
-                          <div className="panel border border-green-500/30 bg-green-500/5 rounded-xl p-4 shadow-inner">
+                          <div className="panel border border-green-500/30 bg-green-500/5 rounded-xl p-4 shadow-inner relative">
+                            <button onClick={() => handleDeleteSignature('signatureOrder')} className="absolute top-4 right-4 p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors" title="Unterschrift löschen">
+                              <TrashIcon className="w-5 h-5" />
+                            </button>
                             <h4 className="font-semibold text-green-400 mb-2 flex items-center gap-2"><CheckBadgeIcon className="w-5 h-5" /> Auftrag verbindlich erteilt</h4>
                             <p className="text-xs text-text-muted mb-4">Unterschrift vom: {selectedOrder.signatureOrderDate ? new Date(selectedOrder.signatureOrderDate?.toMillis?.() || Date.now()).toLocaleString('de-DE') : 'Gerade eben'}</p>
                             <div className="bg-white rounded-lg p-2 shadow-sm">
@@ -719,7 +801,10 @@ export default function CustomerProfilePage() {
                       ) : (
                         <>
                           {selectedOrder.signatureOrder ? (
-                        <div className="panel border border-green-500/30 bg-green-500/5 rounded-xl p-4 shadow-inner">
+                        <div className="panel border border-green-500/30 bg-green-500/5 rounded-xl p-4 shadow-inner relative">
+                          <button onClick={() => handleDeleteSignature('signatureOrder')} className="absolute top-4 right-4 p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors" title="Unterschrift löschen">
+                            <TrashIcon className="w-5 h-5" />
+                          </button>
                           <h4 className="font-semibold text-green-400 mb-2 flex items-center gap-2"><CheckBadgeIcon className="w-5 h-5" /> Auftrag ist erteilt</h4>
                           <p className="text-xs text-text-muted mb-4">Unterschrift vom: {selectedOrder.signatureOrderDate ? new Date(selectedOrder.signatureOrderDate?.toMillis?.() || Date.now()).toLocaleString('de-DE') : 'Gerade eben'}</p>
                           <div className="bg-white rounded-lg p-2 shadow-sm">
@@ -753,7 +838,10 @@ export default function CustomerProfilePage() {
                   {pdfType === 'protocol' && (
                     <div className="space-y-8">
                       {selectedOrder.signatureProtocol ? (
-                        <div className="panel border border-green-500/30 bg-green-500/5 rounded-xl p-4 shadow-inner">
+                        <div className="panel border border-green-500/30 bg-green-500/5 rounded-xl p-4 shadow-inner relative">
+                          <button onClick={() => handleDeleteSignature('signatureProtocol')} className="absolute top-4 right-4 p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors" title="Unterschrift löschen">
+                            <TrashIcon className="w-5 h-5" />
+                          </button>
                           <h4 className="font-semibold text-green-400 mb-2 flex items-center gap-2"><CheckBadgeIcon className="w-5 h-5" /> Protokoll unterschrieben</h4>
                           <p className="text-xs text-text-muted mb-4">Unterschrift vom: {selectedOrder.signatureProtocolDate ? new Date(selectedOrder.signatureProtocolDate?.toMillis?.() || Date.now()).toLocaleString('de-DE') : 'Gerade eben'}</p>
                           <div className="bg-white rounded-lg p-2 shadow-sm">
@@ -800,7 +888,7 @@ export default function CustomerProfilePage() {
                   <DocumentTextIcon className="w-7 h-7 text-primary" /> Historie (Angebote, Aufträge, Rechnungen & Protokolle)
                 </h3>
                 
-                {orders.length === 0 ? (
+                {orders.filter(o => o.status !== 'archived').length === 0 ? (
                   <div className="text-center py-16 text-text-muted italic border-2 border-dashed border-white/10 rounded-2xl bg-black/10">
                     Noch keine Dokumente vorhanden.
                     <div className="mt-6">
@@ -814,7 +902,7 @@ export default function CustomerProfilePage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {orders.map(order => {
+                    {orders.filter(o => o.status !== 'archived').map(order => {
                       const isInvoice = order.status === 'invoice_open' || order.status === 'invoice_paid' || order.status === 'invoice_overdue';
                       const isConfirmed = order.status === 'confirmed' || order.status === 'completed';
                       const isQuote = order.status === 'quote';
@@ -839,15 +927,15 @@ export default function CustomerProfilePage() {
                       };
 
                       return (
-                      <div key={order.id} className="flex flex-col gap-4 p-5 rounded-xl border border-white/5 bg-black/20 hover:border-primary/50 transition-colors shadow-sm hover:shadow-md">
+                      <div key={order.id} className="flex flex-col gap-4 p-5 rounded-xl border border-structure bg-bg-panel hover:border-primary/50 transition-colors shadow-sm hover:shadow-md">
                         
                         {/* Top Row: Info & Price (Clickable) */}
                         <div 
                           onClick={() => { setSelectedOrder(order); setPdfType('order'); }}
-                          className="flex flex-wrap md:flex-nowrap justify-between items-start gap-4 cursor-pointer hover:bg-white/[0.02] p-3 -m-3 rounded-lg transition-colors group"
+                          className="flex flex-wrap md:flex-nowrap justify-between items-start gap-4 cursor-pointer hover:bg-bg-dark p-3 -m-3 rounded-lg transition-colors group"
                         >
                           <div className="flex items-center gap-5">
-                            <div className={`p-4 rounded-xl shrink-0 transition-transform group-hover:scale-105 shadow-inner ${isInvoice ? 'bg-purple-500/20 text-purple-400 border border-purple-500/20' : isConfirmed ? 'bg-green-500/20 text-green-400 border border-green-500/20' : isQuote ? 'bg-primary/20 text-primary border border-primary/20' : isClarification ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/20' : 'bg-black/40 text-text-muted border border-white/5'}`}>
+                            <div className={`p-4 rounded-xl shrink-0 transition-transform group-hover:scale-105 shadow-inner ${isInvoice ? 'bg-purple-500/20 text-purple-400 border border-purple-500/20' : isConfirmed ? 'bg-green-500/20 text-green-400 border border-green-500/20' : isQuote ? 'bg-primary/20 text-primary border border-primary/20' : isClarification ? 'bg-yellow-500/20 text-yellow-500 border border-yellow-500/20' : 'bg-bg-dark text-text-muted border border-structure'}`}>
                               <DocumentTextIcon className="w-7 h-7" />
                             </div>
                             <div>
@@ -895,30 +983,71 @@ export default function CustomerProfilePage() {
                           </div>
                         )}
 
-                        {/* Bottom Row: Workflow Actions & Button Controls */}
-                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mt-3 pt-5 border-t border-white/5">
+                        {/* Bottom Row: Unified Toolbar */}
+                        <div className="mt-4 pt-5 border-t border-structure flex flex-wrap items-center justify-between gap-4">
                           
-                          {/* Secondary Action Controls */}
-                          <div className="flex flex-wrap items-center gap-2">
+                          {/* Tool Group Left: Actions */}
+                          <div className="flex flex-wrap items-center gap-3">
+                            {/* Main Group */}
+                            <div className="flex items-center rounded-xl overflow-hidden border border-primary/30 shadow-sm bg-bg-panel">
+                              <button 
+                                onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/${order.id}${isInvoice ? '?type=invoice' : ''}`)}
+                                className="py-2.5 px-4 text-sm font-bold flex items-center gap-2 bg-primary text-white hover:bg-primary/90 transition-colors"
+                                title={isInvoice ? "Rechnung bearbeiten" : "Angebot/Auftrag bearbeiten"}
+                              >
+                                <PencilIcon className="w-4 h-4" /> Bearbeiten
+                              </button>
+                              
+                              <button 
+                                onClick={() => { setSelectedOrder(order); setPdfType('order'); }}
+                                className="py-2.5 px-4 text-sm font-bold flex items-center gap-2 text-text-main hover:bg-bg-dark transition-colors border-l border-structure"
+                              >
+                                <DocumentArrowDownIcon className="w-4 h-4 text-text-muted" /> Ansicht
+                              </button>
+
+                              <button 
+                                onClick={() => setProtocolOrder(order)}
+                                className="py-2.5 px-4 text-sm font-bold flex items-center gap-2 text-text-main hover:bg-bg-dark transition-colors border-l border-structure"
+                              >
+                                <ClipboardDocumentIcon className="w-4 h-4 text-orange-400" /> Protokoll
+                              </button>
+
+                              <button 
+                                onClick={() => setMessageOrder(order)}
+                                className="py-2.5 px-4 text-sm font-bold flex items-center gap-2 text-text-main hover:bg-bg-dark transition-colors border-l border-structure"
+                              >
+                                <EnvelopeIcon className="w-4 h-4 text-blue-400" /> Nachricht
+                              </button>
+
+                              <button 
+                                onClick={() => deleteOrder(order.id)}
+                                className="py-2.5 px-4 text-sm font-bold text-red-500 hover:bg-red-500/10 transition-colors border-l border-structure"
+                                title="Löschen"
+                              >
+                                <TrashIcon className="w-4 h-4" />
+                              </button>
+                            </div>
+                            
+                            {/* Invoice Specific Actions */}
                             {isInvoice && (
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 border-l border-structure pl-3">
                                 {order.status === 'invoice_open' && (
                                   <button 
                                     onClick={() => setPaymentOrder(order)}
-                                    className="btn-secondary py-2 px-4 text-xs font-bold shrink-0 border-green-500/50 text-green-400 hover:bg-green-500/10 shadow-sm"
+                                    className="py-2 px-4 rounded-xl text-sm font-bold border border-green-500/50 text-green-400 hover:bg-green-500/10 shadow-sm transition-colors"
                                     title="Teilzahlung oder vollständige Zahlung erfassen"
                                   >
                                     Zahlung erfassen
                                   </button>
                                 )}
-                                <div className="flex flex-col gap-1.5">
+                                <div className="flex flex-col gap-1">
                                   <button 
                                     onClick={() => {
                                       if (confirm('Möchten Sie diese Rechnung stornieren und sofort einen NEUEN Entwurf zur Korrektur erstellen?')) {
                                         handleStorno(order, true);
                                       }
                                     }}
-                                    className="btn-secondary py-1.5 px-3 text-xs font-bold shrink-0 border-red-500/50 text-red-400 hover:bg-red-500/10"
+                                    className="py-1 px-3 rounded text-[11px] font-bold border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors"
                                     title="Rechnung stornieren und Kopie als Entwurf anlegen"
                                   >
                                     Stornieren & Neu
@@ -930,112 +1059,87 @@ export default function CustomerProfilePage() {
                                       }
                                     }}
                                     className="text-[10px] text-text-muted hover:text-red-400 font-medium underline underline-offset-2 text-center"
-                                    title="Nur stornieren, kein neuer Entwurf"
                                   >
                                     Nur Stornieren
                                   </button>
                                 </div>
                               </div>
                             )}
-                            
-                            <div className="h-8 w-px bg-white/10 mx-2 hidden sm:block"></div>
-
-                            <button 
-                              onClick={() => setProtocolOrder(order)}
-                              className="btn-secondary py-2 px-4 text-xs font-bold shrink-0 border-orange-500/50 text-orange-400 hover:bg-orange-500/10 flex items-center gap-2 shadow-sm"
-                            >
-                              <ClipboardDocumentIcon className="w-4 h-4" /> Protokoll
-                            </button>
-                            
-                            <button 
-                              onClick={() => { setSelectedOrder(order); setPdfType('order'); }}
-                              className="btn-secondary py-2 px-4 text-xs font-bold shrink-0 flex items-center gap-2 shadow-sm border-white/10"
-                            >
-                              <DocumentArrowDownIcon className="w-4 h-4" /> PDFs ansehen
-                            </button>
-
-                            <button 
-                              onClick={() => setMessageOrder(order)}
-                              className="btn-secondary py-2 px-4 text-xs font-bold shrink-0 border-blue-500/50 text-blue-400 hover:bg-blue-500/10 flex items-center gap-2 shadow-sm"
-                            >
-                              <EnvelopeIcon className="w-4 h-4" /> Nachricht senden
-                            </button>
-                            
-                            <div className="h-8 w-px bg-white/10 mx-2 hidden sm:block"></div>
-                            
-                            <button 
-                              onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/${order.id}`)}
-                              className="p-2 text-text-muted hover:text-primary transition-colors bg-black/40 rounded-lg border border-white/5 shadow-sm hover:border-primary/50"
-                              title="Bearbeiten"
-                            >
-                              <PencilIcon className="w-4 h-4" />
-                            </button>
-                            <button 
-                              onClick={() => deleteOrder(order.id)}
-                              className="p-2 text-text-muted hover:text-red-400 transition-colors bg-black/40 rounded-lg border border-white/5 shadow-sm hover:border-red-500/50"
-                              title="Löschen"
-                            >
-                              <TrashIcon className="w-4 h-4" />
-                            </button>
                           </div>
 
-                          {/* Primary Workflow Status Actions - MOVED TO THE RIGHT */}
-                          <div className="flex flex-wrap items-center justify-end gap-2 bg-black/40 p-2 rounded-xl border border-white/5 mt-5 md:mt-0 md:ml-auto w-full md:w-auto shadow-inner">
+                          {/* Tool Group Right: Workflow Actions */}
+                          <div className="flex items-center flex-wrap justify-end gap-2">
                             {(order.status === 'draft' || order.status === 'clarification' || order.status === 'rejected') && (
-                              <>
-                                <button onClick={() => handleUpdateOrderStatus(order, 'quote')} className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20">
-                                  Entwurf abschließen
+                              <div className="flex items-center gap-2 p-1.5 rounded-xl bg-bg-dark border border-structure shadow-inner">
+                                <button onClick={() => handleUpdateOrderStatus(order, 'quote')} className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow-sm">
+                                  Zu Angebot
                                 </button>
                                 {order.status !== 'rejected' && (
-                                  <button onClick={() => handleUpdateOrderStatus(order, 'rejected')} className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors" title="Kunde hat abgesagt">
+                                  <button onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/new?type=invoice&sourceOrder=${order.id}`)} className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-lg bg-purple-500 text-white hover:bg-purple-600 transition-colors shadow-sm">
+                                    Zu Rechnung
+                                  </button>
+                                )}
+                                {order.status !== 'rejected' && (
+                                  <button onClick={() => handleUpdateOrderStatus(order, 'rejected')} className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-lg text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Kunde hat abgesagt">
                                     Abgelehnt
                                   </button>
                                 )}
-                              </>
+                              </div>
                             )}
+                            
                             {isQuote && (
-                              <>
-                                <button onClick={() => handleUpdateOrderStatus(order, 'draft')} className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors" title="Zurück zum Entwurf">
+                              <div className="flex items-center gap-2 p-1.5 rounded-xl bg-bg-dark border border-structure shadow-inner">
+                                <button onClick={() => handleUpdateOrderStatus(order, 'draft')} className="flex items-center gap-1.5 text-sm font-bold px-3 py-2 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors" title="Zurück zum Entwurf">
                                   <ArrowUturnLeftIcon className="w-4 h-4" /> Zurück
                                 </button>
-                                <button onClick={() => handleUpdateOrderStatus(order, 'clarification')} className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg border border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10 transition-colors" title="Kunde hat noch Fragen">
+                                <button onClick={() => handleUpdateOrderStatus(order, 'clarification')} className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-lg text-yellow-500 hover:bg-yellow-500/10 transition-colors">
                                   In Klärung
                                 </button>
-                                <button onClick={() => handleUpdateOrderStatus(order, 'rejected')} className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors" title="Kunde hat abgesagt">
+                                <button onClick={() => handleUpdateOrderStatus(order, 'rejected')} className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-lg text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors">
                                   Abgelehnt
                                 </button>
-                                <button onClick={() => setDispoOrder(order)} className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors shadow-lg shadow-green-500/20">
+                                <button onClick={() => setDispoOrder(order)} className="flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors shadow-sm">
                                   <CheckIcon className="w-4 h-4" /> Angebot bestätigt
                                 </button>
-                              </>
+                              </div>
                             )}
+                            
                             {order.status === 'confirmed' && (
-                              <>
-                                <button onClick={() => safeRevertStatus(order, 'quote')} className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors" title="Zurück zum Angebot">
+                              <div className="flex items-center gap-2 p-1.5 rounded-xl bg-bg-dark border border-structure shadow-inner">
+                                <button onClick={() => safeRevertStatus(order, 'quote')} className="flex items-center gap-1.5 text-sm font-bold px-3 py-2 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors" title="Zurück zum Angebot">
                                   <ArrowUturnLeftIcon className="w-4 h-4" /> Zurück
                                 </button>
-                                <button onClick={() => handleUpdateOrderStatus(order, 'completed')} className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-lg shadow-orange-500/20">
-                                  Umzug abgeschlossen
+                                <button onClick={() => handleUpdateOrderStatus(order, 'completed')} className="flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-sm">
+                                  Umzug erledigt
                                 </button>
-                              </>
+                                <button onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/new?type=invoice&sourceOrder=${order.id}`)} className="flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg bg-purple-500 text-white hover:bg-purple-600 transition-colors shadow-sm">
+                                  Rechnung stellen
+                                </button>
+                              </div>
                             )}
+                            
                             {order.status === 'completed' && (
-                              <>
-                                <button onClick={() => safeRevertStatus(order, 'confirmed')} className="flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors" title="Zurück zum Auftrag">
+                              <div className="flex items-center gap-2 p-1.5 rounded-xl bg-bg-dark border border-structure shadow-inner">
+                                <button onClick={() => safeRevertStatus(order, 'confirmed')} className="flex items-center gap-1.5 text-sm font-bold px-3 py-2 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors" title="Zurück zum Auftrag">
                                   <ArrowUturnLeftIcon className="w-4 h-4" /> Zurück
                                 </button>
-                                <span className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg bg-white/5 text-text-main">
+                                <span className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-lg text-text-main border border-structure shadow-sm bg-bg-panel">
                                   <CheckCircleIcon className="w-4 h-4 text-green-400" /> Finalisiert
                                 </span>
-                              </>
+                                <button onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/new?type=invoice&sourceOrder=${order.id}`)} className="flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg bg-purple-500 text-white hover:bg-purple-600 transition-colors shadow-sm">
+                                  Rechnung stellen
+                                </button>
+                              </div>
                             )}
+
                             {isInvoice && (
-                              <span className="flex items-center gap-1.5 text-xs font-bold px-4 py-2 rounded-lg bg-white/5 text-text-main">
-                                <CheckCircleIcon className="w-4 h-4 text-green-400" /> Finalisiert
-                              </span>
+                              <div className="flex items-center gap-2 p-1.5 rounded-xl bg-bg-dark border border-structure shadow-inner">
+                                <span className="flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg text-text-main bg-bg-panel border border-structure shadow-sm">
+                                  <CheckCircleIcon className="w-4 h-4 text-green-400" /> Finalisiert
+                                </span>
+                              </div>
                             )}
                           </div>
-                          
                         </div>
                         
                         {/* Protokolle anzeigen */}
@@ -1095,7 +1199,7 @@ export default function CustomerProfilePage() {
                               <div className="space-y-2">
                                 {/* System Tickets */}
                                 {systemTickets.map((task: any) => (
-                                  <label key={task.id} className="flex items-center gap-3 p-3 bg-black/40 border border-white/5 rounded-xl hover:border-primary/50 cursor-pointer transition-colors shadow-inner">
+                                  <label key={task.id} className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-colors ${task.done ? 'bg-bg-dark border-transparent opacity-60' : 'bg-bg-panel border-structure hover:border-primary/50 shadow-sm'}`}>
                                     <input 
                                       type="checkbox" 
                                       checked={task.done}
@@ -1114,15 +1218,17 @@ export default function CustomerProfilePage() {
                                     <span className={`text-sm font-medium ${task.done ? 'text-text-muted line-through' : 'text-text-main'}`}>
                                       {task.title}
                                     </span>
-                                    <span className={`ml-auto text-[10px] px-2 py-1 rounded uppercase font-bold tracking-wider ${task.type === 'warning' ? 'bg-red-500/10 text-red-400' : task.type === 'action' ? 'bg-primary/10 text-primary' : 'bg-blue-500/10 text-blue-400'}`}>
-                                      System
-                                    </span>
+                                    {!task.done && (
+                                      <span className={`ml-auto text-[10px] px-2 py-1 rounded uppercase font-bold tracking-wider ${task.type === 'warning' ? 'bg-red-500/10 text-red-400' : task.type === 'action' ? 'bg-primary/10 text-primary' : 'bg-blue-500/10 text-blue-400'}`}>
+                                        System
+                                      </span>
+                                    )}
                                   </label>
                                 ))}
                                 
                                 {/* Manuelle Checkliste */}
                                 {manualChecklist.map((task: any) => (
-                                  <label key={task.id} className="flex items-center gap-3 p-3 bg-black/40 border border-white/5 rounded-xl hover:border-primary/50 cursor-pointer transition-colors shadow-inner">
+                                  <label key={task.id} className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-colors ${task.done ? 'bg-bg-dark border-transparent opacity-60' : 'bg-bg-panel border-structure hover:border-primary/50 shadow-sm'}`}>
                                     <input 
                                       type="checkbox" 
                                       checked={task.done}
@@ -1198,24 +1304,26 @@ export default function CustomerProfilePage() {
                       <p className="text-sm text-text-muted italic text-center py-6 bg-black/10 rounded-xl border border-white/5">Keine gemeldeten Schäden.</p>
                     ) : (
                       claims.map(claim => (
-                        <div key={claim.id} className="bg-black/20 border border-white/5 rounded-xl p-4 shadow-sm hover:border-red-500/30 transition-colors">
-                          <div className="flex justify-between items-start mb-3">
-                            <span className={`text-xs px-2.5 py-1 rounded uppercase font-bold tracking-wider ${
-                              claim.status === 'Neu' ? 'bg-red-500/20 text-red-400' :
-                              claim.status === 'Erledigt' ? 'bg-green-500/20 text-green-400' :
-                              'bg-blue-500/20 text-blue-400'
-                            }`}>
-                              {claim.status}
-                            </span>
-                            <span className="text-xs font-medium text-text-muted">
-                              {new Date(claim.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')}
-                            </span>
+                        <Link href={`/dashboard/claims?claimId=${claim.id}`} key={claim.id}>
+                          <div className="bg-black/20 border border-white/5 rounded-xl p-4 shadow-sm hover:border-red-500/50 hover:bg-black/30 transition-all cursor-pointer mb-4">
+                            <div className="flex justify-between items-start mb-3">
+                              <span className={`text-xs px-2.5 py-1 rounded uppercase font-bold tracking-wider ${
+                                claim.status === 'Neu' ? 'bg-red-500/20 text-red-400' :
+                                claim.status === 'Erledigt' ? 'bg-green-500/20 text-green-400' :
+                                'bg-blue-500/20 text-blue-400'
+                              }`}>
+                                {claim.status}
+                              </span>
+                              <span className="text-xs font-medium text-text-muted">
+                                {new Date(claim.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')}
+                              </span>
+                            </div>
+                            <p className="text-sm text-text-main line-clamp-3 font-medium">{claim.description}</p>
+                            {claim.insuranceId && (
+                              <p className="text-xs font-bold text-text-muted mt-3 pt-3 border-t border-white/5">Versicherung: <span className="text-text-main">{claim.insuranceId}</span></p>
+                            )}
                           </div>
-                          <p className="text-sm text-text-main line-clamp-3 font-medium">{claim.description}</p>
-                          {claim.insuranceId && (
-                            <p className="text-xs font-bold text-text-muted mt-3 pt-3 border-t border-white/5">Versicherung: <span className="text-text-main">{claim.insuranceId}</span></p>
-                          )}
-                        </div>
+                        </Link>
                       ))
                     )}
                   </div>

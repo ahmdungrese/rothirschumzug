@@ -245,8 +245,8 @@ export default function DashboardPage() {
               {kanbanOrders.drafts.map(order => (
                 <div key={order.id} onClick={() => setSelectedOrder(order)} className="kanban-card group border-red-500/20 hover:border-red-400/50">
                   <span className="text-[10px] text-text-muted uppercase tracking-wider">Customer Ticket</span>
-                  <div className="font-semibold text-text-main mt-1 truncate group-hover:text-red-300 transition-colors">{order.customerName || 'Unbekannt'}</div>
-                  <div className="mt-3 flex justify-between items-center border-t border-white/5 pt-2">
+                  <div className="font-semibold text-text-main mt-1 truncate group-hover:text-red-500 dark:group-hover:text-red-300 transition-colors">{order.customerName || 'Unbekannt'}</div>
+                  <div className="mt-3 flex justify-between items-center border-t border-black/5 dark:border-white/5 pt-2">
                      <CheckIcon className="w-4 h-4 text-text-muted/50 group-hover:text-text-muted transition-colors" />
                      <div className="w-5 h-5 rounded-full bg-structure flex items-center justify-center text-[8px] text-white">
                         {order.customerName?.charAt(0) || 'U'}
@@ -267,9 +267,9 @@ export default function DashboardPage() {
               {kanbanOrders.quotes.map(order => (
                 <div key={order.id} onClick={() => setSelectedOrder(order)} className="kanban-card group border-yellow-500/20 hover:border-yellow-400/50">
                   <span className="text-[10px] text-text-muted uppercase tracking-wider">Customer Ticket</span>
-                  <div className="font-semibold text-text-main mt-1 truncate group-hover:text-yellow-300 transition-colors">{order.customerName || 'Unbekannt'}</div>
-                  <div className="text-xs text-yellow-500/70 mt-1">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
-                  <div className="mt-3 flex justify-between items-center border-t border-white/5 pt-2">
+                  <div className="font-semibold text-text-main mt-1 truncate group-hover:text-yellow-600 dark:group-hover:text-yellow-300 transition-colors">{order.customerName || 'Unbekannt'}</div>
+                  <div className="text-xs text-yellow-600 dark:text-yellow-500/70 mt-1">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
+                  <div className="mt-3 flex justify-between items-center border-t border-black/5 dark:border-white/5 pt-2">
                      <CheckIcon className="w-4 h-4 text-text-muted/50 group-hover:text-text-muted transition-colors" />
                      <div className="w-5 h-5 rounded-full bg-structure flex items-center justify-center text-[8px] text-white">
                         {order.customerName?.charAt(0) || 'U'}
@@ -292,11 +292,11 @@ export default function DashboardPage() {
                   <span className="text-[10px] text-primary/70 uppercase tracking-wider">Customer Ticket</span>
                   <div className="font-semibold text-text-main mt-1 truncate group-hover:text-primary-hover transition-colors">{order.customerName || 'Unbekannt'}</div>
                   {order.orderMeta?.movingDateFrom && (
-                    <div className="text-[10px] text-text-muted mt-1 bg-white/5 px-2 py-0.5 rounded inline-block">
+                    <div className="text-[10px] text-text-muted mt-1 bg-black/5 dark:bg-white/5 px-2 py-0.5 rounded inline-block">
                       {new Date(order.orderMeta.movingDateFrom).toLocaleDateString('de-DE')}
                     </div>
                   )}
-                  <div className="mt-3 flex justify-between items-center border-t border-white/5 pt-2">
+                  <div className="mt-3 flex justify-between items-center border-t border-black/5 dark:border-white/5 pt-2">
                      <CheckIcon className="w-4 h-4 text-text-muted/50 group-hover:text-text-muted transition-colors" />
                      <div className="w-5 h-5 rounded-full bg-structure flex items-center justify-center text-[8px] text-white">
                         {order.customerName?.charAt(0) || 'U'}
@@ -317,11 +317,11 @@ export default function DashboardPage() {
               {kanbanOrders.invoicing.map(order => (
                 <div key={order.id} onClick={() => setSelectedOrder(order)} className="kanban-card group border-green-500/20 hover:border-green-400/50">
                   <span className="text-[10px] text-text-muted uppercase tracking-wider">Customer Ticket</span>
-                  <div className="font-semibold text-text-main mt-1 truncate group-hover:text-green-300 transition-colors">{order.customerName || 'Unbekannt'}</div>
-                  <div className={`text-[10px] mt-1 font-bold ${order.status === 'invoice_overdue' ? 'text-red-400' : 'text-green-500/70'}`}>
+                  <div className="font-semibold text-text-main mt-1 truncate group-hover:text-green-600 dark:group-hover:text-green-300 transition-colors">{order.customerName || 'Unbekannt'}</div>
+                  <div className={`text-[10px] mt-1 font-bold ${order.status === 'invoice_overdue' ? 'text-red-500 dark:text-red-400' : 'text-green-600 dark:text-green-500/70'}`}>
                     {order.status === 'invoice_overdue' ? 'MAHNUNG OFFEN' : 'RECHNUNG GESTELLT'}
                   </div>
-                  <div className="mt-3 flex justify-between items-center border-t border-white/5 pt-2">
+                  <div className="mt-3 flex justify-between items-center border-t border-black/5 dark:border-white/5 pt-2">
                      <CheckIcon className="w-4 h-4 text-text-muted/50 group-hover:text-text-muted transition-colors" />
                      <div className="w-5 h-5 rounded-full bg-structure flex items-center justify-center text-[8px] text-white">
                         {order.customerName?.charAt(0) || 'U'}
@@ -338,11 +338,11 @@ export default function DashboardPage() {
       {/* MODAL: Customer Pop-Up Profile */}
       {selectedOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedOrder(null)}></div>
-          <div className="relative glass-panel bg-[#131D26]/90 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-[0_0_50px_rgba(143,22,39,0.15)] animate-in zoom-in-95 duration-200">
+          <div className="absolute inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm" onClick={() => setSelectedOrder(null)}></div>
+          <div className="relative glass-panel bg-bg-panel border border-structure w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-[0_0_50px_rgba(0,0,0,0.15)] animate-in zoom-in-95 duration-200">
             <button 
               onClick={() => setSelectedOrder(null)}
-              className="absolute top-4 right-4 text-text-muted hover:text-white transition-colors bg-white/5 hover:bg-white/10 rounded-full p-1"
+              className="absolute top-4 right-4 text-text-muted hover:text-text-main transition-colors bg-black/5 hover:bg-black/10 dark:bg-white/5 dark:hover:bg-white/10 rounded-full p-1"
             >
               <XMarkIcon className="w-5 h-5" />
             </button>
@@ -362,7 +362,7 @@ export default function DashboardPage() {
               </div>
 
               {/* Route */}
-              <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+              <div className="bg-black/5 dark:bg-white/5 rounded-lg p-4 border border-black/10 dark:border-white/10">
                 <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Route</h3>
                 <div className="flex flex-col md:flex-row items-start md:items-center gap-2 md:gap-4 text-sm">
                   <div className="flex-1">
@@ -399,10 +399,10 @@ export default function DashboardPage() {
               {/* Checklist / Tasks for this specific order */}
               <div>
                 <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Checklist (Aktive To-Dos)</h3>
-                <div className="space-y-2 bg-black/20 rounded-lg p-3 border border-white/5">
+                <div className="space-y-2 bg-black/5 dark:bg-black/20 rounded-lg p-3 border border-black/10 dark:border-white/5">
                   {activeTodos.filter(t => t.orderId === selectedOrder.id).map(todo => (
                     <div key={todo.id} className="flex items-center justify-between group">
-                      <label className="flex items-center gap-3 cursor-pointer text-sm text-text-main group-hover:text-white transition-colors">
+                      <label className="flex items-center gap-3 cursor-pointer text-sm text-text-main group-hover:text-primary transition-colors">
                         <input 
                           type="checkbox" 
                           checked={false} 
@@ -415,7 +415,7 @@ export default function DashboardPage() {
                     </div>
                   ))}
                   {activeTodos.filter(t => t.orderId === selectedOrder.id).length === 0 && (
-                    <div className="text-sm text-green-400 flex items-center gap-2">
+                    <div className="text-sm text-green-600 dark:text-green-400 flex items-center gap-2">
                       <CheckIcon className="w-4 h-4" /> Alle System-Aufgaben erledigt!
                     </div>
                   )}
@@ -423,7 +423,7 @@ export default function DashboardPage() {
               </div>
               
               {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
+              <div className="flex justify-end gap-3 pt-4 border-t border-black/10 dark:border-white/10">
                  <Link href={`/dashboard/customers/${selectedOrder.customerId}/edit-order/${selectedOrder.id}`} className="btn-secondary">
                    Auftrag bearbeiten
                  </Link>

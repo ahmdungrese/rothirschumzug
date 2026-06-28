@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, TruckIcon, MapPinIcon, ExclamationTriangleIcon, StarIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, TruckIcon, MapPinIcon, ExclamationTriangleIcon, StarIcon, BuildingOffice2Icon, HomeIcon, BriefcaseIcon, BuildingLibraryIcon, ArchiveBoxIcon, WrenchIcon, SparklesIcon, PlusCircleIcon, TagIcon, ArrowsUpDownIcon, NoSymbolIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 import { useAuth } from '@/context/AuthContext';
 import { logActivity } from '@/lib/activityLogger';
@@ -12,6 +12,25 @@ import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp } from 'fir
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { calculateRoute } from '@/lib/routeCalculator';
 import { getCol } from '@/lib/demoMode';
+
+const getPropertyIcon = (type: string) => {
+  const t = type.toLowerCase();
+  if (t.includes('wohnung')) return <BuildingOffice2Icon className="w-6 h-6 mb-1" />;
+  if (t.includes('haus')) return <HomeIcon className="w-6 h-6 mb-1" />;
+  if (t.includes('büro') || t.includes('buero')) return <BriefcaseIcon className="w-6 h-6 mb-1" />;
+  return <BuildingLibraryIcon className="w-6 h-6 mb-1" />;
+};
+
+const getCategoryIcon = (category: string) => {
+  const c = category.toLowerCase();
+  if (c.includes('transport') || c.includes('grundlagen')) return <TruckIcon className="w-5 h-5" />;
+  if (c.includes('verpack') || c.includes('karton') || c.includes('material')) return <ArchiveBoxIcon className="w-5 h-5" />;
+  if (c.includes('montage') || c.includes('aufbau') || c.includes('abbau')) return <WrenchIcon className="w-5 h-5" />;
+  if (c.includes('entsorgung') || c.includes('sperrmüll')) return <TrashIcon className="w-5 h-5" />;
+  if (c.includes('reinigung') || c.includes('putz')) return <SparklesIcon className="w-5 h-5" />;
+  if (c.includes('zuschlag') || c.includes('sonstig')) return <PlusCircleIcon className="w-5 h-5" />;
+  return <TagIcon className="w-5 h-5" />;
+};
 
 export function OrderEditor({ orderId }: { orderId?: string }) {
   const params = useParams();
@@ -25,6 +44,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const [isSaving, setIsSaving] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   const [orderStatus, setOrderStatus] = useState('draft');
+  const [currentStep, setCurrentStep] = useState(1);
 
   // 1. Kundeninformationen
   const [customerData, setCustomerData] = useState({
@@ -376,10 +396,40 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     }
   };
 
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEndHandler = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const minSwipeDistance = 50;
+    
+    if (distance > minSwipeDistance && currentStep < 5) {
+      setCurrentStep(prev => prev + 1);
+    }
+    if (distance < -minSwipeDistance && currentStep > 1) {
+      setCurrentStep(prev => prev - 1);
+    }
+  };
+
   if (!settings) return <div className="p-12 text-center text-text-main">Lade Einstellungen...</div>;
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-32">
+    <div 
+      className="space-y-8 animate-in fade-in duration-500 pb-32"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEndHandler}
+    >
       <div className="flex justify-between items-center bg-bg-panel border border-structure p-4 rounded-xl shadow-lg mt-6">
         <div>
           <h1 className="text-2xl font-bold text-text-main flex items-center gap-2">
@@ -389,11 +439,34 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             {isInvoice ? 'Erstellen Sie eine direkte Rechnung.' : 'Erstellen Sie ein detailliertes Umzugsangebot.'}
           </p>
         </div>
-      </div>{/* 1. Kundeninformationen */}
-      <section className="panel border-t-4 border-t-primary shadow-lg">
+      </div>
+      {/* Stepper Navigation */}
+      <div className="glass-panel p-4 rounded-xl shadow-lg flex items-center justify-between overflow-x-auto custom-scrollbar gap-4">
+        {[
+          { step: 1, label: 'Kunde & Termine', icon: '1️⃣' },
+          { step: 2, label: 'Logistik & Route', icon: '2️⃣' },
+          { step: 3, label: 'Leistungen & Finanzen', icon: '3️⃣' },
+          { step: 4, label: 'Inventar & Checkliste', icon: '4️⃣' },
+          { step: 5, label: 'Abschluss & Dokumente', icon: '5️⃣' }
+        ].map(s => (
+          <button
+            key={s.step}
+            onClick={() => setCurrentStep(s.step)}
+            className={`flex items-center gap-2 whitespace-nowrap px-4 py-2 rounded-lg transition-all ${currentStep === s.step ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'text-text-muted hover:bg-white/5 hover:text-text-main'}`}
+          >
+            <span>{s.label}</span>
+          </button>
+        ))}
+      </div>
+
+
+      {currentStep === 1 && (
+        <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+          {/* 1. Kundeninformationen */}
+      <section className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-primary shadow-lg">
         <h2 className="text-xl font-bold mb-4 text-text-main border-b border-structure pb-2">Kundeninformationen</h2>
         {!urlCustomerId && (
-          <div className="mb-4 text-xs text-text-muted bg-bg-dark p-3 rounded-lg border border-structure">
+          <div className="mb-4 text-xs text-text-muted bg-white/[0.02] p-3 rounded-lg border border-structure">
             Der Kunde wird beim Speichern automatisch angelegt. Die Adresse wird aus der Beladeadresse übernommen.
           </div>
         )}
@@ -528,7 +601,13 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         </div>
       </section>
 
-      {/* 2. Adressen (A -> B) */}
+      
+        </div>
+      )}
+
+      {currentStep === 2 && (
+        <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+          {/* 2. Adressen (A -> B) */}
       <div className="flex flex-col gap-4 mb-2">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h2 className="text-xl font-bold text-text-main flex items-center gap-2">Logistik & Route</h2>
@@ -592,7 +671,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           <option value="Dachgeschoss" />
         </datalist>
 
-        <div className="panel border-t-4 border-t-structure shadow-lg">
+        <div className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-structure shadow-lg">
           <div className="flex justify-between items-center mb-4 border-b border-structure pb-2">
             <h2 className="text-xl font-bold text-text-main flex items-center gap-2">Beladeadresse (A)</h2>
             <button onClick={() => copyCustomerAddress('a')} className="text-xs btn-secondary py-1 px-2">Kundenadresse übernehmen</button>
@@ -623,22 +702,56 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             <div className="col-span-2"><label className="block text-xs text-text-muted mb-1">Etage</label><input type="text" list="floors" value={logistics.a_floor} onChange={e => setLogistics({...logistics, a_floor: e.target.value})} className="input-field w-full" placeholder="Auswählen oder tippen..." /></div>
             <div className="col-span-2"><label className="block text-xs text-text-muted mb-1">Laufweg (m)</label><input type="number" min="0" value={logistics.a_distance === 0 ? '' : logistics.a_distance} onChange={e => setLogistics({...logistics, a_distance: e.target.value === '' ? 0 : parseInt(e.target.value)})} className="input-field w-full" placeholder="Unter 10 Meter" /></div>
             
-            <div className="col-span-4"><label className="block text-xs text-text-muted mb-1">Immobilienart</label>
-              <select value={logistics.a_type} onChange={e => setLogistics({...logistics, a_type: e.target.value})} className="input-field w-full">
-                <option value="">Wählen...</option>
-                {settings.propertyTypes?.map((pt:string) => <option key={pt} value={pt}>{pt}</option>)}
-              </select>
+            <div className="col-span-4">
+              <label className="block text-xs text-text-muted mb-2">Immobilienart</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {settings.propertyTypes?.map((pt:string) => (
+                  <button 
+                    key={pt} 
+                    type="button" 
+                    onClick={() => setLogistics({...logistics, a_type: pt})} 
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.a_type === pt ? 'border-primary bg-primary/20 text-primary shadow-lg shadow-primary/20' : 'border-structure bg-black/20 text-text-muted hover:border-white/30 hover:bg-black/40'}`}
+                  >
+                    {getPropertyIcon(pt)}
+                    <span className="text-xs font-medium">{pt}</span>
+                  </button>
+                ))}
+              </div>
             </div>
             
-            <div className="col-span-4 mt-2 flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 text-text-main cursor-pointer"><input type="checkbox" checked={logistics.a_elevator} onChange={e => setLogistics({...logistics, a_elevator: e.target.checked})} className="accent-primary w-4 h-4" /> Aufzug</label>
-              <label className="flex items-center gap-2 text-text-main cursor-pointer"><input type="checkbox" checked={logistics.a_parking} onChange={e => setLogistics({...logistics, a_parking: e.target.checked})} className="accent-primary w-4 h-4" /> Halteverbot</label>
-              <label className="flex items-center gap-2 text-text-main cursor-pointer"><input type="checkbox" checked={logistics.a_furnitureLift} onChange={e => setLogistics({...logistics, a_furnitureLift: e.target.checked})} className="accent-primary w-4 h-4" /> Möbellift</label>
+            <div className="col-span-4 mt-2">
+              <label className="block text-xs text-text-muted mb-2">Besonderheiten (Auszug)</label>
+              <div className="grid grid-cols-3 gap-2">
+                <button 
+                  type="button" 
+                  onClick={() => setLogistics({...logistics, a_elevator: !logistics.a_elevator})} 
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.a_elevator ? 'border-primary bg-primary/20 text-primary shadow-lg shadow-primary/20' : 'border-structure bg-bg-dark text-text-muted hover:border-text-muted/30 hover:bg-bg-panel'}`}
+                >
+                  <ArrowsUpDownIcon className="w-6 h-6 mb-1" />
+                  <span className="text-xs font-medium">Aufzug</span>
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setLogistics({...logistics, a_parking: !logistics.a_parking})} 
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.a_parking ? 'border-primary bg-primary/20 text-primary shadow-lg shadow-primary/20' : 'border-structure bg-bg-dark text-text-muted hover:border-text-muted/30 hover:bg-bg-panel'}`}
+                >
+                  <NoSymbolIcon className="w-6 h-6 mb-1" />
+                  <span className="text-xs font-medium">Halteverbot</span>
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setLogistics({...logistics, a_furnitureLift: !logistics.a_furnitureLift})} 
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.a_furnitureLift ? 'border-primary bg-primary/20 text-primary shadow-lg shadow-primary/20' : 'border-structure bg-bg-dark text-text-muted hover:border-text-muted/30 hover:bg-bg-panel'}`}
+                >
+                  <ArrowUpTrayIcon className="w-6 h-6 mb-1" />
+                  <span className="text-xs font-medium">Möbellift</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="panel border-t-4 border-t-structure shadow-lg">
+        <div className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-structure shadow-lg">
           <div className="flex justify-between items-center mb-4 border-b border-structure pb-2">
             <h2 className="text-xl font-bold text-text-main flex items-center gap-2">Entladeadresse (B)</h2>
             <button onClick={() => copyCustomerAddress('b')} className="text-xs btn-secondary py-1 px-2">Kundenadresse übernehmen</button>
@@ -669,101 +782,189 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             <div className="col-span-2"><label className="block text-xs text-text-muted mb-1">Etage</label><input type="text" list="floors" value={logistics.b_floor} onChange={e => setLogistics({...logistics, b_floor: e.target.value})} className="input-field w-full" placeholder="Auswählen oder tippen..." /></div>
             <div className="col-span-2"><label className="block text-xs text-text-muted mb-1">Laufweg (m)</label><input type="number" min="0" value={logistics.b_distance === 0 ? '' : logistics.b_distance} onChange={e => setLogistics({...logistics, b_distance: e.target.value === '' ? 0 : parseInt(e.target.value)})} className="input-field w-full" placeholder="Unter 10 Meter" /></div>
             
-            <div className="col-span-4"><label className="block text-xs text-text-muted mb-1">Immobilienart</label>
-              <select value={logistics.b_type} onChange={e => setLogistics({...logistics, b_type: e.target.value})} className="input-field w-full">
-                <option value="">Wählen...</option>
-                {settings.propertyTypes?.map((pt:string) => <option key={pt} value={pt}>{pt}</option>)}
-              </select>
+            <div className="col-span-4">
+              <label className="block text-xs text-text-muted mb-2">Immobilienart</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {settings.propertyTypes?.map((pt:string) => (
+                  <button 
+                    key={pt} 
+                    type="button" 
+                    onClick={() => setLogistics({...logistics, b_type: pt})} 
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.b_type === pt ? 'border-primary bg-primary/20 text-primary shadow-lg shadow-primary/20' : 'border-structure bg-black/20 text-text-muted hover:border-white/30 hover:bg-black/40'}`}
+                  >
+                    {getPropertyIcon(pt)}
+                    <span className="text-xs font-medium">{pt}</span>
+                  </button>
+                ))}
+              </div>
             </div>
             
-            <div className="col-span-4 mt-2 flex flex-wrap gap-4">
-              <label className="flex items-center gap-2 text-text-main cursor-pointer"><input type="checkbox" checked={logistics.b_elevator} onChange={e => setLogistics({...logistics, b_elevator: e.target.checked})} className="accent-primary w-4 h-4" /> Aufzug</label>
-              <label className="flex items-center gap-2 text-text-main cursor-pointer"><input type="checkbox" checked={logistics.b_parking} onChange={e => setLogistics({...logistics, b_parking: e.target.checked})} className="accent-primary w-4 h-4" /> Halteverbot</label>
-              <label className="flex items-center gap-2 text-text-main cursor-pointer"><input type="checkbox" checked={logistics.b_furnitureLift} onChange={e => setLogistics({...logistics, b_furnitureLift: e.target.checked})} className="accent-primary w-4 h-4" /> Möbellift</label>
+            <div className="col-span-4 mt-2">
+              <label className="block text-xs text-text-muted mb-2">Besonderheiten (Einzug)</label>
+              <div className="grid grid-cols-3 gap-2">
+                <button 
+                  type="button" 
+                  onClick={() => setLogistics({...logistics, b_elevator: !logistics.b_elevator})} 
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.b_elevator ? 'border-primary bg-primary/20 text-primary shadow-lg shadow-primary/20' : 'border-structure bg-bg-dark text-text-muted hover:border-text-muted/30 hover:bg-bg-panel'}`}
+                >
+                  <ArrowsUpDownIcon className="w-6 h-6 mb-1" />
+                  <span className="text-xs font-medium">Aufzug</span>
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setLogistics({...logistics, b_parking: !logistics.b_parking})} 
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.b_parking ? 'border-primary bg-primary/20 text-primary shadow-lg shadow-primary/20' : 'border-structure bg-bg-dark text-text-muted hover:border-text-muted/30 hover:bg-bg-panel'}`}
+                >
+                  <NoSymbolIcon className="w-6 h-6 mb-1" />
+                  <span className="text-xs font-medium">Halteverbot</span>
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setLogistics({...logistics, b_furnitureLift: !logistics.b_furnitureLift})} 
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.b_furnitureLift ? 'border-primary bg-primary/20 text-primary shadow-lg shadow-primary/20' : 'border-structure bg-bg-dark text-text-muted hover:border-text-muted/30 hover:bg-bg-panel'}`}
+                >
+                  <ArrowUpTrayIcon className="w-6 h-6 mb-1" />
+                  <span className="text-xs font-medium">Möbellift</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 3. Leistungen & Preise */}
-      <section className="panel border-t-4 border-t-blue-500 shadow-lg">
+      
+        </div>
+      )}
+
+      {currentStep === 3 && (
+        <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+          {/* 3. Leistungen & Preise */}
+      <section className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-blue-500 shadow-lg">
         <div className="flex justify-between items-center mb-4 border-b border-structure pb-2">
           <h2 className="text-xl font-bold text-text-main">Leistungen & Preise</h2>
-          <label className={`flex items-center gap-2 bg-bg-dark px-3 py-1.5 rounded-lg border border-structure ${!canEditPrices ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+          <label className={`flex items-center gap-2 bg-white/[0.02] px-3 py-1.5 rounded-lg border border-structure ${!canEditPrices ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
             <input type="checkbox" checked={isFlatRate} onChange={e => setIsFlatRate(e.target.checked)} disabled={!canEditPrices} className="accent-primary" />
             <span className="text-sm font-medium text-text-main">Pauschalangebot</span>
           </label>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-6">
+        <div className="flex flex-col gap-8">
           {/* Katalog Checkliste */}
-          <div className="w-full lg:w-1/3 bg-bg-dark border border-structure rounded-xl p-4 max-h-[600px] overflow-y-auto custom-scrollbar">
-            <h3 className="font-semibold text-primary mb-3">Katalog-Checkliste</h3>
-            {settings.catalog?.map((cat:any, idx:number) => (
-              <div key={idx} className="mb-4">
-                <div className="text-xs font-bold text-text-muted uppercase tracking-wider mb-2">{cat.category}</div>
-                <div className="space-y-1">
-                  {cat.items.map((item:any, i:number) => {
-                    const isTicketTrigger = ['karton', 'box', 'kartons', 'küche', 'kueche', 'einbau', 'montage', 'einpack', 'auspack', 'packservice', 'einräum', 'ausräum'].some(kw => item.name.toLowerCase().includes(kw));
-                    
-                    return (
-                      <button key={i} onClick={() => addServiceFromCatalog(item)} className="w-full text-left p-2 rounded hover:bg-structure/30 text-sm text-text-main flex justify-between items-center transition-colors group">
-                        <span className="truncate pr-2 flex items-center gap-2">
-                          {item.name}
-                          {isTicketTrigger && <StarIconSolid className="w-3 h-3 text-orange-400 opacity-70 group-hover:opacity-100" title="Erzeugt ein System-Ticket" />}
-                        </span>
-                        <PlusIcon className="w-4 h-4 text-primary shrink-0" />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+          <div className="w-full">
+            <h3 className="font-semibold text-primary mb-3 flex items-center gap-2">
+              <PlusCircleIcon className="w-5 h-5" /> Leistungen aus Katalog hinzufügen
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {settings.catalog?.map((cat:any, idx:number) => (
+                <details key={idx} className="glass-panel rounded-xl border border-white/5 group bg-white/[0.02]">
+                  <summary className="flex items-center gap-3 p-3 cursor-pointer select-none">
+                    <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 shadow-inner">
+                       {getCategoryIcon(cat.category)}
+                    </div>
+                    <h4 className="font-bold text-text-main text-sm uppercase tracking-wide flex-1">{cat.category}</h4>
+                    <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center group-open:rotate-45 transition-transform">
+                      <PlusIcon className="w-4 h-4 text-text-muted" />
+                    </div>
+                  </summary>
+                  <div className="p-3 pt-0 border-t border-white/5 mt-2">
+                    <div className="grid grid-cols-1 gap-2 mt-2 max-h-[300px] overflow-y-auto custom-scrollbar">
+                      {cat.items.map((item:any, i:number) => {
+                        const isTicketTrigger = ['karton', 'box', 'kartons', 'küche', 'kueche', 'einbau', 'montage', 'einpack', 'auspack', 'packservice', 'einräum', 'ausräum'].some(kw => item.name.toLowerCase().includes(kw));
+                        
+                        return (
+                          <button key={i} onClick={() => addServiceFromCatalog(item)} className="w-full text-left p-2 rounded-lg bg-black/20 hover:bg-primary/20 border border-white/5 hover:border-primary/30 text-sm text-text-main flex justify-between items-center transition-all group/btn shadow-sm">
+                            <span className="truncate pr-2 flex items-center gap-2 font-medium">
+                              {item.name}
+                              {isTicketTrigger && <StarIconSolid className="w-4 h-4 text-orange-400 drop-shadow-[0_0_5px_rgba(251,146,60,0.5)]" title="Erzeugt ein System-Ticket" />}
+                            </span>
+                            <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center group-hover/btn:bg-primary/30 transition-colors shrink-0">
+                              <PlusIcon className="w-3 h-3 text-text-muted group-hover/btn:text-primary transition-colors" />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </details>
+              ))}
+            </div>
           </div>
 
-          {/* Aktive Leistungen */}
-          <div className="flex-1 space-y-4">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="text-text-muted border-b border-structure">
-                  <th className="pb-2 w-8">#</th>
-                  <th className="pb-2">Beschreibung</th>
-                  <th className="pb-2 w-20">Menge</th>
-                  <th className="pb-2 w-20">Einheit</th>
-                  {!isFlatRate && <th className="pb-2 w-24 text-right">Einzelpreis</th>}
-                  {!isFlatRate && <th className="pb-2 w-24 text-right">Gesamt</th>}
-                  <th className="pb-2 w-10"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {services.map((svc, idx) => (
-                  <tr key={svc.id} className="border-b border-structure/30">
-                    <td className="py-2 text-text-muted">{idx + 1}</td>
-                    <td className="py-2"><input type="text" value={svc.name} onChange={e => {
-                      setServices(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s));
-                    }} className="bg-transparent border-none w-full text-text-main focus:outline-none" /></td>
-                    <td className="py-2"><input type="number" value={svc.quantity} onChange={e => {
-                      setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: parseFloat(e.target.value) || 0 } : s));
-                    }} className="input-field py-1 px-2 w-full text-center" min="1" /></td>
-                    <td className="py-2"><input type="text" value={svc.unit} onChange={e => {
-                      setServices(prev => prev.map((s, i) => i === idx ? { ...s, unit: e.target.value } : s));
-                    }} className="input-field py-1 px-2 w-full text-center" /></td>
-                    
-                    {!isFlatRate && <td className="py-2 text-right"><input type="number" value={svc.unitPrice} onChange={e => {
-                      setServices(prev => prev.map((s, i) => i === idx ? { ...s, unitPrice: parseFloat(e.target.value) || 0 } : s));
-                    }} disabled={!canEditPrices} className={`input-field py-1 px-2 w-full text-right ${!canEditPrices ? 'opacity-50 cursor-not-allowed' : ''}`} /></td>}
-                    
-                    {!isFlatRate && <td className="py-2 text-right text-primary font-medium">{canViewPrices ? (svc.quantity * svc.unitPrice).toFixed(2) : '***'}</td>}
-                    
-                    <td className="py-2 text-right">
-                      <button onClick={() => setServices(services.filter(s => s.id !== svc.id))} className="text-text-muted hover:text-red-400 p-1"><TrashIcon className="w-4 h-4" /></button>
-                    </td>
+          {/* Aktive Leistungen Table */}
+          <div className="w-full">
+            <h3 className="font-semibold text-text-main mb-3">Ausgewählte Leistungen</h3>
+            <div className="glass-panel rounded-xl border border-white/5 overflow-x-auto shadow-inner bg-black/10">
+              <table className="w-full text-left text-sm whitespace-nowrap min-w-[800px]">
+                <thead>
+                  <tr className="text-text-muted border-b border-structure bg-white/[0.02]">
+                    <th className="p-3 w-10 text-center">#</th>
+                    <th className="p-3 w-1/2">Leistungsbeschreibung</th>
+                    <th className="p-3 w-24 text-center">Menge</th>
+                    <th className="p-3 w-28 text-center">Einheit</th>
+                    {!isFlatRate && <th className="p-3 w-32 text-right">Einzelpreis</th>}
+                    {!isFlatRate && <th className="p-3 w-32 text-right">Gesamt</th>}
+                    <th className="p-3 w-12 text-center"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            <button onClick={() => setServices([...services, { id: Date.now().toString(), name: 'Weitere Leistung', quantity: 1, unitPrice: 0, unit: 'Pauschal' }])} className="text-primary hover:underline text-sm font-medium">
-              + Weitere Leistung hinzufügen
+                </thead>
+                <tbody>
+                  {services.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-text-muted">
+                        Keine Leistungen ausgewählt. Fügen Sie oben Leistungen aus dem Katalog hinzu.
+                      </td>
+                    </tr>
+                  ) : (
+                    services.map((svc, idx) => (
+                      <tr key={svc.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
+                        <td className="p-3 text-center text-text-muted font-medium">{idx + 1}</td>
+                        <td className="p-3">
+                          <textarea 
+                            value={svc.name} 
+                            onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s))} 
+                            className="bg-transparent border border-transparent hover:border-structure focus:border-primary/50 focus:bg-black/20 rounded w-full text-text-main focus:outline-none p-2 resize-none overflow-hidden" 
+                            rows={1}
+                            onInput={(e) => {
+                              const target = e.target as HTMLTextAreaElement;
+                              target.style.height = 'auto';
+                              target.style.height = target.scrollHeight + 'px';
+                            }}
+                          />
+                        </td>
+                        <td className="p-3">
+                          <input type="number" value={svc.quantity} onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: parseFloat(e.target.value) || 0 } : s))} className="input-field py-2 w-full text-center font-semibold" min="0" step="0.5" />
+                        </td>
+                        <td className="p-3">
+                          <input type="text" value={svc.unit} onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, unit: e.target.value } : s))} className="input-field py-2 w-full text-center text-text-muted" />
+                        </td>
+                        
+                        {!isFlatRate && (
+                          <td className="p-3">
+                            <div className="relative">
+                              <input type="number" value={svc.unitPrice} onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, unitPrice: parseFloat(e.target.value) || 0 } : s))} disabled={!canEditPrices} className={`input-field py-2 w-full text-right pr-6 font-mono ${!canEditPrices ? 'opacity-50 cursor-not-allowed' : ''}`} />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted">€</span>
+                            </div>
+                          </td>
+                        )}
+                        
+                        {!isFlatRate && (
+                          <td className="p-3 text-right text-primary font-bold text-base">
+                            {canViewPrices ? (svc.quantity * svc.unitPrice).toFixed(2) : '***'} €
+                          </td>
+                        )}
+                        
+                        <td className="p-3 text-center">
+                          <button onClick={() => setServices(services.filter(s => s.id !== svc.id))} className="w-8 h-8 rounded-full bg-transparent hover:bg-red-500/10 text-text-muted hover:text-red-400 flex items-center justify-center transition-colors mx-auto opacity-0 group-hover:opacity-100 focus:opacity-100">
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <button onClick={() => setServices([...services, { id: Date.now().toString(), name: 'Manuelle Leistung', quantity: 1, unitPrice: 0, unit: 'Pauschal' }])} className="text-primary hover:underline text-sm font-medium flex items-center gap-1 mt-4">
+              <PlusIcon className="w-4 h-4" /> Manuelle Leistung hinzufügen
             </button>
 
             {/* Summen */}
@@ -801,7 +1002,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
       {/* 4. MwSt.-Schnellrechner */}
       {canViewPrices && (
-        <section className="bg-bg-dark border border-structure p-4 rounded-xl flex items-center justify-between shadow-inner">
+        <section className="bg-white/[0.02] border border-structure p-4 rounded-xl flex items-center justify-between shadow-inner">
           <div className="flex items-center gap-3">
             <CalculatorIcon className="w-8 h-8 text-text-muted" />
             <div>
@@ -823,96 +1024,127 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         </section>
       )}
 
-      {/* 5. Umzugsgut / Inventarliste */}
-      <section className="panel border-t-4 border-t-structure shadow-lg">
+      
+        </div>
+      )}
+
+      {currentStep === 4 && (
+        <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+          {/* 5. Umzugsgut / Inventarliste */}
+      <section className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-structure shadow-lg">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b border-structure pb-2 gap-4">
           <h2 className="text-xl font-bold text-text-main">Umzugsgut / Inventarliste</h2>
-          <label className="flex items-center gap-2 bg-bg-dark px-3 py-1.5 rounded-lg border border-structure cursor-pointer">
+          <label className="flex items-center gap-2 bg-white/[0.02] px-3 py-1.5 rounded-lg border border-structure cursor-pointer">
             <input type="checkbox" checked={appendInventoryToPDF} onChange={e => setAppendInventoryToPDF(e.target.checked)} className="accent-primary" />
             <span className="text-sm font-medium text-text-main">Als Anhang (letzte Seite) an Angebot hängen</span>
           </label>
         </div>
-        <div className="flex flex-col md:flex-row gap-6">
-          <div className="w-full md:w-1/3 bg-bg-dark border border-structure rounded-xl p-4 max-h-[400px] overflow-y-auto custom-scrollbar">
-            <h3 className="font-semibold text-text-muted mb-3 text-sm">Schnell-Hinzufügen</h3>
-            <div className="flex flex-wrap gap-2">
-              <button onClick={() => addInventoryItem('')} className="bg-primary hover:bg-primary/80 text-white font-medium text-xs px-2 py-1 rounded transition-colors shadow-sm mb-2">
+        <div className="flex flex-col gap-8">
+          <div className="w-full">
+            <h3 className="font-semibold text-primary mb-3 flex items-center gap-2">
+              <PlusCircleIcon className="w-5 h-5" /> Schnell-Hinzufügen
+            </h3>
+            <div className="glass-panel p-4 rounded-xl border border-white/5 flex flex-wrap gap-2 max-h-[200px] overflow-y-auto custom-scrollbar">
+              <button onClick={() => addInventoryItem('')} className="bg-primary hover:bg-primary/80 text-white font-medium text-xs px-3 py-1.5 rounded-lg transition-colors shadow-sm">
                 + Eigener Gegenstand
               </button>
-              <div className="w-full border-b border-structure/50 mb-2"></div>
               {INVENTORY_CATALOG.map(item => (
-                <button key={item} onClick={() => addInventoryItem(item)} className="bg-structure/30 hover:bg-primary/20 text-text-muted hover:text-primary text-xs px-2 py-1 rounded transition-colors border border-structure/50">
+                <button key={item} onClick={() => addInventoryItem(item)} className="bg-black/30 hover:bg-primary/20 text-text-muted hover:text-primary text-xs px-3 py-1.5 rounded-lg transition-colors border border-structure">
                   {item}
                 </button>
               ))}
             </div>
           </div>
-          <div className="flex-1">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="text-text-muted border-b border-structure">
-                  <th className="pb-2 w-8">#</th>
-                  <th className="pb-2">Gegenstand / Beschreibung</th>
-                  <th className="pb-2 w-28 text-center">Anzahl</th>
-                  <th className="pb-2">Notiz</th>
-                  <th className="pb-2 w-10"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {inventory.length === 0 ? (
-                  <tr><td colSpan={5} className="py-4 text-center text-text-muted italic text-xs">Keine Gegenstände erfasst. Nutzen Sie die Schnell-Auswahl.</td></tr>
-                ) : inventory.map((item, idx) => (
-                  <tr key={item.id} className="border-b border-structure/30">
-                    <td className="py-2 text-text-muted">{idx + 1}</td>
-                    <td className="py-2"><input type="text" value={item.name} onChange={e => {
-                      setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, name: e.target.value } : invItem));
-                    }} className="bg-transparent border-none w-full text-text-main focus:outline-none placeholder:text-text-muted/30" placeholder="Bezeichnung..." /></td>
-                    <td className="py-2">
-                      <div className="flex items-center justify-center gap-2 bg-bg-dark rounded-lg p-1 border border-structure/50 w-28">
-                        <button type="button" onClick={() => {
-                          setInventory(prev => prev.map((invItem, i) => i === idx && invItem.quantity > 1 ? { ...invItem, quantity: Number(invItem.quantity) - 1 } : invItem));
-                        }} className="w-6 h-6 flex items-center justify-center bg-structure/50 hover:bg-primary/20 text-white rounded transition-colors font-bold">-</button>
-                        <span className="w-6 text-center text-text-main font-semibold text-sm">{item.quantity}</span>
-                        <button type="button" onClick={() => {
-                          setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, quantity: (Number(invItem.quantity) || 0) + 1 } : invItem));
-                        }} className="w-6 h-6 flex items-center justify-center bg-structure/50 hover:bg-primary/20 text-white rounded transition-colors font-bold">+</button>
-                      </div>
-                    </td>
-                    <td className="py-2 flex items-center gap-2">
-                      <input type="text" value={item.note} onChange={e => {
-                        setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, note: e.target.value } : invItem));
-                      }} className="bg-transparent border-none w-full text-text-muted focus:outline-none text-xs" placeholder="..." />
-                      {item.note && (
-                        <button 
-                          title={item.showNoteInPdf === false ? "Notiz wird im PDF versteckt" : "Notiz ist im PDF sichtbar"}
-                          onClick={() => {
-                            setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, showNoteInPdf: invItem.showNoteInPdf === false } : invItem));
-                          }}
-                          className={`p-1 rounded shrink-0 transition-colors ${item.showNoteInPdf === false ? 'text-red-400 bg-red-400/10 hover:bg-red-400/20' : 'text-green-400 bg-green-400/10 hover:bg-green-400/20'}`}>
-                          {item.showNoteInPdf === false ? <EyeSlashIcon className="w-4 h-4"/> : <EyeIcon className="w-4 h-4"/>}
-                        </button>
-                      )}
-                    </td>
-                    <td className="py-2 text-right">
-                      <button onClick={() => setInventory(inventory.filter(i => i.id !== item.id))} className="text-text-muted hover:text-red-400 p-1"><TrashIcon className="w-4 h-4" /></button>
-                    </td>
+          
+          <div className="w-full">
+            <h3 className="font-semibold text-text-main mb-3">Erfasstes Umzugsgut</h3>
+            <div className="glass-panel rounded-xl border border-white/5 overflow-x-auto shadow-inner bg-black/10">
+              <table className="w-full text-left text-sm whitespace-nowrap min-w-[600px]">
+                <thead>
+                  <tr className="text-text-muted border-b border-structure bg-white/[0.02]">
+                    <th className="p-3 w-10 text-center">#</th>
+                    <th className="p-3 w-1/3">Gegenstand / Beschreibung</th>
+                    <th className="p-3 w-32 text-center">Anzahl</th>
+                    <th className="p-3">Notiz</th>
+                    <th className="p-3 w-12 text-center"></th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {inventory.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-8 text-center text-text-muted">
+                        Keine Gegenstände erfasst. Nutzen Sie die Schnell-Auswahl oben.
+                      </td>
+                    </tr>
+                  ) : inventory.map((item, idx) => (
+                    <tr key={item.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
+                      <td className="p-3 text-center text-text-muted font-medium">{idx + 1}</td>
+                      <td className="p-3">
+                        <textarea 
+                          value={item.name} 
+                          onChange={e => setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, name: e.target.value } : invItem))} 
+                          className="bg-transparent border border-transparent hover:border-structure focus:border-primary/50 focus:bg-black/20 rounded w-full text-text-main focus:outline-none p-2 resize-none overflow-hidden" 
+                          rows={1}
+                          onInput={(e) => {
+                            const target = e.target as HTMLTextAreaElement;
+                            target.style.height = 'auto';
+                            target.style.height = target.scrollHeight + 'px';
+                          }}
+                          placeholder="Bezeichnung..."
+                        />
+                      </td>
+                      <td className="p-3">
+                        <div className="flex items-center justify-center gap-2 bg-black/30 rounded-lg p-1 border border-white/5 w-28 mx-auto">
+                          <button type="button" onClick={() => setInventory(prev => prev.map((invItem, i) => i === idx && invItem.quantity > 1 ? { ...invItem, quantity: Number(invItem.quantity) - 1 } : invItem))} className="w-6 h-6 flex items-center justify-center hover:bg-white/10 text-text-muted hover:text-white rounded transition-colors font-bold">-</button>
+                          <span className="w-8 text-center text-text-main font-semibold text-sm">{item.quantity}</span>
+                          <button type="button" onClick={() => setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, quantity: (Number(invItem.quantity) || 0) + 1 } : invItem))} className="w-6 h-6 flex items-center justify-center hover:bg-white/10 text-text-muted hover:text-white rounded transition-colors font-bold">+</button>
+                        </div>
+                      </td>
+                      <td className="p-3 flex items-center gap-2">
+                        <textarea 
+                          value={item.note} 
+                          onChange={e => setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, note: e.target.value } : invItem))} 
+                          className="bg-transparent border border-transparent hover:border-structure focus:border-primary/50 focus:bg-black/20 rounded w-full text-text-muted focus:outline-none p-2 resize-none overflow-hidden text-xs" 
+                          rows={1}
+                          onInput={(e) => {
+                            const target = e.target as HTMLTextAreaElement;
+                            target.style.height = 'auto';
+                            target.style.height = target.scrollHeight + 'px';
+                          }}
+                          placeholder="Notiz hinzufügen..."
+                        />
+                        {item.note && (
+                          <button 
+                            title={item.showNoteInPdf === false ? "Notiz wird im PDF versteckt" : "Notiz ist im PDF sichtbar"}
+                            onClick={() => setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, showNoteInPdf: invItem.showNoteInPdf === false } : invItem))}
+                            className={`p-1.5 rounded shrink-0 transition-colors ${item.showNoteInPdf === false ? 'text-red-400 bg-red-400/10 hover:bg-red-400/20' : 'text-green-400 bg-green-400/10 hover:bg-green-400/20'}`}>
+                            {item.showNoteInPdf === false ? <EyeSlashIcon className="w-4 h-4"/> : <EyeIcon className="w-4 h-4"/>}
+                          </button>
+                        )}
+                      </td>
+                      <td className="p-3 text-center">
+                        <button onClick={() => setInventory(inventory.filter(i => i.id !== item.id))} className="w-8 h-8 rounded-full bg-transparent hover:bg-red-500/10 text-text-muted hover:text-red-400 flex items-center justify-center transition-colors mx-auto opacity-0 group-hover:opacity-100 focus:opacity-100">
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
 
       {/* 8. Mitarbeiter-Checkliste */}
-      <section className="panel border-t-4 border-t-orange-500 shadow-lg">
+      <section className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-orange-500 shadow-lg">
         <h2 className="text-xl font-bold mb-4 text-text-main border-b border-structure pb-2">Mitarbeiter-Checkliste</h2>
         <p className="text-sm text-text-muted mb-4">
           Diese Liste taucht automatisch auf dem Mitarbeiter-Laufzettel auf. Logistik-Auswahlen wie "Halteverbot" oder "Möbellift" werden dort ebenfalls automatisch angezeigt und müssen hier nicht doppelt eingetragen werden.
         </p>
         <div className="space-y-2 mb-4">
           {checklist.map(item => (
-            <div key={item.id} className="flex items-center justify-between p-3 rounded-xl border bg-bg-dark border-structure hover:border-primary/50 transition-colors">
+            <div key={item.id} className="flex items-center justify-between p-3 rounded-xl border bg-white/[0.02] border-structure hover:border-primary/50 transition-colors">
               <button onClick={() => setChecklist(checklist.map(c => c.id === item.id ? { ...c, done: !c.done } : c))} className="flex items-center gap-3 flex-1 text-left">
                 {item.done ? <CheckCircleIconSolid className="w-5 h-5 text-primary shrink-0" /> : <CheckCircleIcon className="w-5 h-5 text-text-muted shrink-0" />}
                 <span className={`text-sm font-medium transition-all ${item.done ? 'text-text-muted line-through' : 'text-text-main'}`}>{item.text}</span>
@@ -942,8 +1174,14 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         </div>
       </section>
 
-      {/* 6. Dokumententexte & Bedingungen */}
-      <section className="panel border-t-4 border-t-structure shadow-lg">
+      
+        </div>
+      )}
+
+      {currentStep === 5 && (
+        <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+          {/* 6. Dokumententexte & Bedingungen */}
+      <section className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-structure shadow-lg">
         <div className="flex justify-between items-center mb-4 border-b border-structure pb-2">
           <h2 className="text-xl font-bold text-text-main flex items-center gap-2"><DocumentTextIcon className="w-6 h-6 text-text-muted"/> Dokumententexte & Bedingungen</h2>
           <button onClick={loadStandardTexts} className="btn-secondary text-xs">Standard laden</button>
@@ -964,22 +1202,37 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         </div>
       </section>
 
-      {/* Floating Save Button */}
+      
+        </div>
+      )}
+{/* Floating Save Button */}
       <div className="fixed bottom-0 left-0 right-0 md:left-64 bg-bg-panel/90 backdrop-blur-md border-t border-structure p-4 flex justify-between items-center z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.3)] px-4 lg:px-8">
         <div>
           {errorMessage && <span className="text-red-400 text-sm font-semibold animate-in fade-in slide-in-from-bottom-4 bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20">{errorMessage}</span>}
         </div>
-        <div className="flex justify-end gap-4">
+        <div className="flex justify-end gap-2 sm:gap-4 flex-wrap">
           <button onClick={() => {
             if (urlCustomerId) router.push(`/dashboard/customers/${urlCustomerId}`);
             else router.push('/dashboard/orders');
-          }} disabled={isSaving} className="btn-secondary">
+          }} disabled={isSaving} className="btn-secondary hidden sm:flex text-xs sm:text-sm px-2 sm:px-4">
             Abbrechen
           </button>
-          <button onClick={() => saveOrder(isInvoice ? 'invoice_open' : orderStatus === 'draft' ? 'quote' : (orderStatus as 'draft' | 'quote' | 'invoice_open'))} disabled={isSaving} className="btn-primary shadow-lg shadow-primary/30 flex items-center gap-2">
+          
+          <button onClick={() => saveOrder(isInvoice ? 'invoice_open' : orderStatus === 'draft' ? 'quote' : (orderStatus as 'draft' | 'quote' | 'invoice_open'))} disabled={isSaving} className={`${currentStep === 5 ? 'btn-primary shadow-lg shadow-primary/30' : 'btn-secondary'} flex items-center gap-2 text-xs sm:text-sm px-3 sm:px-4`}>
             {isSaving && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
             {isSaving ? 'Speichert...' : (isInvoice ? 'Als Rechnung speichern' : 'Speichern')}
           </button>
+
+          {currentStep > 1 && (
+            <button onClick={() => setCurrentStep(prev => prev - 1)} disabled={isSaving} className="btn-secondary hidden sm:flex text-xs sm:text-sm px-3 sm:px-4">
+              Zurück
+            </button>
+          )}
+          {currentStep < 5 && (
+            <button onClick={() => setCurrentStep(prev => prev + 1)} disabled={isSaving} className="btn-primary flex items-center gap-2 shadow-lg shadow-primary/30 text-xs sm:text-sm px-3 sm:px-4">
+              Weiter
+            </button>
+          )}
         </div>
       </div>
     </div>

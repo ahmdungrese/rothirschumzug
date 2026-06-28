@@ -13,7 +13,7 @@ const styles = StyleSheet.create({
   value: { fontSize: 11, marginBottom: 10 },
   protocolBox: { borderWidth: 1, borderColor: '#eee', padding: 15, marginBottom: 20, borderRadius: 4 },
   signatureBox: { marginTop: 10, padding: 10, backgroundColor: '#f9f9f9', borderLeftWidth: 3, borderLeftColor: '#8F1627' },
-  signatureImage: { height: 60, marginTop: 10 },
+  signatureImage: { height: 60, marginTop: 10, objectFit: 'contain' },
   footer: { position: 'absolute', bottom: 30, left: 40, right: 40, textAlign: 'center', fontSize: 8, color: '#999', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10 },
 });
 

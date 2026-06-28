@@ -30,8 +30,10 @@ const styles = StyleSheet.create({
   tableHeader: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#ccc', paddingBottom: 5, marginBottom: 5, fontFamily: 'Helvetica-Bold' },
   tableRow: { flexDirection: 'row', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#eee' },
   col1: { width: '10%' },
-  col2: { width: '60%' },
-  col3: { width: '30%', textAlign: 'right' },
+  col2: { width: '45%' },
+  col3: { width: '15%', textAlign: 'right' },
+  col4: { width: '15%', textAlign: 'right' },
+  col5: { width: '15%', textAlign: 'right' },
   
   totals: { alignItems: 'flex-end', marginBottom: 30 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', width: '40%', marginBottom: 5 },
@@ -76,6 +78,17 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
   const salutation = billing?.salutation || customer?.salutation;
   let introText = isContract ? (order?.texts?.orderIntro || settings?.texts?.orderIntro || '') : (order?.texts?.quoteIntro || settings?.texts?.quoteIntro || '');
   
+  let kundeAnredeStr = 'Sehr geehrte Damen und Herren';
+  if (salutation === 'Herr' && billing?.lastName) {
+    kundeAnredeStr = `Sehr geehrter Herr ${billing.lastName}`;
+  } else if (salutation === 'Frau' && billing?.lastName) {
+    kundeAnredeStr = `Sehr geehrte Frau ${billing.lastName}`;
+  }
+  
+  // Replace the variable if used in settings
+  introText = introText.replace(/\{\{Kunde_Anrede\}\}/g, kundeAnredeStr);
+  
+  // Fallback for older hardcoded texts
   if (salutation === 'Herr' && billing?.lastName) {
     introText = introText.replace(/Sehr geehrte Damen und Herren,?/gi, `Sehr geehrter Herr ${billing.lastName},`);
   } else if (salutation === 'Frau' && billing?.lastName) {
@@ -161,18 +174,37 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
         <View style={styles.table}>
           <View style={styles.tableHeader}>
             <Text style={styles.col1}>Pos.</Text>
-            <Text style={styles.col2}>Bezeichnung</Text>
-            <Text style={styles.col3}>Umfang</Text>
+            <Text style={[styles.col2, isFlat && { width: '70%' }]}>Bezeichnung</Text>
+            <Text style={[styles.col3, isFlat && { width: '20%' }]}>{isFlat ? 'Umfang' : 'Menge'}</Text>
+            {!isFlat && (
+              <>
+                <Text style={styles.col4}>Einzelpreis</Text>
+                <Text style={styles.col5}>Gesamt</Text>
+              </>
+            )}
           </View>
-          {order?.services?.map((item: any, i: number) => (
-            <View key={i} style={styles.tableRow}>
-              <Text style={styles.col1}>{i + 1}</Text>
-              <Text style={styles.col2}>{item.name}</Text>
-              <Text style={styles.col3}>
-                {isFlat ? 'Inklusiv' : `${item.quantity} ${item.unit} à €${item.unitPrice.toFixed(2)}`}
-              </Text>
-            </View>
-          ))}
+          {order?.services?.map((item: any, i: number) => {
+            const itemNameLower = (item.name || '').toLowerCase();
+            const showExactAmount = isFlat && (itemNameLower.includes('karton') || itemNameLower.includes('einpack'));
+            
+            return (
+              <View key={i} style={styles.tableRow}>
+                <Text style={styles.col1}>{i + 1}</Text>
+                <Text style={[styles.col2, isFlat && { width: '70%' }]}>{item.name}</Text>
+                <Text style={[styles.col3, isFlat && { width: '20%' }]}>
+                  {isFlat 
+                    ? (showExactAmount ? `${item.quantity} ${item.unit}` : 'Inklusiv') 
+                    : `${item.quantity} ${item.unit}`}
+                </Text>
+                {!isFlat && (
+                  <>
+                    <Text style={styles.col4}>{item.unitPrice?.toFixed(2)} €</Text>
+                    <Text style={styles.col5}>{(item.quantity * item.unitPrice)?.toFixed(2)} €</Text>
+                  </>
+                )}
+              </View>
+            );
+          })}
         </View>
 
         <View style={styles.totals}>
@@ -307,7 +339,7 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
           </View>
           <View style={styles.sigLine}>
             {order?.signatureOrder ? (
-              <Image src={order.signatureOrder} style={{ height: 40, marginTop: -35 }} />
+              <Image src={order.signatureOrder} style={{ height: 40, marginTop: -35, objectFit: 'contain', alignSelf: 'center' }} />
             ) : (
               <Text>Unterschrift Auftraggeber</Text>
             )}
@@ -340,7 +372,7 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
           <View style={styles.agbSigLine}>
             {order?.signatureAGB ? (
               <>
-                <Image src={order.signatureAGB} style={{ height: 40, marginTop: -35, alignSelf: 'center' }} />
+                <Image src={order.signatureAGB} style={{ height: 40, marginTop: -35, objectFit: 'contain', alignSelf: 'center' }} />
                 <Text style={{ fontSize: 10, marginTop: 5 }}>{order.signatureAGBPlace}, den {order.signatureAGBDateString}</Text>
               </>
             ) : (

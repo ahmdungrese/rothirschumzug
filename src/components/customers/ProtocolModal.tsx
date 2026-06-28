@@ -19,33 +19,27 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
       if (docSnap.exists()) {
         const data = docSnap.data();
         setSettings(data);
-        if (data.protocolTypes && data.protocolTypes.length > 0) {
-          const firstType = data.protocolTypes[0];
-          setType(firstType);
-          setText(getDefaultTextForType(firstType));
-        } else {
-          setText(getDefaultTextForType('Gefahrenübergang (Haftungsausschluss)'));
+        if (data.protocolCategories && data.protocolCategories.length > 0) {
+          const firstCat = data.protocolCategories[0];
+          setType(firstCat.name);
+          setText(firstCat.text);
+        } else if (data.protocolTypes && data.protocolTypes.length > 0) {
+          // Fallback for legacy
+          setType(data.protocolTypes[0]);
+          setText('');
         }
       }
     });
   }, []);
 
-  const getDefaultTextForType = (t: string) => {
-    if (t.includes('Gefahrenübergang') || t.includes('Haftungsausschluss')) {
-      return "Der Kunde bestätigt hiermit, dass der Transport/Umzug auf eigene Gefahr erfolgt. Das Unternehmen übernimmt keine Haftung für entstandene Kratzer, Schäden oder Mängel an den betreffenden Gegenständen oder am Gebäude.";
-    }
-    if (t.includes('Keine Schäden') || t.includes('Abschluss')) {
-      return "Der Kunde bestätigt hiermit ausdrücklich, dass der Umzug und alle vereinbarten Leistungen vollständig und zu seiner vollsten Zufriedenheit durchgeführt wurden. Es sind keine Schäden an Möbeln, dem Inventar oder in den Räumlichkeiten (Treppenhaus, Wände, Böden etc.) entstanden.";
-    }
-    if (t.includes('Schaden')) {
-      return "Folgende Vorschäden / Schäden wurden vor oder während den Arbeiten dokumentiert:\n1. \n2. \n";
-    }
-    return "";
-  };
-
   const handleTypeChange = (newType: string) => {
     setType(newType);
-    setText(getDefaultTextForType(newType));
+    if (settings?.protocolCategories) {
+      const cat = settings.protocolCategories.find((c: any) => c.name === newType);
+      if (cat) {
+        setText(cat.text);
+      }
+    }
   };
 
   const clear = () => sigPad.current?.clear();
@@ -107,7 +101,9 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
                 onChange={(e) => handleTypeChange(e.target.value)}
                 className="input-field py-3 px-4 w-full bg-bg-dark text-text-main font-medium border-primary/30 focus:border-primary"
               >
-                {settings?.protocolTypes ? (
+                {settings?.protocolCategories ? (
+                  settings.protocolCategories.map((cat: any) => <option key={cat.id} value={cat.name}>{cat.name}</option>)
+                ) : settings?.protocolTypes ? (
                   settings.protocolTypes.map((pt: string) => <option key={pt} value={pt}>{pt}</option>)
                 ) : (
                   <>
@@ -122,22 +118,6 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
             <div>
               <div className="flex justify-between items-end mb-2">
                 <label className="block text-sm font-medium text-text-muted">Beschreibung / Bemerkung</label>
-                {settings?.protocolTemplates && settings.protocolTemplates.length > 0 && (
-                  <select 
-                    onChange={(e) => {
-                      if(e.target.value) {
-                        setText(prev => prev ? prev + '\n' + e.target.value : e.target.value);
-                        e.target.value = '';
-                      }
-                    }}
-                    className="bg-primary/20 text-primary border border-primary/30 text-xs py-1 px-2 rounded cursor-pointer max-w-[200px] truncate"
-                  >
-                    <option value="">+ Textbaustein anfügen</option>
-                    {settings.protocolTemplates.map((t: string, idx: number) => (
-                      <option key={idx} value={t}>{t.length > 30 ? t.substring(0,30)+'...' : t}</option>
-                    ))}
-                  </select>
-                )}
               </div>
               <textarea 
                 value={text}

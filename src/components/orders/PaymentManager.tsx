@@ -8,7 +8,7 @@ import { getCol } from '@/lib/demoMode';
 export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpdate: () => void, onClose: () => void }) {
   const [payments, setPayments] = useState<any[]>(order.payments || []);
   const [amount, setAmount] = useState<number | ''>('');
-  const [method, setMethod] = useState<'bar' | 'ueberweisung'>('bar');
+  const [method, setMethod] = useState<'bar' | 'ueberweisung' | 'ec-karte' | 'paypal'>('bar');
   const [isSaving, setIsSaving] = useState(false);
 
   const totalGross = order.totals?.gross || 0;
@@ -84,10 +84,15 @@ export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpd
           <XMarkIcon className="w-6 h-6" />
         </button>
 
-        <h2 className="text-xl font-bold text-text-main mb-6 flex items-center gap-2">
-          <BanknotesIcon className="w-6 h-6 text-primary" />
-          Zahlungen verwalten
-        </h2>
+        <div className="mb-6">
+          <h2 className="text-xl font-bold text-text-main flex items-center gap-2">
+            <BanknotesIcon className="w-6 h-6 text-primary" />
+            Zahlungen verwalten
+          </h2>
+          {order.invoiceNumber && (
+            <p className="text-sm text-text-muted mt-1 ml-8">Rechnung: {order.invoiceNumber}</p>
+          )}
+        </div>
 
         <div className="grid grid-cols-3 gap-4 mb-8">
           <div className="bg-bg-dark p-3 rounded-xl border border-structure text-center">
@@ -114,7 +119,7 @@ export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpd
                 max={remaining > 0 ? remaining : undefined}
                 value={amount} 
                 onChange={e => setAmount(Number(e.target.value))} 
-                className="input-field pl-8" 
+                className="input-field pl-8 w-full" 
                 placeholder="Betrag"
                 required
               />
@@ -123,10 +128,12 @@ export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpd
           <select 
             value={method} 
             onChange={e => setMethod(e.target.value as any)}
-            className="input-field w-32 bg-bg-dark"
+            className="input-field w-36 bg-bg-dark"
           >
             <option value="bar">Bar</option>
             <option value="ueberweisung">Überweisung</option>
+            <option value="ec-karte">EC-Karte</option>
+            <option value="paypal">PayPal</option>
           </select>
           <button type="submit" disabled={isSaving || !amount} className="btn-primary px-3">
             <PlusIcon className="w-5 h-5" />

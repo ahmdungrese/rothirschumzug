@@ -114,12 +114,10 @@ export default function SettingsPage() {
         ]
       }
     ],
-    protocolTypes: ['Gefahrenübergang (Haftungsausschluss)', 'Keine Schäden (Abschluss)', 'Schadensprotokoll', 'Sonstiges'],
-    protocolTemplates: [
-      'Keine Mängel festgestellt.',
-      'Treppenhauswand war bereits zerkratzt.',
-      'Kundeneigener Schrank passt nicht durchs Treppenhaus. Transport auf eigene Gefahr, keine Haftung für Kratzer.',
-      'Fernseher hat Kratzer im Display.'
+    protocolCategories: [
+      { id: 'cat1', name: 'Gefahrenübergang (Haftungsausschluss)', text: 'Der Kunde bestätigt hiermit, dass der Transport/Umzug auf eigene Gefahr erfolgt. Das Unternehmen übernimmt keine Haftung für entstandene Kratzer, Schäden oder Mängel an den betreffenden Gegenständen oder am Gebäude.' },
+      { id: 'cat2', name: 'Keine Schäden (Abschluss-Protokoll)', text: 'Der Kunde bestätigt hiermit ausdrücklich, dass der Umzug und alle vereinbarten Leistungen vollständig und zu seiner vollsten Zufriedenheit durchgeführt wurden. Es sind keine Schäden an Möbeln, dem Inventar oder in den Räumlichkeiten (Treppenhaus, Wände, Böden etc.) entstanden.' },
+      { id: 'cat3', name: 'Schadensprotokoll', text: 'Folgende Vorschäden / Schäden wurden vor oder während den Arbeiten dokumentiert:\n1. \n2. \n' }
     ],
     communicationTemplates: [
       {
@@ -190,8 +188,8 @@ export default function SettingsPage() {
   const [newContact, setNewContact] = useState('');
   const [newSource, setNewSource] = useState('');
   const [newPropertyType, setNewPropertyType] = useState('');
-  const [newProtocolType, setNewProtocolType] = useState('');
-  const [newProtocolTemplate, setNewProtocolTemplate] = useState('');
+  const [newProtocolCategoryName, setNewProtocolCategoryName] = useState('');
+  const [newProtocolCategoryText, setNewProtocolCategoryText] = useState('');
   const [newEmployee, setNewEmployee] = useState('');
   const [newVehicle, setNewVehicle] = useState('');
   
@@ -238,6 +236,11 @@ export default function SettingsPage() {
         // Merge communicationTemplates if missing
         if (!data.communicationTemplates || data.communicationTemplates.length === 0) {
           data.communicationTemplates = settings.communicationTemplates;
+        }
+        
+        // Migration for protocol categories
+        if (!data.protocolCategories || data.protocolCategories.length === 0) {
+          data.protocolCategories = settings.protocolCategories;
         }
 
         setSettings({ ...settings, ...data });
@@ -309,52 +312,28 @@ export default function SettingsPage() {
     setSettings({ ...settings, propertyTypes: settings.propertyTypes.filter((p: string) => p !== pt) });
   };
 
-  const addProtocolType = () => {
-    if (newProtocolType.trim() && !settings.protocolTypes?.includes(newProtocolType.trim())) {
-      setSettings({ ...settings, protocolTypes: [...(settings.protocolTypes||[]), newProtocolType.trim()] });
-      setNewProtocolType('');
+  const addProtocolCategory = () => {
+    if (newProtocolCategoryName.trim()) {
+      const newCategory = {
+        id: 'cat_' + Date.now(),
+        name: newProtocolCategoryName.trim(),
+        text: newProtocolCategoryText.trim()
+      };
+      setSettings({ ...settings, protocolCategories: [...(settings.protocolCategories||[]), newCategory] });
+      setNewProtocolCategoryName('');
+      setNewProtocolCategoryText('');
     }
   };
 
-  const removeProtocolType = (pt: string) => {
-    setSettings({ ...settings, protocolTypes: settings.protocolTypes.filter((p: string) => p !== pt) });
+  const removeProtocolCategory = (id: string) => {
+    setSettings({ ...settings, protocolCategories: settings.protocolCategories.filter((c: any) => c.id !== id) });
   };
 
-  const addProtocolTemplate = () => {
-    if (newProtocolTemplate.trim() && !settings.protocolTemplates?.includes(newProtocolTemplate.trim())) {
-      setSettings({ ...settings, protocolTemplates: [...(settings.protocolTemplates||[]), newProtocolTemplate.trim()] });
-      setNewProtocolTemplate('');
-    }
-  };
-
-  const removeProtocolTemplate = (pt: string) => {
-    setSettings({ ...settings, protocolTemplates: settings.protocolTemplates.filter((p: string) => p !== pt) });
-  };
-
-  const loadSampleProtocols = () => {
-    const samples = [
-      'Gefahrenübergang: Transport empfindlicher Gegenstände (z.B. Pflanzen, ungesichertes Glas) auf eigene Gefahr.',
-      'Haftungsausschluss: Transport durch sehr enges Treppenhaus auf Kundenwunsch. Keine Haftung für Kratzer an Möbeln oder Wänden.',
-      'Verzicht auf Schutz: Kunde verzichtet auf Schutzmaterial (Luftpolsterfolie/Decken). Transport auf eigenes Risiko.',
-      'Kundenmithilfe: Kunde stellt eigene Helfer. Für Schäden durch Kundenhelfer wird nicht gehaftet.',
-      'Abschluss: Alle Leistungen wurden vertragsgemäß, mangelfrei und zur vollsten Zufriedenheit erbracht.',
-      'Übergabe: Alte Adresse wurde besenrein und ohne durch uns verursachte Schäden übergeben.',
-      'Endkontrolle: Beide Parteien haben die Räumlichkeiten kontrolliert. Keine Schäden festgestellt.',
-      'Vorschaden: Am Möbelstück [...] wurde vor Beginn der Arbeiten ein Schaden dokumentiert.',
-      'Vorschaden: Treppenhaus / Wände wiesen vor Umzugsbeginn Kratzer und Gebrauchsspuren auf.',
-      'Schaden: Beim Transport kam es zu einem Schaden an [...]. Schaden wurde dokumentiert.',
-      'Montage: Schrank [...] war instabil. Fachgerechte Montage war aufgrund des Zustands nicht 100% möglich.',
-      'Montage: Wasser-/Stromanschluss wurde durch den Kunden/Dritte durchgeführt. Keine Haftung unsererseits.'
-    ];
-    
-    const existing = settings.protocolTemplates || [];
-    const newTemplates = [...existing];
-    samples.forEach(s => {
-      if (!newTemplates.includes(s)) newTemplates.push(s);
+  const updateProtocolCategory = (id: string, field: string, value: string) => {
+    setSettings({ 
+      ...settings, 
+      protocolCategories: settings.protocolCategories.map((c: any) => c.id === id ? { ...c, [field]: value } : c)
     });
-    
-    setSettings({ ...settings, protocolTemplates: newTemplates });
-    toast.success("Muster-Vorlagen geladen! Bitte ganz oben auf Speichern klicken.");
   };
 
   const addEmployee = () => {
@@ -864,37 +843,51 @@ export default function SettingsPage() {
           {activeTab === 'protokolle' && (
               <div className="space-y-8 animate-in fade-in duration-300">
                 <div className="panel border-t-4 border-t-structure">
-                  <h2 className="text-xl font-bold mb-4 text-text-main">Art des Protokolls</h2>
-                  <p className="text-sm text-text-muted mb-4">Verwalte hier die Kategorien für deine Protokolle, die im Angebot / Auftrag zur Auswahl stehen.</p>
-                  <div className="flex gap-2 mb-4">
-                    <input type="text" value={newProtocolType} onChange={e => setNewProtocolType(e.target.value)} placeholder="Neue Protokoll-Art..." className="input-field flex-1" onKeyDown={(e) => e.key === 'Enter' && addProtocolType()} />
-                    <button onClick={addProtocolType} className="btn-primary py-2 px-4 whitespace-nowrap">Hinzufügen</button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {(settings.protocolTypes || []).map((pt: string) => (
-                      <div key={pt} className="bg-bg-dark border border-structure rounded-full px-3 py-1 flex items-center gap-2">
-                        <span className="text-sm">{pt}</span>
-                        <button onClick={() => removeProtocolType(pt)} className="text-red-400 hover:text-red-300">×</button>
+                  <h2 className="text-xl font-bold mb-4 text-text-main">Protokoll-Kategorien & Standardtexte</h2>
+                  <p className="text-sm text-text-muted mb-6">Verwalte hier die Standard-Situationen für deine Protokolle (z.B. "Gefahrenübergang" oder "Schadensprotokoll") und den jeweils zugehörigen Standardtext.</p>
+                  
+                  {/* Neue Kategorie hinzufügen */}
+                  <div className="bg-bg-dark border border-structure rounded-xl p-4 mb-6">
+                    <h3 className="font-semibold text-sm mb-3">Neue Kategorie hinzufügen</h3>
+                    <div className="space-y-3">
+                      <input 
+                        type="text" 
+                        value={newProtocolCategoryName} 
+                        onChange={e => setNewProtocolCategoryName(e.target.value)} 
+                        placeholder="Name der Kategorie (z.B. Gefahrenübergang)" 
+                        className="input-field w-full" 
+                      />
+                      <textarea
+                        value={newProtocolCategoryText}
+                        onChange={e => setNewProtocolCategoryText(e.target.value)}
+                        placeholder="Hier den Standard-Text eingeben..."
+                        className="input-field w-full h-24"
+                      />
+                      <div className="flex justify-end">
+                        <button onClick={addProtocolCategory} className="btn-primary py-2 px-6">Hinzufügen</button>
                       </div>
-                    ))}
+                    </div>
                   </div>
-                </div>
 
-                <div className="panel border-t-4 border-t-structure">
-                  <h2 className="text-xl font-bold mb-4 text-text-main">Vorlagen für Beschreibungen (Schadensbeschreibung etc.)</h2>
-                  <div className="flex items-center justify-between mb-4">
-                    <p className="text-sm text-text-muted">Hinterlege Standard-Sätze, die du beim Kunden mit einem Klick ins Protokoll einfügen kannst.</p>
-                    <button onClick={loadSampleProtocols} className="text-xs btn-secondary py-1 px-3">Muster-Vorlagen laden</button>
-                  </div>
-                  <div className="flex gap-2 mb-4">
-                    <input type="text" value={newProtocolTemplate} onChange={e => setNewProtocolTemplate(e.target.value)} placeholder="Neuer Standard-Satz..." className="input-field flex-1" onKeyDown={(e) => e.key === 'Enter' && addProtocolTemplate()} />
-                    <button onClick={addProtocolTemplate} className="btn-primary py-2 px-4 whitespace-nowrap">Hinzufügen</button>
-                  </div>
-                  <div className="space-y-2">
-                    {(settings.protocolTemplates || []).map((pt: string) => (
-                      <div key={pt} className="bg-bg-dark border border-structure rounded-lg px-4 py-3 flex items-center justify-between">
-                        <span className="text-sm">{pt}</span>
-                        <button onClick={() => removeProtocolTemplate(pt)} className="text-red-400 hover:text-red-300 text-xl leading-none">×</button>
+                  {/* Bestehende Kategorien */}
+                  <div className="space-y-4">
+                    {(settings.protocolCategories || []).map((cat: any) => (
+                      <div key={cat.id} className="bg-bg-dark border border-structure rounded-xl p-4 flex flex-col gap-3">
+                        <div className="flex items-center justify-between gap-4">
+                          <input 
+                            type="text" 
+                            value={cat.name}
+                            onChange={(e) => updateProtocolCategory(cat.id, 'name', e.target.value)}
+                            className="input-field font-semibold bg-transparent border-none px-0 py-1 focus:bg-bg-panel focus:px-3 focus:border-structure w-full"
+                          />
+                          <button onClick={() => removeProtocolCategory(cat.id)} className="text-red-400 hover:text-red-300 text-sm font-medium whitespace-nowrap px-2 py-1">Löschen</button>
+                        </div>
+                        <textarea
+                          value={cat.text}
+                          onChange={(e) => updateProtocolCategory(cat.id, 'text', e.target.value)}
+                          className="input-field w-full h-32 text-sm text-text-muted bg-bg-panel/50 focus:bg-bg-panel"
+                          placeholder="Standard-Text..."
+                        />
                       </div>
                     ))}
                   </div>

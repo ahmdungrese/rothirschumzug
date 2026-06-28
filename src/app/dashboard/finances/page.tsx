@@ -16,7 +16,7 @@ export default function FinancesPage() {
   useEffect(() => {
     const q = query(
       collection(db, getCol('orders')),
-      where('status', 'in', ['invoice_open', 'invoice_overdue', 'completed'])
+      where('status', 'in', ['invoice_open', 'invoice_overdue'])
     );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -134,7 +134,7 @@ export default function FinancesPage() {
                             <BanknotesIcon className="w-4 h-4" />
                             Zahlung erfassen
                           </button>
-                          <Link href={`/dashboard/customers/${inv.customerId}`} className="btn-secondary py-1.5 px-3 text-xs">
+                          <Link href={`/dashboard/customers/${inv.customerId}?orderId=${inv.id}&pdfType=invoice`} className="btn-secondary py-1.5 px-3 text-xs">
                             Öffnen
                           </Link>
                         </div>

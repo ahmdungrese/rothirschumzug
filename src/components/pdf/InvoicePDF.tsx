@@ -30,8 +30,10 @@ const styles = StyleSheet.create({
   tableHeader: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#ccc', paddingBottom: 5, marginBottom: 5, fontFamily: 'Helvetica-Bold' },
   tableRow: { flexDirection: 'row', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#eee' },
   col1: { width: '10%' },
-  col2: { width: '60%' },
-  col3: { width: '30%', textAlign: 'right' },
+  col2: { width: '45%' },
+  col3: { width: '15%', textAlign: 'right' },
+  col4: { width: '15%', textAlign: 'right' },
+  col5: { width: '15%', textAlign: 'right' },
   
   totals: { alignItems: 'flex-end', marginBottom: 20 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', width: '40%', marginBottom: 5 },
@@ -68,6 +70,10 @@ export const InvoicePDF = ({ order, customer, settings, employeeName }: { order:
   } else if (salutation === 'Frau' && billing?.lastName) {
     introGreeting = `Sehr geehrte Frau ${billing.lastName},`;
   }
+
+  // Für InvoicePDF wird normal kein Variablen-Replacement gemacht, aber falls es benötigt wird:
+  // (In Rechnungen wird oft 'introGreeting' separat vom Haupttext genutzt. 
+  // Falls die Variable in `invoiceIntro` steckt, tauschen wir sie hier vorsichtshalber mit aus).
 
   const invoiceOutro = settings?.texts?.invoiceOutro || '';
   const invoiceGreeting = settings?.texts?.invoiceGreeting || '';
@@ -130,24 +136,43 @@ export const InvoicePDF = ({ order, customer, settings, employeeName }: { order:
         <Text style={{ ...styles.introText, marginTop: -10 }}>
           {isStorno 
             ? `hiermit stornieren wir die Rechnung ${order?.stornoFor}. Der unten ausgewiesene Betrag wird Ihrem Konto gutgeschrieben bzw. gleicht unsere Forderung aus.` 
-            : settings?.texts?.invoiceIntro}
+            : (settings?.texts?.invoiceIntro || '').replace(/\{\{Kunde_Anrede\}\}/g, introGreeting.replace(',', ''))}
         </Text>
 
         <View style={styles.table}>
           <View style={styles.tableHeader}>
             <Text style={styles.col1}>Pos.</Text>
-            <Text style={styles.col2}>Leistungsbeschreibung</Text>
-            <Text style={styles.col3}>Umfang</Text>
+            <Text style={[styles.col2, isFlat && { width: '70%' }]}>Leistungsbeschreibung</Text>
+            <Text style={[styles.col3, isFlat && { width: '20%' }]}>{isFlat ? 'Umfang' : 'Menge'}</Text>
+            {!isFlat && (
+              <>
+                <Text style={styles.col4}>Einzelpreis</Text>
+                <Text style={styles.col5}>Gesamt</Text>
+              </>
+            )}
           </View>
-          {order?.services?.map((item: any, i: number) => (
-            <View key={i} style={styles.tableRow}>
-              <Text style={styles.col1}>{i + 1}</Text>
-              <Text style={styles.col2}>{item.name}</Text>
-              <Text style={styles.col3}>
-                {isFlat ? 'Inklusiv' : `${item.quantity} ${item.unit} à €${item.unitPrice.toFixed(2)}`}
-              </Text>
-            </View>
-          ))}
+          {order?.services?.map((item: any, i: number) => {
+            const itemNameLower = (item.name || '').toLowerCase();
+            const showExactAmount = isFlat && (itemNameLower.includes('karton') || itemNameLower.includes('einpack'));
+            
+            return (
+              <View key={i} style={styles.tableRow}>
+                <Text style={styles.col1}>{i + 1}</Text>
+                <Text style={[styles.col2, isFlat && { width: '70%' }]}>{item.name}</Text>
+                <Text style={[styles.col3, isFlat && { width: '20%' }]}>
+                  {isFlat 
+                    ? (showExactAmount ? `${item.quantity} ${item.unit}` : 'Inklusiv') 
+                    : `${item.quantity} ${item.unit}`}
+                </Text>
+                {!isFlat && (
+                  <>
+                    <Text style={styles.col4}>{item.unitPrice?.toFixed(2)} €</Text>
+                    <Text style={styles.col5}>{(item.quantity * item.unitPrice)?.toFixed(2)} €</Text>
+                  </>
+                )}
+              </View>
+            );
+          })}
         </View>
 
         <View style={styles.totals}>

@@ -135,7 +135,7 @@ export default function CalendarPage() {
                         type: 'move',
                         title: 'Umzug: ' + o.customerName,
                         address: o.logistics?.a_city || o.logistics?.loadingAddress?.split(',')[0] || 'Keine Adresse',
-                        color: 'bg-orange-500/20 border-orange-500/30 text-orange-300 hover:bg-orange-500/40',
+                        color: 'bg-orange-600 border-orange-500 text-white hover:bg-orange-500 shadow-md shadow-orange-500/20',
                         orderId: o.id,
                         customerId: o.customerId,
                         isDone,
@@ -155,9 +155,9 @@ export default function CalendarPage() {
                           id: o.id + '_hv',
                           ticketId: 'halteverbot',
                           type: 'parking',
-                          title: 'Halteverbot aufstellen',
+                          title: 'Halteverbot',
                           address: o.customerName,
-                          color: 'bg-yellow-500/20 border-yellow-500/30 text-yellow-300 hover:bg-yellow-500/40',
+                          color: 'bg-yellow-500 border-yellow-400 text-black font-medium hover:bg-yellow-400 shadow-md shadow-yellow-500/20',
                           orderId: o.id,
                           customerId: o.customerId,
                           isDone: !!o.ticketStates?.halteverbot
@@ -179,7 +179,7 @@ export default function CalendarPage() {
                           type: 'boxes',
                           title: 'Kartons liefern',
                           address: o.customerName,
-                          color: 'bg-blue-500/20 border-blue-500/30 text-blue-300 hover:bg-blue-500/40',
+                          color: 'bg-blue-600 border-blue-500 text-white hover:bg-blue-500 shadow-md shadow-blue-500/20',
                           orderId: o.id,
                           customerId: o.customerId,
                           isDone: !!o.ticketStates?.kartons_liefern
@@ -197,7 +197,7 @@ export default function CalendarPage() {
                       type: 'viewing',
                       title: 'Besichtigung',
                       address: o.customerName,
-                      color: 'bg-primary/20 border-primary/30 text-primary-hover hover:bg-primary/40',
+                      color: 'bg-primary border-primary-hover text-white hover:bg-primary-hover shadow-md shadow-primary/20',
                       orderId: o.id,
                       customerId: o.customerId,
                       isDone: !!o.ticketStates?.viewing_requested

@@ -21,9 +21,24 @@ import {
   DocumentTextIcon,
   CalendarIcon,
   TrashIcon,
-  PlusIcon
+  PlusIcon,
+  ArrowsUpDownIcon,
+  NoSymbolIcon,
+  ArrowUpTrayIcon,
+  BuildingOffice2Icon,
+  HomeIcon,
+  BriefcaseIcon,
+  BuildingLibraryIcon
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
+
+const getPropertyIcon = (type: string) => {
+  const t = type.toLowerCase();
+  if (t.includes('wohnung')) return <BuildingOffice2Icon className="w-6 h-6 mb-1" />;
+  if (t.includes('haus')) return <HomeIcon className="w-6 h-6 mb-1" />;
+  if (t.includes('büro') || t.includes('buero')) return <BriefcaseIcon className="w-6 h-6 mb-1" />;
+  return <BuildingLibraryIcon className="w-6 h-6 mb-1" />;
+};
 
 const ROOMS = ['Wohnzimmer', 'Schlafzimmer', 'Kinderzimmer', 'Küche', 'Bad', 'Flur/Keller'];
 const INVENTORY_ITEMS = {
@@ -60,8 +75,8 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
 
   // 3. Logistik
   const [logistics, setLogistics] = useState({
-    a_street: '', a_houseNr: '', a_zip: '', a_city: '', a_floor: 'Erdgeschoss', a_elevator: false, a_parking: false, a_furnitureLift: false, a_distance: 0,
-    b_street: '', b_houseNr: '', b_zip: '', b_city: '', b_floor: 'Erdgeschoss', b_elevator: false, b_parking: false, b_furnitureLift: false, b_distance: 0,
+    a_type: 'Wohnung', a_street: '', a_houseNr: '', a_zip: '', a_city: '', a_floor: 'Erdgeschoss', a_elevator: false, a_parking: false, a_furnitureLift: false, a_distance: 0,
+    b_type: 'Wohnung', b_street: '', b_houseNr: '', b_zip: '', b_city: '', b_floor: 'Erdgeschoss', b_elevator: false, b_parking: false, b_furnitureLift: false, b_distance: 0,
   });
 
   // 4. Inventar
@@ -248,8 +263,8 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
   ];
 
   return (
-    <div className="fixed inset-0 z-50 bg-bg-dark flex flex-col md:flex-row animate-in slide-in-from-bottom-full duration-300">
-      <div className="bg-bg-panel border-r border-b md:border-b-0 border-structure w-full md:w-64 p-4 shrink-0 flex flex-row md:flex-col justify-between overflow-x-auto custom-scrollbar">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xl flex flex-col md:flex-row animate-in slide-in-from-bottom-full duration-300">
+      <div className="glass-panel w-full md:w-64 p-4 shrink-0 flex flex-row md:flex-col justify-between overflow-x-auto custom-scrollbar m-4 md:m-8 rounded-2xl">
         <div className="flex md:flex-col gap-2 md:gap-4 w-max md:w-full">
           {STEPS.map((item) => (
             <button key={item.s} onClick={() => setStep(item.s)} className={`flex items-center gap-3 p-3 rounded-xl transition-all font-medium text-sm text-left whitespace-nowrap md:whitespace-normal ${step === item.s ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'text-text-muted hover:bg-structure/50'} ${step > item.s ? 'border border-primary/50 text-primary bg-primary/10' : ''}`}>
@@ -262,14 +277,14 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
         {onClose && <button onClick={onClose} className="mt-auto hidden md:flex items-center gap-2 text-text-muted hover:text-red-400 p-3 rounded-xl transition-colors"><XMarkIcon className="w-5 h-5" /> Schließen</button>}
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-bg-dark relative flex flex-col custom-scrollbar">
+      <div className="flex-1 overflow-y-auto bg-transparent relative flex flex-col custom-scrollbar">
         {onClose && <button onClick={onClose} className="md:hidden absolute top-4 right-4 z-10 p-2 bg-structure/50 rounded-full text-text-main"><XMarkIcon className="w-5 h-5" /></button>}
 
         <div className="p-4 md:p-8 lg:p-12 max-w-4xl mx-auto w-full flex-1">
           {step === 1 && (
-            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-300">
-              <h1 className="text-2xl font-bold text-text-main mb-6">Kunde & Rechnungsadresse</h1>
-              <div className="flex gap-4 bg-bg-panel p-2 rounded-xl border border-structure w-max mb-4">
+            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-300 glass-panel p-6 m-4 md:m-0 rounded-2xl">
+              <h1 className="text-2xl font-bold text-text-main mb-6 border-b border-white/10 pb-4">Kunde & Rechnungsadresse</h1>
+              <div className="flex gap-4 bg-black/20 p-2 rounded-xl border border-white/5 w-max mb-4 shadow-inner">
                 <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="radio" checked={customer.type === 'privat'} onChange={() => setCustomer({...customer, type: 'privat'})} className="accent-primary" /> Privatperson</label>
                 <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="radio" checked={customer.type === 'firma'} onChange={() => setCustomer({...customer, type: 'firma'})} className="accent-primary" /> Firma / Amt</label>
               </div>
@@ -331,11 +346,24 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
                     <div className="col-span-1"><label className="block text-sm text-text-muted mb-2">PLZ</label><input type="text" value={logistics.a_zip} onChange={e => setLogistics({...logistics, a_zip: e.target.value})} className="input-field w-full text-lg py-3" /></div>
                     <div className="col-span-3"><label className="block text-sm text-text-muted mb-2">Ort</label><input type="text" value={logistics.a_city} onChange={e => setLogistics({...logistics, a_city: e.target.value})} className="input-field w-full text-lg py-3" /></div>
                   </div>
-                  <div><label className="block text-sm text-text-muted mb-2">Etage</label><select value={logistics.a_floor} onChange={e => setLogistics({...logistics, a_floor: e.target.value})} className="input-field w-full text-lg py-3"><option value="Erdgeschoss">Erdgeschoss</option><option value="1. OG">1. OG</option><option value="2. OG">2. OG</option><option value="3. OG">3. OG</option><option value="4. OG">4. OG</option><option value="5. OG +">5. OG oder höher</option></select></div>
+                  <div><label className="block text-sm text-text-muted mb-2">Etage (A)</label><select value={logistics.a_floor} onChange={e => setLogistics({...logistics, a_floor: e.target.value})} className="input-field w-full text-lg py-3"><option value="Erdgeschoss">Erdgeschoss</option><option value="1. OG">1. OG</option><option value="2. OG">2. OG</option><option value="3. OG">3. OG</option><option value="4. OG">4. OG</option><option value="5. OG +">5. OG oder höher</option></select></div>
+                  
+                  <div>
+                    <label className="block text-sm text-text-muted mb-2">Immobilienart (A)</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {settings?.propertyTypes?.map((pt:string) => (
+                        <button key={pt} type="button" onClick={() => setLogistics({...logistics, a_type: pt})} className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${logistics.a_type === pt ? 'border-primary bg-primary/20 text-primary shadow-md' : 'border-structure bg-bg-dark text-text-muted'}`}>
+                          {getPropertyIcon(pt)}
+                          <span className="font-bold">{pt}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <label className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${logistics.a_elevator ? 'border-primary bg-primary/10 text-primary' : 'border-structure bg-bg-dark text-text-muted'}`}><input type="checkbox" className="hidden" checked={logistics.a_elevator} onChange={e => setLogistics({...logistics, a_elevator: e.target.checked})} /><span className="font-bold">Aufzug</span></label>
-                    <label className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${logistics.a_parking ? 'border-red-500 bg-red-500/10 text-red-500' : 'border-structure bg-bg-dark text-text-muted'}`}><input type="checkbox" className="hidden" checked={logistics.a_parking} onChange={e => setLogistics({...logistics, a_parking: e.target.checked})} /><span className="font-bold">Halteverbot</span></label>
-                    <label className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${logistics.a_furnitureLift ? 'border-orange-500 bg-orange-500/10 text-orange-500' : 'border-structure bg-bg-dark text-text-muted'}`}><input type="checkbox" className="hidden" checked={logistics.a_furnitureLift} onChange={e => setLogistics({...logistics, a_furnitureLift: e.target.checked})} /><span className="font-bold">Möbellift</span></label>
+                    <button type="button" onClick={() => setLogistics({...logistics, a_elevator: !logistics.a_elevator})} className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${logistics.a_elevator ? 'border-primary bg-primary/10 text-primary' : 'border-structure bg-bg-dark text-text-muted'}`}><ArrowsUpDownIcon className="w-6 h-6 mb-1" /><span className="font-bold">Aufzug</span></button>
+                    <button type="button" onClick={() => setLogistics({...logistics, a_parking: !logistics.a_parking})} className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${logistics.a_parking ? 'border-red-500 bg-red-500/10 text-red-500' : 'border-structure bg-bg-dark text-text-muted'}`}><NoSymbolIcon className="w-6 h-6 mb-1" /><span className="font-bold">Halteverbot</span></button>
+                    <button type="button" onClick={() => setLogistics({...logistics, a_furnitureLift: !logistics.a_furnitureLift})} className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${logistics.a_furnitureLift ? 'border-orange-500 bg-orange-500/10 text-orange-500' : 'border-structure bg-bg-dark text-text-muted'}`}><ArrowUpTrayIcon className="w-6 h-6 mb-1" /><span className="font-bold">Möbellift</span></button>
                   </div>
                 </div>
               </div>
@@ -350,10 +378,23 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
                     <div className="col-span-3"><label className="block text-sm text-text-muted mb-2">Ort</label><input type="text" value={logistics.b_city} onChange={e => setLogistics({...logistics, b_city: e.target.value})} className="input-field w-full text-lg py-3" /></div>
                   </div>
                   <div><label className="block text-sm text-text-muted mb-2">Etage (B)</label><select value={logistics.b_floor} onChange={e => setLogistics({...logistics, b_floor: e.target.value})} className="input-field w-full text-lg py-3"><option value="Erdgeschoss">Erdgeschoss</option><option value="1. OG">1. OG</option><option value="2. OG">2. OG</option><option value="3. OG">3. OG</option><option value="4. OG">4. OG</option></select></div>
+                  
+                  <div>
+                    <label className="block text-sm text-text-muted mb-2">Immobilienart (B)</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {settings?.propertyTypes?.map((pt:string) => (
+                        <button key={pt} type="button" onClick={() => setLogistics({...logistics, b_type: pt})} className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${logistics.b_type === pt ? 'border-primary bg-primary/20 text-primary shadow-md' : 'border-structure bg-bg-dark text-text-muted'}`}>
+                          {getPropertyIcon(pt)}
+                          <span className="font-bold">{pt}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <label className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${logistics.b_elevator ? 'border-primary bg-primary/10 text-primary' : 'border-structure bg-bg-dark text-text-muted'}`}><input type="checkbox" className="hidden" checked={logistics.b_elevator} onChange={e => setLogistics({...logistics, b_elevator: e.target.checked})} /><span className="font-bold">Aufzug</span></label>
-                    <label className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${logistics.b_parking ? 'border-red-500 bg-red-500/10 text-red-500' : 'border-structure bg-bg-dark text-text-muted'}`}><input type="checkbox" className="hidden" checked={logistics.b_parking} onChange={e => setLogistics({...logistics, b_parking: e.target.checked})} /><span className="font-bold">Halteverbot</span></label>
-                    <label className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 cursor-pointer transition-all ${logistics.b_furnitureLift ? 'border-orange-500 bg-orange-500/10 text-orange-500' : 'border-structure bg-bg-dark text-text-muted'}`}><input type="checkbox" className="hidden" checked={logistics.b_furnitureLift} onChange={e => setLogistics({...logistics, b_furnitureLift: e.target.checked})} /><span className="font-bold">Möbellift</span></label>
+                    <button type="button" onClick={() => setLogistics({...logistics, b_elevator: !logistics.b_elevator})} className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${logistics.b_elevator ? 'border-primary bg-primary/10 text-primary' : 'border-structure bg-bg-dark text-text-muted'}`}><ArrowsUpDownIcon className="w-6 h-6 mb-1" /><span className="font-bold">Aufzug</span></button>
+                    <button type="button" onClick={() => setLogistics({...logistics, b_parking: !logistics.b_parking})} className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${logistics.b_parking ? 'border-red-500 bg-red-500/10 text-red-500' : 'border-structure bg-bg-dark text-text-muted'}`}><NoSymbolIcon className="w-6 h-6 mb-1" /><span className="font-bold">Halteverbot</span></button>
+                    <button type="button" onClick={() => setLogistics({...logistics, b_furnitureLift: !logistics.b_furnitureLift})} className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${logistics.b_furnitureLift ? 'border-orange-500 bg-orange-500/10 text-orange-500' : 'border-structure bg-bg-dark text-text-muted'}`}><ArrowUpTrayIcon className="w-6 h-6 mb-1" /><span className="font-bold">Möbellift</span></button>
                   </div>
                 </div>
               </div>

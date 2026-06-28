@@ -2,16 +2,12 @@
 import { Bars3Icon, PlusIcon, ArrowRightOnRectangleIcon, SunIcon, MoonIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { useState } from 'react';
-import { SlideOver } from '@/components/ui/SlideOver';
-import { QuickCreateCustomer } from '@/components/customers/QuickCreateCustomer';
 import { NotificationBell } from '@/components/ui/NotificationBell';
+import Link from 'next/link';
 
 export function Header({ onMenuClick }: { onMenuClick: () => void }) {
   const { profile, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [isClockedIn, setIsClockedIn] = useState(false);
-  const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
 
   return (
     <>
@@ -28,13 +24,13 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
 
         <div className="flex items-center gap-3 lg:gap-6">
           {/* Quick Create Action */}
-          <button 
-            onClick={() => setIsQuickCreateOpen(true)}
+          <Link 
+            href="/dashboard/orders/new"
             className="btn-primary py-2 px-3 sm:px-4 text-sm whitespace-nowrap"
           >
             <PlusIcon className="w-5 h-5" />
-            <span className="hidden sm:inline">Neuer Kunde</span>
-          </button>
+            <span className="hidden sm:inline">Neues Angebot</span>
+          </Link>
 
           <div className="hidden sm:block h-8 w-px bg-structure"></div>
 
@@ -62,14 +58,6 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
           </div>
         </div>
       </header>
-
-      <SlideOver 
-        isOpen={isQuickCreateOpen} 
-        onClose={() => setIsQuickCreateOpen(false)} 
-        title="Kunde schnell anlegen"
-      >
-        <QuickCreateCustomer onClose={() => setIsQuickCreateOpen(false)} />
-      </SlideOver>
     </>
   );
 }

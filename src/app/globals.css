@@ -51,7 +51,7 @@ body {
 }
 
 .btn-secondary {
-  @apply bg-white/5 backdrop-blur-sm border border-white/10 text-text-main font-semibold py-2 px-4 md:py-3 md:px-6 rounded-lg transition-all duration-200 hover:bg-white/10 flex items-center justify-center gap-2;
+  @apply bg-bg-dark backdrop-blur-sm border border-structure text-text-main font-semibold py-2 px-4 md:py-3 md:px-6 rounded-lg transition-all duration-200 hover:bg-bg-panel hover:border-text-muted/30 flex items-center justify-center gap-2 shadow-sm hover:shadow;
 }
 
 /* Glassmorphism & Kanban Styles */
@@ -60,17 +60,17 @@ body {
 }
 
 .glass-panel {
-  @apply bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl;
+  @apply bg-bg-panel backdrop-blur-xl border border-structure rounded-2xl shadow-2xl;
 }
 
 .kanban-col {
-  @apply flex flex-col gap-3 p-3 bg-white/[0.02] border border-white/[0.05] rounded-xl h-full backdrop-blur-md;
+  @apply flex flex-col gap-3 p-3 bg-bg-panel border border-structure rounded-xl h-full backdrop-blur-md shadow-sm;
 }
 
 .kanban-card {
-  @apply bg-white/[0.04] hover:bg-white/[0.08] transition-all duration-300 border border-white/[0.08] hover:border-white/[0.15] rounded-lg p-4 shadow-lg flex flex-col;
+  @apply bg-bg-dark hover:bg-bg-panel transition-all duration-300 border border-structure hover:border-text-muted/30 rounded-lg p-4 shadow flex flex-col;
 }
 
 .input-field {
-  @apply bg-black/20 border border-white/10 text-text-main rounded-lg px-4 py-3 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all duration-200 w-full placeholder-text-muted/50 backdrop-blur-sm;
+  @apply bg-bg-dark border border-structure text-text-main rounded-lg px-4 py-3 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all duration-200 w-full placeholder-text-muted/50 backdrop-blur-sm shadow-inner;
 }

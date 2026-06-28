@@ -1,97 +1,182 @@
 "use client";
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot } from 'firebase/firestore';
+import { collection, query, onSnapshot, where } from 'firebase/firestore';
 import { getCol } from '@/lib/demoMode';
+import { SmartCustomerCard } from '@/components/customers/SmartCustomerCard';
+import { QuickCreateCustomer } from '@/components/customers/QuickCreateCustomer';
+import { MagnifyingGlassIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showNewModal, setShowNewModal] = useState(false);
 
   useEffect(() => {
-    const q = query(collection(db, getCol('customers')));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    // 1. Fetch Customers
+    const qCustomers = query(collection(db, getCol('customers')));
+    const unsubCustomers = onSnapshot(qCustomers, (snapshot) => {
       const fetched = snapshot.docs
         .map((doc: any) => ({ id: doc.id, ...doc.data() }))
         .filter((c: any) => !c.isArchived); // Filter out archived
       setCustomers(fetched);
-      setLoading(false);
     }, (error) => {
       console.error("Error fetching customers", error);
+    });
+
+    // 2. Fetch Orders (active orders only, skipping archived and cancelled)
+    const qOrders = query(collection(db, getCol('orders')));
+    const unsubOrders = onSnapshot(qOrders, (snapshot) => {
+      const fetched = snapshot.docs
+        .map((doc: any) => ({ id: doc.id, ...doc.data() }))
+        .filter((o: any) => o.status !== 'archived' && o.status !== 'invoice_cancelled' && o.status !== 'rejected');
+      
+      // Sort newest first
+      fetched.sort((a: any, b: any) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+      setOrders(fetched);
+      setLoading(false);
+    }, (error) => {
+      console.error("Error fetching orders", error);
       setLoading(false);
     });
 
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
+    return () => {
+      unsubCustomers();
+      unsubOrders();
+    };
   }, []);
+
+  // 3. Client-Side Search and Map latest order
+  const filteredCustomers = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    
+    // Map latest order to each customer
+    const customersWithOrders = customers.map(customer => {
+      // Find the first (newest) order for this customer
+      const customerOrders = orders.filter(o => o.customerId === customer.id);
+      
+      // We want to prioritize "active" action-needed orders if multiple exist
+      // e.g., if one is draft and one is completed, draft might be more relevant for action, 
+      // but usually taking the newest by creation date is fine for moving companies.
+      const latestOrder = customerOrders[0] || null;
+      
+      return { ...customer, latestOrder };
+    });
+
+    // Sort: Bring customers with action needed to the top
+    const priorityStatuses = ['draft', 'quote', 'clarification', 'invoice_open', 'invoice_overdue'];
+    customersWithOrders.sort((a, b) => {
+      const aPriority = a.latestOrder && priorityStatuses.includes(a.latestOrder.status) ? 1 : 0;
+      const bPriority = b.latestOrder && priorityStatuses.includes(b.latestOrder.status) ? 1 : 0;
+      if (aPriority !== bPriority) return bPriority - aPriority; // Priority first
+      
+      // Then newest order
+      const aTime = a.latestOrder?.createdAt?.toMillis() || 0;
+      const bTime = b.latestOrder?.createdAt?.toMillis() || 0;
+      return bTime - aTime;
+    });
+
+    // Filter by search query
+    if (!q) return customersWithOrders;
+
+    return customersWithOrders.filter(c => {
+      const nameMatch = `${c.firstName || ''} ${c.lastName || ''}`.toLowerCase().includes(q);
+      const emailMatch = (c.email || '').toLowerCase().includes(q);
+      const phoneMatch = (c.phone || '').toLowerCase().includes(q);
+      const cityAMatch = (c.latestOrder?.logistics?.a_city || '').toLowerCase().includes(q);
+      const cityBMatch = (c.latestOrder?.logistics?.b_city || '').toLowerCase().includes(q);
+      
+      return nameMatch || emailMatch || phoneMatch || cityAMatch || cityBMatch;
+    });
+  }, [customers, orders, searchQuery]);
 
   if (loading) {
     return <div className="flex justify-center p-12"><div className="animate-spin h-8 w-8 border-t-2 border-primary rounded-full"></div></div>;
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 max-w-7xl mx-auto relative">
+    <div className="space-y-6 animate-in fade-in duration-500 max-w-[1600px] mx-auto relative pb-20">
       {/* Background Graphic */}
       <div className="fixed inset-0 pointer-events-none opacity-[0.03] flex items-center justify-center z-[-1] overflow-hidden">
         <img src="/login-logo.png" alt="" className="w-full max-w-[800px] object-contain blur-[2px]" />
       </div>
 
-      <div className="flex justify-between items-center glass-panel p-6 rounded-2xl mb-6">
+      {/* Header & Controls */}
+      <div className="glass-panel p-6 rounded-2xl flex flex-col md:flex-row gap-4 justify-between items-center z-10 relative">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-text-main flex items-center gap-3">
-            Kundenverzeichnis
+            Kunden Control Center
           </h1>
-          <p className="text-text-muted mt-1">Verwalten Sie hier alle Ihre Kunden und deren Akten.</p>
+          <p className="text-text-muted mt-1">Smarte Übersicht aller Kunden und ihrer aktuellsten Aufträge.</p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+          {/* Search Bar (Zero Cost Firebase) */}
+          <div className="relative w-full sm:w-[300px]">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <MagnifyingGlassIcon className="h-5 w-5 text-text-muted" />
+            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="input-field pl-10 w-full"
+              placeholder="Name, Stadt, Telefon..."
+            />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-text-muted hover:text-text-main"
+              >
+                <XMarkIcon className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          
+          {/* Create Button */}
+          <Link 
+            href="/dashboard/orders/new"
+            className="btn-primary py-2 px-4 shadow-lg shrink-0 whitespace-nowrap flex items-center"
+          >
+            <PlusIcon className="w-5 h-5 mr-1" /> Neuer Kunde (via Angebot)
+          </Link>
         </div>
       </div>
 
-      <div className="glass-panel p-0 overflow-hidden rounded-2xl shadow-xl">
-        <div className="overflow-x-hidden md:overflow-x-auto custom-scrollbar">
-          <table className="w-full text-left border-collapse block md:table">
-            <thead className="hidden md:table-header-group">
-              <tr className="bg-black/20 text-text-muted text-xs uppercase tracking-wider border-b border-white/10 md:table-row">
-                <th className="p-5 font-bold md:table-cell">Name</th>
-                <th className="p-5 font-bold md:table-cell">E-Mail</th>
-                <th className="p-5 font-bold md:table-cell">Telefon</th>
-                <th className="p-5 font-bold md:text-right md:table-cell">Aktion</th>
-              </tr>
-            </thead>
-            <tbody className="block md:table-row-group">
-              {customers.length === 0 ? (
-                <tr>
-                  <td colSpan={4} className="p-12 text-center text-text-muted italic bg-black/10">Keine Kunden gefunden oder Datenbank noch nicht konfiguriert.</td>
-                </tr>
-              ) : (
-                customers.map((customer) => (
-                  <tr key={customer.id} className="block md:table-row border-b border-white/5 hover:bg-white/[0.03] transition-colors p-4 md:p-0 mb-4 md:mb-0 bg-black/20 md:bg-transparent rounded-lg md:rounded-none">
-                    <td className="block md:table-cell p-3 md:p-5 text-sm text-text-main font-bold border-b border-white/5 md:border-none">
-                      {customer.firstName} {customer.lastName}
-                    </td>
-                    <td className="block md:table-cell p-3 md:p-5 text-sm text-text-muted border-b border-white/5 md:border-none">
-                      <div className="flex justify-between md:block">
-                        <span className="md:hidden text-text-muted font-bold text-xs uppercase tracking-wider">E-Mail:</span>
-                        <span>{customer.email || '-'}</span>
-                      </div>
-                    </td>
-                    <td className="block md:table-cell p-3 md:p-5 text-sm text-text-muted border-b border-white/5 md:border-none">
-                      <div className="flex justify-between md:block">
-                        <span className="md:hidden text-text-muted font-bold text-xs uppercase tracking-wider">Telefon:</span>
-                        <span>{customer.phone || '-'}</span>
-                      </div>
-                    </td>
-                    <td className="block md:table-cell p-3 md:p-5 md:text-right mt-2 md:mt-0">
-                      <Link href={`/dashboard/customers/${customer.id}`} className="btn-secondary py-2 px-4 text-sm w-full md:w-auto flex justify-center shadow-sm">
-                        Akte öffnen
-                      </Link>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+      {/* Cards Grid */}
+      {filteredCustomers.length === 0 ? (
+        <div className="glass-panel p-12 text-center rounded-2xl text-text-muted italic border border-white/5">
+          {searchQuery ? "Keine Kunden für diesen Suchbegriff gefunden." : "Noch keine Kunden vorhanden."}
         </div>
-      </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-6">
+          {filteredCustomers.map(customer => (
+            <SmartCustomerCard 
+              key={customer.id} 
+              customer={customer} 
+              latestOrder={customer.latestOrder} 
+            />
+          ))}
+        </div>
+      )}
+
+      {/* New Customer Modal */}
+      {showNewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-bg-panel border border-structure p-6 rounded-2xl shadow-2xl max-w-2xl w-full">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-text-main">Neuen Kunden anlegen</h2>
+              <button onClick={() => setShowNewModal(false)} className="text-text-muted hover:text-text-main">
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+            <QuickCreateCustomer onClose={() => setShowNewModal(false)} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
