@@ -66,7 +66,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
 
   // 4. Texte
   const [texts, setTexts] = useState({
-    quoteIntro: 'Sehr geehrte(r) Herr/Frau, anbei erhalten Sie unsere Rechnung für die erbrachten Leistungen.',
+    quoteIntro: 'anbei erhalten Sie unsere Rechnung für die erbrachten Leistungen.',
     paymentTerms: '',
     quoteOutro: 'Wir bedanken uns für Ihren Auftrag.'
   });
@@ -116,7 +116,9 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
           if (orderId) setStatus(o.status);
           
           if (o.customerData) setCustomerData(o.customerData);
-          if (o.orderMeta && orderId) setOrderMeta(prev => ({...prev, ...o.orderMeta}));
+          else if (o.billingAddress) setCustomerData(o.billingAddress);
+          
+          if (o.orderMeta) setOrderMeta(prev => ({...prev, ...o.orderMeta}));
           if (o.isFlatRate !== undefined) setIsFlatRate(o.isFlatRate);
           if (o.flatRateNet) setFlatRateNet(o.flatRateNet);
           if (o.services) setServices(o.services);
@@ -160,10 +162,26 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
     
     setIsSaving(true);
     try {
+      if (urlCustomerId) {
+        await updateDoc(doc(db, getCol('customers'), urlCustomerId), {
+          salutation: customerData.salutation || '',
+          firstName: customerData.firstName || '',
+          lastName: customerData.lastName || '',
+          email: customerData.email || '',
+          phone: customerData.phone || '',
+          street: customerData.street || '',
+          houseNr: customerData.houseNr || '',
+          zip: customerData.zip || '',
+          city: customerData.city || '',
+          type: customerData.type || 'privat'
+        });
+      }
+
       const payload: any = {
         type: 'invoice',
         status: finalStatus,
         customerId: urlCustomerId,
+        sourceOrderId: sourceOrderId || null,
         customerData,
         orderMeta,
         isFlatRate,

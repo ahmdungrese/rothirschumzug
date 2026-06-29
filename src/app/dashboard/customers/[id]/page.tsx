@@ -15,11 +15,14 @@ import { DispoModal } from '@/components/orders/DispoModal';
 import { ClaimModal } from '@/components/customers/ClaimModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { PaymentModal } from '@/components/orders/PaymentModal';
+import { PdfModal } from '@/components/ui/PdfModal';
 import { calculateRoute } from '@/lib/routeCalculator';
 import { getCol } from '@/lib/demoMode';
 import { LogisticsBoard } from '@/components/orders/LogisticsBoard';
 import { MessageSenderModal } from '@/components/customers/MessageSenderModal';
 import { useAuth } from '@/context/AuthContext';
+import { PDFDownloadButton } from '@/components/pdf/PDFDownloadButton';
+import { InlinePDFViewer } from '@/components/pdf/InlinePDFViewer';
 
 export default function CustomerProfilePage() {
   const { profile } = useAuth();
@@ -30,7 +33,6 @@ export default function CustomerProfilePage() {
   const [customer, setCustomer] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [protocolOrder, setProtocolOrder] = useState<any>(null);
   const [dispoOrder, setDispoOrder] = useState<any>(null);
   const [claims, setClaims] = useState<any[]>([]);
@@ -44,12 +46,22 @@ export default function CustomerProfilePage() {
   
   const [paymentOrder, setPaymentOrder] = useState<any>(null);
   const [messageOrder, setMessageOrder] = useState<any>(null);
+  const [pdfModalOrder, setPdfModalOrder] = useState<any>(null);
 
   const [routeInfo, setRouteInfo] = useState<{ direct: { distanceKm: number, durationMinutes: number }, total: { distanceKm: number, durationMinutes: number } } | null>(null);
   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
   
   const [activeTab, setActiveTab] = useState<'overview' | 'documents' | 'finances' | 'claims'>('overview');
+  const [activeA4OrderId, setActiveA4OrderId] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 1024);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     // Fetch Customer
@@ -70,8 +82,14 @@ export default function CustomerProfilePage() {
     const q = query(collection(db, getCol('orders')), where('customerId', '==', customerId));
     const unsubOrders = onSnapshot(q, (querySnapshot) => {
       const fetchedOrders = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-      fetchedOrders.sort((a: any, b: any) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
+      fetchedOrders.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
       setOrders(fetchedOrders);
+      
+      // Auto-select the first valid order for A4 Editor if none selected
+      if (fetchedOrders.length > 0 && !activeA4OrderId) {
+        const defaultOrder = fetchedOrders.find(o => o.status !== 'archived') || fetchedOrders[0];
+        setActiveA4OrderId(defaultOrder.id);
+      }
     }, (error) => {
       console.error("Error fetching orders", error);
     });
@@ -88,7 +106,7 @@ export default function CustomerProfilePage() {
     const unsubClaims = onSnapshot(qClaims, (querySnapshot) => {
       const fetchedClaims = querySnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
       // Sortiere neu nach alt (da createdAt ein Timestamp ist)
-      fetchedClaims.sort((a: any, b: any) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+      fetchedClaims.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
       setClaims(fetchedClaims);
     });
 
@@ -103,19 +121,26 @@ export default function CustomerProfilePage() {
   useEffect(() => {
     const orderId = searchParams.get('orderId');
     const typeParam = searchParams.get('pdfType');
+    const action = searchParams.get('action');
     
-    if (orders.length > 0 && orderId && !selectedOrder) {
+    if (orders.length > 0 && orderId) {
       const targetOrder = orders.find(o => o.id === orderId);
       if (targetOrder) {
-        setSelectedOrder(targetOrder);
         if (typeParam === 'invoice' || typeParam === 'order' || typeParam === 'contract' || typeParam === 'employee' || typeParam === 'protocol') {
           setPdfType(typeParam as any);
         }
-        // Remove the orderId from URL to prevent reopening on close
+        
+        if (action === 'view-protocol') {
+          if (!protocolOrder) setProtocolOrder(targetOrder);
+        } else if (action === 'view-pdf') {
+          if (!pdfModalOrder) setPdfModalOrder(targetOrder);
+        }
+
+        // Remove the params from URL
         router.replace(`/dashboard/customers/${customerId}`, { scroll: false });
       }
     }
-  }, [orders, searchParams, selectedOrder]);
+  }, [orders, searchParams, protocolOrder, pdfModalOrder]);
 
   const handleCalculateRoute = async () => {
     if (orders.length > 0) {
@@ -245,23 +270,26 @@ export default function CustomerProfilePage() {
     }
   };
 
-  const handleDeleteSignature = async (key: string) => {
+  const handleDeleteSignature = async (orderId: string, key: string) => {
     if (!confirm('Möchten Sie diese Unterschrift wirklich löschen?')) return;
     try {
-      if (!selectedOrder?.id) return;
-      await updateDoc(doc(db, getCol('orders'), selectedOrder.id), {
+      if (!orderId) return;
+      await updateDoc(doc(db, getCol('orders'), orderId), {
         [key]: null,
         [`${key}Date`]: null,
         [`${key}Place`]: null,
         [`${key}DateString`]: null
       });
-      setSelectedOrder((prev: any) => ({
-        ...prev,
-        [key]: null,
-        [`${key}Date`]: null,
-        [`${key}Place`]: null,
-        [`${key}DateString`]: null
-      }));
+      // Update local state without selectedOrder
+      setOrders(prevOrders => prevOrders.map(o => 
+        o.id === orderId ? {
+          ...o,
+          [key]: null,
+          [`${key}Date`]: null,
+          [`${key}Place`]: null,
+          [`${key}DateString`]: null
+        } : o
+      ));
       toast.success('Unterschrift erfolgreich gelöscht!');
     } catch (error) {
       console.error('Fehler beim Löschen der Unterschrift:', error);
@@ -320,9 +348,9 @@ export default function CustomerProfilePage() {
     }
   };
 
-  const totalRevenue = orders.filter(o => o.status === 'quote' || o.status === 'confirmed' || o.status === 'invoice_open' || o.status === 'invoice_paid').reduce((sum, o) => sum + (o.totals?.gross || 0), 0);
-  const openItems = orders.filter(o => o.status === 'invoice_open' || o.status === 'invoice_overdue' || o.status === 'confirmed').reduce((sum, o) => {
-    const gross = o.totals?.gross || 0;
+  const totalRevenue = orders.filter(o => ['quote', 'confirmed', 'completed', 'invoice_open', 'invoice_paid'].includes(o.status)).reduce((sum, o) => sum + (o.totals?.gross ?? o.calcInput?.gross ?? 0), 0);
+  const openItems = orders.filter(o => ['invoice_open', 'invoice_overdue', 'confirmed', 'completed'].includes(o.status)).reduce((sum, o) => {
+    const gross = o.totals?.gross ?? o.calcInput?.gross ?? 0;
     const paid = o.payments?.reduce((pSum: number, p: any) => pSum + p.amount, 0) || 0;
     return sum + Math.max(0, gross - paid);
   }, 0);
@@ -378,6 +406,9 @@ export default function CustomerProfilePage() {
       toast.error("Fehler beim Archivieren des Kunden.");
     }
   };
+  const globalActiveOrder = activeA4OrderId ? orders.find(o => o.id === activeA4OrderId) : (orders.find(o => o.status !== 'archived') || orders[0]);
+  const isGlobalQuote = globalActiveOrder?.status === 'quote';
+  const isGlobalConfirmed = globalActiveOrder?.status === 'confirmed' || globalActiveOrder?.status === 'completed';
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-20 relative max-w-7xl mx-auto">
@@ -598,8 +629,73 @@ export default function CustomerProfilePage() {
             >
               <DocumentTextIcon className="w-5 h-5" /> Neue Rechnung
             </button>
+            
+            {globalActiveOrder && (
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => setProtocolOrder(globalActiveOrder)}
+                  className="flex-1 py-2 px-2 text-xs font-bold flex items-center justify-center gap-1.5 bg-bg-panel border border-structure text-text-main rounded-lg hover:bg-white/5 transition-colors"
+                >
+                  <ClipboardDocumentIcon className="w-4 h-4 text-orange-400" /> Protokoll
+                </button>
+                <button 
+                  onClick={() => setMessageOrder(globalActiveOrder)}
+                  className="flex-1 py-2 px-2 text-xs font-bold flex items-center justify-center gap-1.5 bg-bg-panel border border-structure text-text-main rounded-lg hover:bg-white/5 transition-colors"
+                >
+                  <EnvelopeIcon className="w-4 h-4 text-blue-400" /> Nachricht
+                </button>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* Status Pipeline */}
+        {globalActiveOrder && (
+          <div className="bg-bg-dark/80 border-b border-white/5 px-6 py-3 flex items-center justify-between gap-4 overflow-x-auto custom-scrollbar">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-text-muted uppercase tracking-wider mr-2">Status ({globalActiveOrder.invoiceNumber ? `#${globalActiveOrder.invoiceNumber}` : globalActiveOrder.orderNumber ? `#${globalActiveOrder.orderNumber}` : ''}):</span>
+              {(globalActiveOrder.status === 'draft' || globalActiveOrder.status === 'clarification' || globalActiveOrder.status === 'rejected') && (
+                <>
+                  <button onClick={() => handleUpdateOrderStatus(globalActiveOrder, 'quote')} className="flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow-sm">
+                    Zu Angebot
+                  </button>
+                  {globalActiveOrder.status !== 'rejected' && (
+                    <button onClick={() => handleUpdateOrderStatus(globalActiveOrder, 'rejected')} className="flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-lg text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors">
+                      Abgelehnt
+                    </button>
+                  )}
+                </>
+              )}
+              {isGlobalQuote && (
+                <>
+                  <button onClick={() => handleUpdateOrderStatus(globalActiveOrder, 'draft')} className="flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors">
+                    <ArrowUturnLeftIcon className="w-4 h-4" /> Zurück
+                  </button>
+                  <button onClick={() => setDispoOrder(globalActiveOrder)} className="flex items-center gap-1.5 text-sm font-bold px-4 py-1.5 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors shadow-sm">
+                    <CheckIcon className="w-4 h-4" /> Auftrag bestätigt
+                  </button>
+                </>
+              )}
+              {globalActiveOrder.status === 'confirmed' && (
+                <>
+                  <button onClick={() => safeRevertStatus(globalActiveOrder, 'quote')} className="flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors">
+                    <ArrowUturnLeftIcon className="w-4 h-4" /> Zurück
+                  </button>
+                  <button onClick={() => handleUpdateOrderStatus(globalActiveOrder, 'completed')} className="flex items-center gap-1.5 text-sm font-bold px-4 py-1.5 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-sm">
+                    Erledigt
+                  </button>
+                </>
+              )}
+              {globalActiveOrder.status === 'completed' && (
+                <>
+                  <button onClick={() => safeRevertStatus(globalActiveOrder, 'confirmed')} className="flex items-center gap-1.5 text-sm font-bold px-3 py-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors">
+                    <ArrowUturnLeftIcon className="w-4 h-4" /> Zurück
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Custom Tabs */}
         <div className="flex overflow-x-auto custom-scrollbar px-6 py-2 gap-2 bg-black/20">
@@ -630,259 +726,70 @@ export default function CustomerProfilePage() {
         </div>
       </div>
 
-      {selectedOrder && (
-        <div className="fixed inset-0 z-[100] bg-bg-panel flex flex-col md:flex-row animate-in fade-in duration-300">
-          
-          {/* Left Side: PDF Viewer (Full Height) */}
-          <div className="flex-1 h-[50vh] md:h-full w-full overflow-y-auto custom-scrollbar bg-black/60 p-2 md:p-8 flex flex-col">
-            <PDFGenerator order={selectedOrder} customer={customer} type={pdfType} />
-          </div>
 
-          {/* Right Side: Controls and Signature (Fixed Width Sidebar) */}
-          <div className="w-full md:w-[450px] shrink-0 h-[50vh] md:h-full bg-bg-panel border-t md:border-t-0 md:border-l border-structure flex flex-col shadow-2xl">
-            {/* Header / Controls */}
-            <div className="p-6 border-b border-structure">
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-text-main mb-1">Live Review</h2>
-                  <p className="text-sm text-text-muted">Status: {
-                    selectedOrder.status === 'draft' ? 'Entwurf' : 
-                    selectedOrder.status === 'clarification' ? 'In Klärung' :
-                    selectedOrder.status === 'rejected' ? 'Abgelehnt' :
-                    'Angebot / Auftrag'
-                  }</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button 
-                    onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/${selectedOrder.id}`)}
-                    className="p-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-full transition-colors border border-primary/20"
-                    title="Bearbeiten"
-                  >
-                    <PencilIcon className="w-5 h-5" />
-                  </button>
-                  <button 
-                    onClick={() => setSelectedOrder(null)} 
-                    className="p-2 bg-bg-dark text-text-muted hover:text-text-main hover:bg-red-500/20 rounded-full transition-colors border border-structure"
-                    title="Schließen"
-                  >
-                    <XMarkIcon className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">Dokument auswählen</span>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                  <button onClick={() => setPdfType('order')} className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${pdfType === 'order' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-bg-dark text-text-muted hover:text-text-main border border-structure hover:border-primary/50'}`}>Angebot</button>
-                  <button onClick={() => setPdfType('contract')} className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${pdfType === 'contract' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-bg-dark text-text-muted hover:text-text-main border border-structure hover:border-primary/50'}`}>Auftrag</button>
-                  <button onClick={() => setPdfType('employee')} className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${pdfType === 'employee' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-bg-dark text-text-muted hover:text-text-main border border-structure hover:border-primary/50'}`}>Laufzettel</button>
-                  <button onClick={() => setPdfType('invoice')} className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${pdfType === 'invoice' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-bg-dark text-text-muted hover:text-text-main border border-structure hover:border-primary/50'}`}>Rechnung</button>
-                  <button onClick={() => setPdfType('protocol')} className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors md:col-span-2 ${pdfType === 'protocol' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-bg-dark text-text-muted hover:text-text-main border border-structure hover:border-primary/50'}`}>Protokolle</button>
-                </div>
-              </div>
-            </div>
-            
-            {/* Signature Area */}
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-bg-dark/30">
-              {(pdfType === 'invoice' || pdfType === 'employee') ? (
-                <div className="h-full flex flex-col items-center justify-center text-text-muted opacity-50 p-6 text-center">
-                  <DocumentTextIcon className="w-12 h-12 mb-4" />
-                  <p>Für dieses Dokument ist keine Unterschrift erforderlich.</p>
-                </div>
-              ) : (
-                <>
-                  <h3 className="text-sm font-semibold text-text-main mb-4 border-b border-structure pb-2 flex items-center gap-2">
-                    <PencilIcon className="w-4 h-4 text-primary" /> Digitale Unterschrift
-                  </h3>
-                  
-                  {/* ANGEBOT / ORDER */}
-                  {pdfType === 'order' && (
-                    <div className="space-y-8">
-                      {!selectedOrder.signatureOrder && ['confirmed', 'completed', 'invoice_open', 'invoice_overdue', 'invoice_paid'].includes(selectedOrder.status) ? (
-                        <div className="panel border border-primary/30 bg-primary/5 rounded-xl p-6 shadow-inner text-center mt-4">
-                          <CheckBadgeIcon className="w-12 h-12 text-primary mx-auto mb-3" />
-                          <h4 className="font-bold text-text-main text-lg mb-2">Auftrag extern bestätigt</h4>
-                          <p className="text-sm text-text-muted">
-                            Dieses Angebot wurde manuell als bestätigt markiert. Die Unterschrift erfolgte extern (z.B. auf Papier oder per WhatsApp).
-                          </p>
-                        </div>
-                      ) : (
-                        <>
-                          {/* 1. AGB Signature */}
-                          <div>
-                        {selectedOrder.signatureAGB ? (
-                          <div className="panel border border-green-500/30 bg-green-500/5 rounded-xl p-4 shadow-inner relative">
-                            <button onClick={() => handleDeleteSignature('signatureAGB')} className="absolute top-4 right-4 p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors" title="Unterschrift löschen">
-                              <TrashIcon className="w-5 h-5" />
-                            </button>
-                            <h4 className="font-semibold text-green-400 mb-2 flex items-center gap-2"><CheckBadgeIcon className="w-5 h-5" /> AGBs akzeptiert</h4>
-                            <p className="text-xs text-text-muted mb-4">Unterschrift vom: {selectedOrder.signatureAGBDate ? new Date(selectedOrder.signatureAGBDate?.toMillis?.() || Date.now()).toLocaleString('de-DE') : 'Gerade eben'}</p>
-                            <div className="bg-white rounded-lg p-2 shadow-sm">
-                              <img src={selectedOrder.signatureAGB} alt="Unterschrift AGB" className="h-24 w-full object-contain mix-blend-multiply" />
-                            </div>
-                          </div>
-                        ) : (
-                          <SignaturePad 
-                            orderId={selectedOrder.id} 
-                            signatureKey="signatureAGB"
-                            title="1. AGB akzeptieren"
-                            description="Ich bestätige, dass ich die Allgemeinen Geschäftsbedingungen gelesen habe und diese akzeptiere."
-                            buttonText="AGBs bestätigen"
-                            onSigned={(key, dataUrl, place, dateStr) => {
-                              toast.success("AGBs erfolgreich bestätigt!");
-                              setSelectedOrder({
-                                ...selectedOrder, 
-                                [key]: dataUrl,
-                                [`${key}Place`]: place,
-                                [`${key}DateString`]: dateStr
-                              });
-                            }} 
-                          />
-                        )}
-                      </div>
-
-                      {/* 2. Order Signature */}
-                      <div>
-                        {selectedOrder.signatureOrder ? (
-                          <div className="panel border border-green-500/30 bg-green-500/5 rounded-xl p-4 shadow-inner relative">
-                            <button onClick={() => handleDeleteSignature('signatureOrder')} className="absolute top-4 right-4 p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors" title="Unterschrift löschen">
-                              <TrashIcon className="w-5 h-5" />
-                            </button>
-                            <h4 className="font-semibold text-green-400 mb-2 flex items-center gap-2"><CheckBadgeIcon className="w-5 h-5" /> Auftrag verbindlich erteilt</h4>
-                            <p className="text-xs text-text-muted mb-4">Unterschrift vom: {selectedOrder.signatureOrderDate ? new Date(selectedOrder.signatureOrderDate?.toMillis?.() || Date.now()).toLocaleString('de-DE') : 'Gerade eben'}</p>
-                            <div className="bg-white rounded-lg p-2 shadow-sm">
-                              <img src={selectedOrder.signatureOrder} alt="Unterschrift Auftrag" className="h-24 w-full object-contain mix-blend-multiply" />
-                            </div>
-                          </div>
-                        ) : (
-                          <div className={!selectedOrder.signatureAGB ? "opacity-50 pointer-events-none" : ""}>
-                            <SignaturePad 
-                              orderId={selectedOrder.id} 
-                              signatureKey="signatureOrder"
-                              title="2. Auftrag erteilen"
-                              description="Mit dieser Unterschrift beauftrage ich verbindlich die Durchführung des Umzugs wie im Angebot beschrieben."
-                              buttonText="Verbindlich unterschreiben"
-                              onSigned={(key, dataUrl, place, dateStr) => {
-                                toast.success("Auftrag erfolgreich und verbindlich erteilt!");
-                                if (selectedOrder.status === 'draft' || selectedOrder.status === 'quote') {
-                                  setDispoOrder(selectedOrder);
-                                }
-                                
-                                setSelectedOrder({
-                                  ...selectedOrder, 
-                                  [key]: dataUrl,
-                                  [`${key}Place`]: place,
-                                  [`${key}DateString`]: dateStr
-                                });
-                              }} 
-                            />
-                            {!selectedOrder.signatureAGB && (
-                              <p className="text-xs text-orange-400 mt-2 text-center">Bitte zuerst die AGBs (oben) bestätigen.</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {/* AUFTRAG / CONTRACT */}
-                  {pdfType === 'contract' && (
-                    <div className="space-y-8">
-                      {!selectedOrder.signatureOrder && ['confirmed', 'completed', 'invoice_open', 'invoice_overdue', 'invoice_paid'].includes(selectedOrder.status) ? (
-                        <div className="panel border border-primary/30 bg-primary/5 rounded-xl p-6 shadow-inner text-center mt-4">
-                          <CheckBadgeIcon className="w-12 h-12 text-primary mx-auto mb-3" />
-                          <h4 className="font-bold text-text-main text-lg mb-2">Auftrag extern bestätigt</h4>
-                          <p className="text-sm text-text-muted">
-                            Dieser Auftrag wurde manuell als bestätigt markiert. Die Unterschrift erfolgte extern (z.B. auf Papier oder per WhatsApp).
-                          </p>
-                        </div>
-                      ) : (
-                        <>
-                          {selectedOrder.signatureOrder ? (
-                        <div className="panel border border-green-500/30 bg-green-500/5 rounded-xl p-4 shadow-inner relative">
-                          <button onClick={() => handleDeleteSignature('signatureOrder')} className="absolute top-4 right-4 p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors" title="Unterschrift löschen">
-                            <TrashIcon className="w-5 h-5" />
-                          </button>
-                          <h4 className="font-semibold text-green-400 mb-2 flex items-center gap-2"><CheckBadgeIcon className="w-5 h-5" /> Auftrag ist erteilt</h4>
-                          <p className="text-xs text-text-muted mb-4">Unterschrift vom: {selectedOrder.signatureOrderDate ? new Date(selectedOrder.signatureOrderDate?.toMillis?.() || Date.now()).toLocaleString('de-DE') : 'Gerade eben'}</p>
-                          <div className="bg-white rounded-lg p-2 shadow-sm">
-                            <img src={selectedOrder.signatureOrder} alt="Unterschrift Auftrag" className="h-24 w-full object-contain mix-blend-multiply" />
-                          </div>
-                        </div>
-                      ) : (
-                        <SignaturePad 
-                          orderId={selectedOrder.id} 
-                          signatureKey="signatureOrder"
-                          title="Auftrag bestätigen"
-                          description="Bitte bestätigen Sie den Auftrag mit Ihrer Unterschrift."
-                          buttonText="Auftrag bestätigen"
-                          onSigned={(key, dataUrl, place, dateStr) => {
-                            toast.success("Auftrag erfolgreich bestätigt!");
-                            setSelectedOrder({
-                              ...selectedOrder, 
-                              [key]: dataUrl,
-                              [`${key}Place`]: place,
-                              [`${key}DateString`]: dateStr
-                            });
-                          }} 
-                        />
-                      )}
-                        </>
-                      )}
-                    </div>
-                  )}
-
-                  {/* PROTOCOL */}
-                  {pdfType === 'protocol' && (
-                    <div className="space-y-8">
-                      {selectedOrder.signatureProtocol ? (
-                        <div className="panel border border-green-500/30 bg-green-500/5 rounded-xl p-4 shadow-inner relative">
-                          <button onClick={() => handleDeleteSignature('signatureProtocol')} className="absolute top-4 right-4 p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors" title="Unterschrift löschen">
-                            <TrashIcon className="w-5 h-5" />
-                          </button>
-                          <h4 className="font-semibold text-green-400 mb-2 flex items-center gap-2"><CheckBadgeIcon className="w-5 h-5" /> Protokoll unterschrieben</h4>
-                          <p className="text-xs text-text-muted mb-4">Unterschrift vom: {selectedOrder.signatureProtocolDate ? new Date(selectedOrder.signatureProtocolDate?.toMillis?.() || Date.now()).toLocaleString('de-DE') : 'Gerade eben'}</p>
-                          <div className="bg-white rounded-lg p-2 shadow-sm">
-                            <img src={selectedOrder.signatureProtocol} alt="Unterschrift Protokoll" className="h-24 w-full object-contain mix-blend-multiply" />
-                          </div>
-                        </div>
-                      ) : (
-                        <SignaturePad 
-                          orderId={selectedOrder.id} 
-                          signatureKey="signatureProtocol"
-                          title="Protokoll gegenzeichnen"
-                          description="Ich bestätige hiermit die Richtigkeit der dokumentierten Protokolle und Leistungen."
-                          buttonText="Protokoll unterschreiben"
-                          onSigned={(key, dataUrl, place, dateStr) => {
-                            toast.success("Protokoll erfolgreich unterschrieben!");
-                            setSelectedOrder({
-                              ...selectedOrder, 
-                              [key]: dataUrl,
-                              [`${key}Place`]: place,
-                              [`${key}DateString`]: dateStr
-                            });
-                          }} 
-                        />
-                      )}
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Tabs / Content Area */}
       <div className="mt-6 animate-in fade-in duration-300">
         
         {/* TAB: ÜBERSICHT & DOKUMENTE */}
-        <div className={activeTab === 'overview' ? "grid grid-cols-1 lg:grid-cols-3 gap-6" : "space-y-6"}>
+        <div className="flex flex-col gap-6">
           
+          {/* Top Row for Overview: Finanzübersicht & Reklamationen (Full Width Grid) */}
+          {activeTab === 'overview' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-structure">
+                <h3 className="text-xl font-bold mb-6 pb-4 border-b border-white/5 text-text-main flex items-center gap-3">
+                  <BanknotesIcon className="w-7 h-7 text-green-400" /> Finanzübersicht
+                </h3>
+                <div className="space-y-4 text-sm">
+                  <div className="flex justify-between items-center p-4 bg-black/20 rounded-xl border border-white/5 shadow-inner">
+                    <span className="text-text-muted font-bold uppercase tracking-wider text-xs">Gesamtumsatz (Angebote & Rechnungen):</span>
+                    <span className="font-bold text-primary text-xl">€ {totalRevenue.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-4 bg-black/20 rounded-xl border border-white/5 shadow-inner">
+                    <span className="text-text-muted font-bold uppercase tracking-wider text-xs">Offene Posten:</span>
+                    <span className={`font-bold text-xl ${openItems > 0 ? 'text-red-400' : 'text-text-main'}`}>€ {openItems.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-red-500">
+                <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
+                  <h3 className="text-xl font-bold text-text-main flex items-center gap-3">
+                    <ExclamationTriangleIcon className="w-7 h-7 text-red-500" /> Reklamationen
+                  </h3>
+                  <button onClick={() => setClaimModalOpen(true)} className="btn-secondary py-1.5 px-3 text-xs bg-white text-black hover:bg-gray-200">
+                    + Schaden melden
+                  </button>
+                </div>
+                {claims.length === 0 ? (
+                  <div className="text-center py-6 text-text-muted italic bg-black/20 rounded-xl border border-white/5 shadow-inner">
+                    Keine gemeldeten Schäden.
+                  </div>
+                ) : (
+                  <div className="space-y-3 custom-scrollbar overflow-y-auto max-h-[160px] pr-2">
+                    {claims.map(claim => (
+                      <div key={claim.id} onClick={() => setViewClaimId(claim.id)} className="p-3 bg-bg-dark border border-structure rounded-xl cursor-pointer hover:border-primary/50 transition-colors shadow-sm">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-bold text-text-main">
+                            {claim.type === 'damage' ? 'Möbelschaden' : claim.type === 'property' ? 'Gebäudeschaden' : 'Sonstiges'}
+                          </span>
+                          <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded ${claim.status === 'open' ? 'bg-red-500/20 text-red-400' : claim.status === 'processing' ? 'bg-yellow-500/20 text-yellow-500' : 'bg-green-500/20 text-green-400'}`}>
+                            {claim.status === 'open' ? 'Offen' : claim.status === 'processing' ? 'In Bearbeitung' : 'Erledigt'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-text-muted truncate">{claim.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Bottom Row for Overview OR Main Content for Documents: Historie */}
           {(activeTab === 'overview' || activeTab === 'documents') && (
-            <div className={activeTab === 'overview' ? "lg:col-span-2 space-y-6" : "space-y-6"}>
+            <div className="space-y-6">
               <div className="glass-panel p-6 rounded-2xl shadow-xl">
                 <h3 className="text-xl font-bold mb-6 pb-4 border-b border-white/5 text-text-main flex items-center gap-3">
                   <DocumentTextIcon className="w-7 h-7 text-primary" /> Historie (Angebote, Aufträge, Rechnungen & Protokolle)
@@ -901,6 +808,7 @@ export default function CustomerProfilePage() {
                     </div>
                   </div>
                 ) : (
+                  isMobile ? (
                   <div className="space-y-4">
                     {orders.filter(o => o.status !== 'archived').map(order => {
                       const isInvoice = order.status === 'invoice_open' || order.status === 'invoice_paid' || order.status === 'invoice_overdue';
@@ -941,12 +849,12 @@ export default function CustomerProfilePage() {
                             <div>
                               <h4 className="text-lg font-bold text-text-main group-hover:text-primary transition-colors">
                                 {isInvoice ? 'Rechnung' : isQuote ? 'Angebot' : isConfirmed ? 'Auftrag' : 'Entwurf'} 
-                                {order.orderNumber ? ` #${order.orderNumber}` : ''}
+                                {isInvoice && order.invoiceNumber ? ` #${order.invoiceNumber}` : order.orderNumber ? ` #${order.orderNumber}` : ''}
                               </h4>
                               <div className="flex items-center gap-3 mt-2">
                                 {getStatusBadge()}
                                 <span className="text-sm text-text-muted font-medium">
-                                  {new Date(order.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')} • {order.services?.length || 0} Leistungen
+                                  {new Date(order.createdAt?.toMillis?.() || Date.now()).toLocaleDateString('de-DE')} • {order.services?.length || 0} Leistungen
                                 </span>
                               </div>
                             </div>
@@ -954,7 +862,7 @@ export default function CustomerProfilePage() {
                           
                           <div className="text-right shrink-0">
                             <div className="text-sm text-text-muted font-medium uppercase tracking-wider mb-1">Brutto</div>
-                            <div className="font-bold text-text-main text-xl">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
+                            <div className="font-bold text-text-main text-xl">€ {Number(order.totals?.gross || order.calcInput?.gross || 0).toFixed(2)}</div>
                           </div>
                         </div>
 
@@ -990,42 +898,33 @@ export default function CustomerProfilePage() {
                           <div className="flex flex-wrap items-center gap-3">
                             {/* Main Group */}
                             <div className="flex items-center rounded-xl overflow-hidden border border-primary/30 shadow-sm bg-bg-panel">
-                              <button 
-                                onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/${order.id}${isInvoice ? '?type=invoice' : ''}`)}
-                                className="py-2.5 px-4 text-sm font-bold flex items-center gap-2 bg-primary text-white hover:bg-primary/90 transition-colors"
-                                title={isInvoice ? "Rechnung bearbeiten" : "Angebot/Auftrag bearbeiten"}
-                              >
-                                <PencilIcon className="w-4 h-4" /> Bearbeiten
-                              </button>
+                              {/* Edit & Delete ONLY for Drafts/Quotes */}
+                              {['draft', 'quote', 'clarification', 'rejected'].includes(order.status) && (
+                                <button 
+                                  onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/${order.id}`)}
+                                  className="py-2.5 px-4 text-sm font-bold flex items-center gap-2 bg-primary text-white hover:bg-primary/90 transition-colors"
+                                  title="Angebot bearbeiten"
+                                >
+                                  <PencilIcon className="w-4 h-4" /> Bearbeiten
+                                </button>
+                              )}
                               
                               <button 
-                                onClick={() => { setSelectedOrder(order); setPdfType('order'); }}
-                                className="py-2.5 px-4 text-sm font-bold flex items-center gap-2 text-text-main hover:bg-bg-dark transition-colors border-l border-structure"
+                                onClick={() => { setPdfModalOrder(order); setPdfType(isInvoice ? 'invoice' : 'order'); }}
+                                className={`py-2.5 px-4 text-sm font-bold flex items-center gap-2 transition-colors ${['draft', 'quote', 'clarification', 'rejected'].includes(order.status) ? 'text-text-main hover:bg-bg-dark border-l border-structure' : 'bg-primary text-white hover:bg-primary/90'}`}
                               >
-                                <DocumentArrowDownIcon className="w-4 h-4 text-text-muted" /> Ansicht
+                                <DocumentArrowDownIcon className="w-4 h-4" /> Ansicht / Download
                               </button>
-
-                              <button 
-                                onClick={() => setProtocolOrder(order)}
-                                className="py-2.5 px-4 text-sm font-bold flex items-center gap-2 text-text-main hover:bg-bg-dark transition-colors border-l border-structure"
-                              >
-                                <ClipboardDocumentIcon className="w-4 h-4 text-orange-400" /> Protokoll
-                              </button>
-
-                              <button 
-                                onClick={() => setMessageOrder(order)}
-                                className="py-2.5 px-4 text-sm font-bold flex items-center gap-2 text-text-main hover:bg-bg-dark transition-colors border-l border-structure"
-                              >
-                                <EnvelopeIcon className="w-4 h-4 text-blue-400" /> Nachricht
-                              </button>
-
-                              <button 
-                                onClick={() => deleteOrder(order.id)}
-                                className="py-2.5 px-4 text-sm font-bold text-red-500 hover:bg-red-500/10 transition-colors border-l border-structure"
-                                title="Löschen"
-                              >
-                                <TrashIcon className="w-4 h-4" />
-                              </button>
+                              
+                              {['draft', 'quote', 'clarification', 'rejected'].includes(order.status) && (
+                                <button 
+                                  onClick={() => deleteOrder(order.id)}
+                                  className="py-2.5 px-4 text-sm font-bold text-red-500 hover:bg-red-500/10 transition-colors border-l border-structure"
+                                  title="Löschen"
+                                >
+                                  <TrashIcon className="w-4 h-4" />
+                                </button>
+                              )}
                             </div>
                             
                             {/* Invoice Specific Actions */}
@@ -1066,81 +965,127 @@ export default function CustomerProfilePage() {
                               </div>
                             )}
                           </div>
+                        </div>
 
-                          {/* Tool Group Right: Workflow Actions */}
-                          <div className="flex items-center flex-wrap justify-end gap-2">
-                            {(order.status === 'draft' || order.status === 'clarification' || order.status === 'rejected') && (
-                              <div className="flex items-center gap-2 p-1.5 rounded-xl bg-bg-dark border border-structure shadow-inner">
-                                <button onClick={() => handleUpdateOrderStatus(order, 'quote')} className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow-sm">
-                                  Zu Angebot
-                                </button>
-                                {order.status !== 'rejected' && (
-                                  <button onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/new?type=invoice&sourceOrder=${order.id}`)} className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-lg bg-purple-500 text-white hover:bg-purple-600 transition-colors shadow-sm">
-                                    Zu Rechnung
-                                  </button>
+                        {/* Inline Signatures */}
+                        {!isInvoice && (
+                          <div className="mt-4 pt-4 border-t border-white/5 space-y-4">
+                            <h5 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3 flex items-center gap-2">
+                              <PencilIcon className="w-4 h-4 text-primary" /> Digitale Unterschriften
+                            </h5>
+                            
+                            {/* AGB Signature (Always visible if Quote/Draft, or if already signed) */}
+                            {(isQuote || order.status === 'clarification' || order.status === 'draft' || order.signatureAGB) && (
+                              <div className="bg-bg-dark/30 rounded-xl p-4 border border-structure">
+                                {order.signatureAGB ? (
+                                  <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                      <h4 className="font-semibold text-green-400 mb-1 flex items-center gap-2"><CheckBadgeIcon className="w-5 h-5" /> AGBs akzeptiert</h4>
+                                      <p className="text-xs text-text-muted">Am {order.signatureAGBDate ? new Date(order.signatureAGBDate?.toMillis?.() || Date.now()).toLocaleString('de-DE') : 'kürzlich'}</p>
+                                    </div>
+                                    <div className="flex gap-4 items-center">
+                                      <div className="bg-white rounded p-1">
+                                        <img src={order.signatureAGB} alt="Unterschrift AGB" className="h-12 w-auto object-contain mix-blend-multiply" />
+                                      </div>
+                                      {!isConfirmed && order.status !== 'completed' && (
+                                        <button onClick={() => handleDeleteSignature(order.id, 'signatureAGB')} className="p-2 text-red-500 hover:bg-red-500/10 rounded-md transition-colors" title="Löschen">
+                                          <TrashIcon className="w-5 h-5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <SignaturePad 
+                                    orderId={order.id} 
+                                    signatureKey="signatureAGB"
+                                    title="1. AGB akzeptieren"
+                                    description="Ich bestätige, dass ich die Allgemeinen Geschäftsbedingungen gelesen habe und diese akzeptiere."
+                                    buttonText="AGBs bestätigen"
+                                    onSigned={(key, dataUrl, place, dateStr) => {
+                                      toast.success("AGBs erfolgreich bestätigt!");
+                                    }} 
+                                  />
                                 )}
-                                {order.status !== 'rejected' && (
-                                  <button onClick={() => handleUpdateOrderStatus(order, 'rejected')} className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-lg text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors" title="Kunde hat abgesagt">
-                                    Abgelehnt
-                                  </button>
-                                )}
-                              </div>
-                            )}
-                            
-                            {isQuote && (
-                              <div className="flex items-center gap-2 p-1.5 rounded-xl bg-bg-dark border border-structure shadow-inner">
-                                <button onClick={() => handleUpdateOrderStatus(order, 'draft')} className="flex items-center gap-1.5 text-sm font-bold px-3 py-2 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors" title="Zurück zum Entwurf">
-                                  <ArrowUturnLeftIcon className="w-4 h-4" /> Zurück
-                                </button>
-                                <button onClick={() => handleUpdateOrderStatus(order, 'clarification')} className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-lg text-yellow-500 hover:bg-yellow-500/10 transition-colors">
-                                  In Klärung
-                                </button>
-                                <button onClick={() => handleUpdateOrderStatus(order, 'rejected')} className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-lg text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-colors">
-                                  Abgelehnt
-                                </button>
-                                <button onClick={() => setDispoOrder(order)} className="flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-colors shadow-sm">
-                                  <CheckIcon className="w-4 h-4" /> Angebot bestätigt
-                                </button>
-                              </div>
-                            )}
-                            
-                            {order.status === 'confirmed' && (
-                              <div className="flex items-center gap-2 p-1.5 rounded-xl bg-bg-dark border border-structure shadow-inner">
-                                <button onClick={() => safeRevertStatus(order, 'quote')} className="flex items-center gap-1.5 text-sm font-bold px-3 py-2 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors" title="Zurück zum Angebot">
-                                  <ArrowUturnLeftIcon className="w-4 h-4" /> Zurück
-                                </button>
-                                <button onClick={() => handleUpdateOrderStatus(order, 'completed')} className="flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-sm">
-                                  Umzug erledigt
-                                </button>
-                                <button onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/new?type=invoice&sourceOrder=${order.id}`)} className="flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg bg-purple-500 text-white hover:bg-purple-600 transition-colors shadow-sm">
-                                  Rechnung stellen
-                                </button>
-                              </div>
-                            )}
-                            
-                            {order.status === 'completed' && (
-                              <div className="flex items-center gap-2 p-1.5 rounded-xl bg-bg-dark border border-structure shadow-inner">
-                                <button onClick={() => safeRevertStatus(order, 'confirmed')} className="flex items-center gap-1.5 text-sm font-bold px-3 py-2 rounded-lg text-text-muted hover:text-text-main hover:bg-white/5 transition-colors" title="Zurück zum Auftrag">
-                                  <ArrowUturnLeftIcon className="w-4 h-4" /> Zurück
-                                </button>
-                                <span className="flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-lg text-text-main border border-structure shadow-sm bg-bg-panel">
-                                  <CheckCircleIcon className="w-4 h-4 text-green-400" /> Finalisiert
-                                </span>
-                                <button onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/new?type=invoice&sourceOrder=${order.id}`)} className="flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg bg-purple-500 text-white hover:bg-purple-600 transition-colors shadow-sm">
-                                  Rechnung stellen
-                                </button>
                               </div>
                             )}
 
-                            {isInvoice && (
-                              <div className="flex items-center gap-2 p-1.5 rounded-xl bg-bg-dark border border-structure shadow-inner">
-                                <span className="flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-lg text-text-main bg-bg-panel border border-structure shadow-sm">
-                                  <CheckCircleIcon className="w-4 h-4 text-green-400" /> Finalisiert
-                                </span>
+                            {/* Order Signature (Visible if Quote/Draft and AGB is signed, or if already signed) */}
+                            {(isQuote || order.status === 'clarification' || order.status === 'draft' || order.signatureOrder) && (
+                              <div className={`bg-bg-dark/30 rounded-xl p-4 border border-structure ${!order.signatureAGB && !order.signatureOrder ? 'opacity-50 pointer-events-none' : ''}`}>
+                                {order.signatureOrder ? (
+                                  <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                      <h4 className="font-semibold text-green-400 mb-1 flex items-center gap-2"><CheckBadgeIcon className="w-5 h-5" /> Auftrag erteilt</h4>
+                                      <p className="text-xs text-text-muted">Am {order.signatureOrderDate ? new Date(order.signatureOrderDate?.toMillis?.() || Date.now()).toLocaleString('de-DE') : 'kürzlich'}</p>
+                                    </div>
+                                    <div className="flex gap-4 items-center">
+                                      <div className="bg-white rounded p-1">
+                                        <img src={order.signatureOrder} alt="Unterschrift Auftrag" className="h-12 w-auto object-contain mix-blend-multiply" />
+                                      </div>
+                                      {!isConfirmed && order.status !== 'completed' && (
+                                        <button onClick={() => handleDeleteSignature(order.id, 'signatureOrder')} className="p-2 text-red-500 hover:bg-red-500/10 rounded-md transition-colors" title="Löschen">
+                                          <TrashIcon className="w-5 h-5" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <>
+                                    <SignaturePad 
+                                      orderId={order.id} 
+                                      signatureKey="signatureOrder"
+                                      title="2. Auftrag erteilen"
+                                      description="Mit dieser Unterschrift beauftrage ich verbindlich die Durchführung des Umzugs."
+                                      buttonText="Verbindlich unterschreiben"
+                                      onSigned={(key, dataUrl, place, dateStr) => {
+                                        toast.success("Auftrag erfolgreich und verbindlich erteilt!");
+                                        if (order.status === 'draft' || order.status === 'quote') {
+                                          setDispoOrder(order);
+                                        }
+                                      }} 
+                                    />
+                                    {!order.signatureAGB && (
+                                      <p className="text-xs text-orange-400 mt-2">Bitte zuerst die AGBs bestätigen.</p>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Protocol Signature (Visible if Confirmed/Completed) */}
+                            {(isConfirmed || order.status === 'completed') && (
+                              <div className="bg-bg-dark/30 rounded-xl p-4 border border-structure">
+                                {order.signatureProtocol ? (
+                                  <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                      <h4 className="font-semibold text-green-400 mb-1 flex items-center gap-2"><CheckBadgeIcon className="w-5 h-5" /> Protokoll unterschrieben</h4>
+                                      <p className="text-xs text-text-muted">Am {order.signatureProtocolDate ? new Date(order.signatureProtocolDate?.toMillis?.() || Date.now()).toLocaleString('de-DE') : 'kürzlich'}</p>
+                                    </div>
+                                    <div className="flex gap-4 items-center">
+                                      <div className="bg-white rounded p-1">
+                                        <img src={order.signatureProtocol} alt="Unterschrift Protokoll" className="h-12 w-auto object-contain mix-blend-multiply" />
+                                      </div>
+                                      <button onClick={() => handleDeleteSignature(order.id, 'signatureProtocol')} className="p-2 text-red-500 hover:bg-red-500/10 rounded-md transition-colors" title="Löschen">
+                                        <TrashIcon className="w-5 h-5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <SignaturePad 
+                                    orderId={order.id} 
+                                    signatureKey="signatureProtocol"
+                                    title="Protokoll gegenzeichnen"
+                                    description="Ich bestätige hiermit die Richtigkeit der dokumentierten Protokolle und Leistungen."
+                                    buttonText="Protokoll unterschreiben"
+                                    onSigned={(key, dataUrl, place, dateStr) => {
+                                      toast.success("Protokoll erfolgreich unterschrieben!");
+                                    }} 
+                                  />
+                                )}
                               </div>
                             )}
                           </div>
-                        </div>
+                        )}
                         
                         {/* Protokolle anzeigen */}
                         {order.protocols && order.protocols.length > 0 && (
@@ -1258,81 +1203,290 @@ export default function CustomerProfilePage() {
                       </div>
                     );})}
                   </div>
+                  ) : (
+                    <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+                      {/* Left Column: Document Tree (1/4 width) */}
+                      <div className="xl:col-span-1 flex flex-col gap-4">
+                        <div className="flex flex-col gap-3 custom-scrollbar overflow-y-auto max-h-[850px] pr-2">
+                          {(() => {
+                            const rootOrders = orders.filter(o => o.status !== 'archived' && (!o.type || o.type === 'order'));
+                            const invoices = orders.filter(o => o.status !== 'archived' && o.type === 'invoice');
+                            
+                            return (
+                              <>
+                                {rootOrders.map(order => {
+                                  const orderInvoices = invoices.filter(i => i.sourceOrderId === order.id);
+                                  const isActiveOrder = activeA4OrderId === order.id;
+                                  
+                                  return (
+                                    <div key={order.id} className="flex flex-col gap-1">
+                                      <button 
+                                        onClick={() => setActiveA4OrderId(order.id)}
+                                        className={`text-left p-3 rounded-xl border transition-all ${isActiveOrder ? 'bg-primary/20 border-primary shadow-sm' : 'bg-bg-panel border-structure hover:border-primary/50'}`}
+                                      >
+                                        <div className="flex items-center gap-2 font-bold text-sm">
+                                          <DocumentTextIcon className="w-4 h-4 text-primary" />
+                                          {order.status === 'quote' ? 'Angebot' : order.status === 'confirmed' || order.status === 'completed' ? 'Auftrag' : 'Entwurf'} {order.orderNumber ? `#${order.orderNumber}` : ''}
+                                        </div>
+                                      </button>
+                                      
+                                      {/* Nested Invoices */}
+                                      {orderInvoices.length > 0 && (
+                                        <div className="flex flex-col gap-1 pl-4 mt-1 border-l-2 border-structure ml-3">
+                                          {orderInvoices.map(inv => {
+                                            const isActiveInv = activeA4OrderId === inv.id;
+                                            return (
+                                              <button 
+                                                key={inv.id}
+                                                onClick={() => setActiveA4OrderId(inv.id)}
+                                                className={`text-left p-2.5 rounded-lg border transition-all ${isActiveInv ? 'bg-primary text-white shadow-sm border-primary' : 'bg-bg-dark border-transparent hover:bg-white/5'}`}
+                                              >
+                                                <div className="flex items-center gap-2 text-xs font-semibold">
+                                                  <DocumentTextIcon className="w-3 h-3" />
+                                                  {inv.status === 'draft' ? 'Entwurf Rg.' : 'Rechnung'} {inv.invoiceNumber ? `#${inv.invoiceNumber}` : ''}
+                                                </div>
+                                              </button>
+                                            )
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )
+                                })}
+                                
+                                {/* Orphaned Invoices */}
+                                {invoices.filter(i => !i.sourceOrderId).length > 0 && (
+                                  <div className="mt-4">
+                                    <div className="text-xs font-bold text-text-muted mb-2 uppercase tracking-wider">Sonstige Rechnungen</div>
+                                    {invoices.filter(i => !i.sourceOrderId).map(inv => {
+                                      const isActiveInv = activeA4OrderId === inv.id;
+                                      return (
+                                        <button 
+                                          key={inv.id}
+                                          onClick={() => setActiveA4OrderId(inv.id)}
+                                          className={`w-full text-left p-3 rounded-xl border transition-all mb-1 ${isActiveInv ? 'bg-primary text-white shadow-sm border-primary' : 'bg-bg-panel border-structure hover:border-primary/50'}`}
+                                        >
+                                          <div className="flex items-center gap-2 text-sm font-bold">
+                                            <DocumentTextIcon className="w-4 h-4" />
+                                            {inv.status === 'draft' ? 'Entwurf Rechnung' : 'Rechnung'} {inv.invoiceNumber ? `#${inv.invoiceNumber}` : ''}
+                                          </div>
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+
+                      {/* Right Column: PDF Viewer */}
+                      <div className="xl:col-span-3 flex flex-col gap-4">
+                        {/* A4 Editor for Desktop */}
+                        {activeA4OrderId && orders.find(o => o.id === activeA4OrderId) ? (() => {
+                          const activeOrder = orders.find(o => o.id === activeA4OrderId);
+                          const isInvoice = activeOrder.type === 'invoice' || activeOrder.status.startsWith('invoice_');
+                          const isConfirmed = activeOrder.status === 'confirmed' || activeOrder.status === 'completed';
+                          const isQuote = activeOrder.status === 'quote';
+
+                          return (
+                            <div className="animate-in fade-in duration-300 bg-bg-panel border border-structure rounded-2xl p-4 shadow-xl">
+                              {/* Desktop Toolbar */}
+                              <div className="flex flex-wrap items-center justify-between gap-4 bg-bg-dark/80 p-3 rounded-xl border border-white/5 shadow-sm mb-4">
+                                <div className="flex items-center gap-3">
+                                  <h4 className="font-bold text-lg text-white ml-2">
+                                    {isInvoice ? 'Rechnung' : 'Angebot / Auftrag'}
+                                  </h4>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {(!isInvoice) && (
+                                    <button 
+                                      onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/new?type=invoice&sourceOrder=${activeOrder.id}`)}
+                                      className="py-2 px-4 text-sm font-bold flex items-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:shadow-lg hover:shadow-blue-500/20 transition-all border border-blue-400/30"
+                                      title="Rechnung für diesen Auftrag schreiben"
+                                    >
+                                      🧾 Rechnung schreiben
+                                    </button>
+                                  )}
+                                  {(activeOrder.status === 'draft' || activeOrder.status === 'quote') && (
+                                    <button 
+                                      onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/${activeOrder.id}`)}
+                                      className="py-2 px-4 text-sm font-bold flex items-center gap-2 bg-white text-black rounded-lg hover:bg-gray-200 transition-colors shadow-sm"
+                                      title="Dokument bearbeiten"
+                                    >
+                                      <PencilIcon className="w-4 h-4" /> Bearbeiten
+                                    </button>
+                                  )}
+                                  <PDFDownloadButton 
+                                    order={activeOrder} 
+                                    customer={customer} 
+                                    type={isInvoice ? 'invoice' : isConfirmed ? 'contract' : 'order'} 
+                                  />
+                                  {['draft', 'quote', 'clarification', 'rejected'].includes(activeOrder.status) && (
+                                    <button 
+                                      onClick={() => deleteOrder(activeOrder.id)}
+                                      className="py-2 px-3 text-sm font-bold text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                                      title="Dokument löschen"
+                                    >
+                                      <TrashIcon className="w-4 h-4" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Actual PDF Viewer */}
+                              <div className="w-full h-full min-h-[800px] flex items-center justify-center rounded-xl overflow-hidden border border-structure/50 bg-black/20">
+                                  {settings ? (
+                                    <InlinePDFViewer 
+                                      order={activeOrder} 
+                                      customer={customer} 
+                                      type={isInvoice ? 'invoice' : isConfirmed ? 'contract' : 'order'} 
+                                    />
+                                  ) : (
+                                    <div className="text-gray-400 animate-pulse font-medium">Lade Vorschau...</div>
+                                  )}
+                                </div>
+
+                                {/* Signatures Section (AGB & Order) below PDF paper */}
+                                {!isInvoice && (
+                                  <div className="flex gap-4 mt-6">
+                                    {(isQuote || activeOrder.status === 'clarification' || activeOrder.status === 'draft' || activeOrder.signatureAGB) && (
+                                      <div className="flex-1 bg-bg-dark/30 rounded-xl p-4 border border-structure shadow-sm">
+                                        {activeOrder.signatureAGB ? (
+                                          <div className="flex items-center justify-between">
+                                            <div>
+                                              <h4 className="font-semibold text-green-400 mb-1 flex items-center gap-1.5 text-sm"><CheckBadgeIcon className="w-4 h-4" /> AGBs akzeptiert</h4>
+                                            </div>
+                                            <div className="flex gap-2 items-center">
+                                              <div className="bg-white rounded p-1"><img src={activeOrder.signatureAGB} alt="AGB" className="h-8 w-auto mix-blend-multiply" /></div>
+                                              {!isConfirmed && activeOrder.status !== 'completed' && (
+                                                <button onClick={() => handleDeleteSignature(activeOrder.id, 'signatureAGB')} className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-md transition-colors"><TrashIcon className="w-4 h-4" /></button>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <SignaturePad 
+                                            orderId={activeOrder.id} 
+                                            signatureKey="signatureAGB"
+                                            title="1. AGB akzeptieren"
+                                            description="Ich akzeptiere die AGBs."
+                                            buttonText="Bestätigen"
+                                            onSigned={() => toast.success("AGBs bestätigt!")} 
+                                          />
+                                        )}
+                                      </div>
+                                    )}
+                                    {(isQuote || activeOrder.status === 'clarification' || activeOrder.status === 'draft' || activeOrder.signatureOrder) && (
+                                      <div className={`flex-1 bg-bg-dark/30 rounded-xl p-4 border border-structure shadow-sm ${!activeOrder.signatureAGB && !activeOrder.signatureOrder ? 'opacity-50 pointer-events-none' : ''}`}>
+                                        {activeOrder.signatureOrder ? (
+                                          <div className="flex items-center justify-between">
+                                            <div>
+                                              <h4 className="font-semibold text-green-400 mb-1 flex items-center gap-1.5 text-sm"><CheckBadgeIcon className="w-4 h-4" /> Auftrag erteilt</h4>
+                                            </div>
+                                            <div className="flex gap-2 items-center">
+                                              <div className="bg-white rounded p-1"><img src={activeOrder.signatureOrder} alt="Auftrag" className="h-8 w-auto mix-blend-multiply" /></div>
+                                              {!isConfirmed && activeOrder.status !== 'completed' && (
+                                                <button onClick={() => handleDeleteSignature(activeOrder.id, 'signatureOrder')} className="p-1.5 text-red-500 hover:bg-red-500/10 rounded-md transition-colors"><TrashIcon className="w-4 h-4" /></button>
+                                              )}
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <>
+                                            <SignaturePad 
+                                              orderId={activeOrder.id} 
+                                              signatureKey="signatureOrder"
+                                              title="2. Auftrag erteilen"
+                                              description="Ich beauftrage verbindlich."
+                                              buttonText="Unterschreiben"
+                                              onSigned={() => {
+                                                toast.success("Auftrag erteilt!");
+                                                if (activeOrder.status === 'draft' || activeOrder.status === 'quote') setDispoOrder(activeOrder);
+                                              }} 
+                                            />
+                                            {!activeOrder.signatureAGB && <p className="text-[10px] text-orange-400 mt-1">Zuerst AGB bestätigen.</p>}
+                                          </>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                            </div>
+                          );
+                        })() : (
+                          <div className="flex flex-col items-center justify-center min-h-[400px] text-text-muted border-2 border-dashed border-structure rounded-2xl bg-bg-dark/20 mt-4">
+                            <DocumentTextIcon className="w-12 h-12 mb-4 opacity-20" />
+                            <p>Bitte wähle links ein Dokument aus der Liste.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
                 )}
               </div>
             </div>
           )}
 
-          {/* TAB: ÜBERSICHT (Side Column) / FINANZEN & REKLAMATIONEN */}
-          {(activeTab === 'overview' || activeTab === 'finances' || activeTab === 'claims') && (
+          {/* TAB: FINANZEN (Nur Finanzen) */}
+          {(activeTab === 'finances') && (
             <div className="space-y-6">
-              
-              {(activeTab === 'overview' || activeTab === 'finances') && (
-                <div className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-structure">
-                  <h3 className="text-xl font-bold mb-6 pb-4 border-b border-white/5 text-text-main flex items-center gap-3">
-                    <BanknotesIcon className="w-7 h-7 text-green-400" /> Finanzübersicht
-                  </h3>
-                  <div className="space-y-4 text-sm">
-                    <div className="flex justify-between items-center p-4 bg-black/20 rounded-xl border border-white/5 shadow-inner">
-                      <span className="text-text-muted font-bold uppercase tracking-wider text-xs">Gesamtumsatz (Angebote):</span>
-                      <span className="font-bold text-primary text-xl">€ {totalRevenue.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between items-center p-4 bg-black/20 rounded-xl border border-white/5 shadow-inner">
-                      <span className="text-text-muted font-bold uppercase tracking-wider text-xs">Offene Posten:</span>
-                      <span className={`font-bold text-xl ${openItems > 0 ? 'text-red-400' : 'text-text-main'}`}>€ {openItems.toFixed(2)}</span>
-                    </div>
+              <div className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-structure">
+                <h3 className="text-xl font-bold mb-6 pb-4 border-b border-white/5 text-text-main flex items-center gap-3">
+                  <BanknotesIcon className="w-7 h-7 text-green-400" /> Finanzübersicht
+                </h3>
+                <div className="space-y-4 text-sm">
+                  <div className="flex justify-between items-center p-4 bg-black/20 rounded-xl border border-white/5 shadow-inner">
+                    <span className="text-text-muted font-bold uppercase tracking-wider text-xs">Gesamtumsatz (Angebote & Rechnungen):</span>
+                    <span className="font-bold text-primary text-xl">€ {totalRevenue.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-4 bg-black/20 rounded-xl border border-white/5 shadow-inner">
+                    <span className="text-text-muted font-bold uppercase tracking-wider text-xs">Offene Posten:</span>
+                    <span className={`font-bold text-xl ${openItems > 0 ? 'text-red-400' : 'text-text-main'}`}>€ {openItems.toFixed(2)}</span>
                   </div>
                 </div>
-              )}
+              </div>
+            </div>
+          )}
 
-              {(activeTab === 'overview' || activeTab === 'claims') && (
-                <div className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-red-500">
-                  <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
-                    <h3 className="text-xl font-bold text-red-400 flex items-center gap-3">
-                      <ExclamationTriangleIcon className="w-7 h-7" /> Reklamationen
-                    </h3>
-                    <button 
-                      onClick={() => setShowClaimModal(true)}
-                      className="btn-secondary py-1.5 px-4 text-xs font-bold border-red-500/50 text-red-400 hover:bg-red-500/10 shadow-sm"
-                    >
-                      + Schaden melden
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-4">
-                    {claims.length === 0 ? (
-                      <p className="text-sm text-text-muted italic text-center py-6 bg-black/10 rounded-xl border border-white/5">Keine gemeldeten Schäden.</p>
-                    ) : (
-                      claims.map(claim => (
-                        <Link href={`/dashboard/claims?claimId=${claim.id}`} key={claim.id}>
-                          <div className="bg-black/20 border border-white/5 rounded-xl p-4 shadow-sm hover:border-red-500/50 hover:bg-black/30 transition-all cursor-pointer mb-4">
-                            <div className="flex justify-between items-start mb-3">
-                              <span className={`text-xs px-2.5 py-1 rounded uppercase font-bold tracking-wider ${
-                                claim.status === 'Neu' ? 'bg-red-500/20 text-red-400' :
-                                claim.status === 'Erledigt' ? 'bg-green-500/20 text-green-400' :
-                                'bg-blue-500/20 text-blue-400'
-                              }`}>
-                                {claim.status}
-                              </span>
-                              <span className="text-xs font-medium text-text-muted">
-                                {new Date(claim.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')}
-                              </span>
-                            </div>
-                            <p className="text-sm text-text-main line-clamp-3 font-medium">{claim.description}</p>
-                            {claim.insuranceId && (
-                              <p className="text-xs font-bold text-text-muted mt-3 pt-3 border-t border-white/5">Versicherung: <span className="text-text-main">{claim.insuranceId}</span></p>
-                            )}
-                          </div>
-                        </Link>
-                      ))
-                    )}
-                  </div>
+          {/* TAB: REKLAMATIONEN (Nur Reklamationen) */}
+          {(activeTab === 'claims') && (
+            <div className="space-y-6">
+              <div className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-red-500">
+                <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-4">
+                  <h3 className="text-xl font-bold text-text-main flex items-center gap-3">
+                    <ExclamationTriangleIcon className="w-7 h-7 text-red-500" /> Reklamationen
+                  </h3>
+                  <button onClick={() => setClaimModalOpen(true)} className="btn-secondary py-1.5 px-3 text-xs bg-white text-black hover:bg-gray-200">
+                    + Schaden melden
+                  </button>
                 </div>
-              )}
+                {claims.length === 0 ? (
+                  <div className="text-center py-6 text-text-muted italic bg-black/20 rounded-xl border border-white/5 shadow-inner">
+                    Keine gemeldeten Schäden.
+                  </div>
+                ) : (
+                  <div className="space-y-3 custom-scrollbar overflow-y-auto max-h-[400px] pr-2">
+                    {claims.map(claim => (
+                      <div key={claim.id} onClick={() => setViewClaimId(claim.id)} className="p-3 bg-bg-dark border border-structure rounded-xl cursor-pointer hover:border-primary/50 transition-colors shadow-sm">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-sm font-bold text-text-main">
+                            {claim.type === 'damage' ? 'Möbelschaden' : claim.type === 'property' ? 'Gebäudeschaden' : 'Sonstiges'}
+                          </span>
+                          <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-1 rounded ${claim.status === 'open' ? 'bg-red-500/20 text-red-400' : claim.status === 'processing' ? 'bg-yellow-500/20 text-yellow-500' : 'bg-green-500/20 text-green-400'}`}>
+                            {claim.status === 'open' ? 'Offen' : claim.status === 'processing' ? 'In Bearbeitung' : 'Erledigt'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-text-muted truncate">{claim.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
       </div>
+
 
       {showClaimModal && (
         <ClaimModal 
@@ -1388,6 +1542,16 @@ export default function CustomerProfilePage() {
           order={dispoOrder} 
           onClose={() => setDispoOrder(null)} 
           onSuccess={() => {}}
+        />
+      )}
+
+      {/* PDF Viewer Modal */}
+      {pdfModalOrder && (
+        <PdfModal 
+          order={pdfModalOrder}
+          customer={customer}
+          type={pdfType}
+          onClose={() => setPdfModalOrder(null)}
         />
       )}
     </div>

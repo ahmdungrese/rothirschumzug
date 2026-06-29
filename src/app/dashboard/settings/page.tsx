@@ -119,6 +119,12 @@ export default function SettingsPage() {
       { id: 'cat2', name: 'Keine Schäden (Abschluss-Protokoll)', text: 'Der Kunde bestätigt hiermit ausdrücklich, dass der Umzug und alle vereinbarten Leistungen vollständig und zu seiner vollsten Zufriedenheit durchgeführt wurden. Es sind keine Schäden an Möbeln, dem Inventar oder in den Räumlichkeiten (Treppenhaus, Wände, Böden etc.) entstanden.' },
       { id: 'cat3', name: 'Schadensprotokoll', text: 'Folgende Vorschäden / Schäden wurden vor oder während den Arbeiten dokumentiert:\n1. \n2. \n' }
     ],
+    protocolTemplates: [
+      'Keine Mängel festgestellt.',
+      'Treppenhauswand war bereits zerkratzt.',
+      'Kundeneigener Schrank passt nicht durchs Treppenhaus. Transport auf eigene Gefahr, keine Haftung für Kratzer.',
+      'Fernseher hat Kratzer im Display.'
+    ],
     communicationTemplates: [
       {
         id: 't1',
@@ -190,6 +196,7 @@ export default function SettingsPage() {
   const [newPropertyType, setNewPropertyType] = useState('');
   const [newProtocolCategoryName, setNewProtocolCategoryName] = useState('');
   const [newProtocolCategoryText, setNewProtocolCategoryText] = useState('');
+  const [newProtocolTemplate, setNewProtocolTemplate] = useState('');
   const [newEmployee, setNewEmployee] = useState('');
   const [newVehicle, setNewVehicle] = useState('');
   
@@ -240,7 +247,11 @@ export default function SettingsPage() {
         
         // Migration for protocol categories
         if (!data.protocolCategories || data.protocolCategories.length === 0) {
-          data.protocolCategories = settings.protocolCategories;
+          data.protocolCategories = [
+            { id: 'cat1', name: 'Gefahrenübergang (Haftungsausschluss)', text: 'Der Kunde bestätigt hiermit, dass der Transport/Umzug auf eigene Gefahr erfolgt. Das Unternehmen übernimmt keine Haftung für entstandene Kratzer, Schäden oder Mängel an den betreffenden Gegenständen oder am Gebäude.' },
+            { id: 'cat2', name: 'Keine Schäden (Abschluss-Protokoll)', text: 'Der Kunde bestätigt hiermit ausdrücklich, dass der Umzug und alle vereinbarten Leistungen vollständig und zu seiner vollsten Zufriedenheit durchgeführt wurden. Es sind keine Schäden an Möbeln, dem Inventar oder in den Räumlichkeiten (Treppenhaus, Wände, Böden etc.) entstanden.' },
+            { id: 'cat3', name: 'Schadensprotokoll', text: 'Folgende Vorschäden / Schäden wurden vor oder während den Arbeiten dokumentiert:\n1. \n2. \n' }
+          ];
         }
 
         setSettings({ ...settings, ...data });
@@ -334,6 +345,27 @@ export default function SettingsPage() {
       ...settings, 
       protocolCategories: settings.protocolCategories.map((c: any) => c.id === id ? { ...c, [field]: value } : c)
     });
+  };
+
+  const addProtocolTemplate = () => {
+    if (newProtocolTemplate.trim() && !settings.protocolTemplates?.includes(newProtocolTemplate.trim())) {
+      setSettings({ ...settings, protocolTemplates: [...(settings.protocolTemplates||[]), newProtocolTemplate.trim()] });
+      setNewProtocolTemplate('');
+    }
+  };
+
+  const removeProtocolTemplate = (pt: string) => {
+    setSettings({ ...settings, protocolTemplates: settings.protocolTemplates.filter((p: string) => p !== pt) });
+  };
+
+  const loadSampleProtocolCategories = () => {
+    const samples = [
+      { id: 'cat1', name: 'Gefahrenübergang (Haftungsausschluss)', text: 'Der Kunde bestätigt hiermit, dass der Transport/Umzug auf eigene Gefahr erfolgt. Das Unternehmen übernimmt keine Haftung für entstandene Kratzer, Schäden oder Mängel an den betreffenden Gegenständen oder am Gebäude.' },
+      { id: 'cat2', name: 'Keine Schäden (Abschluss-Protokoll)', text: 'Der Kunde bestätigt hiermit ausdrücklich, dass der Umzug und alle vereinbarten Leistungen vollständig und zu seiner vollsten Zufriedenheit durchgeführt wurden. Es sind keine Schäden an Möbeln, dem Inventar oder in den Räumlichkeiten (Treppenhaus, Wände, Böden etc.) entstanden.' },
+      { id: 'cat3', name: 'Schadensprotokoll', text: 'Folgende Vorschäden / Schäden wurden vor oder während den Arbeiten dokumentiert:\n1. \n2. \n' }
+    ];
+    setSettings({ ...settings, protocolCategories: samples });
+    toast.success("Standard-Kategorien geladen! Bitte oben auf Speichern klicken.");
   };
 
   const addEmployee = () => {
@@ -843,7 +875,10 @@ export default function SettingsPage() {
           {activeTab === 'protokolle' && (
               <div className="space-y-8 animate-in fade-in duration-300">
                 <div className="panel border-t-4 border-t-structure">
-                  <h2 className="text-xl font-bold mb-4 text-text-main">Protokoll-Kategorien & Standardtexte</h2>
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-xl font-bold text-text-main">Protokoll-Kategorien & Standardtexte</h2>
+                    <button onClick={loadSampleProtocolCategories} className="text-xs btn-secondary py-1 px-3">Standard-Texte laden</button>
+                  </div>
                   <p className="text-sm text-text-muted mb-6">Verwalte hier die Standard-Situationen für deine Protokolle (z.B. "Gefahrenübergang" oder "Schadensprotokoll") und den jeweils zugehörigen Standardtext.</p>
                   
                   {/* Neue Kategorie hinzufügen */}
@@ -888,6 +923,24 @@ export default function SettingsPage() {
                           className="input-field w-full h-32 text-sm text-text-muted bg-bg-panel/50 focus:bg-bg-panel"
                           placeholder="Standard-Text..."
                         />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Vorlagen für Beschreibungen (Schnell-Auswahl) */}
+                <div className="panel border-t-4 border-t-structure">
+                  <h2 className="text-xl font-bold mb-4 text-text-main">Schnell-Sätze (Vorlagen)</h2>
+                  <p className="text-sm text-text-muted mb-4">Hier verwaltest du Textbausteine, die du beim Kunden mit nur einem Klick zur aktuellen Beschreibung hinzufügen kannst (z.B. spezielle Kratzer oder Ausnahmen).</p>
+                  <div className="flex gap-2 mb-4">
+                    <input type="text" value={newProtocolTemplate} onChange={e => setNewProtocolTemplate(e.target.value)} placeholder="Neuer Standard-Satz..." className="input-field flex-1" onKeyDown={(e) => e.key === 'Enter' && addProtocolTemplate()} />
+                    <button onClick={addProtocolTemplate} className="btn-primary py-2 px-4 whitespace-nowrap">Hinzufügen</button>
+                  </div>
+                  <div className="space-y-2">
+                    {(settings.protocolTemplates || []).map((pt: string) => (
+                      <div key={pt} className="bg-bg-dark border border-structure rounded-lg px-4 py-3 flex items-center justify-between">
+                        <span className="text-sm">{pt}</span>
+                        <button onClick={() => removeProtocolTemplate(pt)} className="text-red-400 hover:text-red-300 text-xl leading-none">×</button>
                       </div>
                     ))}
                   </div>

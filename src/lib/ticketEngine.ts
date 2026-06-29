@@ -10,6 +10,7 @@ export type SystemTicket = {
   dueDateText?: string;
   orderId?: string;
   customerName?: string;
+  systemEvaluated?: boolean;
 };
 
 export function generateTickets(order: any, customer: any): SystemTicket[] {
@@ -41,20 +42,23 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
     type: 'warning'|'action'|'info', 
     kanbanCategory: 'kartons' | 'halteverbot' | 'moebellift' | 'rechnung' | 'general' = 'general',
     actionLink?: string,
-    dueStatus?: { status: 'neutral'|'due'|'overdue', text: string }
+    dueStatus?: { status: 'neutral'|'due'|'overdue', text: string },
+    systemDone?: boolean
   ) => {
+    const isSystemEvaluated = systemDone !== undefined;
     tickets.push({
       id,
       title,
       phase,
       type,
-      done: !!states[id],
+      done: isSystemEvaluated ? systemDone : !!states[id],
       actionLink,
       kanbanCategory,
       dueDateStatus: dueStatus?.status || 'neutral',
       dueDateText: dueStatus?.text || '',
       orderId: order.id,
-      customerName: order.customerName || 'Unbekannt'
+      customerName: order.customerName || 'Unbekannt',
+      systemEvaluated: isSystemEvaluated
     });
   };
 
@@ -67,21 +71,23 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
 
   // === Phase 1: Vor Bestätigung (draft, quote) ===
   if (status === 'draft' || status === 'quote') {
-    if (!order.orderMeta?.movingDateFrom && !order.orderMeta?.movingDateTo) {
-      addTicket('missing_date', 'Umzugsdatum fehlt (Kunde hat kein Datum genannt)', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`);
-    }
+    const hasDate = !!(order.orderMeta?.movingDateFrom || order.orderMeta?.movingDateTo);
+    addTicket('missing_date', 'Umzugsdatum fehlt (Kunde hat kein Datum genannt)', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, undefined, hasDate);
     
-    if (!order.logistics?.b_city && !order.logistics?.b_street) {
-      addTicket('missing_destination', 'Entladeadresse fehlt (Zielort nicht bekannt)', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`);
-    }
+    const hasDestination = !!(order.logistics?.b_city || order.logistics?.b_street);
+    addTicket('missing_destination', 'Entladeadresse fehlt (Zielort nicht bekannt)', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, undefined, hasDestination);
 
-    const hasPhone = (order.billingAddress?.phone) || (customer?.phone);
-    if (!hasPhone) {
-      addTicket('missing_phone', 'Telefonnummer des Kunden fehlt', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}`);
-    }
+    const hasPhone = !!(order.billingAddress?.phone || customer?.phone);
+    addTicket('missing_phone', 'Telefonnummer des Kunden fehlt', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}`, undefined, hasPhone);
 
-    if (order.orderMeta?.viewingDate === 'requested') {
-      addTicket('viewing_requested', 'Kunde wünscht einen Besichtigungstermin', 1, 'action', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`);
+    const viewingDone = order.orderMeta?.viewingDate !== 'requested' && !!order.orderMeta?.viewingDate;
+    // We only show viewing requested task if it was ever requested. If not requested, we don't show it. 
+    // Wait, previously it was only added if 'requested'. Now we always show it if 'requested' or if it was requested and is now done.
+    // Actually, if it's 'requested', done = false. If it's a real date, done = true. But we don't know if it WAS requested.
+    // Let's just keep the old logic for viewing_requested but pass systemDone.
+    if (order.orderMeta?.viewingDate === 'requested' || states['viewing_requested']) {
+       const isViewingDone = order.orderMeta?.viewingDate !== 'requested' && !!order.orderMeta?.viewingDate;
+       addTicket('viewing_requested', 'Kunde wünscht einen Besichtigungstermin', 1, 'action', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, undefined, isViewingDone);
     }
   }
 
@@ -114,9 +120,8 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
     }
 
     // Always for confirmed
-    if (!order.disposition?.assignedVehicles?.length || !order.disposition?.assignedEmployees?.length) {
-      addTicket('dispo_missing', 'Disposition: Mitarbeiter & Fahrzeuge im Kalender zuweisen', 2, 'warning', 'general', `/dashboard/calendar`);
-    }
+    const hasDispo = !!(order.disposition?.assignedVehicles?.length && order.disposition?.assignedEmployees?.length);
+    addTicket('dispo_missing', 'Disposition: Mitarbeiter & Fahrzeuge im Kalender zuweisen', 2, 'warning', 'general', `/dashboard/calendar`, undefined, hasDispo);
 
     // Manuelle Checklisten-Punkte durch * in Leistungen
     if (order.services && Array.isArray(order.services)) {

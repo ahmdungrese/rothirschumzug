@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, TruckIcon, MapPinIcon, ExclamationTriangleIcon, StarIcon, BuildingOffice2Icon, HomeIcon, BriefcaseIcon, BuildingLibraryIcon, ArchiveBoxIcon, WrenchIcon, SparklesIcon, PlusCircleIcon, TagIcon, ArrowsUpDownIcon, NoSymbolIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 import { useAuth } from '@/context/AuthContext';
@@ -12,6 +12,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp } from 'fir
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { calculateRoute } from '@/lib/routeCalculator';
 import { getCol } from '@/lib/demoMode';
+import { InventoryWizardModal, ROOM_TYPES } from './InventoryWizardModal';
 
 const getPropertyIcon = (type: string) => {
   const t = type.toLowerCase();
@@ -86,8 +87,10 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const [calcInput, setCalcInput] = useState({ gross: 0, net: 0, tax: 0 });
 
   // 5. Inventarliste
-  const [inventory, setInventory] = useState<{ id: string, name: string, quantity: number, note: string, showNoteInPdf?: boolean }[]>([]);
+  const [inventory, setInventory] = useState<{ id: string, name: string, quantity: number, note: string, showNoteInPdf?: boolean, room?: string, disassembly?: number, assembly?: number }[]>([]);
   const [appendInventoryToPDF, setAppendInventoryToPDF] = useState(false);
+  const [isInventoryWizardOpen, setIsInventoryWizardOpen] = useState(false);
+  const [initialWizardRoom, setInitialWizardRoom] = useState<string | null>(null);
   
   // 6. Dokumententexte
   const [texts, setTexts] = useState({
@@ -332,8 +335,21 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         await logActivity(profile?.uid || 'unknown', profile?.displayName || profile?.email || 'Unbekannt', 'CREATE_CUSTOMER', `Kunde ${customerData.lastName} im Angebots-Editor angelegt`);
       }
       
-      // We DO NOT update the main customer profile here anymore to keep it decoupled.
-      // The name and address entered in the form belong to this specific order (Billing Address).
+      // Update the main customer profile so that salutation and other details are persisted for future orders
+      if (finalCustomerId) {
+        await updateDoc(doc(db, getCol('customers'), finalCustomerId), {
+          salutation: customerData.salutation || '',
+          firstName: customerData.firstName || '',
+          lastName: customerData.lastName || '',
+          email: customerData.email || '',
+          phone: customerData.phone || '',
+          street: customerData.street || '',
+          houseNr: customerData.houseNr || '',
+          zip: customerData.zip || '',
+          city: customerData.city || '',
+          type: customerData.type || 'privat'
+        });
+      }
 
       const payload = {
         customerId: finalCustomerId,
@@ -1040,17 +1056,33 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           </label>
         </div>
         <div className="flex flex-col gap-8">
-          <div className="w-full">
-            <h3 className="font-semibold text-primary mb-3 flex items-center gap-2">
-              <PlusCircleIcon className="w-5 h-5" /> Schnell-Hinzufügen
-            </h3>
-            <div className="glass-panel p-4 rounded-xl border border-white/5 flex flex-wrap gap-2 max-h-[200px] overflow-y-auto custom-scrollbar">
-              <button onClick={() => addInventoryItem('')} className="bg-primary hover:bg-primary/80 text-white font-medium text-xs px-3 py-1.5 rounded-lg transition-colors shadow-sm">
-                + Eigener Gegenstand
+          <div className="w-full bg-white/[0.02] border border-structure p-6 rounded-xl shadow-inner">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+              <div>
+                <h3 className="font-bold text-text-main flex items-center gap-2 text-lg">
+                  <ArchiveBoxIcon className="w-6 h-6 text-primary" /> Inventar-Assistent
+                </h3>
+                <p className="text-sm text-text-muted mt-1">
+                  Klicken Sie auf einen Raum, um direkt mit der Erfassung zu beginnen.
+                </p>
+              </div>
+              <button 
+                onClick={() => { setInitialWizardRoom(null); setIsInventoryWizardOpen(true); }} 
+                className="bg-primary hover:bg-primary-hover text-white font-semibold px-6 py-3 rounded-lg transition-all shadow-lg flex items-center gap-2 shadow-primary/20 shrink-0"
+              >
+                <PlusIcon className="w-5 h-5 font-bold" /> Assistent starten
               </button>
-              {INVENTORY_CATALOG.map(item => (
-                <button key={item} onClick={() => addInventoryItem(item)} className="bg-black/30 hover:bg-primary/20 text-text-muted hover:text-primary text-xs px-3 py-1.5 rounded-lg transition-colors border border-structure">
-                  {item}
+            </div>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-8 gap-3">
+              {ROOM_TYPES.slice(0, 8).map(room => (
+                <button
+                  key={room.id}
+                  onClick={() => { setInitialWizardRoom(room.id); setIsInventoryWizardOpen(true); }}
+                  className="flex flex-col items-center justify-center p-4 rounded-xl border border-structure bg-bg-dark hover:border-primary/50 hover:bg-primary/5 transition-colors group"
+                >
+                  <room.icon className="w-6 h-6 text-text-muted group-hover:text-primary mb-2 transition-colors" />
+                  <span className="text-xs font-medium text-text-main text-center">{room.name}</span>
                 </button>
               ))}
             </div>
@@ -1061,74 +1093,65 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             <div className="glass-panel rounded-xl border border-white/5 overflow-x-auto shadow-inner bg-black/10">
               <table className="w-full text-left text-sm whitespace-nowrap min-w-[600px]">
                 <thead>
-                  <tr className="text-text-muted border-b border-structure bg-white/[0.02]">
-                    <th className="p-3 w-10 text-center">#</th>
-                    <th className="p-3 w-1/3">Gegenstand / Beschreibung</th>
-                    <th className="p-3 w-32 text-center">Anzahl</th>
-                    <th className="p-3">Notiz</th>
+                  <tr className="text-text-muted border-b border-structure bg-white/[0.02] text-xs uppercase tracking-wider">
+                    <th className="p-3 pl-4">Möbelliste</th>
+                    <th className="p-3 w-1/3">Service</th>
+                    <th className="p-3 w-24 text-center">Stück</th>
                     <th className="p-3 w-12 text-center"></th>
                   </tr>
                 </thead>
                 <tbody>
                   {inventory.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="p-8 text-center text-text-muted">
-                        Keine Gegenstände erfasst. Nutzen Sie die Schnell-Auswahl oben.
+                      <td colSpan={4} className="p-8 text-center text-text-muted">
+                        Keine Gegenstände erfasst. Nutzen Sie den Assistenten.
                       </td>
                     </tr>
-                  ) : inventory.map((item, idx) => (
-                    <tr key={item.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
-                      <td className="p-3 text-center text-text-muted font-medium">{idx + 1}</td>
-                      <td className="p-3">
-                        <textarea 
-                          value={item.name} 
-                          onChange={e => setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, name: e.target.value } : invItem))} 
-                          className="bg-transparent border border-transparent hover:border-structure focus:border-primary/50 focus:bg-black/20 rounded w-full text-text-main focus:outline-none p-2 resize-none overflow-hidden" 
-                          rows={1}
-                          onInput={(e) => {
-                            const target = e.target as HTMLTextAreaElement;
-                            target.style.height = 'auto';
-                            target.style.height = target.scrollHeight + 'px';
-                          }}
-                          placeholder="Bezeichnung..."
-                        />
-                      </td>
-                      <td className="p-3">
-                        <div className="flex items-center justify-center gap-2 bg-black/30 rounded-lg p-1 border border-white/5 w-28 mx-auto">
-                          <button type="button" onClick={() => setInventory(prev => prev.map((invItem, i) => i === idx && invItem.quantity > 1 ? { ...invItem, quantity: Number(invItem.quantity) - 1 } : invItem))} className="w-6 h-6 flex items-center justify-center hover:bg-white/10 text-text-muted hover:text-white rounded transition-colors font-bold">-</button>
-                          <span className="w-8 text-center text-text-main font-semibold text-sm">{item.quantity}</span>
-                          <button type="button" onClick={() => setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, quantity: (Number(invItem.quantity) || 0) + 1 } : invItem))} className="w-6 h-6 flex items-center justify-center hover:bg-white/10 text-text-muted hover:text-white rounded transition-colors font-bold">+</button>
-                        </div>
-                      </td>
-                      <td className="p-3 flex items-center gap-2">
-                        <textarea 
-                          value={item.note} 
-                          onChange={e => setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, note: e.target.value } : invItem))} 
-                          className="bg-transparent border border-transparent hover:border-structure focus:border-primary/50 focus:bg-black/20 rounded w-full text-text-muted focus:outline-none p-2 resize-none overflow-hidden text-xs" 
-                          rows={1}
-                          onInput={(e) => {
-                            const target = e.target as HTMLTextAreaElement;
-                            target.style.height = 'auto';
-                            target.style.height = target.scrollHeight + 'px';
-                          }}
-                          placeholder="Notiz hinzufügen..."
-                        />
-                        {item.note && (
-                          <button 
-                            title={item.showNoteInPdf === false ? "Notiz wird im PDF versteckt" : "Notiz ist im PDF sichtbar"}
-                            onClick={() => setInventory(prev => prev.map((invItem, i) => i === idx ? { ...invItem, showNoteInPdf: invItem.showNoteInPdf === false } : invItem))}
-                            className={`p-1.5 rounded shrink-0 transition-colors ${item.showNoteInPdf === false ? 'text-red-400 bg-red-400/10 hover:bg-red-400/20' : 'text-green-400 bg-green-400/10 hover:bg-green-400/20'}`}>
-                            {item.showNoteInPdf === false ? <EyeSlashIcon className="w-4 h-4"/> : <EyeIcon className="w-4 h-4"/>}
-                          </button>
-                        )}
-                      </td>
-                      <td className="p-3 text-center">
-                        <button onClick={() => setInventory(inventory.filter(i => i.id !== item.id))} className="w-8 h-8 rounded-full bg-transparent hover:bg-red-500/10 text-text-muted hover:text-red-400 flex items-center justify-center transition-colors mx-auto opacity-0 group-hover:opacity-100 focus:opacity-100">
-                          <TrashIcon className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  ) : (
+                    Object.entries(
+                      inventory.reduce((acc, item) => {
+                        const room = item.room || 'Allgemein';
+                        if (!acc[room]) acc[room] = [];
+                        acc[room].push(item);
+                        return acc;
+                      }, {} as Record<string, typeof inventory>)
+                    ).map(([room, items], rIdx) => (
+                      <React.Fragment key={room}>
+                        <tr className="bg-white/[0.02] border-b border-structure">
+                          <td colSpan={4} className="p-2 pl-4">
+                            <div className="flex items-center gap-2">
+                              <HomeIcon className="w-4 h-4 text-primary" />
+                              <span className="font-bold text-text-main text-xs uppercase">{room}</span>
+                            </div>
+                          </td>
+                        </tr>
+                        {items.map(item => (
+                          <tr key={item.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
+                            <td className="p-3 pl-4">
+                              <div className="font-medium text-text-main">{item.name}</div>
+                              {item.note && <div className="text-xs text-text-muted mt-1">{item.note}</div>}
+                            </td>
+                            <td className="p-3 text-text-muted">
+                              {[
+                                item.disassembly ? `${item.disassembly}x Abbau` : null,
+                                item.assembly ? `${item.assembly}x Aufbau` : null,
+                                item.disconnection ? `${item.disconnection}x Abklemmen` : null,
+                                item.connection ? `${item.connection}x Anschluss` : null
+                              ].filter(Boolean).join(' | ')}
+                            </td>
+                            <td className="p-3 text-center">
+                              <span className="font-semibold text-text-main">{item.quantity}</span>
+                            </td>
+                            <td className="p-3 text-center">
+                              <button onClick={() => setInventory(inventory.filter(i => i.id !== item.id))} className="w-8 h-8 rounded-full bg-transparent hover:bg-red-500/10 text-text-muted hover:text-red-400 flex items-center justify-center transition-colors mx-auto opacity-0 group-hover:opacity-100 focus:opacity-100">
+                                <TrashIcon className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1235,6 +1258,17 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           )}
         </div>
       </div>
+      <InventoryWizardModal 
+        isOpen={isInventoryWizardOpen}
+        onClose={() => {
+          setIsInventoryWizardOpen(false);
+          // Small timeout to prevent UI flicker while modal closes
+          setTimeout(() => setInitialWizardRoom(null), 300);
+        }}
+        inventory={inventory}
+        setInventory={setInventory}
+        initialRoomId={initialWizardRoom}
+      />
     </div>
   );
 }

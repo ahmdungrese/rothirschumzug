@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, where } from 'firebase/firestore';
 import { getCol } from '@/lib/demoMode';
 import { SmartCustomerCard } from '@/components/customers/SmartCustomerCard';
+import { SmartCustomerTable } from '@/components/customers/SmartCustomerTable';
 import { QuickCreateCustomer } from '@/components/customers/QuickCreateCustomer';
 import { MagnifyingGlassIcon, PlusIcon, XMarkIcon } from '@heroicons/react/24/outline';
 
@@ -35,7 +36,7 @@ export default function CustomersPage() {
         .filter((o: any) => o.status !== 'archived' && o.status !== 'invoice_cancelled' && o.status !== 'rejected');
       
       // Sort newest first
-      fetched.sort((a: any, b: any) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+      fetched.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
       setOrders(fetched);
       setLoading(false);
     }, (error) => {
@@ -74,8 +75,8 @@ export default function CustomersPage() {
       if (aPriority !== bPriority) return bPriority - aPriority; // Priority first
       
       // Then newest order
-      const aTime = a.latestOrder?.createdAt?.toMillis() || 0;
-      const bTime = b.latestOrder?.createdAt?.toMillis() || 0;
+      const aTime = a.latestOrder?.createdAt?.toMillis?.() || Date.now();
+      const bTime = b.latestOrder?.createdAt?.toMillis?.() || Date.now();
       return bTime - aTime;
     });
 
@@ -146,22 +147,28 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      {/* Cards Grid */}
-      {filteredCustomers.length === 0 ? (
-        <div className="glass-panel p-12 text-center rounded-2xl text-text-muted italic border border-white/5">
-          {searchQuery ? "Keine Kunden für diesen Suchbegriff gefunden." : "Noch keine Kunden vorhanden."}
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-6">
-          {filteredCustomers.map(customer => (
-            <SmartCustomerCard 
-              key={customer.id} 
-              customer={customer} 
-              latestOrder={customer.latestOrder} 
-            />
-          ))}
-        </div>
-      )}
+      {/* Responsive View */}
+      <div className="md:hidden">
+        {filteredCustomers.length === 0 ? (
+          <div className="glass-panel p-12 text-center rounded-2xl text-text-muted italic border border-white/5">
+            {searchQuery ? "Keine Kunden für diesen Suchbegriff gefunden." : "Noch keine Kunden vorhanden."}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {filteredCustomers.map(customer => (
+              <SmartCustomerCard 
+                key={customer.id} 
+                customer={customer} 
+                latestOrder={customer.latestOrder} 
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="hidden md:block">
+        <SmartCustomerTable customers={filteredCustomers} />
+      </div>
 
       {/* New Customer Modal */}
       {showNewModal && (

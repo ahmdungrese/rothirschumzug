@@ -60,6 +60,11 @@ export const InvoicePDF = ({ order, customer, settings, employeeName }: { order:
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + dueDays);
 
+  // Fallback Calculation if totals/calcInput are missing
+  const safeNet = order?.totals?.net ?? order?.calcInput?.net ?? (isFlat ? (order?.flatRateNet || 0) : (order?.services || []).reduce((acc: number, curr: any) => acc + (curr.quantity * (curr.unitPrice || 0)), 0));
+  const safeTax = order?.totals?.tax ?? order?.calcInput?.tax ?? (safeNet * 0.19);
+  const safeGross = order?.totals?.gross ?? order?.calcInput?.gross ?? (safeNet + safeTax);
+
   const docTitle = isStorno ? `Stornorechnung ${order?.invoiceNumber || order?.orderNumber || 'Entwurf'} - ${billing?.lastName || 'Kunde'}` : `Rechnung ${order?.invoiceNumber || order?.orderNumber || 'Entwurf'} - ${billing?.lastName || 'Kunde'}`;
 
   // Personalisierte Anrede
@@ -136,7 +141,7 @@ export const InvoicePDF = ({ order, customer, settings, employeeName }: { order:
         <Text style={{ ...styles.introText, marginTop: -10 }}>
           {isStorno 
             ? `hiermit stornieren wir die Rechnung ${order?.stornoFor}. Der unten ausgewiesene Betrag wird Ihrem Konto gutgeschrieben bzw. gleicht unsere Forderung aus.` 
-            : (settings?.texts?.invoiceIntro || '').replace(/\{\{Kunde_Anrede\}\}/g, introGreeting.replace(',', ''))}
+            : (order?.texts?.quoteIntro || (settings?.texts?.invoiceIntro || '')).replace(/\{\{Kunde_Anrede\}\}/g, introGreeting.replace(',', ''))}
         </Text>
 
         <View style={styles.table}>
@@ -178,15 +183,15 @@ export const InvoicePDF = ({ order, customer, settings, employeeName }: { order:
         <View style={styles.totals}>
           <View style={styles.totalRow}>
             <Text>Summe Netto:</Text>
-            <Text>{order?.totals?.net?.toFixed(2)} €</Text>
+            <Text>{safeNet.toFixed(2)} €</Text>
           </View>
           <View style={styles.totalRow}>
             <Text>MwSt. 19%:</Text>
-            <Text>{order?.totals?.tax?.toFixed(2)} €</Text>
+            <Text>{safeTax.toFixed(2)} €</Text>
           </View>
           <View style={styles.totalRowBold}>
             <Text>Gesamtbetrag (inkl. MwSt.)</Text>
-            <Text>{order?.totals?.gross?.toFixed(2)} €</Text>
+            <Text>{safeGross.toFixed(2)} €</Text>
           </View>
         </View>
 

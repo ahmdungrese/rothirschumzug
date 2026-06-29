@@ -39,26 +39,22 @@ export default function DashboardPage() {
         const customerData = currentCustomers[o.customerId] || null;
         const systemTickets = generateTickets(o, customerData);
         systemTickets.forEach(t => {
-          if (!t.done) {
-            allTodos.push(t);
-          }
+          allTodos.push(t);
         });
 
         // Manuelle Checklisten-Einträge aus OrderEditor anhängen
         if (o.status === 'confirmed' && o.checklist && Array.isArray(o.checklist)) {
           o.checklist.forEach((t: any) => {
-            if (!t.done) {
-              allTodos.push({ 
-                id: `manual_${t.id}`, 
-                title: t.text, 
-                phase: 2, 
-                type: 'info', 
-                done: false, 
-                orderId: o.id, 
-                customerName: o.customerName || 'Kunde', 
-                kanbanCategory: 'general' 
-              });
-            }
+            allTodos.push({ 
+              id: `manual_${t.id}`, 
+              title: t.text, 
+              phase: 2, 
+              type: 'info', 
+              done: !!t.done, 
+              orderId: o.id, 
+              customerName: o.customerName || 'Kunde', 
+              kanbanCategory: 'general' 
+            });
           });
         }
       });
@@ -106,8 +102,13 @@ export default function DashboardPage() {
 
   const markTodoDone = async (todo: SystemTicket, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    if (todo.systemEvaluated) {
+      // Cannot manually check off system evaluated tickets
+      return;
+    }
+    
     // Optimistic UI update
-    setActiveTodos(prev => prev.filter(t => t.id !== todo.id || t.orderId !== todo.orderId));
+    setActiveTodos(prev => prev.map(t => (t.id === todo.id && t.orderId === todo.orderId) ? { ...t, done: !t.done } : t));
     
     try {
       if (todo.id.startsWith('manual_')) {
@@ -115,7 +116,7 @@ export default function DashboardPage() {
         const parentOrder = orders.find((o: any) => o.id === todo.orderId);
         if (parentOrder && parentOrder.checklist) {
           const updatedChecklist = parentOrder.checklist.map((t:any) => 
-            t.id === realId ? { ...t, done: true } : t
+            t.id === realId ? { ...t, done: !todo.done } : t
           );
           await updateDoc(doc(db, getCol('orders'), todo.orderId as string), { checklist: updatedChecklist });
         }
@@ -123,12 +124,35 @@ export default function DashboardPage() {
         const parentOrder = orders.find((o: any) => o.id === todo.orderId);
         if (parentOrder) {
           const updatedStates = parentOrder.ticketStates || {};
-          updatedStates[todo.id] = true;
+          updatedStates[todo.id] = !todo.done;
           await updateDoc(doc(db, getCol('orders'), todo.orderId as string), { ticketStates: updatedStates });
         }
       }
     } catch (err) {
       console.error("Fehler beim Abhaken", err);
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, orderId: string) => {
+    e.dataTransfer.setData('orderId', orderId);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault(); // Necessary to allow dropping
+  };
+
+  const handleDrop = async (e: React.DragEvent, newStatus: string) => {
+    e.preventDefault();
+    const orderId = e.dataTransfer.getData('orderId');
+    if (!orderId) return;
+
+    // Optimistic UI Update
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+
+    try {
+      await updateDoc(doc(db, getCol('orders'), orderId), { status: newStatus });
+    } catch (err) {
+      console.error("Fehler beim Verschieben des Auftrags", err);
     }
   };
 
@@ -143,18 +167,23 @@ export default function DashboardPage() {
     const orderDate = parentOrder?.orderMeta?.movingDateFrom ? new Date(parentOrder.orderMeta.movingDateFrom).toLocaleDateString('de-DE') : 'TBA';
     
     return (
-      <div key={todo.id + todo.orderId} className="kanban-card">
+      <div key={todo.id + todo.orderId} className={`kanban-card transition-all ${todo.done ? 'opacity-60 bg-black/5 dark:bg-white/5 border-transparent' : ''}`}>
         <div className="flex justify-between items-start mb-2">
-          <span className="font-semibold text-text-main text-sm truncate">{todo.customerName}</span>
-          {getDueDateBadge(todo.dueDateStatus, todo.dueDateText)}
+          <span className={`font-semibold text-sm truncate ${todo.done ? 'text-text-muted line-through' : 'text-text-main'}`}>{todo.customerName}</span>
+          {!todo.done && getDueDateBadge(todo.dueDateStatus, todo.dueDateText)}
         </div>
-        <div className="text-xs text-text-muted mb-2 flex-1">
+        <div className={`text-xs mb-2 flex-1 ${todo.done ? 'text-text-muted/50 line-through' : 'text-text-muted'}`}>
           {todo.title}
           <div className="mt-1 text-[10px] text-text-muted/70">Auszug: {parentOrder?.logistics?.a_street?.split(',')[0] || 'Unbekannt'}</div>
           {orderDate !== 'TBA' && <div className="mt-0.5 text-[10px] text-text-muted/70">Datum: {orderDate}</div>}
         </div>
         <div className="mt-3 flex justify-between items-center border-t border-white/5 pt-2">
-          <button onClick={(e) => markTodoDone(todo, e)} className="text-text-muted hover:text-green-400 transition-colors">
+          <button 
+            onClick={(e) => markTodoDone(todo, e)} 
+            disabled={todo.systemEvaluated && todo.done}
+            className={`transition-colors ${todo.done ? 'text-green-500' : 'text-text-muted hover:text-green-400'} ${todo.systemEvaluated && !todo.done ? 'cursor-not-allowed opacity-50' : ''}`}
+            title={todo.systemEvaluated && !todo.done ? "Wird automatisch aktualisiert, wenn Daten vorhanden sind" : ""}
+          >
             <CheckIcon className="w-5 h-5" />
           </button>
           <div className="w-6 h-6 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center text-[10px] text-white">
@@ -236,14 +265,20 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 min-h-[400px]">
           
           {/* Neu / Entwurf */}
-          <div className="kanban-col">
+          <div className="kanban-col" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'draft')}>
              <div className="flex justify-between items-center px-1 mb-2">
               <h3 className="font-semibold text-text-main text-xs uppercase">NEU / ENTWURF</h3>
               <span className="text-[10px] text-text-muted">{kanbanOrders.drafts.length} Aufg.</span>
             </div>
             <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
               {kanbanOrders.drafts.map(order => (
-                <div key={order.id} onClick={() => setSelectedOrder(order)} className="kanban-card group border-red-500/20 hover:border-red-400/50">
+                <div 
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, order.id)}
+                  key={order.id} 
+                  onClick={() => setSelectedOrder(order)} 
+                  className="kanban-card group border-red-500/20 hover:border-red-400/50 cursor-grab active:cursor-grabbing"
+                >
                   <span className="text-[10px] text-text-muted uppercase tracking-wider">Customer Ticket</span>
                   <div className="font-semibold text-text-main mt-1 truncate group-hover:text-red-500 dark:group-hover:text-red-300 transition-colors">{order.customerName || 'Unbekannt'}</div>
                   <div className="mt-3 flex justify-between items-center border-t border-black/5 dark:border-white/5 pt-2">
@@ -258,14 +293,20 @@ export default function DashboardPage() {
           </div>
 
           {/* Angebot Erstellt */}
-          <div className="kanban-col">
+          <div className="kanban-col" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'quote')}>
              <div className="flex justify-between items-center px-1 mb-2">
               <h3 className="font-semibold text-text-main text-xs uppercase">ANGEBOT ERSTELLT</h3>
               <span className="text-[10px] text-text-muted">{kanbanOrders.quotes.length} Aufg.</span>
             </div>
             <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
               {kanbanOrders.quotes.map(order => (
-                <div key={order.id} onClick={() => setSelectedOrder(order)} className="kanban-card group border-yellow-500/20 hover:border-yellow-400/50">
+                <div 
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, order.id)}
+                  key={order.id} 
+                  onClick={() => setSelectedOrder(order)} 
+                  className="kanban-card group border-yellow-500/20 hover:border-yellow-400/50 cursor-grab active:cursor-grabbing"
+                >
                   <span className="text-[10px] text-text-muted uppercase tracking-wider">Customer Ticket</span>
                   <div className="font-semibold text-text-main mt-1 truncate group-hover:text-yellow-600 dark:group-hover:text-yellow-300 transition-colors">{order.customerName || 'Unbekannt'}</div>
                   <div className="text-xs text-yellow-600 dark:text-yellow-500/70 mt-1">€ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
@@ -281,14 +322,20 @@ export default function DashboardPage() {
           </div>
 
           {/* Umzug Bestätigt */}
-          <div className="kanban-col relative">
+          <div className="kanban-col relative" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'confirmed')}>
              <div className="flex justify-between items-center px-1 mb-2">
               <h3 className="font-semibold text-text-main text-xs uppercase">UMZUG BESTÄTIGT</h3>
               <span className="text-[10px] text-text-muted">{kanbanOrders.confirmed.length} Aufg.</span>
             </div>
             <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
               {kanbanOrders.confirmed.map(order => (
-                <div key={order.id} onClick={() => setSelectedOrder(order)} className="kanban-card group border-primary/30 hover:border-primary/60 bg-primary/5">
+                <div 
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, order.id)}
+                  key={order.id} 
+                  onClick={() => setSelectedOrder(order)} 
+                  className="kanban-card group border-primary/30 hover:border-primary/60 bg-primary/5 cursor-grab active:cursor-grabbing"
+                >
                   <span className="text-[10px] text-primary/70 uppercase tracking-wider">Customer Ticket</span>
                   <div className="font-semibold text-text-main mt-1 truncate group-hover:text-primary-hover transition-colors">{order.customerName || 'Unbekannt'}</div>
                   {order.orderMeta?.movingDateFrom && (
@@ -308,14 +355,20 @@ export default function DashboardPage() {
           </div>
 
           {/* Abgeschlossen */}
-          <div className="kanban-col">
+          <div className="kanban-col" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'invoice_open')}>
              <div className="flex justify-between items-center px-1 mb-2">
               <h3 className="font-semibold text-text-main text-xs uppercase">ABGESCHLOSSEN</h3>
               <span className="text-[10px] text-text-muted">{kanbanOrders.invoicing.length} Aufg.</span>
             </div>
             <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
               {kanbanOrders.invoicing.map(order => (
-                <div key={order.id} onClick={() => setSelectedOrder(order)} className="kanban-card group border-green-500/20 hover:border-green-400/50">
+                <div 
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, order.id)}
+                  key={order.id} 
+                  onClick={() => setSelectedOrder(order)} 
+                  className="kanban-card group border-green-500/20 hover:border-green-400/50 cursor-grab active:cursor-grabbing"
+                >
                   <span className="text-[10px] text-text-muted uppercase tracking-wider">Customer Ticket</span>
                   <div className="font-semibold text-text-main mt-1 truncate group-hover:text-green-600 dark:group-hover:text-green-300 transition-colors">{order.customerName || 'Unbekannt'}</div>
                   <div className={`text-[10px] mt-1 font-bold ${order.status === 'invoice_overdue' ? 'text-red-500 dark:text-red-400' : 'text-green-600 dark:text-green-500/70'}`}>
@@ -401,13 +454,17 @@ export default function DashboardPage() {
                 <h3 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-3">Checklist (Aktive To-Dos)</h3>
                 <div className="space-y-2 bg-black/5 dark:bg-black/20 rounded-lg p-3 border border-black/10 dark:border-white/5">
                   {activeTodos.filter(t => t.orderId === selectedOrder.id).map(todo => (
-                    <div key={todo.id} className="flex items-center justify-between group">
-                      <label className="flex items-center gap-3 cursor-pointer text-sm text-text-main group-hover:text-primary transition-colors">
+                    <div key={todo.id} className={`flex items-center justify-between group transition-all ${todo.done ? 'opacity-60' : ''}`}>
+                      <label 
+                        className={`flex items-center gap-3 text-sm transition-colors ${todo.done ? 'text-text-muted line-through' : 'text-text-main group-hover:text-primary'} ${todo.systemEvaluated && !todo.done ? 'cursor-pointer' : 'cursor-pointer'}`}
+                        title={todo.systemEvaluated && !todo.done ? "Dieser Punkt wird automatisch aktualisiert, sobald die Daten vorhanden sind" : ""}
+                      >
                         <input 
                           type="checkbox" 
-                          checked={false} 
+                          checked={todo.done} 
+                          disabled={todo.systemEvaluated && todo.done}
                           onChange={() => markTodoDone(todo)}
-                          className="w-4 h-4 rounded border-structure bg-bg-dark text-primary focus:ring-primary focus:ring-offset-bg-panel"
+                          className={`w-4 h-4 rounded border-structure focus:ring-primary focus:ring-offset-bg-panel ${todo.systemEvaluated && !todo.done ? 'bg-bg-dark/50 text-text-muted/50 cursor-not-allowed' : 'bg-bg-dark text-primary'}`}
                         />
                         {todo.title}
                       </label>

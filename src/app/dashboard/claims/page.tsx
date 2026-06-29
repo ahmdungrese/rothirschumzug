@@ -37,7 +37,7 @@ export default function ClaimsPage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetched = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
       // Neu nach alt
-      fetched.sort((a: any, b: any) => (b.createdAt?.toMillis() || 0) - (a.createdAt?.toMillis() || 0));
+      fetched.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
       setClaims(fetched);
       setLoading(false);
     }, (error) => {
@@ -165,7 +165,7 @@ function ClaimCard({ claim, updateStatus, onDelete, isHighlighted }: { claim: an
       </div>
       
       <p className="text-xs text-text-muted mb-2">
-        Gemeldet: {new Date(claim.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')}
+        Gemeldet: {new Date(claim.createdAt?.toMillis?.() || Date.now()).toLocaleDateString('de-DE')}
       </p>
       
       <p className="text-sm text-text-main line-clamp-3 mb-4 flex-1">

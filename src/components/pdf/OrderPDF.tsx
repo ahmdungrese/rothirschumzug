@@ -1,3 +1,4 @@
+import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 
 const styles = StyleSheet.create({
@@ -145,7 +146,15 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
 
             <View style={[styles.dateRow, { width: '100%' }]}>
               <Text style={styles.dateLabel}>Datum</Text>
-              <Text style={styles.dateValue}>{order?.createdAt?.toDate().toLocaleDateString('de-DE') || new Date().toLocaleDateString('de-DE')}</Text>
+              <Text style={styles.dateValue}>
+                {order?.documentDate 
+                  ? new Date(order.documentDate).toLocaleDateString('de-DE') 
+                  : (order?.createdAt 
+                    ? (typeof order.createdAt.toDate === 'function' 
+                        ? order.createdAt.toDate().toLocaleDateString('de-DE') 
+                        : new Date(order.createdAt.seconds ? order.createdAt.seconds * 1000 : order.createdAt).toLocaleDateString('de-DE')) 
+                    : new Date().toLocaleDateString('de-DE'))}
+              </Text>
             </View>
             <View style={[styles.dateRow, { width: '100%' }]}>
               <Text style={styles.dateLabel}>Umzug</Text>
@@ -396,19 +405,44 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
           <Text style={{ ...styles.detailsHeader, fontSize: 18, marginBottom: 20 }}>Anlage: Umzugsgut / Inventarliste</Text>
           <View style={styles.table}>
             <View style={styles.tableHeader}>
-              <Text style={{ width: '20%' }}>Menge</Text>
-              <Text style={{ width: '80%' }}>Gegenstand</Text>
+              <Text style={{ width: '45%' }}>Möbelliste</Text>
+              <Text style={{ width: '40%' }}>Service</Text>
+              <Text style={{ width: '15%', textAlign: 'center' }}>Stück</Text>
             </View>
-            {order.inventory.map((item: any, i: number) => (
-              <View key={i} style={styles.tableRow}>
-                <Text style={{ width: '20%' }}>{item.quantity}x</Text>
-                <View style={{ width: '80%' }}>
-                  <Text>{item.name}</Text>
-                  {item.note && item.showNoteInPdf !== false && (
-                    <Text style={{ fontSize: 8, color: '#666', marginTop: 2 }}>Notiz: {item.note}</Text>
-                  )}
+            {Object.entries(order.inventory.reduce((acc: any, item: any) => {
+              const room = item.room || 'Allgemein';
+              if (!acc[room]) acc[room] = [];
+              acc[room].push(item);
+              return acc;
+            }, {})).map(([room, items]: [string, any], rIdx: number) => (
+              <React.Fragment key={rIdx}>
+                <View style={{ flexDirection: 'row', backgroundColor: '#f3f4f6', padding: '6px 8px', borderBottom: '1px solid #e5e7eb' }}>
+                   <Text style={{ fontSize: 10, fontWeight: 'bold', width: '100%', color: '#333' }}>{room.toUpperCase()}</Text>
                 </View>
-              </View>
+                {items.map((item: any, i: number) => {
+                  const services = [
+                    item.disassembly ? `${item.disassembly}x Abbau` : null,
+                    item.assembly ? `${item.assembly}x Aufbau` : null,
+                    item.disconnection ? `${item.disconnection}x Abklemmen` : null,
+                    item.connection ? `${item.connection}x Anschluss` : null
+                  ].filter(Boolean).join(' | ');
+
+                  return (
+                    <View key={`${rIdx}-${i}`} style={styles.tableRow} wrap={false}>
+                      <View style={{ width: '45%' }}>
+                        <Text>{item.name}</Text>
+                        {item.note && item.showNoteInPdf !== false && (
+                          <Text style={{ fontSize: 8, color: '#666', marginTop: 2 }}>Notiz: {item.note}</Text>
+                        )}
+                      </View>
+                      <View style={{ width: '40%' }}>
+                        <Text style={{ fontSize: 9, color: '#555' }}>{services}</Text>
+                      </View>
+                      <Text style={{ width: '15%', textAlign: 'center' }}>{item.quantity}</Text>
+                    </View>
+                  );
+                })}
+              </React.Fragment>
             ))}
           </View>
           <View style={styles.footer}>

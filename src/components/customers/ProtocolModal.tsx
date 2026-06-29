@@ -118,6 +118,22 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
             <div>
               <div className="flex justify-between items-end mb-2">
                 <label className="block text-sm font-medium text-text-muted">Beschreibung / Bemerkung</label>
+                {settings?.protocolTemplates && settings.protocolTemplates.length > 0 && (
+                  <select 
+                    onChange={(e) => {
+                      if(e.target.value) {
+                        setText(prev => prev ? prev + '\n' + e.target.value : e.target.value);
+                        e.target.value = '';
+                      }
+                    }}
+                    className="bg-primary/20 text-primary border border-primary/30 text-xs py-1 px-2 rounded cursor-pointer max-w-[200px] truncate"
+                  >
+                    <option value="">+ Vorlage anfügen</option>
+                    {settings.protocolTemplates.map((t: string, idx: number) => (
+                      <option key={idx} value={t}>{t.length > 30 ? t.substring(0,30)+'...' : t}</option>
+                    ))}
+                  </select>
+                )}
               </div>
               <textarea 
                 value={text}

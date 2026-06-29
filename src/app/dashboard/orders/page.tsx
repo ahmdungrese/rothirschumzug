@@ -45,7 +45,7 @@ export default function OrdersPage() {
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetched = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-      fetched.sort((a: any, b: any) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
+      fetched.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
       setOrders(fetched);
       setLoading(false);
     }, (error) => {
@@ -317,7 +317,7 @@ export default function OrdersPage() {
                         </div>
                         <div className="text-xs text-text-muted mt-0.5 flex items-center gap-1">
                           <ClockIcon className="w-3 h-3" />
-                          {new Date(order.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')}
+                          {new Date(order.createdAt?.toMillis?.() || Date.now()).toLocaleDateString('de-DE')}
                         </div>
                       </td>
                       <td className="px-4 py-3">
