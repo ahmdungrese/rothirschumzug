@@ -38,14 +38,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (typeof window !== "undefined" && localStorage.getItem("demoMode") === "true") {
-      const demoUser = { uid: "demo-user-123", email: "demo@rothirsch-app.de", displayName: "Demo Account" } as any;
-      setUser(demoUser);
-      setProfile({ uid: demoUser.uid, email: demoUser.email, role: "admin", displayName: demoUser.displayName });
-      setLoading(false);
-      return;
-    }
-
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       
@@ -111,9 +103,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     try {
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("demoMode");
-      }
       await signOut(auth);
       if (typeof window !== "undefined") {
         window.location.href = "/";

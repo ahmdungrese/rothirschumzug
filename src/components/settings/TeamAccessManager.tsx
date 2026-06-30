@@ -46,20 +46,12 @@ export function TeamAccessManager() {
     setIsSubmitting(true);
 
     try {
-      let newUid = "";
-      const isDemoMode = typeof window !== 'undefined' && localStorage.getItem('demoMode') === 'true';
       const finalEmail = loginId.includes("@") ? loginId : `${loginId.replace(/[^0-9]/g, '')}@rothirsch-app.de`;
 
-      if (isDemoMode) {
-        // Im Demo-Modus legen wir keine echten Firebase Auth User an, um Konflikte zu vermeiden!
-        newUid = "demo-team-" + Date.now();
-      } else {
-        const secondaryApp = createSecondaryApp();
-        const secondaryAuth = getAuth(secondaryApp);
-        // Create user in real Auth
-        const userCredential = await createUserWithEmailAndPassword(secondaryAuth, finalEmail, password);
-        newUid = userCredential.user.uid;
-      }
+      const secondaryApp = createSecondaryApp();
+      const secondaryAuth = getAuth(secondaryApp);
+      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, finalEmail, password);
+      const newUid = userCredential.user.uid;
 
       // Save to Firestore
       await setDoc(doc(db, getCol('users'), newUid), {

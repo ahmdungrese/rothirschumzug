@@ -87,7 +87,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const [calcInput, setCalcInput] = useState({ gross: 0, net: 0, tax: 0 });
 
   // 5. Inventarliste
-  const [inventory, setInventory] = useState<{ id: string, name: string, quantity: number, note: string, showNoteInPdf?: boolean, room?: string, disassembly?: number, assembly?: number }[]>([]);
+  const [inventory, setInventory] = useState<{ id: string, name: string, quantity: number, note: string, showNoteInPdf?: boolean, room?: string, disassembly?: number, assembly?: number, disconnection?: number, connection?: number }[]>([]);
   const [appendInventoryToPDF, setAppendInventoryToPDF] = useState(false);
   const [isInventoryWizardOpen, setIsInventoryWizardOpen] = useState(false);
   const [initialWizardRoom, setInitialWizardRoom] = useState<string | null>(null);
@@ -533,10 +533,10 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           </div>
           <div>
             <label className="block text-xs text-text-muted mb-1">Kundenquelle</label>
-            <input type="text" list="order-source-options" value={customerData.source} onChange={e => setCustomerData({...customerData, source: e.target.value})} className="input-field w-full" placeholder="Auswählen oder tippen..." />
-            <datalist id="order-source-options">
-              {settings.customerSources?.map((s:string) => <option key={s} value={s} />)}
-            </datalist>
+            <select value={customerData.source} onChange={e => setCustomerData({...customerData, source: e.target.value})} className="input-field w-full text-text-main">
+              <option value="">Auswählen...</option>
+              {settings.customerSources?.map((s:string) => <option key={s} value={s}>{s}</option>)}
+            </select>
           </div>
           
           {/* Adress-Block (Aufgeteilt) */}
@@ -1229,7 +1229,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         </div>
       )}
 {/* Floating Save Button */}
-      <div className="fixed bottom-0 left-0 right-0 md:left-64 bg-bg-panel/90 backdrop-blur-md border-t border-structure p-4 flex justify-between items-center z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.3)] px-4 lg:px-8">
+      <div className="fixed bottom-16 mb-[env(safe-area-inset-bottom)] md:mb-0 md:bottom-0 left-0 right-0 md:left-64 bg-bg-panel/90 backdrop-blur-md border-t border-structure p-4 flex justify-between items-center z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.3)] px-4 lg:px-8">
         <div>
           {errorMessage && <span className="text-red-400 text-sm font-semibold animate-in fade-in slide-in-from-bottom-4 bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20">{errorMessage}</span>}
         </div>

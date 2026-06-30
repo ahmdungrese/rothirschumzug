@@ -25,7 +25,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
   const params = useParams();
   const urlCustomerId = params.id as string;
   const router = useRouter();
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   
   const canEditPrices = profile?.role === 'admin' ? true : profile?.canEditPrices ?? true;
   const canViewPrices = profile?.role === 'admin' ? true : profile?.canViewPrices ?? true;
@@ -200,12 +200,12 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
 
       if (orderId) {
         await updateDoc(doc(db, getCol('orders'), orderId), payload);
-        await logActivity(profile?.displayName || 'Unbekannt', 'UPDATE_ORDER', `Rechnung wurde bearbeitet.`, urlCustomerId);
+        await logActivity(user?.uid || '', profile?.displayName || 'Unbekannt', 'UPDATE_ORDER', `Rechnung bearbeitet`);
         toast.success(finalStatus === 'invoice_open' ? 'Rechnung ausgestellt!' : 'Rechnungsentwurf gespeichert!');
       } else {
         payload.createdAt = serverTimestamp();
         await addDoc(collection(db, getCol('orders')), payload);
-        await logActivity(profile?.displayName || 'Unbekannt', 'CREATE_ORDER', `Neue Rechnung für ${customerData.lastName}`, urlCustomerId);
+        await logActivity(user?.uid || '', profile?.displayName || 'Unbekannt', 'CREATE_ORDER', `Neue Rechnung für ${customerData.lastName}`);
         toast.success('Rechnung erfolgreich erstellt!');
       }
 

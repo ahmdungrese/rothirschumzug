@@ -1,6 +1,7 @@
 "use client";
 
 import { DocumentArrowDownIcon, XMarkIcon, MapPinIcon, TruckIcon, UserGroupIcon, ClipboardDocumentListIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { CounterInput } from '@/components/ui/CounterInput';
 import { db } from '@/lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
@@ -131,7 +132,7 @@ export function DispoModal({
               </div>
             )}
           </div>
-          <button onClick={onClose} className="p-2 bg-white/5 hover:bg-white/10 rounded-full transition-colors mt-1 border border-white/10">
+          <button type="button" aria-label="Schließen" onClick={onClose} className="p-2 bg-white/5 hover:bg-white/10 rounded-full transition-colors mt-1 border border-white/10">
             <XMarkIcon className="w-5 h-5 text-text-main" />
           </button>
         </div>
@@ -143,8 +144,9 @@ export function DispoModal({
               <div className="space-y-2">
                 {dayTasks.map((task, idx) => (
                   <div key={`${task.id}-${task.type}-${idx}`} className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${task.isDone ? 'bg-green-500/10 border-green-500/30 text-text-muted' : 'bg-black/20 border-white/10 text-text-main hover:bg-white/5'}`}>
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
+                      aria-label={task.title}
                       checked={task.isDone}
                       onChange={() => handleToggleTask(task.id, task.type, task.isDone)}
                       className="w-5 h-5 rounded border-structure text-primary focus:ring-primary focus:ring-offset-bg-panel cursor-pointer"
@@ -212,31 +214,14 @@ export function DispoModal({
                         <p className="text-xs text-text-muted mb-4">Diese Werte werden automatisch aus deiner initialen Planung (Auftrags-Editor) übernommen. Du kannst sie hier bei Bedarf anpassen.</p>
                         
                         <div className="flex flex-wrap gap-4">
-                          <div className="flex items-center justify-between p-3 border border-white/10 rounded-xl bg-black/20 min-w-[200px]">
-                            <span className="font-medium text-sm">Umzugshelfer</span>
-                            <div className="flex items-center gap-3">
-                              <button type="button" onClick={() => updateResource(order.id, 'helpers', helpersCount - 1)} className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-text-main transition-colors">-</button>
-                              <span className="font-bold w-4 text-center">{helpersCount}</span>
-                              <button type="button" onClick={() => updateResource(order.id, 'helpers', helpersCount + 1)} className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-text-main transition-colors">+</button>
-                            </div>
+                          <div className="min-w-[200px]">
+                            <CounterInput label="Umzugshelfer" value={helpersCount} onChange={v => updateResource(order.id, 'helpers', v)} />
                           </div>
-
-                          <div className="flex items-center justify-between p-3 border border-white/10 rounded-xl bg-black/20 min-w-[200px]">
-                            <span className="font-medium text-sm">Koffer 3,5 Tonnen</span>
-                            <div className="flex items-center gap-3">
-                              <button type="button" onClick={() => updateResource(order.id, 'koffer35t', koffer35tCount - 1)} className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-text-main transition-colors">-</button>
-                              <span className="font-bold w-4 text-center">{koffer35tCount}</span>
-                              <button type="button" onClick={() => updateResource(order.id, 'koffer35t', koffer35tCount + 1)} className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-text-main transition-colors">+</button>
-                            </div>
+                          <div className="min-w-[200px]">
+                            <CounterInput label="Koffer 3,5 Tonnen" value={koffer35tCount} onChange={v => updateResource(order.id, 'koffer35t', v)} />
                           </div>
-
-                          <div className="flex items-center justify-between p-3 border border-white/10 rounded-xl bg-black/20 min-w-[200px]">
-                            <span className="font-medium text-sm">LKW 7,5 Tonnen</span>
-                            <div className="flex items-center gap-3">
-                              <button type="button" onClick={() => updateResource(order.id, 'lkw7t', lkw7tCount - 1)} className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-text-main transition-colors">-</button>
-                              <span className="font-bold w-4 text-center">{lkw7tCount}</span>
-                              <button type="button" onClick={() => updateResource(order.id, 'lkw7t', lkw7tCount + 1)} className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-text-main transition-colors">+</button>
-                            </div>
+                          <div className="min-w-[200px]">
+                            <CounterInput label="LKW 7,5 Tonnen" value={lkw7tCount} onChange={v => updateResource(order.id, 'lkw7t', v)} />
                           </div>
                         </div>
                       </div>

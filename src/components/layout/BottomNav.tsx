@@ -7,7 +7,7 @@ import { HomeIcon as HomeSolid, UsersIcon as UsersSolid, DocumentTextIcon as Doc
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon, activeIcon: HomeSolid },
   { name: 'Kunden', href: '/dashboard/customers', icon: UsersIcon, activeIcon: UsersSolid },
-  { name: 'Aufträge', href: '/dashboard/orders', icon: DocumentTextIcon, activeIcon: DocumentSolid },
+  { name: 'Angebote', href: '/dashboard/orders', icon: DocumentTextIcon, activeIcon: DocumentSolid },
   { name: 'Settings', href: '/dashboard/settings', icon: Cog8ToothIcon, activeIcon: CogSolid },
 ];
 

@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase';
 import { updateDoc, doc } from 'firebase/firestore';
 import { XMarkIcon, TruckIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
+import { CounterInput } from '@/components/ui/CounterInput';
 import { getCol } from '@/lib/demoMode';
 
 export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose: () => void, onSuccess?: () => void }) {
@@ -133,11 +134,11 @@ export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose:
           <h2 className="text-xl font-bold text-text-main flex items-center gap-2">
             <TruckIcon className="w-6 h-6 text-primary" /> Grob-Disposition
           </h2>
-          <button onClick={onClose} className="p-2 text-text-muted hover:text-text-main rounded-full transition-colors">
+          <button type="button" aria-label="Schließen" onClick={onClose} className="p-2 text-text-muted hover:text-text-main rounded-full transition-colors">
             <XMarkIcon className="w-6 h-6" />
           </button>
         </div>
-        
+
         <div className="p-6 space-y-6 overflow-y-auto">
           <p className="text-sm text-text-muted">
             Der Kunde hat das Angebot angenommen! Du kannst jetzt direkt die Kapazitäten für diesen Umzug eintragen, oder ihn einfach bestätigen und die Planung später im Kalender nachholen.
@@ -145,9 +146,10 @@ export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose:
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-2">Umzugsdatum</label>
-              <input 
-                type="date" 
+              <label htmlFor="dispo-date" className="block text-sm font-medium text-text-muted mb-2">Umzugsdatum</label>
+              <input
+                id="dispo-date"
+                type="date"
                 value={movingDate}
                 onChange={(e) => setMovingDate(e.target.value)}
                 className="input-field py-2 px-3 w-full"
@@ -155,9 +157,10 @@ export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose:
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-2">Uhrzeit</label>
-              <input 
-                type="time" 
+              <label htmlFor="dispo-time" className="block text-sm font-medium text-text-muted mb-2">Uhrzeit</label>
+              <input
+                id="dispo-time"
+                type="time"
                 value={movingTime}
                 onChange={(e) => setMovingTime(e.target.value)}
                 className="input-field py-2 px-3 w-full"
@@ -165,47 +168,26 @@ export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose:
             </div>
           </div>
           <p className="text-xs text-primary mt-1 italic -mt-4">Dieser Termin wird rot im Kalender blockiert.</p>
-          
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="p-4 border border-structure rounded-xl bg-bg-dark">
-              <label className="block text-sm font-medium text-text-muted mb-2">Umzugshelfer</label>
-              <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setHelpers(Math.max(0, helpers - 1))} className="btn-secondary py-1 px-3 text-lg">-</button>
-                <span className="font-bold text-xl w-8 text-center">{helpers}</span>
-                <button type="button" onClick={() => setHelpers(helpers + 1)} className="btn-secondary py-1 px-3 text-lg">+</button>
-              </div>
-            </div>
+            <CounterInput label="Umzugshelfer" value={helpers} onChange={setHelpers} />
           </div>
-          
+
           <div className="space-y-3">
             <h3 className="text-sm font-medium text-text-muted">Benötigte Fahrzeuge</h3>
-            <div className="flex items-center justify-between p-3 border border-structure rounded-xl bg-bg-dark">
-              <span className="font-medium text-sm">Koffer 3,5 Tonnen</span>
-              <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setKoffer35t(Math.max(0, koffer35t - 1))} className="btn-secondary py-0.5 px-2">-</button>
-                <span className="font-bold w-4 text-center">{koffer35t}</span>
-                <button type="button" onClick={() => setKoffer35t(koffer35t + 1)} className="btn-secondary py-0.5 px-2">+</button>
-              </div>
-            </div>
-            <div className="flex items-center justify-between p-3 border border-structure rounded-xl bg-bg-dark">
-              <span className="font-medium text-sm">LKW 7,5 Tonnen</span>
-              <div className="flex items-center gap-3">
-                <button type="button" onClick={() => setLkw7t(Math.max(0, lkw7t - 1))} className="btn-secondary py-0.5 px-2">-</button>
-                <span className="font-bold w-4 text-center">{lkw7t}</span>
-                <button type="button" onClick={() => setLkw7t(lkw7t + 1)} className="btn-secondary py-0.5 px-2">+</button>
-              </div>
-            </div>
+            <CounterInput label="Koffer 3,5 Tonnen" value={koffer35t} onChange={setKoffer35t} />
+            <CounterInput label="LKW 7,5 Tonnen" value={lkw7t} onChange={setLkw7t} />
           </div>
         </div>
-        
+
         <div className="p-4 border-t border-structure bg-bg-dark flex flex-col sm:flex-row justify-between gap-3 shrink-0">
-          <button onClick={onClose} className="btn-secondary border-structure/50 hover:bg-structure/30">Abbrechen</button>
-          
+          <button type="button" onClick={onClose} className="btn-secondary border-structure/50 hover:bg-structure/30">Abbrechen</button>
+
           <div className="flex flex-col sm:flex-row gap-2">
-            <button onClick={confirmOnly} disabled={isSaving} className="btn-secondary bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 text-sm">
+            <button type="button" onClick={confirmOnly} disabled={isSaving} className="btn-secondary bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 text-sm">
               Nur Bestätigen (Planung später)
             </button>
-            <button onClick={confirmAndDispatch} disabled={isSaving} className="btn-primary text-sm">
+            <button type="button" onClick={confirmAndDispatch} disabled={isSaving} className="btn-primary text-sm">
               {isSaving ? 'Speichert...' : 'Bestätigen & Planen'}
             </button>
           </div>

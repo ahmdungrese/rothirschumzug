@@ -196,16 +196,51 @@ export const InvoicePDF = ({ order, customer, settings, employeeName }: { order:
         </View>
 
         <Text style={{ ...styles.detailsHeader, fontSize: 12, marginBottom: 5 }}>Zahlungsinformationen</Text>
-        {pmSettings?.textInvoice && (
-          <Text style={styles.textBlock}>{pmSettings.textInvoice}</Text>
-        )}
-        
-        {invoiceOutro && (
-          <Text style={styles.textBlock}>
-            {pmSettings?.textInvoice ? invoiceOutro.replace(pmSettings.textInvoice, '').trim() : invoiceOutro}
-          </Text>
-        )}
-        {invoiceGreeting && !invoiceOutro.includes(invoiceGreeting) && (
+        {(() => {
+          const payments = order?.payments || [];
+          const totalPaid = payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+          const remaining = Math.max(0, safeGross - totalPaid);
+          
+          if (totalPaid >= safeGross - 0.01) {
+            // Wenn es genau eine Zahlung gab, versuchen wir den Standardtext des Users zu verwenden
+            if (payments.length === 1) {
+              const paymentMethod = payments[0].method; // 'bar', 'ueberweisung', 'ec-karte', 'paypal'
+              const methodMapping: Record<string, string> = { 'bar': 'bar', 'ueberweisung': 'überweisung', 'ec-karte': 'ec-karte', 'paypal': 'paypal' };
+              const mapped = methodMapping[paymentMethod] || paymentMethod;
+              
+              const matchedSetting = settings?.paymentMethods?.find((p: any) => p.name.toLowerCase().includes(mapped));
+              if (matchedSetting?.textInvoice) {
+                return <Text style={styles.textBlock}>{matchedSetting.textInvoice}</Text>;
+              }
+            }
+            return <Text style={styles.textBlock}>Der Rechnungsbetrag wurde bereits vollständig bezahlt. Vielen Dank für Ihre Zahlung!</Text>;
+          }
+          
+          if (totalPaid > 0 && remaining > 0) {
+            return (
+              <>
+                <Text style={styles.textBlock}>
+                  Bereits bezahlt: {totalPaid.toFixed(2)} € 
+                  {payments.length > 0 ? ` (${payments.map((p: any) => {
+                    const m = p.method === 'bar' ? 'Bar' : p.method === 'ueberweisung' ? 'Überw.' : p.method === 'ec-karte' ? 'EC' : 'PayPal';
+                    return `${p.amount.toFixed(2)}€ ${m}`;
+                  }).join(' + ')})` : ''}
+                </Text>
+                <Text style={{ ...styles.textBlock, fontFamily: 'Helvetica-Bold' }}>Noch offener Betrag: {remaining.toFixed(2)} €</Text>
+                <Text style={styles.textBlock}>{invoiceOutro || 'Bitte überweisen Sie den noch offenen Betrag ohne Abzug auf unser Konto.'}</Text>
+              </>
+            );
+          }
+
+          // Not paid yet: show the selected payment method text, or default outro
+          return pmSettings?.textInvoice ? (
+            <Text style={styles.textBlock}>{pmSettings.textInvoice}</Text>
+          ) : invoiceOutro ? (
+            <Text style={styles.textBlock}>{invoiceOutro}</Text>
+          ) : null;
+        })()}
+
+        {invoiceGreeting && (
           <Text style={styles.textBlock}>{invoiceGreeting}</Text>
         )}
 

@@ -283,7 +283,7 @@ export default function DashboardPage() {
                   <div className="font-semibold text-text-main mt-1 truncate group-hover:text-red-500 dark:group-hover:text-red-300 transition-colors">{order.customerName || 'Unbekannt'}</div>
                   <div className="mt-3 flex justify-between items-center border-t border-black/5 dark:border-white/5 pt-2">
                      <CheckIcon className="w-4 h-4 text-text-muted/50 group-hover:text-text-muted transition-colors" />
-                     <div className="w-5 h-5 rounded-full bg-structure flex items-center justify-center text-[8px] text-white">
+                     <div className="w-5 h-5 rounded-full bg-structure flex items-center justify-center text-[8px] text-text-main">
                         {order.customerName?.charAt(0) || 'U'}
                       </div>
                   </div>

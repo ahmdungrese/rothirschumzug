@@ -4,6 +4,20 @@ import { useRouter } from 'next/navigation';
 import { UserCircleIcon as UserCircleSolid, BuildingOfficeIcon as BuildingSolid } from '@heroicons/react/24/solid';
 import { DocumentTextIcon, CheckBadgeIcon, ArrowRightIcon, PlusIcon, EnvelopeIcon, PhoneIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/solid';
 
+export function getSourceBadgeStyle(source?: string) {
+  if (!source) return "hidden";
+  const s = source.toLowerCase();
+  if (s.includes('check24')) return "bg-[#063B82] text-white border-blue-400/50 shadow-sm"; // Official Check24 blue
+  if (s.includes('myhammer')) return "bg-[#F37021] text-white border-orange-400/50 shadow-sm"; // Official MyHammer orange
+  if (s.includes('google')) return "bg-white text-gray-800 border-gray-200 shadow-sm";
+  if (s.includes('empfehlung')) return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
+  if (s.includes('facebook') || s.includes('meta')) return "bg-[#1877F2] text-white border-blue-400/50 shadow-sm";
+  if (s.includes('instagram')) return "bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 text-white border-pink-400/50 shadow-sm";
+  if (s.includes('website') || s.includes('homepage')) return "bg-primary/20 text-primary border-primary/30";
+  // Default
+  return "bg-white/5 text-text-muted border-white/10";
+}
+
 export function SmartCustomerTable({ customers }: { customers: any[] }) {
   const router = useRouter();
 
@@ -131,9 +145,14 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                         </div>
                       )}
                       <div>
-                        <div className="font-bold text-base text-white">{displayName}</div>
+                        <div className="font-bold text-base text-text-main">{displayName}</div>
                         {isCompany && customer.firstName && (
-                          <div className="text-sm text-text-muted">{customer.firstName}</div>
+                          <div className="text-sm text-text-muted mb-1">{customer.firstName}</div>
+                        )}
+                        {customer.source && (
+                          <div className={`mt-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border inline-block ${getSourceBadgeStyle(customer.source)}`}>
+                            {customer.source}
+                          </div>
                         )}
                       </div>
                     </div>

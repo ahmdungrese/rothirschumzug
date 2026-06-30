@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { UserCircleIcon, BuildingOfficeIcon, DocumentTextIcon, CheckBadgeIcon, ClipboardDocumentListIcon, CalendarIcon, ArrowRightIcon, PlusIcon, EnvelopeIcon, PhoneIcon } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/navigation';
+import { getSourceBadgeStyle } from './SmartCustomerTable';
 
 export function SmartCustomerCard({ customer, latestOrder }: { customer: any, latestOrder: any }) {
   const router = useRouter();
@@ -114,9 +115,16 @@ export function SmartCustomerCard({ customer, latestOrder }: { customer: any, la
 
       {/* Customer Info */}
       <div className="flex-1">
-        <h3 className="text-lg font-bold text-text-main leading-tight mb-1 line-clamp-1" title={displayName}>
-          {displayName}
-        </h3>
+        <div className="flex justify-between items-start mb-1">
+          <h3 className="text-lg font-bold text-text-main leading-tight line-clamp-1" title={displayName}>
+            {displayName}
+          </h3>
+          {customer.source && (
+            <div className={`shrink-0 ml-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${getSourceBadgeStyle(customer.source)}`}>
+              {customer.source}
+            </div>
+          )}
+        </div>
         
         {customer.type === 'firma' && customer.firstName && (
           <p className="text-sm text-text-muted mb-2">Ansprechpartner: {customer.firstName}</p>

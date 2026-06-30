@@ -34,21 +34,6 @@ export default function Home() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    
-    // Check for demo login
-    if (loginId.toLowerCase().trim() === 'demo@rothirsch-umzug.de') {
-      try {
-        localStorage.setItem("demoMode", "true");
-        // Trigger fresh seed
-        await fetch('/api/seed-demo', { method: 'POST' });
-        window.location.href = "/dashboard";
-        return;
-      } catch (err) {
-        console.error("Failed to seed demo data", err);
-        window.location.href = "/dashboard";
-        return;
-      }
-    }
 
     try {
       // Wenn es kein @ enthält, ist es eine Handynummer -> Fake E-Mail bauen
