@@ -218,8 +218,6 @@ export default function CustomerProfilePage() {
         });
       }
       
-      }
-      
       // Phase 5: Rechnungen & Reklamationen
       const unpaidInvoices = orders.filter(o => o.status === 'invoice_open' || o.status === 'invoice_overdue');
       if (unpaidInvoices.length > 0) {
