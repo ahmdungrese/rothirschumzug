@@ -3,7 +3,14 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, useMemo } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, collection, query, where, onSnapshot, updateDoc, deleteDoc, serverTimestamp, getDoc, addDoc } from 'firebase/firestore';
-import { LinkIcon, PlusIcon, UserCircleIcon, PhoneIcon, MapPinIcon, DocumentTextIcon, XMarkIcon, EnvelopeIcon, StarIcon, CheckCircleIcon, PencilIcon, TrashIcon, CheckIcon, TruckIcon, CheckBadgeIcon, ClipboardDocumentIcon, ClipboardDocumentListIcon, DocumentArrowDownIcon, BanknotesIcon, ExclamationTriangleIcon, ArchiveBoxIcon, ArrowUturnLeftIcon, EllipsisHorizontalIcon, ChevronDownIcon, ChevronUpIcon, BoltIcon } from '@heroicons/react/24/outline';
+import { 
+  XMarkIcon, ArchiveBoxIcon, MapIcon, ArrowUpOnSquareIcon, 
+  DocumentTextIcon, TruckIcon, CheckIcon, MapPinIcon, ClockIcon,
+  UserIcon, PencilIcon, CheckBadgeIcon, CheckCircleIcon, DocumentArrowDownIcon, TrashIcon, EnvelopeIcon,
+  LinkIcon, PlusIcon, UserCircleIcon, PhoneIcon, StarIcon, BanknotesIcon, ExclamationTriangleIcon, 
+  ArrowUturnLeftIcon, EllipsisHorizontalIcon, ChevronDownIcon, ChevronUpIcon, BoltIcon, 
+  ClipboardDocumentIcon, ClipboardDocumentListIcon 
+} from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -211,18 +218,8 @@ export default function CustomerProfilePage() {
         });
       }
       
-      if (activeOrder.status === 'confirmed') {
-        if (!activeOrder.signatureProtocol) {
-          items.push({ 
-            phase: 4, 
-            title: 'Umzug durchführen', 
-            desc: 'Abnahmeprotokoll muss noch unterschrieben werden.', 
-            status: 'info', 
-            action: () => setProtocolOrder(activeOrder) 
-          });
-        }
       }
-
+      
       // Phase 5: Rechnungen & Reklamationen
       const unpaidInvoices = orders.filter(o => o.status === 'invoice_open' || o.status === 'invoice_overdue');
       if (unpaidInvoices.length > 0) {
@@ -715,14 +712,16 @@ export default function CustomerProfilePage() {
                             <div className="space-y-2">
                               {/* 1. Missing Data (Checklist Items) */}
                               {checklist && checklist.length > 0 && checklist.map((item, idx) => (
-                                <div key={`chk-${idx}`} className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex flex-wrap justify-between items-center gap-3">
+                                <div key={`chk-${idx}`} className={`bg-${item.status === 'info' ? 'blue' : 'red'}-500/10 border border-${item.status === 'info' ? 'blue' : 'red'}-500/20 rounded-xl p-3 flex flex-wrap justify-between items-center gap-3`}>
                                   <div>
-                                    <div className="text-[10px] text-red-400/70 font-bold uppercase mb-0.5">Phase {item.phase} • Fehlende Information</div>
-                                    <div className="text-sm text-red-400 font-bold">{item.title}</div>
+                                    <div className={`text-[10px] text-${item.status === 'info' ? 'blue' : 'red'}-400/70 font-bold uppercase mb-0.5`}>Phase {item.phase} • Fehlende Information</div>
+                                    <div className={`text-sm text-${item.status === 'info' ? 'blue' : 'red'}-400 font-bold`}>{item.title}</div>
                                     <div className="text-xs text-text-muted">{item.desc}</div>
                                   </div>
                                   {item.action && (
-                                    <button onClick={item.action} className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">Fehlende Daten eintragen</button>
+                                    <button onClick={item.action} className={`px-3 py-1.5 bg-${item.status === 'info' ? 'blue' : 'red'}-500 hover:bg-${item.status === 'info' ? 'blue' : 'red'}-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors`}>
+                                      {item.title.includes('Protokoll') ? 'Protokoll öffnen' : item.title.includes('Bestätigung') ? 'Jetzt senden' : 'Daten eintragen'}
+                                    </button>
                                   )}
                                 </div>
                               ))}
@@ -871,6 +870,30 @@ export default function CustomerProfilePage() {
                                           </div>
                                         )}
 
+                                        {/* Confirmation Sent Button */}
+                                        {todo.id === 'confirmation_sent' && (
+                                          <div className="mt-3 flex gap-2">
+                                            <button 
+                                              onClick={() => setMessageOrder(order)} 
+                                              className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-[10px] font-bold rounded-lg transition-colors border border-blue-500/20 flex items-center gap-1"
+                                            >
+                                              <EnvelopeIcon className="w-3.5 h-3.5"/> Nachricht senden
+                                            </button>
+                                          </div>
+                                        )}
+
+                                        {/* Abnahmeprotokoll Button */}
+                                        {todo.id === 'abnahmeprotokoll' && (
+                                          <div className="mt-3">
+                                            <button 
+                                              onClick={() => setProtocolOrder(order)} 
+                                              className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-[10px] font-bold rounded-lg transition-colors border border-emerald-500/20 flex items-center gap-1"
+                                            >
+                                              <DocumentTextIcon className="w-3.5 h-3.5"/> Protokoll öffnen
+                                            </button>
+                                          </div>
+                                        )}
+
                                         {/* Employee Sheet Special Button */}
                                         {todo.id === 'employee_sheet' && (
                                           <div className="mt-3">
@@ -885,6 +908,15 @@ export default function CustomerProfilePage() {
                                             >
                                               <DocumentTextIcon className="w-3.5 h-3.5"/> Laufzettel generieren
                                             </button>
+                                          </div>
+                                        )}
+
+                                        {/* Default Action Link */}
+                                        {todo.actionLink && todo.id !== 'viewing_requested' && (
+                                          <div className="mt-3">
+                                            <Link href={todo.actionLink} className="inline-flex items-center justify-center px-4 py-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-white border border-primary/20 hover:border-primary text-[10px] uppercase tracking-wider font-bold rounded-lg transition-all shadow-sm">
+                                              Jetzt erledigen
+                                            </Link>
                                           </div>
                                         )}
                                       </div>

@@ -144,6 +144,12 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
 
   // === Phase 4: Nach Bestätigung (confirmed) ===
   if (status === 'confirmed') {
+    // Auftragsbestätigung
+    addTicket('confirmation_sent', 'Auftragsbestätigung an Kunden senden (Digitale Zusage)', 4, 'action', 'general', undefined, undefined, !!states['confirmation_sent']);
+    
+    // Abnahmeprotokoll
+    addTicket('abnahmeprotokoll', 'Am Umzugstag: Abnahmeprotokoll auf Tablet unterschreiben lassen', 4, 'action', 'general', undefined, undefined, !!order.signatureProtocol);
+
     if (daysToMove !== null && daysToMove < 0) {
       addTicket('move_past_due', 'Umzug liegt in der Vergangenheit! Bitte auf "Umzug durchgeführt" setzen.', 4, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, { status: 'overdue', text: 'ÜBERFÄLLIG' });
     }

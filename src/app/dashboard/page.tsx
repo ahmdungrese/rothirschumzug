@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { collection, query, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
 import { 
@@ -12,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { getCol } from '@/lib/demoMode';
 import { generateTickets, SystemTicket } from '@/lib/ticketEngine';
+import toast from 'react-hot-toast';
 
 export default function DashboardPage() {
   const { profile } = useAuth();
@@ -282,6 +283,17 @@ export default function DashboardPage() {
             <CheckIcon className="w-3.5 h-3.5 shrink-0" />
             <span>{todo.done ? 'Erledigt' : 'Erledigen'}</span>
           </button>
+
+          {todo.actionLink && todo.id !== 'viewing_requested' && (
+            <Link 
+              href={todo.actionLink}
+              onClick={(e) => e.stopPropagation()}
+              className="px-2.5 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-1 border shadow-md bg-white/5 border-white/5 text-text-muted hover:bg-white/10 hover:text-white"
+              title="Aktion ausführen"
+            >
+              Los
+            </Link>
+          )}
 
           {/* Quick link icon to customer profile */}
           <Link 
