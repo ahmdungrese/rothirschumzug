@@ -1002,6 +1002,20 @@ export default function DashboardPage() {
                                 </div>
                               </label>
 
+                              {/* Quick Access Buttons */}
+                              <div className="flex items-center gap-2">
+                                {todo.actionLink && todo.id !== 'viewing_requested' && (
+                                  <Link href={todo.actionLink} className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-primary hover:text-white bg-primary/10 hover:bg-primary border border-primary/20 rounded-md transition-all whitespace-nowrap">
+                                    Los
+                                  </Link>
+                                )}
+                                {(todo.id === 'confirmation_sent' || todo.id === 'abnahmeprotokoll' || todo.id === 'employee_sheet') && (
+                                  <Link href={`/dashboard/customers/${selectedOrder.customerId}`} className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-400 hover:text-white bg-blue-500/10 hover:bg-blue-500 border border-blue-500/20 rounded-md transition-all whitespace-nowrap">
+                                    Zum Kunden
+                                  </Link>
+                                )}
+                              </div>
+
                               {/* Date Inputs in Modal Phase Manager */}
                               {!todo.done && (isKarton || isHV || isLift || isViewing) && (
                                 <div className="flex flex-col gap-1 bg-black/40 p-1.5 rounded border border-white/5 shrink-0 self-start sm:self-auto">
