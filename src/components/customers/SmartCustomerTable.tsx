@@ -2,7 +2,8 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { UserCircleIcon as UserCircleSolid, BuildingOfficeIcon as BuildingSolid } from '@heroicons/react/24/solid';
-import { DocumentTextIcon, CheckBadgeIcon, ArrowRightIcon, PlusIcon, EnvelopeIcon, PhoneIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/solid';
+import { DocumentTextIcon, CheckBadgeIcon, ArrowRightIcon, PlusIcon, EnvelopeIcon, PhoneIcon, ClipboardDocumentListIcon, FolderOpenIcon, PencilSquareIcon, DocumentArrowDownIcon } from '@heroicons/react/24/solid';
+import { PDFDownloadButton } from '@/components/pdf/PDFDownloadButton';
 
 export function getSourceBadgeStyle(source?: string) {
   if (!source) return "hidden";
@@ -130,8 +131,7 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
               return (
                 <tr 
                   key={customer.id} 
-                  onClick={() => router.push(`/dashboard/customers/${customer.id}`)}
-                  className="hover:bg-white/[0.04] transition-colors cursor-pointer group"
+                  className="hover:bg-white/[0.04] transition-colors group"
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
@@ -192,34 +192,57 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                     </span>
                   </td>
                   
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      {latestOrder && (
-                        <>
-                          <Link 
-                            href={`/dashboard/customers/${customer.id}?action=view-pdf&orderId=${latestOrder.id}`} 
-                            onClick={e => e.stopPropagation()}
-                            className="p-2 bg-black/20 hover:bg-black/40 text-text-muted hover:text-primary rounded-lg transition-colors"
-                            title="Angebot/Rechnung als PDF ansehen"
-                          >
-                            <DocumentTextIcon className="w-4 h-4" />
-                          </Link>
-                          <Link 
-                            href={`/dashboard/customers/${customer.id}?action=view-protocol&orderId=${latestOrder.id}`} 
-                            onClick={e => e.stopPropagation()}
-                            className="p-2 bg-black/20 hover:bg-black/40 text-text-muted hover:text-primary rounded-lg transition-colors"
-                            title="Abnahmeprotokoll"
-                          >
-                            <ClipboardDocumentListIcon className="w-4 h-4" />
-                          </Link>
-                        </>
-                      )}
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); router.push(btnUrl); }}
-                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-colors ${btnStyle}`}
+                  <td className="px-6 py-4">
+                    <div className="grid grid-cols-2 gap-1.5 w-fit ml-auto">
+                      <Link 
+                        href={`/dashboard/customers/${customer.id}`} 
+                        className="p-2.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 rounded-lg transition-colors flex items-center justify-center"
+                        title="Kundenakte öffnen"
                       >
-                        {btnIcon} {btnText}
-                      </button>
+                        <FolderOpenIcon className="w-5 h-5" />
+                      </Link>
+
+                      <Link 
+                        href={btnUrl} 
+                        className="p-2.5 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 hover:text-orange-300 rounded-lg transition-colors flex items-center justify-center"
+                        title="Bearbeiten / Neuer Auftrag"
+                      >
+                        <PencilSquareIcon className="w-5 h-5" />
+                      </Link>
+
+                      {latestOrder ? (
+                        <div onClick={e => e.stopPropagation()} className="w-full h-full flex">
+                          <PDFDownloadButton 
+                            order={latestOrder} 
+                            customer={customer} 
+                            type={latestOrder.invoiceNumber ? 'invoice' : (['confirmed', 'completed'].includes(latestOrder.status) ? 'contract' : 'order')}
+                            iconOnly={true}
+                            customIcon={<DocumentArrowDownIcon className="w-5 h-5" />}
+                            className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-lg transition-colors flex items-center justify-center w-full"
+                          />
+                        </div>
+                      ) : (
+                        <div className="p-2.5 bg-white/5 text-white/20 rounded-lg flex items-center justify-center cursor-not-allowed" title="Kein Auftrag vorhanden">
+                          <DocumentArrowDownIcon className="w-5 h-5" />
+                        </div>
+                      )}
+
+                      {latestOrder ? (
+                        <div onClick={e => e.stopPropagation()} className="w-full h-full flex">
+                          <PDFDownloadButton 
+                            order={latestOrder} 
+                            customer={customer} 
+                            type="protocol"
+                            iconOnly={true}
+                            customIcon={<ClipboardDocumentListIcon className="w-5 h-5" />}
+                            className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 rounded-lg transition-colors flex items-center justify-center w-full"
+                          />
+                        </div>
+                      ) : (
+                        <div className="p-2.5 bg-white/5 text-white/20 rounded-lg flex items-center justify-center cursor-not-allowed" title="Kein Auftrag vorhanden">
+                          <ClipboardDocumentListIcon className="w-5 h-5" />
+                        </div>
+                      )}
                     </div>
                   </td>
                 </tr>

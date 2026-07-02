@@ -108,42 +108,122 @@ export default function CustomerProfilePage() {
     if (!customer) return null;
     const items = [];
     
-    // Phase 1: Kundendaten
+    // Phase 1: Kundendaten & Verifizierung
     const missingData = [];
     if (!customer.phone) missingData.push("Telefonnummer");
     if (!customer.email) missingData.push("E-Mail");
-    if (!customer.street || !customer.city) missingData.push("Adresse");
-    if (missingData.length > 0) {
-      items.push({ phase: 1, title: 'Kundendaten vervollständigen', desc: `Fehlt: ${missingData.join(', ')}`, status: 'warning', action: () => setIsEditing(true) });
+    if (!customer.street || !customer.houseNr || !customer.zip || !customer.city) {
+      missingData.push("Vollständige Adresse (Str., Hausnr., PLZ, Ort)");
+    }
+    
+    const activeOrder = orders.find(o => o.status !== 'archived');
+    if (activeOrder) {
+      if (!activeOrder.orderMeta?.movingDateFrom) {
+        missingData.push("Umzugsdatum");
+      }
+      const log = activeOrder.logistics;
+      if (!log?.a_street || !log?.a_houseNr || !log?.a_zip || !log?.a_city) {
+        missingData.push("Auszugsadresse (A)");
+      }
+      if (!log?.b_street || !log?.b_houseNr || !log?.b_zip || !log?.b_city) {
+        missingData.push("Einzugsadresse (B)");
+      }
+    }
+    
+    // Check if customer was created > 3 days ago for overdue status in Phase 1
+    let phase1Status: 'warning' | 'danger' = 'warning';
+    if (customer.createdAt) {
+      const createdDate = customer.createdAt?.seconds ? new Date(customer.createdAt.seconds * 1000) : new Date(customer.createdAt);
+      const diffTime = new Date().getTime() - createdDate.getTime();
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+      if (diffDays >= 3) {
+        phase1Status = 'danger';
+      }
     }
 
-    // Phase 2: Angebot
-    const activeOrder = orders.find(o => o.status !== 'archived');
-    if (!activeOrder) {
-      items.push({ phase: 2, title: 'Erstes Angebot erstellen', desc: 'Der Kunde hat noch kein Angebot.', status: 'danger', action: () => router.push(`/dashboard/customers/${customerId}/new-order`) });
-    } else {
-      // Phase 3 & 4: Auftragsdetails & Status
-      if (activeOrder.status === 'draft' || activeOrder.status === 'quote') {
-        items.push({ phase: 3, title: 'Angebot bestätigen', desc: 'Warten auf Kundenbestätigung.', status: 'warning' });
-        
-        // Logistik prüfen
-        if (!activeOrder.logistics?.a_city || !activeOrder.logistics?.b_city) {
-          items.push({ phase: 3, title: 'Adressen im Angebot fehlen', desc: 'Einzugs- oder Auszugsort unvollständig.', status: 'warning', action: () => router.push(`/dashboard/customers/${customerId}/edit-order/${activeOrder.id}`) });
+    if (missingData.length > 0) {
+      items.push({ 
+        phase: 1, 
+        title: phase1Status === 'danger' ? 'Kundendaten-Verifizierung (ÜBERFÄLLIG!)' : 'Kundendaten-Verifizierung', 
+        desc: `Es fehlen wichtige Verifizierungsdaten: ${missingData.join(', ')}`, 
+        status: phase1Status, 
+        action: () => setIsEditing(true) 
+      });
+    }
+
+    // Phase 2: Angebot erstellen
+    if (missingData.length === 0) { // Only if verified
+      if (!activeOrder) {
+        let phase2Status: 'warning' | 'danger' = 'warning';
+        if (customer.createdAt) {
+          const createdDate = customer.createdAt?.seconds ? new Date(customer.createdAt.seconds * 1000) : new Date(customer.createdAt);
+          const diffTime = new Date().getTime() - createdDate.getTime();
+          const diffDays = diffTime / (1000 * 60 * 60 * 24);
+          if (diffDays >= 2) {
+            phase2Status = 'danger';
+          }
         }
+        items.push({ 
+          phase: 2, 
+          title: phase2Status === 'danger' ? 'Erstes Angebot erstellen (ÜBERFÄLLIG!)' : 'Erstes Angebot erstellen', 
+          desc: 'Der Kunde hat noch kein Angebot.', 
+          status: phase2Status, 
+          action: () => router.push(`/dashboard/customers/${customerId}/new-order`) 
+        });
+      } else if (activeOrder.status === 'draft' || activeOrder.status === 'quote') {
+        if (activeOrder.orderMeta?.viewingDate === 'requested') {
+          items.push({ 
+            phase: 2, 
+            title: 'Besichtigungstermin planen', 
+            desc: 'Kunde wünscht einen Besichtigungstermin.', 
+            status: 'warning',
+            action: () => router.push(`/dashboard/customers/${customerId}/edit-order/${activeOrder.id}`)
+          });
+        }
+      }
+    }
+
+    // Phase 3 & 4: Auftragsdetails & Status
+    if (activeOrder && missingData.length === 0) {
+      if (activeOrder.status === 'draft' || activeOrder.status === 'quote') {
+        items.push({ 
+          phase: 3, 
+          title: 'Angebot bestätigen', 
+          desc: 'Warten auf Kundenbestätigung (Digitale Signatur oder externe WhatsApp/E-Mail Zusage).', 
+          status: 'warning' 
+        });
       }
       
       if (activeOrder.status === 'confirmed') {
         if (!activeOrder.signatureProtocol) {
-          items.push({ phase: 4, title: 'Umzug durchführen', desc: 'Abnahmeprotokoll muss noch unterschrieben werden.', status: 'info', action: () => setProtocolOrder(activeOrder) });
+          items.push({ 
+            phase: 4, 
+            title: 'Umzug durchführen', 
+            desc: 'Abnahmeprotokoll muss noch unterschrieben werden.', 
+            status: 'info', 
+            action: () => setProtocolOrder(activeOrder) 
+          });
         }
       }
 
-      // Phase 5: Rechnungen
+      // Phase 5: Rechnungen & Reklamationen
       const unpaidInvoices = orders.filter(o => o.status === 'invoice_open' || o.status === 'invoice_overdue');
       if (unpaidInvoices.length > 0) {
-        items.push({ phase: 5, title: 'Offene Rechnungen', desc: `${unpaidInvoices.length} Rechnung(en) warten auf Zahlungseingang.`, status: 'danger', action: () => setPaymentOrder(unpaidInvoices[0]) });
+        items.push({ 
+          phase: 5, 
+          title: 'Offene Rechnungen', 
+          desc: `${unpaidInvoices.length} Rechnung(en) warten auf Zahlungseingang.`, 
+          status: 'danger', 
+          action: () => setPaymentOrder(unpaidInvoices[0]) 
+        });
       } else if (activeOrder.status === 'completed' && activeOrder.type !== 'invoice' && !orders.some(o => o.sourceOrderId === activeOrder.id)) {
-        items.push({ phase: 5, title: 'Rechnung erstellen', desc: 'Der Auftrag ist abgeschlossen, aber es wurde noch keine Rechnung generiert.', status: 'warning', action: () => router.push(`/dashboard/customers/${customerId}/edit-order/new?type=invoice&sourceOrder=${activeOrder.id}`) });
+        items.push({ 
+          phase: 5, 
+          title: 'Rechnung erstellen', 
+          desc: 'Der Umzug ist abgeschlossen. Es wurde noch keine Rechnung generiert.', 
+          status: 'warning', 
+          action: () => router.push(`/dashboard/customers/${customerId}/edit-order/new?type=invoice&sourceOrder=${activeOrder.id}`) 
+        });
       }
     }
     
@@ -228,12 +308,6 @@ export default function CustomerProfilePage() {
   const handleUpdateOrderStatus = async (order: any, newStatus: string) => {
     try {
       const payload: any = { status: newStatus, updatedAt: serverTimestamp() };
-      if (newStatus === 'draft' || newStatus === 'quote') {
-        payload.signatureOrder = null;
-        payload.signatureOrderDate = null;
-        payload.signatureOrderPlace = null;
-        payload.signatureOrderDateString = null;
-      }
       
       const settingsDoc = await getDoc(doc(db, getCol('system'), 'settings'));
       const settingsData = settingsDoc.exists() ? settingsDoc.data() : null;
@@ -260,6 +334,27 @@ export default function CustomerProfilePage() {
     } catch (error) {
       console.error(error);
       toast.error("Ein Fehler ist aufgetreten.");
+    }
+  };
+
+  const handleConfirmOrder = async (order: any) => {
+    if (order.signatureOrder || order.externallyConfirmed) {
+      await handleUpdateOrderStatus(order, 'confirmed');
+    } else {
+      if (window.confirm("Der Auftrag hat noch keine digitale Unterschrift. Wurde er extern bestätigt (z.B. per WhatsApp / E-Mail)?\n\nKlicken Sie auf 'OK' für externe Bestätigung, oder 'Abbrechen' um digital zu unterschreiben.")) {
+        try {
+          await updateDoc(doc(db, getCol('orders'), order.id), {
+            externallyConfirmed: true,
+            updatedAt: serverTimestamp()
+          });
+          await handleUpdateOrderStatus({ ...order, externallyConfirmed: true }, 'confirmed');
+          toast.success("Auftrag extern bestätigt!");
+        } catch (e) {
+          toast.error("Fehler beim Bestätigen.");
+        }
+      } else {
+        setSignatureOrder(order);
+      }
     }
   };
 
@@ -578,7 +673,7 @@ export default function CustomerProfilePage() {
                           
                           {order.status === 'quote' && (
                             <>
-                              <button onClick={() => handleUpdateOrderStatus(order, 'confirmed')} className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1"><CheckIcon className="w-4 h-4"/> Bestätigen</button>
+                              <button onClick={() => handleConfirmOrder(order)} className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1"><CheckIcon className="w-4 h-4"/> Bestätigen</button>
                               <button onClick={() => handleUpdateOrderStatus(order, 'rejected')} className="px-3 py-2 bg-white/5 hover:bg-red-500/10 text-text-muted hover:text-red-400 text-xs font-bold rounded-lg transition-colors">Ablehnen</button>
                             </>
                           )}
@@ -587,7 +682,7 @@ export default function CustomerProfilePage() {
                             <button onClick={() => handleUpdateOrderStatus(order, 'completed')} className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">Umzug durchgeführt (Erledigt)</button>
                           )}
                           
-                          {!isInvoice && (order.status === 'quote' || order.status === 'confirmed') && !order.signatureOrder && (
+                          {!isInvoice && (order.status === 'quote' || order.status === 'confirmed') && !order.signatureOrder && !order.externallyConfirmed && (
                             <button onClick={() => setSignatureOrder(order)} className="px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-2">
                               ✍️ Auftrag digital unterschreiben
                             </button>
@@ -597,6 +692,13 @@ export default function CustomerProfilePage() {
                             <div className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold rounded-lg flex items-center gap-2">
                               <CheckBadgeIcon className="w-4 h-4" /> 
                               Unterschrieben am {order.signatureOrderDate ? new Date(order.signatureOrderDate.toMillis?.() || Date.now()).toLocaleDateString('de-DE') : order.signatureOrderDateString}
+                            </div>
+                          )}
+
+                          {!isInvoice && order.externallyConfirmed && !order.signatureOrder && (
+                            <div className="px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold rounded-lg flex items-center gap-2">
+                              <CheckBadgeIcon className="w-4 h-4" /> 
+                              Extern bestätigt (z.B. WhatsApp)
                             </div>
                           )}
 
@@ -647,16 +749,16 @@ export default function CustomerProfilePage() {
 
                         {/* Right Side Actions */}
                         <div className="flex items-center gap-2">
-                          {isQuote && (
+                          {order.status !== 'archived' && order.status !== 'canceled' && (
                             <button 
                               onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/${order.id}`)} 
                               className="px-3 py-2 bg-bg-dark hover:bg-bg-panel border border-structure text-text-main hover:text-primary text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
-                              title="Angebot bearbeiten"
+                              title="Auftrag bearbeiten"
                             >
                               <PencilIcon className="w-4 h-4 text-primary"/> Bearbeiten
                             </button>
                           )}
-
+                          
                           {/* More Options Dropdown */}
                           <div className="relative">
                             <button 
@@ -733,14 +835,25 @@ export default function CustomerProfilePage() {
                         {/* Actions Quick Links */}
                         <div className="bg-bg-dark border border-structure p-4 rounded-xl shadow-inner flex flex-col justify-center gap-2">
                            <button onClick={() => { setInlinePdfOrder(inlinePdfOrder?.id === order.id ? null : order); setInlinePdfType(isInvoice ? 'invoice' : 'order'); }} className={`btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 transition-colors ${inlinePdfOrder?.id === order.id ? 'border-primary text-primary' : ''}`}>
-                              <DocumentTextIcon className="w-4 h-4 shrink-0" /> PDF Dokument ansehen
+                              <DocumentTextIcon className="w-4 h-4 shrink-0" /> PDF Vorschau
                            </button>
+                           <PDFDownloadButton 
+                              order={order} 
+                              customer={customer} 
+                              type={isInvoice ? 'invoice' : 'order'} 
+                              className="btn-primary w-full justify-center flex items-center gap-2 text-xs py-2 transition-colors shadow-sm"
+                           />
                            <button onClick={() => setMessageOrder(order)} className="btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 text-blue-400">
                               <EnvelopeIcon className="w-4 h-4 shrink-0" /> Nachricht senden
                            </button>
                            {['confirmed', 'completed'].includes(order.status) && (
                              <button onClick={() => setProtocolOrder(order)} className="btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 text-orange-500">
                                 <ClipboardDocumentListIcon className="w-4 h-4 shrink-0" /> Abnahmeprotokoll öffnen
+                             </button>
+                           )}
+                           {!isInvoice && (
+                             <button onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/new?type=invoice&sourceOrder=${order.id}`)} className="btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 text-green-400 font-bold border border-green-500/30 bg-green-500/10 hover:bg-green-500/20">
+                                <PlusIcon className="w-4 h-4 shrink-0" /> Rechnung erstellen
                              </button>
                            )}
                            {isInvoice && order.status !== 'canceled' && (
@@ -757,8 +870,80 @@ export default function CustomerProfilePage() {
                                   Nur Storno
                                </button>
                              </div>
-                           )}
-                        </div>
+                            )}
+                         </div>
+
+                         {/* Active To-Dos / System Tickets Sektion */}
+                         <div className="col-span-1 md:col-span-2 bg-bg-dark border border-structure p-5 rounded-2xl shadow-inner mt-4">
+                           <h4 className="text-sm font-bold text-text-main flex items-center gap-2 mb-4">
+                             <ClipboardDocumentListIcon className="w-5 h-5 text-primary" /> Aufgaben & Tickets für diesen Auftrag
+                           </h4>
+                           <div className="space-y-3 bg-black/20 rounded-xl p-4 border border-white/5">
+                             {generateTickets(order, customer).map(todo => {
+                               const isKarton = todo.id === 'kartons_liefern';
+                               const isHV = todo.id === 'halteverbot';
+                               const isLift = todo.id === 'moebellift_buchen';
+                               
+                               return (
+                                 <div key={todo.id} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl transition-all border ${todo.done ? 'opacity-50 border-transparent bg-transparent' : 'bg-white/[0.02] border-white/5 hover:border-white/10'}`}>
+                                   <label 
+                                     className={`flex items-center gap-3 text-sm cursor-pointer select-none flex-1 ${todo.done ? 'text-text-muted line-through' : 'text-text-main font-semibold'}`}
+                                   >
+                                     <input 
+                                       type="checkbox" 
+                                       checked={todo.done} 
+                                       disabled={todo.systemEvaluated && todo.done}
+                                       onChange={async () => {
+                                         if (todo.systemEvaluated) return;
+                                         const updatedStates = order.ticketStates || {};
+                                         updatedStates[todo.id] = !todo.done;
+                                         await updateDoc(doc(db, getCol('orders'), order.id), { ticketStates: updatedStates });
+                                         toast.success(todo.done ? "Aufgabe wieder geöffnet" : "Aufgabe abgeschlossen!");
+                                       }}
+                                       className="w-4 h-4 rounded border-structure text-primary bg-bg-dark focus:ring-primary focus:ring-offset-bg-panel"
+                                     />
+                                     <div className="flex flex-wrap items-center gap-2">
+                                       <span>{todo.title}</span>
+                                       {todo.dueDateStatus === 'overdue' && (
+                                         <span className="bg-red-500/20 text-red-500 text-[10px] font-bold px-2 py-0.5 rounded border border-red-500/20 shadow-sm uppercase tracking-wider">ÜBERFÄLLIG</span>
+                                       )}
+                                       {todo.dueDateStatus === 'due' && (
+                                         <span className="bg-yellow-500/20 text-yellow-400 text-[10px] font-bold px-2 py-0.5 rounded border border-yellow-500/20 shadow-sm uppercase tracking-wider">{todo.dueDateText}</span>
+                                       )}
+                                     </div>
+                                   </label>
+                                   
+                                   {/* Date Input for Carton delivery / HV / Lift */}
+                                   {!todo.done && (isKarton || isHV || isLift) && (
+                                     <div className="flex items-center gap-2 bg-black/40 p-2 rounded-lg border border-white/5 shrink-0 self-start sm:self-auto">
+                                       <span className="text-[10px] text-text-muted font-bold uppercase tracking-wider">Liefer-/Stelltermin:</span>
+                                       <input 
+                                         type="date"
+                                         value={
+                                           isKarton ? (order.orderMeta?.kartonDeliveryDate || '') :
+                                           isHV ? (order.orderMeta?.halteverbotDate || '') :
+                                           (order.orderMeta?.moebelliftDate || '')
+                                         }
+                                         onChange={async (e) => {
+                                           const val = e.target.value;
+                                           const field = isKarton ? 'kartonDeliveryDate' : isHV ? 'halteverbotDate' : 'moebelliftDate';
+                                           await updateDoc(doc(db, getCol('orders'), order.id), {
+                                             [`orderMeta.${field}`]: val
+                                           });
+                                           toast.success("Datum aktualisiert!");
+                                         }}
+                                         className="bg-bg-dark text-xs text-text-main border border-structure rounded px-2 py-1 focus:border-primary focus:outline-none"
+                                       />
+                                     </div>
+                                   )}
+                                 </div>
+                               );
+                             })}
+                             {generateTickets(order, customer).length === 0 && (
+                               <div className="text-xs text-text-muted italic">Keine Aufgaben für diese Phase definiert.</div>
+                             )}
+                           </div>
+                         </div>
 
                         {/* Nested Invoices Section */}
                         {linkedInvoices.length > 0 && linkedInvoices.map(inv => (

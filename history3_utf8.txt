@@ -1,0 +1,910 @@
+﻿commit dc3d5b6bbf9baaa70ae288c58329b60daf3d2df5
+Author: Ahmad PC <ahmdungrese@gmail.com>
+Date:   Wed Jun 10 19:50:41 2026 +0200
+
+    Update app for online testing
+
+diff --git a/src/app/dashboard/customers/[id]/page.tsx b/src/app/dashboard/customers/[id]/page.tsx
+index 8814abf..539aabd 100644
+--- a/src/app/dashboard/customers/[id]/page.tsx
++++ b/src/app/dashboard/customers/[id]/page.tsx
+@@ -3,19 +3,25 @@ import { useParams, useRouter } from 'next/navigation';
+ import { useEffect, useState } from 'react';
+ import { db } from '@/lib/firebase';
+ import { doc, collection, query, where, onSnapshot, updateDoc, deleteDoc, serverTimestamp, getDoc, addDoc } from 'firebase/firestore';
+-import { PlusIcon, UserCircleIcon, PhoneIcon, MapPinIcon, DocumentTextIcon, XMarkIcon, EnvelopeIcon, StarIcon, CheckCircleIcon, PencilIcon, TrashIcon, CheckIcon, TruckIcon, CheckBadgeIcon, ClipboardDocumentIcon, DocumentArrowDownIcon, BanknotesIcon, ExclamationTriangleIcon, ArchiveBoxIcon } from '@heroicons/react/24/outline';
++import { PlusIcon, UserCircleIcon, PhoneIcon, MapPinIcon, DocumentTextIcon, XMarkIcon, EnvelopeIcon, StarIcon, CheckCircleIcon, PencilIcon, TrashIcon, CheckIcon, TruckIcon, CheckBadgeIcon, ClipboardDocumentIcon, ClipboardDocumentListIcon, DocumentArrowDownIcon, BanknotesIcon, ExclamationTriangleIcon, ArchiveBoxIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
+ import { toast } from 'react-hot-toast';
+ import Image from 'next/image';
+ import { PDFGenerator } from '@/components/pdf/PDFGenerator';
++import { generateTickets } from '@/lib/ticketEngine';
+ import { SignaturePad } from '@/components/ui/SignaturePad';
+ import { ProtocolModal } from '@/components/customers/ProtocolModal';
++import { DispoModal } from '@/components/orders/DispoModal';
+ import { ClaimModal } from '@/components/customers/ClaimModal';
+ import { ConfirmModal } from '@/components/ui/ConfirmModal';
+ import { PaymentModal } from '@/components/orders/PaymentModal';
+ import { calculateRoute } from '@/lib/routeCalculator';
+ import { getCol } from '@/lib/demoMode';
++import { LogisticsBoard } from '@/components/orders/LogisticsBoard';
++import { MessageSenderModal } from '@/components/customers/MessageSenderModal';
++import { useAuth } from '@/context/AuthContext';
+ 
+ export default function CustomerProfilePage() {
++  const { profile } = useAuth();
+   const params = useParams();
+   const router = useRouter();
+   const customerId = params.id as string;
+@@ -24,16 +30,18 @@ export default function CustomerProfilePage() {
+   const [loading, setLoading] = useState(true);
+   const [selectedOrder, setSelectedOrder] = useState<any>(null);
+   const [protocolOrder, setProtocolOrder] = useState<any>(null);
++  const [dispoOrder, setDispoOrder] = useState<any>(null);
+   const [claims, setClaims] = useState<any[]>([]);
+   const [showClaimModal, setShowClaimModal] = useState(false);
+-  const [pdfType, setPdfType] = useState<'order' | 'employee'>('order');
++  const [pdfType, setPdfType] = useState<'order' | 'contract' | 'employee' | 'invoice' | 'protocol'>('order');
+   const [isEditing, setIsEditing] = useState(false);
+   const [editData, setEditData] = useState<any>(null);
+   const [settings, setSettings] = useState<any>(null);
+   const [deleteConfirmOrder, setDeleteConfirmOrder] = useState<string | null>(null);
++  const [revertConfirmOrder, setRevertConfirmOrder] = useState<{order: any, newStatus: string} | null>(null);
+   
+-  // Payment Modal
+   const [paymentOrder, setPaymentOrder] = useState<any>(null);
++  const [messageOrder, setMessageOrder] = useState<any>(null);
+ 
+   const [routeInfo, setRouteInfo] = useState<{ distanceKm: number, durationMinutes: number } | null>(null);
+   const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+@@ -143,10 +151,27 @@ export default function CustomerProfilePage() {
+     setDeleteConfirmOrder(null);
+   };
+ 
++  const safeRevertStatus = (order: any, newStatus: string) => {
++    if (order.status === 'confirmed' || order.status === 'completed') {
++      setRevertConfirmOrder({ order, newStatus });
++      return;
++    }
++    handleUpdateOrderStatus(order, newStatus);
++  };
++
+   const handleUpdateOrderStatus = async (order: any, newStatus: string) => {
+     try {
+       const payload: any = { status: newStatus, updatedAt: serverTimestamp() };
+       
++      // Wenn zur├╝ck zu Entwurf oder Angebot gewechselt wird, l├Âschen wir die Vertragsunterschrift
++      // da der Vertrag durch die ├änderung ung├╝ltig wird und neu unterschrieben werden muss.
++      if (newStatus === 'draft' || newStatus === 'quote') {
++        payload.signatureOrder = null;
++        payload.signatureOrderDate = null;
++        payload.signatureOrderPlace = null;
++        payload.signatureOrderDateString = null;
++      }
++      
+       // Get latest settings to pull correct numbers safely
+       const settingsDoc = await getDoc(doc(db, getCol('system'), 'settings'));
+       const settingsData = settingsDoc.exists() ? settingsDoc.data() : null;
+@@ -156,24 +181,6 @@ export default function CustomerProfilePage() {
+       
+       // 2. Wenn das Angebot best├ñtigt wird -> Auftragsnummer (AUF-xxx) ziehen
+       if (newStatus === 'confirmed') {
+-        const todos = [];
+-        if (order.logistics?.noParkingZone && !order.todos?.some((t:any) => t.title === 'Halteverbot beantragen')) {
+-          todos.push({ id: 'todo_' + Date.now() + 1, title: 'Halteverbot beantragen', isDone: false });
+-        }
+-        if (order.logistics?.furnitureLift && !order.todos?.some((t:any) => t.title === 'M├Âbellift reservieren')) {
+-          todos.push({ id: 'todo_' + Date.now() + 2, title: 'M├Âbellift reservieren', isDone: false });
+-        }
+-        if (order.services?.some((s: any) => s.name.toLowerCase().includes('karton')) && !order.todos?.some((t:any) => t.title === 'Umzugskartons ausliefern')) {
+-          todos.push({ id: 'todo_' + Date.now() + 3, title: 'Umzugskartons ausliefern', isDone: false });
+-        }
+-        if (order.disposition && (order.disposition.koffer35t > 0 || order.disposition.lkw7t > 0) && !order.todos?.some((t:any) => t.title.includes('Fahrzeug mieten'))) {
+-          todos.push({ id: 'todo_' + Date.now() + 4, title: `Fahrzeug mieten (${order.disposition.koffer35t}x 3,5t | ${order.disposition.lkw7t}x 7,5t)`, isDone: false });
+-        }
+-        if (order.disposition && order.disposition.helpers > 0 && !order.todos?.some((t:any) => t.title === 'Mitarbeiter einteilen')) {
+-          todos.push({ id: 'todo_' + Date.now() + 5, title: 'Mitarbeiter einteilen', isDone: false });
+-        }
+-        payload.todos = [...(order.todos || []), ...todos];
+-
+         if (!order.contractNumber && settingsData) {
+           const nextOrderNumber = settingsData.nextOrderNumber || 1;
+           payload.contractNumber = `AUF-${new Date().getFullYear()}-${nextOrderNumber.toString().padStart(3, '0')}`;
+@@ -260,10 +267,11 @@ export default function CustomerProfilePage() {
+   const handleSaveCustomer = async () => {
+     try {
+       await updateDoc(doc(db, getCol('customers'), customerId), {
+-        firstName: editData.firstName,
+-        lastName: editData.lastName,
+-        email: editData.email,
+-        phone: editData.phone,
++        salutation: editData.salutation || '',
++        firstName: editData.firstName || '',
++        lastName: editData.lastName || '',
++        email: editData.email || '',
++        phone: editData.phone || '',
+         street: editData.street || '',
+         houseNr: editData.houseNr || '',
+         zip: editData.zip || '',
+@@ -326,12 +334,20 @@ export default function CustomerProfilePage() {
+             {isEditing ? (
+               <div className="space-y-4 bg-bg-dark/50 p-4 rounded-xl border border-structure w-full">
+                 <div className="flex gap-4">
+-                  <label className="flex items-center gap-2 text-white text-sm"><input type="radio" checked={editData.type === 'privat'} onChange={() => setEditData({...editData, type:'privat'})} className="accent-primary" /> Privatperson</label>
+-                  <label className="flex items-center gap-2 text-white text-sm"><input type="radio" checked={editData.type === 'firma'} onChange={() => setEditData({...editData, type:'firma'})} className="accent-primary" /> Firma</label>
++                  <label className="flex items-center gap-2 text-text-main text-sm"><input type="radio" checked={editData.type === 'privat'} onChange={() => setEditData({...editData, type:'privat'})} className="accent-primary" /> Privatperson</label>
++                  <label className="flex items-center gap-2 text-text-main text-sm"><input type="radio" checked={editData.type === 'firma'} onChange={() => setEditData({...editData, type:'firma'})} className="accent-primary" /> Firma</label>
+                 </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                   {editData.type === 'privat' ? (
+                     <>
++                      <div>
++                        <label className="text-xs text-text-muted">Anrede</label>
++                        <select value={editData.salutation || ''} onChange={e => setEditData({...editData, salutation: e.target.value})} className="input-field w-full">
++                          <option value="">Keine</option>
++                          <option value="Herr">Herr</option>
++                          <option value="Frau">Frau</option>
++                        </select>
++                      </div>
+                       <div><label className="text-xs text-text-muted">Vorname</label><input type="text" value={editData.firstName} onChange={e => setEditData({...editData, firstName: e.target.value})} className="input-field w-full" /></div>
+                       <div><label className="text-xs text-text-muted">Nachname</label><input type="text" value={editData.lastName} onChange={e => setEditData({...editData, lastName: e.target.value})} className="input-field w-full" /></div>
+                     </>
+@@ -385,7 +401,7 @@ export default function CustomerProfilePage() {
+             ) : (
+               <>
+                 <div className="flex items-center gap-3 mb-2 flex-wrap">
+-                  <h1 className="text-3xl font-bold text-white tracking-tight">
++                  <h1 className="text-3xl font-bold text-text-main tracking-tight">
+                     {customer.type === 'firma' ? customer.lastName : `${customer.firstName} ${customer.lastName}`}
+                   </h1>
+                   {customer.source && (
+@@ -411,18 +427,12 @@ export default function CustomerProfilePage() {
+                     <div className="flex items-center gap-2 text-text-muted">
+                       <PhoneIcon className="w-5 h-5 text-primary" />
+                       <span>{customer.phone}</span>
+-                      <a href={`https://wa.me/${customer.phone.replace(/[^0-9]/g, '')}`} target="_blank" rel="noreferrer" className="ml-3 bg-[#25D366]/10 border border-[#25D366]/30 text-[#25D366] text-xs px-3 py-1 rounded-full font-semibold hover:bg-[#25D366]/20 transition-colors shadow-sm flex items-center gap-1">
+-                        WhatsApp
+-                      </a>
+                     </div>
+                   )}
+                   {customer.email && (
+                     <div className="flex items-center gap-2 text-text-muted">
+                       <EnvelopeIcon className="w-5 h-5 text-primary" />
+                       <span>{customer.email}</span>
+-                      <a href={`mailto:${customer.email}`} className="ml-3 bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs px-3 py-1 rounded-full font-semibold hover:bg-blue-500/20 transition-colors shadow-sm flex items-center gap-1">
+-                        E-Mail
+-                      </a>
+                     </div>
+                   )}
+                   {(customer.street || customer.zip) && (
+@@ -491,6 +501,7 @@ export default function CustomerProfilePage() {
+               </>
+             )}
+           </div>
++          
+           <div className="shrink-0 mt-4 md:mt-0 flex flex-col gap-3">
+             <button 
+               onClick={() => router.push(`/dashboard/customers/${customerId}/new-order`)}
+@@ -500,82 +511,244 @@ export default function CustomerProfilePage() {
+             </button>
+             <button 
+               onClick={() => router.push(`/dashboard/customers/${customerId}/new-order?type=invoice`)}
+-              className="btn-secondary border-primary/50 text-primary hover:bg-primary/10 w-full justify-center"
++              className="btn-secondary border-primary/50 text-primary hover:bg-primary/10 w-full justify-center mb-2"
+             >
+               <DocumentTextIcon className="w-5 h-5" /> Neue Rechnung
+             </button>
+-            {customer.phone && (
+-              <a 
+-                href={`https://wa.me/${customer.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(`Hallo ${customer.firstName}, wir hoffen, Ihr Umzug lief perfekt! Wir w├╝rden uns riesig ├╝ber eine kleine Google-Bewertung freuen. Liebe Gr├╝├ƒe vom Rothirsch-Team! \n\n[Hier Google-Link einf├╝gen]`)}`}
+-                target="_blank" 
+-                rel="noreferrer"
+-                className="btn-secondary w-full justify-center border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10"
+-              >
+-                <StarIcon className="w-5 h-5" /> Bewertung anfragen
+-              </a>
+-            )}
+           </div>
+         </div>
+       </div>
+ 
+       {selectedOrder && (
+-        <div className="panel border-t-4 border-t-primary shadow-2xl relative">
+-          <div className="flex justify-between items-center mb-4">
+-            <h2 className="text-xl font-bold text-white">
+-              Dokumenten-Vorschau: {selectedOrder.status === 'draft' ? 'Entwurf' : 'Angebot / Auftrag'}
+-            </h2>
+-            <div className="flex items-center gap-4">
+-              <div className="flex bg-bg-dark rounded-lg p-1 border border-structure overflow-x-auto">
+-                <button 
+-                  onClick={() => setPdfType('order')} 
+-                  className={`px-3 py-1 rounded-md text-sm whitespace-nowrap transition-colors ${pdfType === 'order' ? 'bg-structure text-white' : 'text-text-muted hover:text-white'}`}
+-                >
+-                  Angebot
+-                </button>
+-                <button 
+-                  onClick={() => setPdfType('contract')} 
+-                  className={`px-3 py-1 rounded-md text-sm whitespace-nowrap transition-colors ${pdfType === 'contract' ? 'bg-structure text-white' : 'text-text-muted hover:text-white'}`}
+-                >
+-                  Auftrag
+-                </button>
+-                <button 
+-                  onClick={() => setPdfType('employee')} 
+-                  className={`px-3 py-1 rounded-md text-sm whitespace-nowrap transition-colors ${pdfType === 'employee' ? 'bg-structure text-white' : 'text-text-muted hover:text-white'}`}
+-                >
+-                  Laufzettel
+-                </button>
+-                <button 
+-                  onClick={() => setPdfType('invoice')} 
+-                  className={`px-3 py-1 rounded-md text-sm whitespace-nowrap transition-colors ${pdfType === 'invoice' ? 'bg-structure text-white' : 'text-text-muted hover:text-white'}`}
+-                >
+-                  Rechnung
+-                </button>
++        <div className="fixed inset-0 z-[100] bg-bg-panel flex flex-col md:flex-row animate-in fade-in duration-300">
++          
++          {/* Left Side: PDF Viewer (Full Height) */}
++          <div className="flex-1 h-[50vh] md:h-full w-full overflow-y-auto custom-scrollbar bg-black/60 p-2 md:p-8 flex flex-col">
++            <PDFGenerator order={selectedOrder} customer={customer} type={pdfType} />
++          </div>
++
++          {/* Right Side: Controls and Signature (Fixed Width Sidebar) */}
++          <div className="w-full md:w-[450px] shrink-0 h-[50vh] md:h-full bg-bg-panel border-t md:border-t-0 md:border-l border-structure flex flex-col shadow-2xl">
++            {/* Header / Controls */}
++            <div className="p-6 border-b border-structure">
++              <div className="flex justify-between items-start mb-6">
++                <div>
++                  <h2 className="text-2xl font-bold text-text-main mb-1">Live Review</h2>
++                  <p className="text-sm text-text-muted">Status: {
++                    selectedOrder.status === 'draft' ? 'Entwurf' : 
++                    selectedOrder.status === 'clarification' ? 'In Kl├ñrung' :
++                    selectedOrder.status === 'rejected' ? 'Abgelehnt' :
++                    'Angebot / Auftrag'
++                  }</p>
++                </div>
++                <div className="flex items-center gap-2">
++                  <button 
++                    onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/${selectedOrder.id}`)}
++                    className="p-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-full transition-colors border border-primary/20"
++                    title="Bearbeiten"
++                  >
++                    <PencilIcon className="w-5 h-5" />
++                  </button>
++                  <button 
++                    onClick={() => setSelectedOrder(null)} 
++                    className="p-2 bg-bg-dark text-text-muted hover:text-text-main hover:bg-red-500/20 rounded-full transition-colors border border-structure"
++                    title="Schlie├ƒen"
++                  >
++                    <XMarkIcon className="w-5 h-5" />
++                  </button>
++                </div>
++              </div>
++
++              <div className="flex flex-col gap-3">
++                <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">Dokument ausw├ñhlen</span>
++                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
++                  <button onClick={() => setPdfType('order')} className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${pdfType === 'order' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-bg-dark text-text-muted hover:text-text-main border border-structure hover:border-primary/50'}`}>Angebot</button>
++                  <button onClick={() => setPdfType('contract')} className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${pdfType === 'contract' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-bg-dark text-text-muted hover:text-text-main border border-structure hover:border-primary/50'}`}>Auftrag</button>
++                  <button onClick={() => setPdfType('employee')} className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${pdfType === 'employee' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-bg-dark text-text-muted hover:text-text-main border border-structure hover:border-primary/50'}`}>Laufzettel</button>
++                  <button onClick={() => setPdfType('invoice')} className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${pdfType === 'invoice' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-bg-dark text-text-muted hover:text-text-main border border-structure hover:border-primary/50'}`}>Rechnung</button>
++                  <button onClick={() => setPdfType('protocol')} className={`px-3 py-2.5 rounded-lg text-sm font-medium transition-colors md:col-span-2 ${pdfType === 'protocol' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-bg-dark text-text-muted hover:text-text-main border border-structure hover:border-primary/50'}`}>Protokolle</button>
++                </div>
+               </div>
+-              <button 
+-                onClick={() => setSelectedOrder(null)} 
+-                className="p-2 bg-bg-dark text-text-muted hover:text-white rounded-full transition-colors"
+-              >
+-                <XMarkIcon className="w-6 h-6" />
+-              </button>
+             </div>
+-          </div>
+-          <PDFGenerator order={selectedOrder} customer={customer} type={pdfType} />
+-          
+-          {selectedOrder.customerSignature ? (
+-            <div className="mt-6 panel border border-green-500/30 bg-green-500/5">
+-              <h3 className="font-semibold text-green-400 mb-2 flex items-center gap-2"><CheckBadgeIcon className="w-5 h-5" /> Dokument wurde digital unterschrieben</h3>
+-              <p className="text-xs text-text-muted mb-4">Unterschrift vom: {new Date(selectedOrder.signatureDate?.toMillis()).toLocaleString('de-DE')}</p>
+-              <img src={selectedOrder.customerSignature} alt="Kundenunterschrift" className="bg-white rounded p-2 h-32 object-contain" />
++            
++            {/* Signature Area */}
++            <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-bg-dark/30">
++              {(pdfType === 'invoice' || pdfType === 'employee') ? (
++                <div className="h-full flex flex-col items-center justify-center text-text-muted opacity-50 p-6 text-center">
++                  <DocumentTextIcon className="w-12 h-12 mb-4" />
++                  <p>F├╝r dieses Dokument ist keine Unterschrift erforderlich.</p>
++                </div>
++              ) : (
++                <>
++                  <h3 className="text-sm font-semibold text-text-main mb-4 border-b border-structure pb-2 flex items-center gap-2">
++                    <PencilIcon className="w-4 h-4 text-primary" /> Digitale Unterschrift
++                  </h3>
++                  
++                  {/* ANGEBOT / ORDER */}
++                  {pdfType === 'order' && (
++                    <div className="space-y-8">
++                      {!selectedOrder.signatureOrder && ['confirmed', 'completed', 'invoice_open', 'invoice_overdue', 'invoice_paid'].includes(selectedOrder.status) ? (
++                        <div className="panel border border-primary/30 bg-primary/5 rounded-xl p-6 shadow-inner text-center mt-4">
++                          <CheckBadgeIcon className="w-12 h-12 text-primary mx-auto mb-3" />
++                          <h4 className="font-bold text-text-main text-lg mb-2">Auftrag extern best├ñtigt</h4>
++                          <p className="text-sm text-text-muted">
++                            Dieses Angebot wurde manuell als best├ñtigt markiert. Die Unterschrift erfolgte extern (z.B. auf Papier oder per WhatsApp).
++                          </p>
++                        </div>
++                      ) : (
++                        <>
++                          {/* 1. AGB Signature */}
++                          <div>
++                        {selectedOrder.signatureAGB ? (
++                          <div className="panel border border-green-500/30 bg-green-500/5 rounded-xl p-4 shadow-inner">
++                            <h4 className="font-semibold text-green-400 mb-2 flex items-center gap-2"><CheckBadgeIcon className="w-5 h-5" /> AGBs akzeptiert</h4>
++                            <p className="text-xs text-text-muted mb-4">Unterschrift vom: {selectedOrder.signatureAGBDate ? new Date(selectedOrder.signatureAGBDate?.toMillis?.() || Date.now()).toLocaleString('de-DE') : 'Gerade eben'}</p>
++                            <div className="bg-white rounded-lg p-2 shadow-sm">
++                              <img src={selectedOrder.signatureAGB} alt="Unterschrift AGB" className="h-24 w-full object-contain mix-blend-multiply" />
++                            </div>
++                          </div>
++                        ) : (
++                          <SignaturePad 
++                            orderId={selectedOrder.id} 
++                            signatureKey="signatureAGB"
++                            title="1. AGB akzeptieren"
++                            description="Ich best├ñtige, dass ich die Allgemeinen Gesch├ñftsbedingungen gelesen habe und diese akzeptiere."
++                            buttonText="AGBs best├ñtigen"
++                            onSigned={(key, dataUrl, place, dateStr) => {
++                              toast.success("AGBs erfolgreich best├ñtigt!");
++                              setSelectedOrder({
++                                ...selectedOrder, 
++                                [key]: dataUrl,
++                                [`${key}Place`]: place,
++                                [`${key}DateString`]: dateStr
++                              });
++                            }} 
++                          />
++                        )}
++                      </div>
++
++                      {/* 2. Order Signature */}
++                      <div>
++                        {selectedOrder.signatureOrder ? (
++                          <div className="panel border border-green-500/30 bg-green-500/5 rounded-xl p-4 shadow-inner">
++                            <h4 className="font-semibold text-green-400 mb-2 flex items-center gap-2"><CheckBadgeIcon className="w-5 h-5" /> Auftrag verbindlich erteilt</h4>
++                            <p className="text-xs text-text-muted mb-4">Unterschrift vom: {selectedOrder.signatureOrderDate ? new Date(selectedOrder.signatureOrderDate?.toMillis?.() || Date.now()).toLocaleString('de-DE') : 'Gerade eben'}</p>
++                            <div className="bg-white rounded-lg p-2 shadow-sm">
++                              <img src={selectedOrder.signatureOrder} alt="Unterschrift Auftrag" className="h-24 w-full object-contain mix-blend-multiply" />
++                            </div>
++                          </div>
++                        ) : (
++                          <div className={!selectedOrder.signatureAGB ? "opacity-50 pointer-events-none" : ""}>
++                            <SignaturePad 
++                              orderId={selectedOrder.id} 
++                              signatureKey="signatureOrder"
++                              title="2. Auftrag erteilen"
++                              description="Mit dieser Unterschrift beauftrage ich verbindlich die Durchf├╝hrung des Umzugs wie im Angebot beschrieben."
++                              buttonText="Verbindlich unterschreiben"
++                              onSigned={(key, dataUrl, place, dateStr) => {
++                                toast.success("Auftrag erfolgreich und verbindlich erteilt!");
++                                if (selectedOrder.status === 'draft' || selectedOrder.status === 'quote') {
++                                  setDispoOrder(selectedOrder);
++                                }
++                                
++                                setSelectedOrder({
++                                  ...selectedOrder, 
++                                  [key]: dataUrl,
++                                  [`${key}Place`]: place,
++                                  [`${key}DateString`]: dateStr
++                                });
++                              }} 
++                            />
++                            {!selectedOrder.signatureAGB && (
++                              <p className="text-xs text-orange-400 mt-2 text-center">Bitte zuerst die AGBs (oben) best├ñtigen.</p>
++                            )}
++                          </div>
++                        )}
++                      </div>
++                        </>
++                      )}
++                    </div>
++                  )}
++
++                  {/* AUFTRAG / CONTRACT */}
++                  {pdfType === 'contract' && (
++                    <div className="space-y-8">
++                      {!selectedOrder.signatureOrder && ['confirmed', 'completed', 'invoice_open', 'invoice_overdue', 'invoice_paid'].includes(selectedOrder.status) ? (
++                        <div className="panel border border-primary/30 bg-primary/5 rounded-xl p-6 shadow-inner text-center mt-4">
++                          <CheckBadgeIcon className="w-12 h-12 text-primary mx-auto mb-3" />
++                          <h4 className="font-bold text-text-main text-lg mb-2">Auftrag extern best├ñtigt</h4>
++                          <p className="text-sm text-text-muted">
++                            Dieser Auftrag wurde manuell als best├ñtigt markiert. Die Unterschrift erfolgte extern (z.B. auf Papier oder per WhatsApp).
++                          </p>
++                        </div>
++                      ) : (
++                        <>
++                          {selectedOrder.signatureOrder ? (
++                        <div className="panel border border-green-500/30 bg-green-500/5 rounded-xl p-4 shadow-inner">
++                          <h4 className="font-semibold text-green-400 mb-2 flex items-center gap-2"><CheckBadgeIcon className="w-5 h-5" /> Auftrag ist erteilt</h4>
++                          <p className="text-xs text-text-muted mb-4">Unterschrift vom: {selectedOrder.signatureOrderDate ? new Date(selectedOrder.signatureOrderDate?.toMillis?.() || Date.now()).toLocaleString('de-DE') : 'Gerade eben'}</p>
++                          <div className="bg-white rounded-lg p-2 shadow-sm">
++                            <img src={selectedOrder.signatureOrder} alt="Unterschrift Auftrag" className="h-24 w-full object-contain mix-blend-multiply" />
++                          </div>
++                        </div>
++                      ) : (
++                        <SignaturePad 
++                          orderId={selectedOrder.id} 
++                          signatureKey="signatureOrder"
++                          title="Auftrag best├ñtigen"
++                          description="Bitte best├ñtigen Sie den Auftrag mit Ihrer Unterschrift."
++                          buttonText="Auftrag best├ñtigen"
++                          onSigned={(key, dataUrl, place, dateStr) => {
++                            toast.success("Auftrag erfolgreich best├ñtigt!");
++                            setSelectedOrder({
++                              ...selectedOrder, 
++                              [key]: dataUrl,
++                              [`${key}Place`]: place,
++                              [`${key}DateString`]: dateStr
++                            });
++                          }} 
++                        />
++                      )}
++                        </>
++                      )}
++                    </div>
++                  )}
++
++                  {/* PROTOCOL */}
++                  {pdfType === 'protocol' && (
++                    <div className="space-y-8">
++                      {selectedOrder.signatureProtocol ? (
++                        <div className="panel border border-green-500/30 bg-green-500/5 rounded-xl p-4 shadow-inner">
++                          <h4 className="font-semibold text-green-400 mb-2 flex items-center gap-2"><CheckBadgeIcon className="w-5 h-5" /> Protokoll unterschrieben</h4>
++                          <p className="text-xs text-text-muted mb-4">Unterschrift vom: {selectedOrder.signatureProtocolDate ? new Date(selectedOrder.signatureProtocolDate?.toMillis?.() || Date.now()).toLocaleString('de-DE') : 'Gerade eben'}</p>
++                          <div className="bg-white rounded-lg p-2 shadow-sm">
++                            <img src={selectedOrder.signatureProtocol} alt="Unterschrift Protokoll" className="h-24 w-full object-contain mix-blend-multiply" />
++                          </div>
++                        </div>
++                      ) : (
++                        <SignaturePad 
++                          orderId={selectedOrder.id} 
++                          signatureKey="signatureProtocol"
++                          title="Protokoll gegenzeichnen"
++                          description="Ich best├ñtige hiermit die Richtigkeit der dokumentierten Protokolle und Leistungen."
++                          buttonText="Protokoll unterschreiben"
++                          onSigned={(key, dataUrl, place, dateStr) => {
++                            toast.success("Protokoll erfolgreich unterschrieben!");
++                            setSelectedOrder({
++                              ...selectedOrder, 
++                              [key]: dataUrl,
++                              [`${key}Place`]: place,
++                              [`${key}DateString`]: dateStr
++                            });
++                          }} 
++                        />
++                      )}
++                    </div>
++                  )}
++                </>
++              )}
+             </div>
+-          ) : (
+-            <SignaturePad 
+-              orderId={selectedOrder.id} 
+-              onSigned={() => {
+-                toast.success("Erfolgreich unterschrieben!");
+-                setSelectedOrder({...selectedOrder, customerSignature: 'pending'}); // Optimistic update to trigger refresh on close
+-              }} 
+-            />
+-          )}
++          </div>
+         </div>
+       )}
+ 
+@@ -605,86 +778,99 @@ export default function CustomerProfilePage() {
+                   const isInvoice = order.status === 'invoice_open' || order.status === 'invoice_paid' || order.status === 'invoice_overdue';
+                   const isConfirmed = order.status === 'confirmed' || order.status === 'completed';
+                   const isQuote = order.status === 'quote';
++                  const isClarification = order.status === 'clarification';
++                  const isRejected = order.status === 'rejected';
++                  
++                  const getStatusBadge = () => {
++                    switch(order.status) {
++                      case 'draft': return <span className="px-2 py-1 bg-structure text-text-muted rounded text-xs font-semibold uppercase tracking-wider">Entwurf</span>;
++                      case 'clarification': return <span className="px-2 py-1 bg-yellow-500/20 text-yellow-500 rounded text-xs font-semibold uppercase tracking-wider">In Kl├ñrung</span>;
++                      case 'quote': return <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs font-semibold uppercase tracking-wider">Angebot</span>;
++                      case 'confirmed': return <span className="px-2 py-1 bg-primary/20 text-primary rounded text-xs font-semibold uppercase tracking-wider">Best├ñtigt</span>;
++                      case 'completed': return <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-semibold uppercase tracking-wider">Erledigt</span>;
++                      case 'invoice_open': return <span className="px-2 py-1 bg-orange-500/20 text-orange-400 rounded text-xs font-semibold uppercase tracking-wider">Rechnung offen</span>;
++                      case 'invoice_paid': return <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-semibold uppercase tracking-wider">Rechnung bezahlt</span>;
++                      case 'invoice_overdue': return <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs font-semibold uppercase tracking-wider">In Mahnung</span>;
++                      case 'invoice_cancelled': return <span className="px-2 py-1 bg-red-900/30 text-red-500 rounded text-xs font-semibold uppercase tracking-wider line-through">Storniert</span>;
++                      case 'rejected': return <span className="px-2 py-1 bg-red-900/30 text-red-400 rounded text-xs font-semibold uppercase tracking-wider line-through">Abgelehnt</span>;
++                      case 'archived': return <span className="px-2 py-1 bg-structure text-text-muted rounded text-xs font-semibold uppercase tracking-wider">Archiviert</span>;
++                      default: return null;
++                    }
++                  };
++
+                   return (
+                   <div key={order.id} className="flex flex-col gap-4 p-4 rounded-xl border border-structure bg-bg-dark hover:border-primary/50 transition-colors">
+                     
+-                    {/* Top Row: Info & Price */}
+-                    <div className="flex flex-wrap md:flex-nowrap justify-between items-start gap-4">
++                    {/* Top Row: Info & Price (Clickable) */}
++                    <div 
++                      onClick={() => { setSelectedOrder(order); setPdfType('order'); }}
++                      className="flex flex-wrap md:flex-nowrap justify-between items-start gap-4 cursor-pointer hover:bg-white/5 p-2 -m-2 rounded-lg transition-colors group"
++                    >
+                       <div className="flex items-center gap-4">
+-                        <div className={`p-3 rounded-lg shrink-0 ${isInvoice ? 'bg-purple-500/20 text-purple-400' : isConfirmed ? 'bg-green-500/20 text-green-400' : isQuote ? 'bg-primary/20 text-primary' : 'bg-structure text-text-muted'}`}>
++                        <div className={`p-3 rounded-lg shrink-0 transition-transform group-hover:scale-105 ${isInvoice ? 'bg-purple-500/20 text-purple-400' : isConfirmed ? 'bg-green-500/20 text-green-400' : isQuote ? 'bg-primary/20 text-primary' : isClarification ? 'bg-yellow-500/20 text-yellow-500' : 'bg-structure text-text-muted'}`}>
+                           <DocumentTextIcon className="w-6 h-6" />
+                         </div>
+                         <div>
+-                          <h4 className="font-semibold text-white">
++                          <h4 className="font-semibold text-text-main group-hover:text-primary transition-colors">
+                             {isInvoice ? 'Rechnung' : isQuote ? 'Angebot' : isConfirmed ? 'Auftrag' : 'Entwurf'} 
+                             {order.orderNumber ? ` #${order.orderNumber}` : ''}
+                           </h4>
+-                          <p className="text-sm text-text-muted">
+-                            {new Date(order.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')} ÔÇó {order.services?.length || 0} Leistungen
+-                          </p>
++                          <div className="flex items-center gap-2 mt-1">
++                            {getStatusBadge()}
++                            <span className="text-sm text-text-muted">
++                              {new Date(order.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')} ÔÇó {order.services?.length || 0} Leistungen
++                            </span>
++                          </div>
+                         </div>
+                       </div>
+                       
+                       <div className="text-right shrink-0">
+                         <div className="text-sm text-text-muted">Brutto</div>
+-                        <div className="font-bold text-white text-lg">Ôé¼ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
++                        <div className="font-bold text-text-main text-lg">Ôé¼ {order.totals?.gross?.toFixed(2) || '0.00'}</div>
+                       </div>
+                     </div>
+ 
++                    {/* Disposition Info Box */}
++                    {['confirmed', 'completed', 'invoice_open', 'invoice_overdue', 'invoice_paid'].includes(order.status) && order.disposition && (
++                      <div className="bg-blue-500/10 border border-blue-500/20 p-3 rounded-lg flex items-center justify-between text-sm">
++                        <div>
++                          <div className="text-blue-400 font-semibold mb-1 flex items-center gap-1">
++                            <TruckIcon className="w-4 h-4" /> Grob-Disposition
++                          </div>
++                          <div className="text-text-main">
++                            {order.disposition.movingDateStr ? (
++                              <span>{new Date(order.disposition.movingDateStr).toLocaleDateString('de-DE')} {order.disposition.movingTimeStr ? `um ${order.disposition.movingTimeStr} Uhr` : ''}</span>
++                            ) : (
++                              <span className="italic text-text-muted">Kein Datum</span>
++                            )}
++                          </div>
++                        </div>
++                        <div className="text-right text-text-muted">
++                          <div><span className="font-semibold text-text-main">{order.disposition.helpers || 0}</span> Helfer</div>
++                          <div className="text-xs mt-0.5">
++                            {order.disposition.koffer35t > 0 && <span>{order.disposition.koffer35t}x 3,5t </span>}
++                            {order.disposition.lkw7t > 0 && <span>{order.disposition.lkw7t}x 7,5t</span>}
++                          </div>
++                        </div>
++                      </div>
++                    )}
++
+                     {/* Bottom Row: Workflow Actions & Button Controls */}
+                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mt-2 pt-4 border-t border-structure/50">
+-                      {/* Workflow Actions */}
+-                      <div className="flex flex-wrap items-center gap-2">
+-                        {order.status === 'draft' && (
+-                          <button onClick={() => handleUpdateOrderStatus(order, 'quote')} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20">
+-                            Entwurf abschlie├ƒen
+-                          </button>
+-                        )}
+-                        {isQuote && (
+-                          <button onClick={() => handleUpdateOrderStatus(order, 'confirmed')} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-green-500/10 text-green-400 hover:bg-green-500/20">
+-                            <CheckIcon className="w-4 h-4" /> Angebot best├ñtigt
+-                          </button>
+-                        )}
+-                        {order.status === 'confirmed' && (
+-                          <button onClick={() => handleUpdateOrderStatus(order, 'completed')} className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-orange-500/10 text-orange-400 hover:bg-orange-500/20">
+-                            Umzug abgeschlossen
+-                          </button>
+-                        )}
+-                        {(order.status === 'completed' || isInvoice) && (
+-                          <span className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg bg-structure text-text-main">
+-                            <CheckCircleIcon className="w-4 h-4" /> Finalisiert
+-                          </span>
+-                        )}
+-                      </div>
+                       
+-                      <div className="flex flex-wrap items-center gap-3">
+-                        {order.status === 'confirmed' && (
+-                          <button 
+-                            onClick={() => handleUpdateOrderStatus(order, 'quote')}
+-                            className="btn-secondary py-1.5 px-3 text-xs shrink-0 text-text-muted hover:text-white"
+-                            title="Status zur├╝cksetzen auf 'Angebot'"
+-                          >
+-                            Zur├╝cksetzen
+-                          </button>
+-                        )}
+-                        {order.status === 'completed' && (
+-                          <button 
+-                            onClick={() => handleUpdateOrderStatus(order, 'confirmed')}
+-                            className="btn-secondary py-1.5 px-3 text-xs shrink-0 text-text-muted hover:text-white"
+-                            title="Status zur├╝cksetzen auf 'Auftrag'"
+-                          >
+-                            Zur├╝cksetzen
+-                          </button>
+-                        )}
++                      {/* Secondary Action Controls */}
++                      <div className="flex flex-wrap items-center gap-2">
+                         {isInvoice && (
+                           <div className="flex items-center gap-2">
+-                            <button 
+-                              onClick={() => setPaymentOrder(order)}
+-                              className="btn-secondary py-1.5 px-3 text-xs shrink-0 border-green-500/50 text-green-400 hover:bg-green-500/10"
+-                              title="Teilzahlung oder vollst├ñndige Zahlung erfassen"
+-                            >
+-                              Zahlung erfassen
+-                            </button>
++                            {order.status === 'invoice_open' && (
++                              <button 
++                                onClick={() => setPaymentOrder(order)}
++                                className="btn-secondary py-1.5 px-3 text-xs shrink-0 border-green-500/50 text-green-400 hover:bg-green-500/10"
++                                title="Teilzahlung oder vollst├ñndige Zahlung erfassen"
++                              >
++                                Zahlung erfassen
++                              </button>
++                            )}
+                             <div className="flex flex-col gap-1">
+                               <button 
+                                 onClick={() => {
+@@ -725,14 +911,14 @@ export default function CustomerProfilePage() {
+                           onClick={() => { setSelectedOrder(order); setPdfType('order'); }}
+                           className="btn-secondary py-1.5 px-3 text-xs shrink-0 flex items-center gap-1"
+                         >
+-                          <DocumentArrowDownIcon className="w-4 h-4" /> PDFs
++                          <DocumentArrowDownIcon className="w-4 h-4" /> PDFs ansehen
+                         </button>
+ 
+                         <button 
+-                          onClick={() => { setSelectedOrder(order); setPdfType('employee'); }}
+-                          className="btn-secondary py-1.5 px-3 text-xs shrink-0 border-primary/50 text-primary hover:bg-primary/10 flex items-center gap-1"
++                          onClick={() => setMessageOrder(order)}
++                          className="btn-secondary py-1.5 px-3 text-xs shrink-0 border-blue-500/50 text-blue-400 hover:bg-blue-500/10 flex items-center gap-1"
+                         >
+-                          <DocumentTextIcon className="w-4 h-4" /> Laufzettel
++                          <EnvelopeIcon className="w-4 h-4" /> Nachricht senden
+                         </button>
+                         
+                         <div className="h-6 w-px bg-structure mx-1 hidden sm:block"></div>
+@@ -752,6 +938,64 @@ export default function CustomerProfilePage() {
+                           <TrashIcon className="w-4 h-4" />
+                         </button>
+                       </div>
++
++                      {/* Primary Workflow Status Actions - MOVED TO THE RIGHT */}
++                      <div className="flex flex-wrap items-center justify-end gap-2 bg-black/20 p-1.5 rounded-lg border border-structure/50 mt-4 md:mt-0 md:ml-auto w-full md:w-auto">
++                        {(order.status === 'draft' || order.status === 'clarification' || order.status === 'rejected') && (
++                          <>
++                            <button onClick={() => handleUpdateOrderStatus(order, 'quote')} className="flex items-center gap-1 text-xs font-semibold px-4 py-2 rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20">
++                              Entwurf abschlie├ƒen (Angebot)
++                            </button>
++                            {order.status !== 'rejected' && (
++                              <button onClick={() => handleUpdateOrderStatus(order, 'rejected')} className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors" title="Kunde hat abgesagt">
++                                Abgelehnt
++                              </button>
++                            )}
++                          </>
++                        )}
++                        {isQuote && (
++                          <>
++                            <button onClick={() => handleUpdateOrderStatus(order, 'draft')} className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded text-text-muted hover:text-text-main hover:bg-structure transition-colors" title="Zur├╝ck zum Entwurf">
++                              <ArrowUturnLeftIcon className="w-3.5 h-3.5" /> Zur├╝ck
++                            </button>
++                            <button onClick={() => handleUpdateOrderStatus(order, 'clarification')} className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded border border-yellow-500/30 text-yellow-500 hover:bg-yellow-500/10 transition-colors" title="Kunde hat noch Fragen">
++                              In Kl├ñrung
++                            </button>
++                            <button onClick={() => handleUpdateOrderStatus(order, 'rejected')} className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-colors" title="Kunde hat abgesagt">
++                              Abgelehnt
++                            </button>
++                            <button onClick={() => setDispoOrder(order)} className="flex items-center gap-1 text-xs font-semibold px-4 py-2 rounded bg-green-500 text-white hover:bg-green-600 transition-colors shadow-lg shadow-green-500/20">
++                              <CheckIcon className="w-4 h-4" /> Angebot best├ñtigt
++                            </button>
++                          </>
++                        )}
++                        {order.status === 'confirmed' && (
++                          <>
++                            <button onClick={() => safeRevertStatus(order, 'quote')} className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded text-text-muted hover:text-text-main hover:bg-structure transition-colors" title="Zur├╝ck zum Angebot">
++                              <ArrowUturnLeftIcon className="w-3.5 h-3.5" /> Zur├╝ck
++                            </button>
++                            <button onClick={() => handleUpdateOrderStatus(order, 'completed')} className="flex items-center gap-1 text-xs font-semibold px-4 py-2 rounded bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-lg shadow-orange-500/20">
++                              Umzug abgeschlossen
++                            </button>
++                          </>
++                        )}
++                        {order.status === 'completed' && (
++                          <>
++                            <button onClick={() => safeRevertStatus(order, 'confirmed')} className="flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded text-text-muted hover:text-text-main hover:bg-structure transition-colors" title="Zur├╝ck zum Auftrag">
++                              <ArrowUturnLeftIcon className="w-3.5 h-3.5" /> Zur├╝ck
++                            </button>
++                            <span className="flex items-center gap-1 text-xs font-semibold px-4 py-2 rounded bg-structure text-text-main">
++                              <CheckCircleIcon className="w-4 h-4" /> Finalisiert
++                            </span>
++                          </>
++                        )}
++                        {isInvoice && (
++                          <span className="flex items-center gap-1 text-xs font-semibold px-4 py-2 rounded bg-structure text-text-main">
++                            <CheckCircleIcon className="w-4 h-4" /> Finalisiert
++                          </span>
++                        )}
++                      </div>
++                      
+                     </div>
+                     
+                     {/* Protokolle anzeigen */}
+@@ -760,10 +1004,10 @@ export default function CustomerProfilePage() {
+                         <h5 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">Hinterlegte Protokolle</h5>
+                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                           {order.protocols.map((proto: any) => (
+-                            <div key={proto.id} className="bg-bg-panel border border-orange-500/20 rounded-lg p-3 flex items-start gap-3 shadow-inner">
++                            <div key={proto.id} className="bg-bg-panel border border-orange-500/20 rounded-lg p-3 flex items-start gap-3 shadow-inner relative group">
+                               <DocumentTextIcon className="w-5 h-5 text-orange-400 shrink-0 mt-0.5" />
+                               <div className="flex-1">
+-                                <div className="font-medium text-sm text-white">{proto.type}</div>
++                                <div className="font-medium text-sm text-text-main">{proto.type}</div>
+                                 <div className="text-xs text-text-muted mt-1 italic">"{proto.text}"</div>
+                                 {proto.signature && (
+                                   <div className="mt-2 flex items-center gap-2 text-xs text-green-400">
+@@ -771,11 +1015,100 @@ export default function CustomerProfilePage() {
+                                   </div>
+                                 )}
+                               </div>
++                              <button 
++                                onClick={async () => {
++                                  if(confirm("M├Âchten Sie dieses Protokoll wirklich l├Âschen? Die Unterschrift geht dabei unwiderruflich verloren.")) {
++                                    try {
++                                      const updatedProtocols = order.protocols.filter((p: any) => p.id !== proto.id);
++                                      await updateDoc(doc(db, getCol('orders'), order.id), { protocols: updatedProtocols });
++                                      toast.success("Protokoll gel├Âscht!");
++                                    } catch (e) {
++                                      toast.error("Fehler beim L├Âschen");
++                                    }
++                                  }
++                                }}
++                                className="absolute top-2 right-2 p-1.5 text-text-muted hover:text-red-400 bg-bg-dark rounded opacity-0 group-hover:opacity-100 transition-opacity border border-structure"
++                                title="Protokoll l├Âschen"
++                              >
++                                <TrashIcon className="w-3.5 h-3.5" />
++                              </button>
+                             </div>
+                           ))}
+                         </div>
+                       </div>
+                     )}
++
++                    {/* Checkliste anzeigen (System + Manuell) */}
++                    {(() => {
++                      const systemTickets = generateTickets(order, customer);
++                      const manualChecklist = order.checklist || [];
++                      const hasTasks = systemTickets.length > 0 || manualChecklist.length > 0;
++                      
++                      if (!hasTasks) return null;
++                      
++                      return (
++                        <div className="mt-2 pt-3 border-t border-structure/50">
++                          <h5 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2 flex items-center gap-2">
++                            <ClipboardDocumentListIcon className="w-4 h-4" />
++                            Aufgaben (System & Checkliste)
++                          </h5>
++                          <div className="space-y-2">
++                            {/* System Tickets */}
++                            {systemTickets.map((task: any) => (
++                              <label key={task.id} className="flex items-center gap-3 p-2 bg-bg-panel border border-structure rounded hover:border-primary/50 cursor-pointer transition-colors">
++                                <input 
++                                  type="checkbox" 
++                                  checked={task.done}
++                                  onChange={async (e) => {
++                                    const updatedStates = order.ticketStates || {};
++                                    updatedStates[task.id] = e.target.checked;
++                                    try {
++                                      await updateDoc(doc(db, getCol('orders'), order.id), { ticketStates: updatedStates });
++                                      toast.success("System-Aufgabe aktualisiert");
++                                    } catch(err) {
++                                      toast.error("Fehler beim Aktualisieren");
++                                    }
++                                  }}
++                                  className="accent-primary w-4 h-4 rounded cursor-pointer"
++                                />
++                                <span className={`text-sm ${task.done ? 'text-text-muted line-through' : 'text-text-main'}`}>
++                                  {task.title}
++                                </span>
++                                <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded uppercase font-bold ${task.type === 'warning' ? 'bg-red-500/10 text-red-400' : task.type === 'action' ? 'bg-primary/10 text-primary' : 'bg-blue-500/10 text-blue-400'}`}>
++                                  System
++                                </span>
++                              </label>
++                            ))}
++                            
++                            {/* Manuelle Checkliste */}
++                            {manualChecklist.map((task: any) => (
++                              <label key={task.id} className="flex items-center gap-3 p-2 bg-bg-panel border border-structure rounded hover:border-primary/50 cursor-pointer transition-colors">
++                                <input 
++                                  type="checkbox" 
++                                  checked={task.done}
++                                  onChange={async (e) => {
++                                    const updatedChecklist = order.checklist.map((t:any) => 
++                                      t.id === task.id ? { ...t, done: e.target.checked } : t
++                                    );
++                                    try {
++                                      await updateDoc(doc(db, getCol('orders'), order.id), { checklist: updatedChecklist });
++                                      toast.success("Manuelle Aufgabe aktualisiert");
++                                    } catch(err) {
++                                      toast.error("Fehler beim Aktualisieren");
++                                    }
++                                  }}
++                                  className="accent-primary w-4 h-4 rounded cursor-pointer"
++                                />
++                                <span className={`text-sm ${task.done ? 'text-text-muted line-through' : 'text-text-main'}`}>{task.text}</span>
++                                <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-structure/50 text-text-muted uppercase font-bold">
++                                  Manuell
++                                </span>
++                              </label>
++                            ))}
++                          </div>
++                        </div>
++                      );
++                    })()}
+                   </div>
+                 );})}
+               </div>
+@@ -831,7 +1164,7 @@ export default function CustomerProfilePage() {
+                         {new Date(claim.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')}
+                       </span>
+                     </div>
+-                    <p className="text-sm text-white line-clamp-2">{claim.description}</p>
++                    <p className="text-sm text-text-main line-clamp-2">{claim.description}</p>
+                     {claim.insuranceId && (
+                       <p className="text-xs text-text-muted mt-2">Versicherung: {claim.insuranceId}</p>
+                     )}
+@@ -859,15 +1192,46 @@ export default function CustomerProfilePage() {
+         <PaymentModal order={paymentOrder} onClose={() => setPaymentOrder(null)} />
+       )}
+ 
++      {/* Message Sender Modal */}
++      {messageOrder && (
++        <MessageSenderModal 
++          order={messageOrder}
++          customer={customer}
++          onClose={() => setMessageOrder(null)}
++        />
++      )}
++
+       <ConfirmModal 
+         isOpen={deleteConfirmOrder !== null}
+-        title="Angebot/Auftrag l├Âschen"
+-        message="M├Âchten Sie dieses Dokument wirklich endg├╝ltig l├Âschen? Diese Aktion kann nicht r├╝ckg├ñngig gemacht werden."
+-        confirmText="Endg├╝ltig l├Âschen"
++        title="Dokument archivieren"
++        message="M├Âchten Sie dieses Dokument wirklich ins Archiv verschieben? Es taucht dann nicht mehr in der normalen Ansicht auf."
++        confirmText="Archivieren"
+         isDestructive={true}
+         onConfirm={confirmDeleteOrder}
+         onCancel={() => setDeleteConfirmOrder(null)}
+       />
++
++      <ConfirmModal 
++        isOpen={revertConfirmOrder !== null}
++        title="Achtung: Auftrag zur├╝ckstufen"
++        message="Sie stufen einen bereits best├ñtigten Auftrag zur├╝ck! Die digitalen Vertragsunterschriften werden gel├Âscht. Alle damit verbundenen Termine im Kalender und in der Checkliste (wie Halteverbotszonen, Kartonlieferung) werden ausgeblendet. Falls Sie diese extern bereits beauftragt haben, m├╝ssen Sie sie MANUELL stornieren!"
++        confirmText="Trotzdem fortfahren"
++        isDestructive={true}
++        onConfirm={() => {
++          if (revertConfirmOrder) handleUpdateOrderStatus(revertConfirmOrder.order, revertConfirmOrder.newStatus);
++          setRevertConfirmOrder(null);
++        }}
++        onCancel={() => setRevertConfirmOrder(null)}
++      />
++
++      {/* Dispo Modal */}
++      {dispoOrder && (
++        <DispoModal 
++          order={dispoOrder} 
++          onClose={() => setDispoOrder(null)} 
++          onSuccess={() => {}}
++        />
++      )}
+     </div>
+   );
+ }

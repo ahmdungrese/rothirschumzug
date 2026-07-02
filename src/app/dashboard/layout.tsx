@@ -4,13 +4,14 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Tutorial } from '@/components/ui/Tutorial';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -26,6 +27,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
+  const isMainDashboard = pathname === '/dashboard';
+
   return (
     <div className="flex h-screen overflow-hidden bg-bg-dark">
       <Tutorial />
@@ -33,7 +36,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header onMenuClick={() => setSidebarOpen(true)} />
         <main className="flex-1 overflow-y-auto p-4 lg:p-8 pb-28 md:pb-8">
-          <div className="max-w-7xl mx-auto">
+          <div className={isMainDashboard ? "w-full" : "max-w-7xl mx-auto"}>
             {children}
           </div>
         </main>

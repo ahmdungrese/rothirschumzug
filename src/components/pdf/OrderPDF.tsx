@@ -2,12 +2,13 @@ import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 
 const styles = StyleSheet.create({
-  page: { padding: 40, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
-  headerContainer: { alignItems: 'center', marginBottom: 30 },
+  page: { padding: 40, paddingBottom: 70, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
+  headerContainerCentered: { alignItems: 'center', marginBottom: 20 },
+  logoWrapperCentered: { backgroundColor: '#1a1a1a', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 6, alignSelf: 'center' },
   logoTextPrimary: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#8F1627', textTransform: 'uppercase', letterSpacing: 2 },
   
   docInfoBox: { width: '40%', alignItems: 'flex-end', justifyContent: 'flex-start' },
-  docType: { fontSize: 16, fontFamily: 'Helvetica-Bold', color: '#8F1627', marginBottom: 5 },
+  mainDocumentTitle: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: '#8F1627', marginBottom: 20, marginTop: 10 },
   docNumLabel: { fontSize: 9, color: '#666' },
   docNum: { fontSize: 11, fontFamily: 'Helvetica-Bold' },
   
@@ -114,8 +115,10 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
   return (
     <Document title={docTitle}>
       <Page size="A4" style={styles.page}>
-        <View style={styles.headerContainer}>
-          <Text style={styles.logoTextPrimary}>{settings?.companyName || 'ROTHIRSCH UMZUG'}</Text>
+        <View style={styles.headerContainerCentered}>
+          <View style={styles.logoWrapperCentered}>
+            <Image src="/Rothirsch.png" style={{ height: 35, objectFit: 'contain' }} />
+          </View>
         </View>
 
         <View style={styles.line} />
@@ -139,7 +142,6 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
             </Text>
           </View>
           <View style={styles.docInfoBox}>
-            <Text style={styles.docType}>{isContract ? 'Auftragsbestätigung' : 'Angebot'}</Text>
             <Text style={styles.docNumLabel}>{isContract ? 'Auftragsnummer' : 'Angebotsnummer'}</Text>
             <Text style={styles.docNum}>{isContract ? (order?.contractNumber || 'Entwurf') : (order?.orderNumber || 'Entwurf')}</Text>
             <View style={{ height: 15 }} />
@@ -176,6 +178,7 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
           </View>
         </View>
 
+        <Text style={styles.mainDocumentTitle}>{isContract ? 'Auftragsbestätigung' : 'Angebot'}</Text>
         <Text style={styles.introText}>
           {introText}
         </Text>
@@ -259,6 +262,11 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
 
       {/* Page 2: Details & Signature */}
       <Page size="A4" style={styles.page}>
+        <View style={styles.headerContainerCentered} fixed>
+          <View style={styles.logoWrapperCentered}>
+            <Image src="/Rothirsch.png" style={{ height: 35, objectFit: 'contain' }} />
+          </View>
+        </View>
         <Text style={styles.detailsHeader}>{isContract ? 'Auftragsdetails & Bestätigung' : 'Angebotsdetails'}</Text>
 
         <View style={styles.addressesRow}>
@@ -365,6 +373,12 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
         <View style={styles.watermarkContainer}>
           <Text style={styles.watermarkText}>{settings?.companyName}</Text>
         </View>
+        
+        <View style={styles.headerContainerCentered} fixed>
+          <View style={styles.logoWrapperCentered}>
+            <Image src="/Rothirsch.png" style={{ height: 35, objectFit: 'contain' }} />
+          </View>
+        </View>
 
         <Text style={styles.agbTitle}>Allgemeine Geschäftsbedingungen (AGB)</Text>
         
@@ -400,6 +414,12 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
         <Page size="A4" style={styles.page}>
           <View style={styles.watermarkContainer}>
             <Text style={styles.watermarkText}>{settings?.companyName}</Text>
+          </View>
+          
+          <View style={styles.headerContainerCentered} fixed>
+            <View style={styles.logoWrapperCentered}>
+              <Image src="/Rothirsch.png" style={{ height: 35, objectFit: 'contain' }} />
+            </View>
           </View>
           
           <Text style={{ ...styles.detailsHeader, fontSize: 18, marginBottom: 20 }}>Anlage: Umzugsgut / Inventarliste</Text>

@@ -143,13 +143,16 @@ export default function CalendarPage() {
                       });
                     }
 
-                    // 2. Halteverbot (4 Tage vorher, oder am Tag der Angebot-Annahme wenn kurzfristig) - nur bestätigte
+                    // 2. Halteverbot (Soll: 7 Tage vorher, oder am Tag der Angebot-Annahme wenn kurzfristig) - nur bestätigte
                     if (o.logistics?.noParkingZone && isConfirmed) {
-                      let hvDate = new Date(movingDateObj);
-                      hvDate.setDate(hvDate.getDate() - 4);
-                      if (hvDate < createdAtObj) hvDate = new Date(createdAtObj); // Wenn kurzfristig, zeige es am Bestätigungstag
+                      let hvDateStr = o.orderMeta?.halteverbotDate || '';
+                      if (!hvDateStr) {
+                        let hvDate = new Date(movingDateObj);
+                        hvDate.setDate(hvDate.getDate() - 7);
+                        if (hvDate < createdAtObj) hvDate = new Date(createdAtObj);
+                        hvDateStr = `${hvDate.getFullYear()}-${String(hvDate.getMonth() + 1).padStart(2, '0')}-${String(hvDate.getDate()).padStart(2, '0')}`;
+                      }
 
-                      const hvDateStr = `${hvDate.getFullYear()}-${String(hvDate.getMonth() + 1).padStart(2, '0')}-${String(hvDate.getDate()).padStart(2, '0')}`;
                       if (hvDateStr === dateStr) {
                         dayEvents.push({
                           id: o.id + '_hv',
@@ -165,13 +168,16 @@ export default function CalendarPage() {
                       }
                     }
 
-                    // 3. Karton-Lieferung (4 Wochen / 28 Tage vorher, oder am Tag der Angebot-Annahme wenn kurzfristig) - nur bestätigte
+                    // 3. Karton-Lieferung (Soll: 28 Tage vorher, oder am Tag der Angebot-Annahme wenn kurzfristig) - nur bestätigte
                     if (o.services?.some((s: any) => s.name.toLowerCase().includes('karton')) && isConfirmed) {
-                      let boxDate = new Date(movingDateObj);
-                      boxDate.setDate(boxDate.getDate() - 28);
-                      if (boxDate < createdAtObj) boxDate = new Date(createdAtObj); // Wenn kurzfristig, zeige es direkt am Tag der Unterschrift
+                      let boxDateStr = o.orderMeta?.kartonDeliveryDate || '';
+                      if (!boxDateStr) {
+                        let boxDate = new Date(movingDateObj);
+                        boxDate.setDate(boxDate.getDate() - 28);
+                        if (boxDate < createdAtObj) boxDate = new Date(createdAtObj);
+                        boxDateStr = `${boxDate.getFullYear()}-${String(boxDate.getMonth() + 1).padStart(2, '0')}-${String(boxDate.getDate()).padStart(2, '0')}`;
+                      }
 
-                      const boxDateStr = `${boxDate.getFullYear()}-${String(boxDate.getMonth() + 1).padStart(2, '0')}-${String(boxDate.getDate()).padStart(2, '0')}`;
                       if (boxDateStr === dateStr) {
                         dayEvents.push({
                           id: o.id + '_box',
@@ -186,9 +192,35 @@ export default function CalendarPage() {
                         });
                       }
                     }
+
+                    // 4. Möbellift buchen/reservieren - nur bestätigte
+                    if (o.services?.some((s: any) => ['lift', 'möbellift', 'aufzug'].some(kw => s.name.toLowerCase().includes(kw))) && isConfirmed) {
+                      let liftDateStr = o.orderMeta?.moebelliftDate || '';
+                      if (!liftDateStr) {
+                        // Standard: 3 Tage vor dem Umzug
+                        let liftDate = new Date(movingDateObj);
+                        liftDate.setDate(liftDate.getDate() - 3);
+                        if (liftDate < createdAtObj) liftDate = new Date(createdAtObj);
+                        liftDateStr = `${liftDate.getFullYear()}-${String(liftDate.getMonth() + 1).padStart(2, '0')}-${String(liftDate.getDate()).padStart(2, '0')}`;
+                      }
+
+                      if (liftDateStr === dateStr) {
+                        dayEvents.push({
+                          id: o.id + '_lift',
+                          ticketId: 'moebellift_buchen',
+                          type: 'lift',
+                          title: 'Möbellift buchen',
+                          address: o.customerName,
+                          color: 'bg-teal-600 border-teal-500 text-white hover:bg-teal-500 shadow-md shadow-teal-500/20',
+                          orderId: o.id,
+                          customerId: o.customerId,
+                          isDone: !!o.ticketStates?.moebellift_buchen
+                        });
+                      }
+                    }
                   }
 
-                  // 4. Besichtigungstermine
+                  // 5. Besichtigungstermine
                   const effectiveViewingDate = o.orderMeta?.viewingDate || o.viewingDate;
                   if (effectiveViewingDate && effectiveViewingDate.split('T')[0] === dateStr) {
                     dayEvents.push({

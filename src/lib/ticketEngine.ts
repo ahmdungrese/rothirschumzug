@@ -18,7 +18,27 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
   const status = order.status || 'draft';
   const states = order.ticketStates || {}; 
 
-  // Helper to calculate due status
+  // Helper to calculate due status based on a specific date (e.g. custom delivery date)
+  const calculateTargetDateStatus = (targetDateStr: string | null | undefined): { status: 'neutral'|'due'|'overdue', text: string } | null => {
+    if (!targetDateStr) return null;
+    try {
+      const targetDate = new Date(targetDateStr);
+      const now = new Date();
+      targetDate.setHours(0, 0, 0, 0);
+      now.setHours(0, 0, 0, 0);
+      
+      const diffTime = targetDate.getTime() - now.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      if (diffDays < 0) return { status: 'overdue', text: 'ÜBERFÄLLIG' };
+      if (diffDays <= 2) return { status: 'due', text: `FÄLLIG IN ${diffDays} TAGEN` };
+      return { status: 'neutral', text: '' };
+    } catch (e) {
+      return null;
+    }
+  };
+
+  // Helper to calculate due status relative to move date
   const calculateDueDateStatus = (daysToMove: number | null, dueThreshold: number, overdueThreshold: number): { status: 'neutral'|'due'|'overdue', text: string } => {
     if (daysToMove === null) return { status: 'neutral', text: '' };
     if (daysToMove <= overdueThreshold) return { status: 'overdue', text: 'ÜBERFÄLLIG' };
@@ -30,7 +50,6 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
   if (order.orderMeta?.movingDateFrom) {
     const moveDate = new Date(order.orderMeta.movingDateFrom);
     const now = new Date();
-    // difference in days
     const diffTime = moveDate.getTime() - now.getTime();
     daysToMove = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   }
@@ -51,7 +70,7 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
       title,
       phase,
       type,
-      done: isSystemEvaluated ? systemDone : !!states[id],
+      done: isSystemEvaluated ? (systemDone || !!states[id]) : !!states[id],
       actionLink,
       kanbanCategory,
       dueDateStatus: dueStatus?.status || 'neutral',
@@ -71,32 +90,44 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
 
   // === Phase 1: Vor Bestätigung (draft, quote) ===
   if (status === 'draft' || status === 'quote') {
+    // Phase 1 Overdue Check: 3 days after creation of customer
+    let isPhase1Overdue = false;
+    if (customer?.createdAt) {
+      const createdDate = customer.createdAt?.seconds ? new Date(customer.createdAt.seconds * 1000) : new Date(customer.createdAt);
+      const now = new Date();
+      const diffTime = now.getTime() - createdDate.getTime();
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+      if (diffDays >= 3) {
+        isPhase1Overdue = true;
+      }
+    }
+
     const hasDate = !!(order.orderMeta?.movingDateFrom || order.orderMeta?.movingDateTo);
-    addTicket('missing_date', 'Umzugsdatum fehlt (Kunde hat kein Datum genannt)', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, undefined, hasDate);
+    const dateDueStatus = isPhase1Overdue && !hasDate ? { status: 'overdue' as const, text: 'ÜBERFÄLLIG' } : undefined;
+    addTicket('missing_date', 'Umzugsdatum fehlt (Kunde hat kein Datum genannt)', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, dateDueStatus, hasDate);
     
     const hasDestination = !!(order.logistics?.b_city || order.logistics?.b_street);
-    addTicket('missing_destination', 'Entladeadresse fehlt (Zielort nicht bekannt)', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, undefined, hasDestination);
+    const destDueStatus = isPhase1Overdue && !hasDestination ? { status: 'overdue' as const, text: 'ÜBERFÄLLIG' } : undefined;
+    addTicket('missing_destination', 'Entladeadresse fehlt (Zielort nicht bekannt)', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, destDueStatus, hasDestination);
 
     const hasPhone = !!(order.billingAddress?.phone || customer?.phone);
-    addTicket('missing_phone', 'Telefonnummer des Kunden fehlt', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}`, undefined, hasPhone);
+    const phoneDueStatus = isPhase1Overdue && !hasPhone ? { status: 'overdue' as const, text: 'ÜBERFÄLLIG' } : undefined;
+    addTicket('missing_phone', 'Telefonnummer des Kunden fehlt', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}`, phoneDueStatus, hasPhone);
 
-    const viewingDone = order.orderMeta?.viewingDate !== 'requested' && !!order.orderMeta?.viewingDate;
-    // We only show viewing requested task if it was ever requested. If not requested, we don't show it. 
-    // Wait, previously it was only added if 'requested'. Now we always show it if 'requested' or if it was requested and is now done.
-    // Actually, if it's 'requested', done = false. If it's a real date, done = true. But we don't know if it WAS requested.
-    // Let's just keep the old logic for viewing_requested but pass systemDone.
     if (order.orderMeta?.viewingDate === 'requested' || states['viewing_requested']) {
        const isViewingDone = order.orderMeta?.viewingDate !== 'requested' && !!order.orderMeta?.viewingDate;
-       addTicket('viewing_requested', 'Kunde wünscht einen Besichtigungstermin', 1, 'action', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, undefined, isViewingDone);
+       const customViewingStatus = calculateTargetDateStatus(order.orderMeta?.viewingDate);
+       addTicket('viewing_requested', 'Kunde wünscht einen Besichtigungstermin', 1, 'action', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, customViewingStatus || undefined, isViewingDone);
     }
   }
 
   // === Phase 2: Nach Bestätigung (confirmed) ===
   if (status === 'confirmed') {
     if (hasServiceLike(['karton', 'box', 'kartons'])) {
-      // Kartons: fällig 14-8 Tage vor, überfällig <= 7 Tage vor
-      const dueStatus = calculateDueDateStatus(daysToMove, 14, 7);
-      addTicket('kartons_liefern', 'Umzugskartons besorgen & an Kunden liefern', 2, 'action', 'kartons', undefined, dueStatus);
+      // Check for custom carton delivery date first, else calculate relative (due: 28 days before, overdue: 23 days before)
+      const customKartonStatus = calculateTargetDateStatus(order.orderMeta?.kartonDeliveryDate);
+      const relativeKartonStatus = calculateDueDateStatus(daysToMove, 28, 23);
+      addTicket('kartons_liefern', 'Umzugskartons besorgen & an Kunden liefern', 2, 'action', 'kartons', undefined, customKartonStatus || relativeKartonStatus);
     }
 
     if (hasServiceLike(['küche', 'kueche', 'einbau', 'montage'])) {
@@ -108,15 +139,17 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
     }
 
     if (order.logistics?.a_parking || order.logistics?.b_parking || hasServiceLike(['halteverbot'])) {
-      // Halteverbot: fällig 21-15 Tage vor, überfällig <= 14 Tage vor
-      const dueStatus = calculateDueDateStatus(daysToMove, 21, 14);
-      addTicket('halteverbot', 'Halteverbotszone beantragen & Schilder aufstellen', 2, 'action', 'halteverbot', undefined, dueStatus);
+      // Check for custom HV date first, else relative (overdue: 7 days before)
+      const customHvStatus = calculateTargetDateStatus(order.orderMeta?.halteverbotDate);
+      const relativeHvStatus = calculateDueDateStatus(daysToMove, 7, 7);
+      addTicket('halteverbot', 'Halteverbotszone beantragen & Schilder aufstellen', 2, 'action', 'halteverbot', undefined, customHvStatus || relativeHvStatus);
     }
 
     if (hasServiceLike(['lift', 'möbellift', 'aufzug'])) {
-      // Möbellift: fällig 14-8 Tage vor, überfällig <= 7 Tage vor
-      const dueStatus = calculateDueDateStatus(daysToMove, 14, 7);
-      addTicket('moebellift_buchen', 'Möbellift extern buchen / reservieren', 2, 'action', 'moebellift', undefined, dueStatus);
+      // Check for custom Lift date, else relative (overdue: 3 days before)
+      const customLiftStatus = calculateTargetDateStatus(order.orderMeta?.moebelliftDate);
+      const relativeLiftStatus = calculateDueDateStatus(daysToMove, 3, 3);
+      addTicket('moebellift_buchen', 'Möbellift extern buchen / reservieren', 2, 'action', 'moebellift', undefined, customLiftStatus || relativeLiftStatus);
     }
 
     // Always for confirmed
@@ -137,16 +170,8 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
   // === Phase 3: Nach Umzug (completed, invoice_*) ===
   if (status === 'completed' || status === 'invoice_open' || status === 'invoice_paid') {
     if (status === 'completed') {
-      // Rechnung erstellen: fällig 1 Tag nach Umzug (-1 Tage), überfällig <= -3 Tage
-      // daysToMove is negative if move is in the past. e.g. move was yesterday -> daysToMove = -1.
-      let dueStatus: { status: 'neutral' | 'due' | 'overdue', text: string } = { status: 'neutral', text: '' };
-      if (daysToMove !== null) {
-        if (daysToMove <= -3) {
-          dueStatus = { status: 'overdue', text: 'ÜBERFÄLLIG' };
-        } else if (daysToMove <= -1) {
-          dueStatus = { status: 'due', text: 'FÄLLIG' };
-        }
-      }
+      // Invoice: overdue if daysToMove is <= -5 (5 days after move)
+      let dueStatus = calculateDueDateStatus(daysToMove, -1, -5);
       addTicket('invoice_missing', 'Rechnung erstellen (Umzug beendet)', 3, 'warning', 'rechnung', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, dueStatus);
     }
 
@@ -154,7 +179,6 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
       addTicket('payment_check', 'Zahlungseingang prüfen (Rechnung ist noch offen)', 3, 'action', 'rechnung', `/dashboard/customers/${order.customerId}`);
     }
 
-    // Unabhängig davon, ob bezahlt oder nicht, nach dem Umzug Bewertung anfragen
     if (status !== 'invoice_cancelled') {
       addTicket('review_requested', 'Kunden-Anfrage zur Bewertung schicken', 3, 'info', 'general', `/dashboard/customers/${order.customerId}`);
     }

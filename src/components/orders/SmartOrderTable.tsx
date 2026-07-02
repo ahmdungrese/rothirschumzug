@@ -14,9 +14,13 @@ import {
   ReceiptRefundIcon,
   ClipboardDocumentListIcon,
   MapPinIcon,
-  GlobeAltIcon
+  GlobeAltIcon,
+  FolderOpenIcon,
+  PencilSquareIcon,
+  DocumentArrowDownIcon
 } from '@heroicons/react/24/outline';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { PDFDownloadButton } from '@/components/pdf/PDFDownloadButton';
 
 // Helper for Source Colors
 const getSourceBadgeColor = (source: string) => {
@@ -52,8 +56,6 @@ export function SmartOrderTable({
   onStorno 
 }: SmartOrderTableProps) {
   const router = useRouter();
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
-
   if (orders.length === 0) {
     return (
       <div className="glass-panel p-12 text-center rounded-2xl text-text-muted italic border border-white/5 shadow-xl">
@@ -62,18 +64,9 @@ export function SmartOrderTable({
     );
   }
 
-  // Toggle dropdown
-  const toggleDropdown = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    setOpenDropdown(openDropdown === id ? null : id);
-  };
-
-  // Close dropdown if clicked outside (simple implementation for row clicks)
-  const closeDropdown = () => setOpenDropdown(null);
-
   return (
     <div className="glass-panel rounded-2xl border border-structure overflow-visible shadow-xl relative z-10">
-      <div className="overflow-x-auto custom-scrollbar" onScroll={closeDropdown}>
+      <div className="overflow-x-auto custom-scrollbar">
         <table className="w-full text-left text-sm text-text-main">
           <thead className="bg-bg-dark text-text-muted uppercase text-xs tracking-wider border-b border-structure">
             <tr>
@@ -109,11 +102,7 @@ export function SmartOrderTable({
               return (
                 <tr 
                   key={order.id} 
-                  onClick={() => {
-                    closeDropdown();
-                    router.push(`/dashboard/customers/${order.customerId}`);
-                  }}
-                  className="hover:bg-white/[0.04] transition-colors cursor-pointer group"
+                  className="hover:bg-white/[0.04] transition-colors group"
                 >
                   {/* Kunde / Details */}
                   <td className="px-6 py-4">
@@ -180,69 +169,71 @@ export function SmartOrderTable({
                     )}
                   </td>
 
-                  {/* Aktionen (3-Dots Dropdown) */}
-                  <td className="px-6 py-4 text-right relative">
-                    <button 
-                      onClick={(e) => toggleDropdown(e, order.id)}
-                      className="p-2 bg-structure/50 hover:bg-primary/20 text-text-muted hover:text-primary rounded-xl transition-all"
-                    >
-                      <EllipsisVerticalIcon className="w-5 h-5" />
-                    </button>
-                    
-                    {openDropdown === order.id && (
-                      <>
-                        {/* Invisible backdrop to close dropdown when clicking outside within the row bounds */}
-                        <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); closeDropdown(); }}></div>
-                        
-                        <div className="absolute right-6 top-14 mt-2 w-48 bg-bg-panel border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col py-1 animate-in fade-in zoom-in-95 duration-100">
-                          
-                          {/* Options based on status */}
-                          {order.status === 'quote' && onDispo && (
-                            <button onClick={(e) => { e.stopPropagation(); closeDropdown(); onDispo(order); }} className="px-4 py-2 text-left text-xs text-text-main hover:bg-primary/20 hover:text-primary flex items-center gap-2 transition-colors">
-                              <TruckIcon className="w-4 h-4" /> Disponieren
-                            </button>
-                          )}
+                  {/* Aktionen Grid */}
+                  <td className="px-6 py-4">
+                    <div className="grid grid-cols-2 gap-1.5 w-fit ml-auto">
+                      {/* Kundenakte */}
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/customers/${order.customerId}`); }}
+                        className="p-2.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors flex justify-center items-center"
+                        title="In Kundenakte öffnen"
+                      >
+                        <FolderOpenIcon className="w-5 h-5" />
+                      </button>
 
-                          {order.status === 'confirmed' && onGenerateInvoice && (
-                            <button onClick={(e) => { e.stopPropagation(); closeDropdown(); onGenerateInvoice(order); }} className="px-4 py-2 text-left text-xs text-emerald-400 hover:bg-emerald-400/10 flex items-center gap-2 transition-colors">
-                              <DocumentCheckIcon className="w-4 h-4" /> Rechnung schreiben
-                            </button>
-                          )}
+                      {/* Bearbeiten */}
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/customers/${order.customerId}/edit-order/${order.id}`); }}
+                        className="p-2.5 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-lg transition-colors flex justify-center items-center"
+                        title="Bearbeiten"
+                      >
+                        <PencilSquareIcon className="w-5 h-5" />
+                      </button>
 
-                          {isInvoice && order.status !== 'canceled' && (
-                            <button onClick={(e) => { e.stopPropagation(); closeDropdown(); router.push(`/dashboard/customers/${order.customerId}`); }} className="px-4 py-2 text-left text-xs text-blue-400 hover:bg-blue-400/10 flex items-center gap-2 transition-colors">
-                              <BanknotesIcon className="w-4 h-4" /> Zahlungen verwalten
-                            </button>
-                          )}
+                      {/* PDF */}
+                      <div onClick={e => e.stopPropagation()} className="w-full h-full flex">
+                        <PDFDownloadButton 
+                          order={order} 
+                          customer={customer} 
+                          type={isInvoice ? 'invoice' : (['confirmed', 'completed'].includes(order.status) ? 'contract' : 'order')}
+                          iconOnly={true}
+                          customIcon={<DocumentArrowDownIcon className="w-5 h-5" />}
+                          className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors flex justify-center items-center w-full"
+                        />
+                      </div>
 
-                          <button onClick={(e) => { e.stopPropagation(); closeDropdown(); router.push(`/dashboard/customers/${order.customerId}/edit-order/${order.id}`); }} className="px-4 py-2 text-left text-xs text-text-main hover:bg-white/5 flex items-center gap-2 transition-colors">
-                            <DocumentTextIcon className="w-4 h-4" /> Bearbeiten
+                      {/* Delete or Storno (4th action) */}
+                      {!isInvoice ? (
+                        onDelete && (
+                          <button onClick={(e) => { e.stopPropagation(); onDelete(order); }} className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-lg transition-colors flex justify-center items-center" title="Löschen">
+                            <TrashIcon className="w-5 h-5" />
                           </button>
-
-                          <button onClick={(e) => { e.stopPropagation(); closeDropdown(); router.push(`/dashboard/customers/${order.customerId}`); }} className="px-4 py-2 text-left text-xs text-text-main hover:bg-white/5 flex items-center gap-2 transition-colors">
-                            <ClipboardDocumentListIcon className="w-4 h-4" /> In Kundenakte öffnen
+                        )
+                      ) : (
+                        onStorno && order.status !== 'canceled' && (
+                          <button onClick={(e) => { e.stopPropagation(); onStorno(order); }} className="p-2.5 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-lg transition-colors flex justify-center items-center" title="Stornieren">
+                            <ReceiptRefundIcon className="w-5 h-5" />
                           </button>
-
-                          {/* Delete or Storno */}
-                          <div className="h-px bg-white/5 my-1 w-full"></div>
-                          
-                          {['draft', 'archived', 'quote'].includes(order.status) ? (
-                            onDelete && (
-                              <button onClick={(e) => { e.stopPropagation(); closeDropdown(); onDelete(order); }} className="px-4 py-2 text-left text-xs text-red-500 hover:bg-red-500/10 flex items-center gap-2 transition-colors font-semibold">
-                                <TrashIcon className="w-4 h-4" /> Löschen
-                              </button>
-                            )
-                          ) : (
-                            onStorno && (
-                              <button onClick={(e) => { e.stopPropagation(); closeDropdown(); onStorno(order); }} className="px-4 py-2 text-left text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors">
-                                <ReceiptRefundIcon className="w-4 h-4" /> Stornieren
-                              </button>
-                            )
-                          )}
-
-                        </div>
-                      </>
-                    )}
+                        )
+                      )}
+                      
+                      {/* Optional 5th action (Contextual) - shown below if applicable */}
+                      {order.status === 'quote' && onDispo && (
+                        <button onClick={(e) => { e.stopPropagation(); onDispo(order); }} className="p-2.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded-lg transition-colors flex justify-center items-center col-span-2" title="Disponieren">
+                          <TruckIcon className="w-5 h-5" />
+                        </button>
+                      )}
+                      {order.status === 'confirmed' && onGenerateInvoice && (
+                        <button onClick={(e) => { e.stopPropagation(); onGenerateInvoice(order); }} className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-lg transition-colors flex justify-center items-center col-span-2" title="Rechnung schreiben">
+                          <DocumentCheckIcon className="w-5 h-5" />
+                        </button>
+                      )}
+                      {isInvoice && order.status !== 'canceled' && (
+                        <button onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/customers/${order.customerId}`); }} className="p-2.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg transition-colors flex justify-center items-center col-span-2" title="Zahlungen verwalten">
+                          <BanknotesIcon className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );

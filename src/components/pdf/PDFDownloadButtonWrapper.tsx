@@ -11,7 +11,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { getCol } from '@/lib/demoMode';
 import { useAuth } from '@/context/AuthContext';
 
-export default function PDFDownloadButtonWrapper({ order, customer, type = 'order', className = '' }: { order: any, customer: any, type?: 'order' | 'employee' | 'invoice' | 'contract' | 'protocol', className?: string }) {
+export default function PDFDownloadButtonWrapper({ order, customer, type = 'order', className = '', iconOnly = false, customIcon = null }: { order: any, customer: any, type?: 'order' | 'employee' | 'invoice' | 'contract' | 'protocol', className?: string, iconOnly?: boolean, customIcon?: React.ReactNode }) {
   const [settings, setSettings] = useState<any>(null);
   const { profile } = useAuth();
   
@@ -32,7 +32,7 @@ export default function PDFDownloadButtonWrapper({ order, customer, type = 'orde
     });
   }, []);
 
-  if (!settings) return <button disabled className={`flex items-center justify-center gap-2 opacity-50 ${className}`}><ArrowDownTrayIcon className="w-4 h-4" /> Lade...</button>;
+  if (!settings) return <button disabled className={`flex items-center justify-center gap-2 opacity-50 ${className}`} title="Lade...">{customIcon || <ArrowDownTrayIcon className="w-4 h-4" />}{!iconOnly && " Lade..."}</button>;
 
   const getDocument = () => {
     if (type === 'employee') return <EmployeeSheetPDF order={order} customer={customer} employeeName={employeeName} />;
@@ -43,26 +43,40 @@ export default function PDFDownloadButtonWrapper({ order, customer, type = 'orde
   };
 
   const getFileName = () => {
-    const customerName = customer?.type === 'firma' ? customer?.lastName : `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim();
-    const safeCustomerName = customerName || 'Kunde';
-    const company = settings?.companyName || 'Rothirsch Umzüge';
-    const address = order?.logistics?.b_street ? `${order.logistics.b_street} ${order.logistics.b_houseNr || ''}`.trim() : 'Unbekannt';
+    let customerNameStr = '';
+    let companyStr = '';
+    
+    if (customer?.type === 'firma') {
+        companyStr = customer?.lastName || 'Firma';
+        customerNameStr = customer?.firstName || '';
+    } else {
+        customerNameStr = `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim() || 'Kunde';
+        companyStr = ''; 
+    }
+    
     const orderNum = order?.orderNumber || 'Entwurf';
     
-    if (type === 'employee') return `Laufzettel - ${safeCustomerName} - ${address}.pdf`;
-    if (type === 'invoice') return `Rechnung ${order?.invoiceNumber || orderNum} - ${company}.pdf`;
-    if (type === 'contract') return `Auftragsbestätigung ${order?.contractNumber || orderNum} - ${company}.pdf`;
-    if (type === 'protocol') return `Protokoll ${order?.contractNumber || orderNum} - ${safeCustomerName}.pdf`;
-    return `Angebot ${orderNum} - ${company} - ${safeCustomerName}.pdf`;
+    const suffixParts = [];
+    if (companyStr) suffixParts.push(companyStr);
+    if (customerNameStr) suffixParts.push(customerNameStr);
+    const suffix = suffixParts.join(' - ');
+    
+    const address = order?.logistics?.b_street ? `${order.logistics.b_street} ${order.logistics.b_houseNr || ''}`.trim() : 'Unbekannt';
+
+    if (type === 'employee') return `Laufzettel - ${suffix} - ${address}.pdf`;
+    if (type === 'invoice') return `Rechnung ${order?.invoiceNumber || orderNum} - ${suffix}.pdf`;
+    if (type === 'contract') return `Auftragsbestätigung ${order?.contractNumber || orderNum} - ${suffix}.pdf`;
+    if (type === 'protocol') return `Protokoll ${order?.contractNumber || orderNum} - ${suffix}.pdf`;
+    return `Angebot ${orderNum} - ${suffix}.pdf`;
   };
 
   return (
     <PDFDownloadLink document={getDocument()} fileName={getFileName()}>
       {/* @ts-ignore */}
       {({ loading }) => (
-        <button disabled={loading} className={`flex items-center justify-center gap-2 ${className}`}>
-          <ArrowDownTrayIcon className="w-4 h-4" />
-          {loading ? 'Generiere PDF...' : 'Als PDF herunterladen'}
+        <button disabled={loading} className={`flex items-center justify-center gap-2 ${className}`} title={loading ? 'Generiere PDF...' : 'Als PDF herunterladen'}>
+          {customIcon || <ArrowDownTrayIcon className="w-4 h-4" />}
+          {!iconOnly && (loading ? 'Generiere PDF...' : 'Als PDF herunterladen')}
         </button>
       )}
     </PDFDownloadLink>

@@ -153,8 +153,25 @@ export default function ClaimsPage() {
 }
 
 function ClaimCard({ claim, updateStatus, onDelete, isHighlighted }: { claim: any, updateStatus: (id: string, s: string) => void, onDelete: () => void, isHighlighted?: boolean }) {
+  // Check for overdue statuses
+  let isOverdue = false;
+  let isInsuranceOverdue = false;
+  const createdDate = claim.createdAt?.seconds ? new Date(claim.createdAt.seconds * 1000) : claim.createdAt ? new Date(claim.createdAt) : new Date();
+  const diffTime = new Date().getTime() - createdDate.getTime();
+  const diffDays = diffTime / (1000 * 60 * 60 * 24);
+
+  if (claim.status === 'Neu' && diffDays >= 3) {
+    isOverdue = true;
+  }
+  if ((claim.status === 'In Bearbeitung' || claim.status === 'An Versicherung gemeldet') && diffDays >= 10) {
+    isInsuranceOverdue = true;
+  }
+
   return (
-    <div id={`claim-${claim.id}`} className={`bg-bg-dark border p-4 rounded-xl shadow-lg transition-all duration-500 flex flex-col h-full ${isHighlighted ? 'border-primary ring-2 ring-primary/50 bg-primary/5 shadow-primary/20 scale-[1.02]' : 'border-structure hover:border-primary/50'}`}>
+    <div id={`claim-${claim.id}`} className={`bg-bg-dark border p-4 rounded-xl shadow-lg transition-all duration-500 flex flex-col h-full ${
+      isHighlighted ? 'border-primary ring-2 ring-primary/50 bg-primary/5 shadow-primary/20 scale-[1.02]' : 
+      isOverdue || isInsuranceOverdue ? 'border-red-500/50 bg-red-500/5 hover:border-red-400' : 'border-structure hover:border-primary/50'
+    }`}>
       <div className="flex justify-between items-start mb-2">
         <Link href={`/dashboard/customers/${claim.customerId}`} className="font-semibold text-text-main hover:text-primary transition-colors text-sm truncate">
           {claim.customerName}
@@ -164,9 +181,17 @@ function ClaimCard({ claim, updateStatus, onDelete, isHighlighted }: { claim: an
         </button>
       </div>
       
-      <p className="text-xs text-text-muted mb-2">
-        Gemeldet: {new Date(claim.createdAt?.toMillis?.() || Date.now()).toLocaleDateString('de-DE')}
-      </p>
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        <p className="text-xs text-text-muted font-medium">
+          Gemeldet: {createdDate.toLocaleDateString('de-DE')}
+        </p>
+        {isOverdue && (
+          <span className="bg-red-500/20 text-red-500 text-[9px] font-bold px-1.5 py-0.5 rounded border border-red-500/20 shadow-sm uppercase tracking-wider animate-pulse">⚠️ ÜBERFÄLLIG</span>
+        )}
+        {isInsuranceOverdue && (
+          <span className="bg-red-500/20 text-red-500 text-[9px] font-bold px-1.5 py-0.5 rounded border border-red-500/20 shadow-sm uppercase tracking-wider animate-pulse">⚠️ OFFEN (&gt;10 T.)</span>
+        )}
+      </div>
       
       <p className="text-sm text-text-main line-clamp-3 mb-4 flex-1">
         {claim.description}
