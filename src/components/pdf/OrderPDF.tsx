@@ -2,20 +2,20 @@ import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 
 const styles = StyleSheet.create({
-  page: { padding: 40, paddingBottom: 70, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
+  page: { padding: 40, paddingBottom: 55, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
   headerContainerCentered: { alignItems: 'center', marginBottom: 20 },
   logoWrapperCentered: { backgroundColor: '#1a1a1a', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 6, alignSelf: 'center' },
   logoTextPrimary: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#8F1627', textTransform: 'uppercase', letterSpacing: 2 },
   
   docInfoBox: { width: '40%', alignItems: 'flex-end', justifyContent: 'flex-start' },
-  mainDocumentTitle: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: '#8F1627', marginBottom: 20, marginTop: 10 },
+  mainDocumentTitle: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: '#8F1627', marginBottom: 8, marginTop: 6 },
   docNumLabel: { fontSize: 9, color: '#666' },
   docNum: { fontSize: 11, fontFamily: 'Helvetica-Bold' },
   
   line: { borderBottomWidth: 1, borderBottomColor: '#8F1627', marginBottom: 15 },
   companyLine: { fontSize: 8, color: '#666', marginBottom: 15 },
   
-  customerDateBox: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 30 },
+  customerDateBox: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
   customerBox: { width: '50%' },
   customerTitle: { fontSize: 9, color: '#666', marginBottom: 3 },
   customerText: { fontSize: 10, fontFamily: 'Helvetica-Bold', marginBottom: 2 },
@@ -26,22 +26,22 @@ const styles = StyleSheet.create({
   dateLabel: { color: '#666' },
   dateValue: { fontFamily: 'Helvetica-Bold', textAlign: 'right' },
   
-  introText: { marginBottom: 20, lineHeight: 1.4 },
+  introText: { marginBottom: 10, lineHeight: 1.4 },
   
-  table: { width: '100%', marginBottom: 20 },
-  tableHeader: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#ccc', paddingBottom: 5, marginBottom: 5, fontFamily: 'Helvetica-Bold' },
-  tableRow: { flexDirection: 'row', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#eee' },
+  table: { width: '100%', marginBottom: 10 },
+  tableHeader: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#ccc', paddingBottom: 4, marginBottom: 4, fontFamily: 'Helvetica-Bold' },
+  tableRow: { flexDirection: 'row', paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: '#eee' },
   col1: { width: '10%' },
   col2: { width: '45%' },
   col3: { width: '15%', textAlign: 'right' },
   col4: { width: '15%', textAlign: 'right' },
   col5: { width: '15%', textAlign: 'right' },
   
-  totals: { alignItems: 'flex-end', marginBottom: 30 },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', width: '40%', marginBottom: 5 },
-  totalRowBold: { flexDirection: 'row', justifyContent: 'space-between', width: '40%', marginTop: 5, paddingTop: 5, borderTopWidth: 1, borderTopColor: '#333', fontFamily: 'Helvetica-Bold', fontSize: 11 },
+  totals: { alignItems: 'flex-end', marginBottom: 12 },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', width: '40%', marginBottom: 3 },
+  totalRowBold: { flexDirection: 'row', justifyContent: 'space-between', width: '40%', marginTop: 3, paddingTop: 4, borderTopWidth: 1, borderTopColor: '#333', fontFamily: 'Helvetica-Bold', fontSize: 11 },
   
-  textBlock: { marginBottom: 20, lineHeight: 1.4 },
+  textBlock: { marginBottom: 8, lineHeight: 1.4 },
   
   detailsHeader: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#8F1627', marginBottom: 15, marginTop: 20 },
   
