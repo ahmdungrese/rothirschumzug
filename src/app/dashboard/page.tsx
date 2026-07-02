@@ -893,6 +893,7 @@ export default function DashboardPage() {
                   ];
                   const phase4Tickets = [
                     ...tickets.filter(t => t.phase === 2 && t.id !== 'viewing_requested'),
+                    ...tickets.filter(t => t.phase === 4),
                     {
                       id: 'transition_complete',
                       title: 'Umzug durchführen & Abnahmeprotokoll',
@@ -925,20 +926,28 @@ export default function DashboardPage() {
                     let newStatus = parentOrder.status;
                     let extraFields: any = { ticketStates: updatedStates };
 
-                    if (todo.id === 'transition_quote' && newDone) {
-                      if (parentOrder.status === 'draft') newStatus = 'quote';
-                    } else if (todo.id === 'transition_confirm' && newDone) {
-                      if (['draft', 'quote'].includes(parentOrder.status)) {
+                    if (todo.id === 'transition_quote') {
+                      if (newDone && parentOrder.status === 'draft') newStatus = 'quote';
+                      else if (!newDone && parentOrder.status === 'quote') newStatus = 'draft';
+                    } else if (todo.id === 'transition_confirm') {
+                      if (newDone && ['draft', 'quote'].includes(parentOrder.status)) {
                         newStatus = 'confirmed';
                         extraFields.externallyConfirmed = true;
+                      } else if (!newDone && parentOrder.status === 'confirmed') {
+                        newStatus = 'quote';
+                        extraFields.externallyConfirmed = false;
                       }
-                    } else if (todo.id === 'transition_complete' && newDone) {
-                      if (['draft', 'quote', 'confirmed'].includes(parentOrder.status)) {
+                    } else if (todo.id === 'transition_complete') {
+                      if (newDone && ['draft', 'quote', 'confirmed'].includes(parentOrder.status)) {
                         newStatus = 'completed';
+                      } else if (!newDone && parentOrder.status === 'completed') {
+                        newStatus = 'confirmed';
                       }
-                    } else if (todo.id === 'transition_invoice' && newDone) {
-                      if (['draft', 'quote', 'confirmed', 'completed'].includes(parentOrder.status)) {
+                    } else if (todo.id === 'transition_invoice') {
+                      if (newDone && ['draft', 'quote', 'confirmed', 'completed'].includes(parentOrder.status)) {
                         newStatus = 'invoice_open';
+                      } else if (!newDone && parentOrder.status === 'invoice_open') {
+                        newStatus = 'completed';
                       }
                     }
 
