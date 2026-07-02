@@ -3,7 +3,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, useMemo } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, collection, query, where, onSnapshot, updateDoc, deleteDoc, serverTimestamp, getDoc, addDoc } from 'firebase/firestore';
-import { LinkIcon, PlusIcon, UserCircleIcon, PhoneIcon, MapPinIcon, DocumentTextIcon, XMarkIcon, EnvelopeIcon, StarIcon, CheckCircleIcon, PencilIcon, TrashIcon, CheckIcon, TruckIcon, CheckBadgeIcon, ClipboardDocumentIcon, ClipboardDocumentListIcon, DocumentArrowDownIcon, BanknotesIcon, ExclamationTriangleIcon, ArchiveBoxIcon, ArrowUturnLeftIcon, EllipsisHorizontalIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline';
+import { LinkIcon, PlusIcon, UserCircleIcon, PhoneIcon, MapPinIcon, DocumentTextIcon, XMarkIcon, EnvelopeIcon, StarIcon, CheckCircleIcon, PencilIcon, TrashIcon, CheckIcon, TruckIcon, CheckBadgeIcon, ClipboardDocumentIcon, ClipboardDocumentListIcon, DocumentArrowDownIcon, BanknotesIcon, ExclamationTriangleIcon, ArchiveBoxIcon, ArrowUturnLeftIcon, EllipsisHorizontalIcon, ChevronDownIcon, ChevronUpIcon, BoltIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -258,10 +258,10 @@ export default function CustomerProfilePage() {
   };
 
   const handleDeleteCustomer = async () => {
-    const hasDocuments = orders.some(o => o.status !== 'draft');
+    const hasInvoices = orders.some(o => o.type === 'invoice' || o.invoiceNumber || o.status.startsWith('invoice_') || o.status === 'completed');
     
-    if (hasDocuments) {
-      if (!confirm('Dieser Kunde hat bereits Dokumente/Rechnungen und kann aus rechtlichen Gründen nur archiviert werden. Fortfahren?')) return;
+    if (hasInvoices) {
+      if (!confirm('Dieser Kunde hat bereits Rechnungen oder abgeschlossene Aufträge und kann aus rechtlichen Gründen nicht gelöscht werden. Bitte stornieren Sie zuerst die Rechnungen. Möchten Sie den Kunden stattdessen archivieren?')) return;
       try {
         await updateDoc(doc(db, getCol('customers'), customerId), { status: 'archived', updatedAt: serverTimestamp() });
         toast.success("Kunde wurde archiviert!");
@@ -270,10 +270,13 @@ export default function CustomerProfilePage() {
         toast.error("Fehler beim Archivieren.");
       }
     } else {
-      if (!confirm('Möchten Sie diesen Kunden wirklich unwiderruflich löschen?')) return;
+      if (!confirm('Möchten Sie diesen Kunden wirklich unwiderruflich löschen? Alle zugehörigen Angebote und Entwürfe werden dabei ebenfalls gelöscht.')) return;
       try {
+        for (const o of orders) {
+          await deleteDoc(doc(db, getCol('orders'), o.id));
+        }
         await deleteDoc(doc(db, getCol('customers'), customerId));
-        toast.success("Kunde erfolgreich gelöscht!");
+        toast.success("Kunde und zugehörige Dokumente erfolgreich gelöscht!");
         router.push('/dashboard/customers');
       } catch (e) {
         toast.error("Fehler beim Löschen.");
@@ -336,6 +339,11 @@ export default function CustomerProfilePage() {
           await updateDoc(doc(db, getCol('system'), 'settings'), { nextOrderNumber: nextOrderNumber + 1 });
         }
         toast.success("Angebot bestätigt!");
+      }
+
+      // Undo Confirmation (back to quote)
+      if (newStatus === 'quote' && order.status === 'confirmed') {
+         payload.contractNumber = null; // Revert to Angebot
       }
 
       if ((newStatus === 'invoice_open' || newStatus === 'invoice_paid') && !order.invoiceNumber && settingsData) {
@@ -578,35 +586,6 @@ export default function CustomerProfilePage() {
       {/* RIGHT MAIN AREA: Timeline & Finances */}
       <div className="flex-1 space-y-4">
         
-        {/* Intelligent Checklist */}
-        {checklist && checklist.length > 0 && (
-          <div className="bg-bg-panel border border-primary/20 rounded-2xl p-5 shadow-lg mb-4">
-            <h2 className="text-base font-bold text-text-main flex items-center gap-2 mb-4">
-              <CheckBadgeIcon className="w-5 h-5 text-primary" /> Kunden-Status / Fehlende Informationen
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {checklist.map((item, idx) => (
-                <div key={idx} className={`p-3 rounded-xl border flex flex-col justify-between gap-3 ${
-                  item.status === 'danger' ? 'bg-red-500/10 border-red-500/20' :
-                  item.status === 'warning' ? 'bg-orange-500/10 border-orange-500/20' :
-                  'bg-blue-500/10 border-blue-500/20'
-                }`}>
-                  <div>
-                    <div className="text-[10px] font-bold uppercase tracking-wider mb-1 opacity-70 flex items-center gap-1">Phase {item.phase}</div>
-                    <div className="font-bold text-sm text-text-main leading-tight mb-1">{item.title}</div>
-                    <div className="text-xs text-text-muted">{item.desc}</div>
-                  </div>
-                  {item.action && (
-                    <button onClick={item.action} className="w-full mt-2 px-3 py-1.5 bg-bg-dark hover:bg-white/5 border border-structure rounded-lg text-xs font-bold text-text-main transition-colors shadow-sm">
-                      Jetzt beheben
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Unified Top Financial Bar */}
         <div className="flex flex-wrap items-center justify-between gap-4 bg-bg-panel border border-white/5 rounded-2xl p-4 shadow-md">
           <h2 className="text-lg font-bold text-text-main flex items-center gap-2"><DocumentTextIcon className="w-5 h-5 text-primary" /> Auftragshistorie</h2>
@@ -655,7 +634,7 @@ export default function CustomerProfilePage() {
                       </div>
                       <div>
                         <h3 className="font-bold text-text-main text-base flex items-center gap-2">
-                          {isInvoice ? 'Rechnung' : 'Auftrag'} {order.invoiceNumber ? `#${order.invoiceNumber}` : order.orderNumber ? `#${order.orderNumber}` : ''}
+                          {isInvoice ? 'Rechnung' : (['draft', 'quote'].includes(order.status) ? 'Angebot' : 'Auftrag')} {order.invoiceNumber ? `#${order.invoiceNumber}` : order.orderNumber ? `#${order.orderNumber}` : ''}
                         </h3>
                         <div className="text-xs text-text-muted mt-0.5 flex items-center gap-2">
                           {new Date(order.createdAt?.toMillis?.() || Date.now()).toLocaleDateString('de-DE')}
@@ -678,134 +657,304 @@ export default function CustomerProfilePage() {
                   {isExpanded && (
                     <div className="border-t border-white/5 bg-black/20 p-5 animate-in slide-in-from-top-2 duration-300">
                       
-                      {/* Smart Status Workflow (Stepper) */}
-                      <div className="mb-6 p-4 bg-bg-dark rounded-xl border border-white/5 flex flex-wrap items-center justify-between gap-4 shadow-inner">
-                        <div className="flex flex-wrap items-center gap-2 shrink-0">
-                          <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest mr-2">Nächster Schritt:</span>
-                          
-                          {/* Workflow Actions */}
-                          {(order.status === 'draft' || order.status === 'clarification' || order.status === 'rejected') && (
-                            <button onClick={() => handleUpdateOrderStatus(order, 'quote')} className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">Kunde Angebot vorlegen</button>
-                          )}
-                          
-                          {order.status === 'quote' && (
-                            <>
-                              <button onClick={() => handleConfirmOrder(order)} className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1"><CheckIcon className="w-4 h-4"/> Bestätigen</button>
-                              <button onClick={() => handleUpdateOrderStatus(order, 'rejected')} className="px-3 py-2 bg-white/5 hover:bg-red-500/10 text-text-muted hover:text-red-400 text-xs font-bold rounded-lg transition-colors">Ablehnen</button>
-                            </>
-                          )}
-                          
-                          {order.status === 'confirmed' && (
-                            <button onClick={() => handleUpdateOrderStatus(order, 'completed')} className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">Umzug durchgeführt (Erledigt)</button>
-                          )}
-                          
-                          {!isInvoice && (order.status === 'quote' || order.status === 'confirmed') && !order.signatureOrder && !order.externallyConfirmed && (
-                            <button onClick={() => setSignatureOrder(order)} className="px-4 py-2 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-2">
-                              ✍️ Auftrag digital unterschreiben
-                            </button>
-                          )}
-
-                          {!isInvoice && order.signatureOrder && (
-                            <div className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold rounded-lg flex items-center gap-2">
-                              <CheckBadgeIcon className="w-4 h-4" /> 
-                              Unterschrieben am {order.signatureOrderDate ? new Date(order.signatureOrderDate.toMillis?.() || Date.now()).toLocaleDateString('de-DE') : order.signatureOrderDateString}
-                            </div>
-                          )}
-
-                          {!isInvoice && order.externallyConfirmed && !order.signatureOrder && (
-                            <div className="px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold rounded-lg flex items-center gap-2">
-                              <CheckBadgeIcon className="w-4 h-4" /> 
-                              Extern bestätigt (z.B. WhatsApp)
-                            </div>
-                          )}
-
-                          {(order.status === 'completed' && !isInvoice && !hasActiveInvoice) && (
-                            <button onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/new?type=invoice&sourceOrder=${order.id}`)} className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">🧾 Rechnung generieren</button>
-                          )}
-
-                          {(order.status === 'completed' && !isInvoice && hasActiveInvoice) && (
-                            <>
-                              <button onClick={() => {
-                                setInlinePdfOrder(inlinePdfOrder?.id === order.id ? null : order); setInlinePdfType(isInvoice ? 'invoice' : 'order');
-                                setTimeout(() => {
-                                  document.getElementById(`pdf-viewer-${order.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                }, 100);
-                              }} className={`px-4 py-2 ${inlinePdfOrder?.id === order.id ? 'bg-primary text-white' : 'bg-black/20 hover:bg-white/10 text-text-muted hover:text-white'} text-xs font-bold rounded-lg transition-colors flex items-center gap-2 border border-white/5`}>
-                                <DocumentTextIcon className="w-4 h-4" /> {inlinePdfOrder?.id === order.id ? 'Vorschau schließen' : 'PDF ansehen'}
+                      {/* Unified Live-Reaktions-Fläche */}
+                      <div className="mb-6 bg-bg-dark border border-structure rounded-2xl shadow-xl overflow-hidden">
+                        <div className="p-4 bg-gradient-to-r from-bg-panel to-bg-dark border-b border-white/5 flex items-center justify-between">
+                          <h3 className="text-sm font-bold text-text-main flex items-center gap-2">
+                            <BoltIcon className="w-5 h-5 text-primary" /> Live-Aktions-Feed & Verlauf
+                          </h3>
+                          {/* Right Side Actions */}
+                          <div className="flex items-center gap-2">
+                            {order.status !== 'archived' && order.status !== 'canceled' && (
+                              <button 
+                                onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/${order.id}`)} 
+                                className="px-3 py-1.5 bg-bg-panel border border-structure text-text-main hover:text-primary text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
+                              >
+                                <PencilIcon className="w-3.5 h-3.5 text-primary"/> Bearbeiten
                               </button>
-                              <button onClick={() => {
-                                const inv = linkedInvoices.find(i => i.status !== 'canceled' && i.status !== 'archived');
-                                if (inv) setMessageOrder(inv);
-                              }} className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1">
-                                <EnvelopeIcon className="w-4 h-4"/> Rechnung per E-Mail
+                            )}
+                            {/* Permanent Undo Button */}
+                            {['quote', 'confirmed', 'completed'].includes(order.status) && !hasActiveInvoice && (
+                              <button 
+                                onClick={() => {
+                                  const map: any = { 'quote': 'draft', 'confirmed': 'quote', 'completed': 'confirmed' };
+                                  handleUpdateOrderStatus(order, map[order.status]);
+                                }} 
+                                className="p-1.5 bg-bg-panel hover:bg-white/10 border border-structure text-text-muted hover:text-white rounded-lg transition-colors"
+                                title="Einen Schritt zurück"
+                              >
+                                <ArrowUturnLeftIcon className="w-4 h-4" />
                               </button>
-                              <button onClick={() => setMessageOrder(order)} className="px-4 py-2 bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500/30 border border-yellow-500/30 text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1">
-                                <StarIcon className="w-4 h-4"/> Bewertung anfragen
-                              </button>
-                            </>
-                          )}
-
-                          {order.status === 'invoice_open' && (
-                            <button onClick={() => setPaymentOrder(order)} className="px-4 py-2 bg-green-500/20 border border-green-500/50 text-green-400 hover:bg-green-500/30 text-xs font-bold rounded-lg shadow-sm transition-colors">Zahlungseingang buchen</button>
-                          )}
-
-                          {/* Permanent Undo Button */}
-                          {['quote', 'confirmed', 'completed'].includes(order.status) && !hasActiveInvoice && (
-                            <button 
-                              onClick={() => {
-                                const map: any = { 'quote': 'draft', 'confirmed': 'quote', 'completed': 'confirmed' };
-                                handleUpdateOrderStatus(order, map[order.status]);
-                              }} 
-                              className="ml-2 px-3 py-2 bg-white/5 hover:bg-white/10 text-text-muted hover:text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1"
-                              title="Einen Schritt zurück"
-                            >
-                              <ArrowUturnLeftIcon className="w-3.5 h-3.5" /> Zurück
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Right Side Actions */}
-                        <div className="flex items-center gap-2">
-                          {order.status !== 'archived' && order.status !== 'canceled' && (
-                            <button 
-                              onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/${order.id}`)} 
-                              className="px-3 py-2 bg-bg-dark hover:bg-bg-panel border border-structure text-text-main hover:text-primary text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
-                              title="Auftrag bearbeiten"
-                            >
-                              <PencilIcon className="w-4 h-4 text-primary"/> Bearbeiten
-                            </button>
-                          )}
-                          
-                          {/* More Options Dropdown */}
-                          <div className="relative">
+                            )}
                             <button 
                               onClick={() => setActiveDropdown(activeDropdown === order.id ? null : order.id)}
-                              className="p-2 bg-bg-dark hover:bg-bg-panel border border-structure rounded-lg text-text-main transition-colors shadow-sm"
+                              className="p-1.5 bg-bg-panel hover:bg-white/10 border border-structure rounded-lg text-text-main transition-colors"
                             >
-                              <EllipsisHorizontalIcon className="w-5 h-5" />
+                              <EllipsisHorizontalIcon className="w-4 h-4" />
                             </button>
-                            
                             {activeDropdown === order.id && (
-                              <div className="absolute right-0 mt-2 w-56 bg-bg-panel border border-structure rounded-xl shadow-2xl py-1 z-50">
+                              <div className="absolute right-6 mt-10 w-56 bg-bg-panel border border-structure rounded-xl shadow-2xl py-1 z-50">
+                                {['confirmed', 'completed'].includes(order.status) && (
+                                  <button onClick={() => { setActiveDropdown(null); setInlinePdfOrder(inlinePdfOrder?.id === order.id ? null : order); setInlinePdfType('protocol'); }} className="w-full text-left px-4 py-2 text-sm text-text-main hover:bg-structure flex items-center gap-2"><DocumentArrowDownIcon className="w-4 h-4"/> Leeres Protokoll drucken</button>
+                                )}
                                 <button onClick={() => { setActiveDropdown(null); setInlinePdfOrder(inlinePdfOrder?.id === order.id ? null : order); setInlinePdfType(isInvoice ? 'invoice' : 'order'); }} className="w-full text-left px-4 py-2 text-sm text-text-main hover:bg-structure flex items-center gap-2"><DocumentArrowDownIcon className="w-4 h-4"/> PDF / Drucken</button>
-                              
-                              {isInvoice && (
-                                <>
-                                  <button onClick={() => { if(confirm('Rechnung stornieren und Kopie anlegen?')) handleStorno(order, true); }} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 font-bold">Stornieren & Neu</button>
-                                  <button onClick={() => { if(confirm('Nur stornieren?')) handleStorno(order, false); }} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10">Nur Stornieren</button>
-                                </>
+                                {['draft', 'quote', 'clarification', 'rejected'].includes(order.status) && (
+                                  <button onClick={() => { setActiveDropdown(null); deleteOrder(order.id); }} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2"><TrashIcon className="w-4 h-4"/> Löschen</button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="p-5">
+                          {/* Pending Actions (Akuter Handlungsbedarf) */}
+                          <div className="mb-6">
+                            <h4 className="text-[10px] font-bold text-red-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> Akuter Handlungsbedarf
+                            </h4>
+                            <div className="space-y-2">
+                              {/* 1. Missing Data (Checklist Items) */}
+                              {checklist && checklist.length > 0 && checklist.map((item, idx) => (
+                                <div key={`chk-${idx}`} className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 flex flex-wrap justify-between items-center gap-3">
+                                  <div>
+                                    <div className="text-[10px] text-red-400/70 font-bold uppercase mb-0.5">Phase {item.phase} • Fehlende Information</div>
+                                    <div className="text-sm text-red-400 font-bold">{item.title}</div>
+                                    <div className="text-xs text-text-muted">{item.desc}</div>
+                                  </div>
+                                  {item.action && (
+                                    <button onClick={item.action} className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">Fehlende Daten eintragen</button>
+                                  )}
+                                </div>
+                              ))}
+
+                              {/* 2. Next Status Steps */}
+                              {(order.status === 'draft' || order.status === 'clarification' || order.status === 'rejected') && (
+                                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 flex flex-wrap justify-between items-center gap-3">
+                                  <div>
+                                    <div className="text-[10px] text-blue-400/70 font-bold uppercase mb-0.5">Phase 2 • Angebot erstellen</div>
+                                    <div className="text-sm text-blue-400 font-bold">Angebot ist im Entwurf</div>
+                                    <div className="text-xs text-text-muted">Bitte sende dem Kunden das finale Angebot.</div>
+                                  </div>
+                                  <button onClick={() => handleUpdateOrderStatus(order, 'quote')} className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">Angebot vorlegen</button>
+                                </div>
                               )}
 
-                              {['draft', 'quote', 'clarification', 'rejected'].includes(order.status) && (
-                                <>
-                                  <button onClick={() => { setActiveDropdown(null); deleteOrder(order.id); }} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2"><TrashIcon className="w-4 h-4"/> Löschen</button>
-                                </>
+                              {order.status === 'quote' && (
+                                <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-3 flex flex-wrap justify-between items-center gap-3">
+                                  <div>
+                                    <div className="text-[10px] text-orange-400/70 font-bold uppercase mb-0.5">Phase 3 • Warten auf Zusage</div>
+                                    <div className="text-sm text-orange-400 font-bold">Warten auf Kundenbestätigung</div>
+                                    <div className="text-xs text-text-muted">Der Kunde hat das Angebot vorliegen.</div>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <button onClick={() => handleUpdateOrderStatus(order, 'rejected')} className="px-3 py-1.5 bg-white/5 hover:bg-red-500/10 text-text-muted hover:text-red-400 text-xs font-bold rounded-lg transition-colors">Kunde hat abgesagt</button>
+                                    <button onClick={() => handleConfirmOrder(order)} className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1"><CheckIcon className="w-4 h-4"/> Auftrag bestätigen</button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* 3. Signatures */}
+                              {!isInvoice && (order.status === 'quote' || order.status === 'confirmed') && !order.signatureOrder && !order.externallyConfirmed && (
+                                <div className="bg-teal-500/10 border border-teal-500/20 rounded-xl p-3 flex flex-wrap justify-between items-center gap-3">
+                                  <div>
+                                    <div className="text-[10px] text-teal-400/70 font-bold uppercase mb-0.5">Unterschrift erforderlich</div>
+                                    <div className="text-sm text-teal-400 font-bold">Digitale Signatur / Externe Zusage fehlt</div>
+                                  </div>
+                                  <button onClick={() => setSignatureOrder(order)} className="px-3 py-1.5 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">✍️ Jetzt unterschreiben lassen</button>
+                                </div>
+                              )}
+
+                              {/* 4. Complete Move */}
+                              {order.status === 'confirmed' && (
+                                <div className="bg-purple-500/10 border border-purple-500/20 rounded-xl p-3 flex flex-wrap justify-between items-center gap-3">
+                                  <div>
+                                    <div className="text-[10px] text-purple-400/70 font-bold uppercase mb-0.5">Phase 4 • Umzug</div>
+                                    <div className="text-sm text-purple-400 font-bold">Umzug durchführen</div>
+                                    <div className="text-xs text-text-muted">Markiere den Auftrag als erledigt, wenn der Umzug abgeschlossen ist.</div>
+                                  </div>
+                                  <button onClick={() => handleUpdateOrderStatus(order, 'completed')} className="px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">Umzug durchgeführt (Erledigt)</button>
+                                </div>
+                              )}
+
+                              {/* 5. Invoicing */}
+                              {(order.status === 'completed' && !isInvoice && !hasActiveInvoice) && (
+                                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 flex flex-wrap justify-between items-center gap-3">
+                                  <div>
+                                    <div className="text-[10px] text-blue-400/70 font-bold uppercase mb-0.5">Phase 5 • Rechnung</div>
+                                    <div className="text-sm text-blue-400 font-bold">Es fehlt noch die Rechnung</div>
+                                  </div>
+                                  <button onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/new?type=invoice&sourceOrder=${order.id}`)} className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">🧾 Rechnung generieren</button>
+                                </div>
+                              )}
+
+                              {/* 6. System Tickets (Pending) */}
+                              {generateTickets(order, customer).filter(t => !t.done).map(todo => {
+                                const isKarton = todo.id === 'kartons_liefern';
+                                const isHV = todo.id === 'halteverbot_bestellen' || todo.id === 'halteverbot_b_bestellen';
+                                const isLift = todo.id === 'moebellift_bestellen' || todo.id === 'moebellift_b_bestellen';
+                                return (
+                                  <div key={todo.id} className="bg-bg-panel border border-white/5 rounded-xl p-3 flex flex-wrap justify-between items-center gap-3 hover:bg-white/5 transition-colors">
+                                    <div className="flex items-start gap-3">
+                                      <input 
+                                        type="checkbox" 
+                                        checked={todo.done} 
+                                        disabled={todo.systemEvaluated && todo.done}
+                                        onChange={async () => {
+                                          if (todo.systemEvaluated) return;
+                                          const updatedStates = order.ticketStates || {};
+                                          updatedStates[todo.id] = !todo.done;
+                                          await updateDoc(doc(db, getCol('orders'), order.id), { ticketStates: updatedStates });
+                                          toast.success(todo.done ? "Aufgabe wieder geöffnet" : "Aufgabe abgeschlossen!");
+                                        }}
+                                        className="mt-1 w-4 h-4 rounded border-structure text-primary bg-bg-dark focus:ring-primary focus:ring-offset-bg-panel cursor-pointer"
+                                      />
+                                      <div>
+                                        <div className="text-[10px] text-text-muted font-bold uppercase tracking-wider mb-0.5">Phase {todo.phase} • Logistik & Orga</div>
+                                        <div className="text-sm font-bold text-text-main flex items-center gap-2">
+                                          {todo.title}
+                                          {todo.dueDateStatus === 'overdue' && (
+                                            <span className="bg-red-500/20 text-red-500 text-[10px] px-2 py-0.5 rounded border border-red-500/20 shadow-sm uppercase tracking-wider">ÜBERFÄLLIG</span>
+                                          )}
+                                        </div>
+                                        {/* Date Input inside Feed */}
+                                        {(isKarton || isHV || isLift) && (
+                                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                                            <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-white/5 w-fit">
+                                              <span className="text-[10px] text-text-muted uppercase">Datum:</span>
+                                              <input 
+                                                type="date"
+                                                value={
+                                                  isKarton ? (order.orderMeta?.kartonDeliveryDate || '') :
+                                                  isHV ? (order.orderMeta?.halteverbotDate || '') :
+                                                  (order.orderMeta?.moebelliftDate || '')
+                                                }
+                                                onChange={async (e) => {
+                                                  const val = e.target.value;
+                                                  const field = isKarton ? 'kartonDeliveryDate' : isHV ? 'halteverbotDate' : 'moebelliftDate';
+                                                  await updateDoc(doc(db, getCol('orders'), order.id), { [`orderMeta.${field}`]: val });
+                                                }}
+                                                className="bg-transparent text-xs text-text-main focus:outline-none"
+                                              />
+                                            </div>
+                                            <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-white/5 w-fit">
+                                              <span className="text-[10px] text-text-muted uppercase">Zeitfenster:</span>
+                                              <input 
+                                                type="text"
+                                                placeholder="z.B. 10-14 Uhr"
+                                                value={
+                                                  isKarton ? (order.orderMeta?.kartonDeliveryTime || '') :
+                                                  isHV ? (order.orderMeta?.halteverbotTime || '') :
+                                                  (order.orderMeta?.moebelliftTime || '')
+                                                }
+                                                onChange={async (e) => {
+                                                  const val = e.target.value;
+                                                  const field = isKarton ? 'kartonDeliveryTime' : isHV ? 'halteverbotTime' : 'moebelliftTime';
+                                                  await updateDoc(doc(db, getCol('orders'), order.id), { [`orderMeta.${field}`]: val });
+                                                }}
+                                                className="bg-transparent text-xs text-text-main focus:outline-none w-28"
+                                              />
+                                            </div>
+                                          </div>
+                                        )}
+                                        {/* Viewing Requested Special Button */}
+                                        {todo.id === 'viewing_requested' && (
+                                          <div className="mt-3">
+                                            <button 
+                                              onClick={async () => {
+                                                await updateDoc(doc(db, getCol('orders'), order.id), { 'orderMeta.viewingCanceled': true });
+                                                toast.success("Als 'Durch Fotos ersetzt' markiert");
+                                              }} 
+                                              className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-text-muted hover:text-white text-[10px] font-bold rounded-lg transition-colors border border-white/5"
+                                            >
+                                              Durch Fotos/Liste ersetzt
+                                            </button>
+                                          </div>
+                                        )}
+
+                                        {/* Employee Sheet Special Button */}
+                                        {todo.id === 'employee_sheet' && (
+                                          <div className="mt-3">
+                                            <button 
+                                              onClick={() => {
+                                                setInlinePdfOrder(order); setInlinePdfType('employee');
+                                                setTimeout(() => {
+                                                  document.getElementById(`pdf-viewer-${order.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                }, 100);
+                                              }} 
+                                              className="px-3 py-1.5 bg-primary/20 hover:bg-primary/30 text-primary text-[10px] font-bold rounded-lg transition-colors border border-primary/20 flex items-center gap-1"
+                                            >
+                                              <DocumentTextIcon className="w-3.5 h-3.5"/> Laufzettel generieren
+                                            </button>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+
+                              {/* Empty State Handlungsbedarf */}
+                              {(checklist?.length === 0 && generateTickets(order, customer).filter(t => !t.done).length === 0 && order.status === 'completed' && hasActiveInvoice) && (
+                                <div className="flex items-center gap-2 text-sm text-emerald-400 font-bold bg-emerald-500/10 p-3 rounded-xl border border-emerald-500/20">
+                                  <CheckBadgeIcon className="w-5 h-5" /> Alles erledigt! Aktuell kein Handlungsbedarf.
+                                </div>
                               )}
                             </div>
-                          )}
+                          </div>
+
+                          {/* History (Verlauf & Erledigtes) */}
+                          <div>
+                            <h4 className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                              <CheckCircleIcon className="w-4 h-4 text-emerald-500" /> Verlauf & Erledigte Tickets
+                            </h4>
+                            <div className="space-y-1 relative before:absolute before:inset-0 before:ml-[11px] before:-translate-x-px before:h-full before:w-0.5 before:bg-white/10">
+                              
+                              {/* Order Creation */}
+                              <div className="relative pl-8 py-1">
+                                <div className="absolute left-0 top-2 w-6 h-6 rounded-full bg-bg-dark border-2 border-emerald-500 flex items-center justify-center shrink-0">
+                                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                </div>
+                                <div className="text-[10px] text-text-muted">{new Date(order.createdAt?.toMillis?.() || Date.now()).toLocaleDateString('de-DE')}</div>
+                                <div className="text-sm text-text-main font-bold">Angebot / Entwurf angelegt</div>
+                              </div>
+
+                              {/* Signature History */}
+                              {!isInvoice && order.signatureOrder && (
+                                <div className="relative pl-8 py-1">
+                                  <div className="absolute left-0 top-2 w-6 h-6 rounded-full bg-bg-dark border-2 border-emerald-500 flex items-center justify-center shrink-0">
+                                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                                  </div>
+                                  <div className="text-[10px] text-text-muted">{order.signatureOrderDate ? new Date(order.signatureOrderDate.toMillis?.() || Date.now()).toLocaleDateString('de-DE') : order.signatureOrderDateString}</div>
+                                  <div className="text-sm text-emerald-400 font-bold flex items-center gap-1"><CheckBadgeIcon className="w-4 h-4"/> Auftrag unterschrieben</div>
+                                </div>
+                              )}
+
+                              {/* Completed Tickets */}
+                              {generateTickets(order, customer).filter(t => t.done).map(todo => (
+                                <div key={`hist-${todo.id}`} className="relative pl-8 py-1 group">
+                                  <div className="absolute left-0 top-2 w-6 h-6 rounded-full bg-bg-dark border-2 border-emerald-500/50 flex items-center justify-center shrink-0 group-hover:border-emerald-500 transition-colors">
+                                    <CheckIcon className="w-3 h-3 text-emerald-500/50 group-hover:text-emerald-500" />
+                                  </div>
+                                  <div className="text-[10px] text-text-muted">Erledigt</div>
+                                  <div className="text-sm text-text-muted flex items-center justify-between">
+                                    <span><span className="line-through">{todo.title}</span></span>
+                                    <button 
+                                      onClick={async () => {
+                                        const updatedStates = order.ticketStates || {};
+                                        updatedStates[todo.id] = false;
+                                        await updateDoc(doc(db, getCol('orders'), order.id), { ticketStates: updatedStates });
+                                      }}
+                                      className="text-[10px] text-primary hover:text-white transition-colors opacity-0 group-hover:opacity-100"
+                                    >
+                                      Wieder öffnen
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
                     {/* Info Cards inside Expanded View */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -865,7 +1014,7 @@ export default function CustomerProfilePage() {
                            </button>
                            {['confirmed', 'completed'].includes(order.status) && (
                              <button onClick={() => setProtocolOrder(order)} className="btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 text-orange-500">
-                                <ClipboardDocumentListIcon className="w-4 h-4 shrink-0" /> Abnahmeprotokoll öffnen
+                                <PlusIcon className="w-4 h-4 shrink-0" /> Neues Protokoll (Digital)
                              </button>
                            )}
                            {!isInvoice && (
@@ -887,80 +1036,34 @@ export default function CustomerProfilePage() {
                                   Nur Storno
                                </button>
                              </div>
-                            )}
+                           )}
                          </div>
 
-                         {/* Active To-Dos / System Tickets Sektion */}
-                         <div className="col-span-1 md:col-span-2 bg-bg-dark border border-structure p-5 rounded-2xl shadow-inner mt-4">
-                           <h4 className="text-sm font-bold text-text-main flex items-center gap-2 mb-4">
-                             <ClipboardDocumentListIcon className="w-5 h-5 text-primary" /> Aufgaben & Tickets für diesen Auftrag
-                           </h4>
-                           <div className="space-y-3 bg-black/20 rounded-xl p-4 border border-white/5">
-                             {generateTickets(order, customer).map(todo => {
-                               const isKarton = todo.id === 'kartons_liefern';
-                               const isHV = todo.id === 'halteverbot';
-                               const isLift = todo.id === 'moebellift_buchen';
-                               
-                               return (
-                                 <div key={todo.id} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl transition-all border ${todo.done ? 'opacity-50 border-transparent bg-transparent' : 'bg-white/[0.02] border-white/5 hover:border-white/10'}`}>
-                                   <label 
-                                     className={`flex items-center gap-3 text-sm cursor-pointer select-none flex-1 ${todo.done ? 'text-text-muted line-through' : 'text-text-main font-semibold'}`}
-                                   >
-                                     <input 
-                                       type="checkbox" 
-                                       checked={todo.done} 
-                                       disabled={todo.systemEvaluated && todo.done}
-                                       onChange={async () => {
-                                         if (todo.systemEvaluated) return;
-                                         const updatedStates = order.ticketStates || {};
-                                         updatedStates[todo.id] = !todo.done;
-                                         await updateDoc(doc(db, getCol('orders'), order.id), { ticketStates: updatedStates });
-                                         toast.success(todo.done ? "Aufgabe wieder geöffnet" : "Aufgabe abgeschlossen!");
-                                       }}
-                                       className="w-4 h-4 rounded border-structure text-primary bg-bg-dark focus:ring-primary focus:ring-offset-bg-panel"
-                                     />
-                                     <div className="flex flex-wrap items-center gap-2">
-                                       <span>{todo.title}</span>
-                                       {todo.dueDateStatus === 'overdue' && (
-                                         <span className="bg-red-500/20 text-red-500 text-[10px] font-bold px-2 py-0.5 rounded border border-red-500/20 shadow-sm uppercase tracking-wider">ÜBERFÄLLIG</span>
-                                       )}
-                                       {todo.dueDateStatus === 'due' && (
-                                         <span className="bg-yellow-500/20 text-yellow-400 text-[10px] font-bold px-2 py-0.5 rounded border border-yellow-500/20 shadow-sm uppercase tracking-wider">{todo.dueDateText}</span>
-                                       )}
-                                     </div>
-                                   </label>
-                                   
-                                   {/* Date Input for Carton delivery / HV / Lift */}
-                                   {!todo.done && (isKarton || isHV || isLift) && (
-                                     <div className="flex items-center gap-2 bg-black/40 p-2 rounded-lg border border-white/5 shrink-0 self-start sm:self-auto">
-                                       <span className="text-[10px] text-text-muted font-bold uppercase tracking-wider">Liefer-/Stelltermin:</span>
-                                       <input 
-                                         type="date"
-                                         value={
-                                           isKarton ? (order.orderMeta?.kartonDeliveryDate || '') :
-                                           isHV ? (order.orderMeta?.halteverbotDate || '') :
-                                           (order.orderMeta?.moebelliftDate || '')
-                                         }
-                                         onChange={async (e) => {
-                                           const val = e.target.value;
-                                           const field = isKarton ? 'kartonDeliveryDate' : isHV ? 'halteverbotDate' : 'moebelliftDate';
-                                           await updateDoc(doc(db, getCol('orders'), order.id), {
-                                             [`orderMeta.${field}`]: val
-                                           });
-                                           toast.success("Datum aktualisiert!");
-                                         }}
-                                         className="bg-bg-dark text-xs text-text-main border border-structure rounded px-2 py-1 focus:border-primary focus:outline-none"
-                                       />
-                                     </div>
-                                   )}
+                         {/* Signed Protocols Quick View */}
+                         {order.protocols && order.protocols.length > 0 && (
+                           <div className="bg-bg-panel border border-structure p-4 rounded-xl shadow-inner flex flex-col gap-2 mt-2">
+                             <h4 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-1">Signierte Protokolle</h4>
+                             {order.protocols.map((proto: any, idx: number) => (
+                               <div key={proto.id || idx} className="bg-bg-dark border border-structure p-3 rounded-lg flex flex-col gap-2">
+                                 <div className="flex justify-between items-start">
+                                   <div className="text-sm font-bold text-text-main flex items-center gap-1.5">
+                                     <ClipboardDocumentCheckIcon className="w-4 h-4 text-emerald-500" /> {proto.type}
+                                   </div>
+                                   <div className="text-[10px] text-text-muted">{new Date(proto.createdAt).toLocaleDateString('de-DE')}</div>
                                  </div>
-                               );
-                             })}
-                             {generateTickets(order, customer).length === 0 && (
-                               <div className="text-xs text-text-muted italic">Keine Aufgaben für diese Phase definiert.</div>
-                             )}
+                                 <p className="text-xs text-text-muted line-clamp-2">{proto.text}</p>
+                                 {proto.signature && (
+                                   <div className="mt-1 pt-2 border-t border-structure/50 flex flex-col">
+                                     <div className="text-[10px] text-text-muted mb-1 uppercase tracking-wider">Kunden-Unterschrift</div>
+                                     <div className="bg-white/90 rounded p-1 inline-block">
+                                       <img src={proto.signature} alt="Unterschrift" className="h-12 object-contain" />
+                                     </div>
+                                   </div>
+                                 )}
+                               </div>
+                             ))}
                            </div>
-                         </div>
+                         )}
 
                         {/* Nested Invoices Section */}
                         {linkedInvoices.length > 0 && linkedInvoices.map(inv => (

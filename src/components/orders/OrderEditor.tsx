@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, TruckIcon, MapPinIcon, ExclamationTriangleIcon, StarIcon, BuildingOffice2Icon, HomeIcon, BriefcaseIcon, BuildingLibraryIcon, ArchiveBoxIcon, WrenchIcon, SparklesIcon, PlusCircleIcon, TagIcon, ArrowsUpDownIcon, NoSymbolIcon, ArrowUpTrayIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, TruckIcon, MapPinIcon, ExclamationTriangleIcon, StarIcon, BuildingOffice2Icon, HomeIcon, BriefcaseIcon, BuildingLibraryIcon, ArchiveBoxIcon, WrenchIcon, SparklesIcon, PlusCircleIcon, TagIcon, ArrowsUpDownIcon, NoSymbolIcon, ArrowUpTrayIcon, MagnifyingGlassIcon, ShoppingCartIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 import { useAuth } from '@/context/AuthContext';
 import { logActivity } from '@/lib/activityLogger';
@@ -82,6 +82,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const [isFlatRate, setIsFlatRate] = useState(true);
   const [flatRateNet, setFlatRateNet] = useState(0);
   const [services, setServices] = useState<{ id: string, name: string, quantity: number, unitPrice: number, unit: string }[]>([]);
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [activeCategoryTab, setActiveCategoryTab] = useState('Alle');
   
   // 4. MwSt Rechner
   const [calcInput, setCalcInput] = useState({ gross: 0, net: 0, tax: 0 });
@@ -301,7 +303,13 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   };
 
   const addServiceFromCatalog = (service: any) => {
-    setServices([...services, { id: Date.now().toString() + Math.random(), name: service.name, quantity: 1, unitPrice: service.price, unit: service.unit }]);
+    setServices(prev => {
+      const existing = prev.find(s => s.name === service.name);
+      if (existing) {
+        return prev.map(s => s.name === service.name ? { ...s, quantity: s.quantity + 1 } : s);
+      }
+      return [...prev, { id: Date.now().toString() + Math.random(), name: service.name, quantity: 1, unitPrice: service.price || service.defaultPrice || 0, unit: service.unit || 'Stk' }];
+    });
   };
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
@@ -869,161 +877,159 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
           {/* 3. Leistungen & Preise */}
       <section className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-blue-500 shadow-lg">
-        <div className="flex justify-between items-center mb-4 border-b border-structure pb-2">
-          <h2 className="text-xl font-bold text-text-main">Leistungen & Preise</h2>
+        <div className="flex justify-between items-center mb-6 border-b border-structure pb-4">
+          <div>
+             <h2 className="text-xl font-bold text-text-main">Leistungen & Preise</h2>
+             <p className="text-sm text-text-muted mt-1">Klicken Sie auf Leistungen im Katalog, um sie hinzuzufügen.</p>
+          </div>
           <label className={`flex items-center gap-2 bg-white/[0.02] px-3 py-1.5 rounded-lg border border-structure ${!canEditPrices ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-            <input type="checkbox" checked={isFlatRate} onChange={e => setIsFlatRate(e.target.checked)} disabled={!canEditPrices} className="accent-primary" />
-            <span className="text-sm font-medium text-text-main">Pauschalangebot</span>
+            <input type="checkbox" checked={isFlatRate} onChange={e => setIsFlatRate(e.target.checked)} disabled={!canEditPrices} className="accent-primary w-4 h-4" />
+            <span className="text-sm font-medium text-text-main">Pauschalangebot (Nur Netto-Gesamtpreis)</span>
           </label>
         </div>
 
-        <div className="flex flex-col gap-8">
-          {/* Katalog Checkliste */}
-          <div className="w-full">
-            <h3 className="font-semibold text-primary mb-3 flex items-center gap-2">
-              <PlusCircleIcon className="w-5 h-5" /> Leistungen aus Katalog hinzufügen
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {settings.catalog?.map((cat:any, idx:number) => (
-                <details key={idx} className="glass-panel rounded-xl border border-white/5 group bg-white/[0.02]">
-                  <summary className="flex items-center gap-3 p-3 cursor-pointer select-none">
-                    <div className="w-8 h-8 rounded-full bg-primary/20 text-primary flex items-center justify-center shrink-0 shadow-inner">
-                       {getCategoryIcon(cat.category)}
-                    </div>
-                    <h4 className="font-bold text-text-main text-sm uppercase tracking-wide flex-1">{cat.category}</h4>
-                    <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center group-open:rotate-45 transition-transform">
-                      <PlusIcon className="w-4 h-4 text-text-muted" />
-                    </div>
-                  </summary>
-                  <div className="p-3 pt-0 border-t border-white/5 mt-2">
-                    <div className="grid grid-cols-1 gap-2 mt-2 max-h-[300px] overflow-y-auto custom-scrollbar">
-                      {cat.items.map((item:any, i:number) => {
-                        const isTicketTrigger = ['karton', 'box', 'kartons', 'küche', 'kueche', 'einbau', 'montage', 'einpack', 'auspack', 'packservice', 'einräum', 'ausräum'].some(kw => item.name.toLowerCase().includes(kw));
-                        
-                        return (
-                          <button key={i} onClick={() => addServiceFromCatalog(item)} className="w-full text-left p-2 rounded-lg bg-black/20 hover:bg-primary/20 border border-white/5 hover:border-primary/30 text-sm text-text-main flex justify-between items-center transition-all group/btn shadow-sm">
-                            <span className="truncate pr-2 flex items-center gap-2 font-medium">
-                              {item.name}
-                              {isTicketTrigger && <StarIconSolid className="w-4 h-4 text-orange-400 drop-shadow-[0_0_5px_rgba(251,146,60,0.5)]" title="Erzeugt ein System-Ticket" />}
-                            </span>
-                            <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center group-hover/btn:bg-primary/30 transition-colors shrink-0">
-                              <PlusIcon className="w-3 h-3 text-text-muted group-hover/btn:text-primary transition-colors" />
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </details>
-              ))}
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* LEFT: POS-Style Catalog Grid */}
+          <div className="w-full lg:w-1/2 flex flex-col gap-4 border-b lg:border-b-0 lg:border-r border-structure pb-8 lg:pb-0 pr-0 lg:pr-8">
+            <div className="sticky top-4 space-y-4">
+               {/* Search */}
+               <div className="relative">
+                  <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+                  <input type="text" placeholder="Leistungen suchen (z.B. Karton)..." value={catalogSearch} onChange={e => setCatalogSearch(e.target.value)} className="input-field w-full pl-10 py-3 rounded-xl bg-black/20 shadow-inner" />
+               </div>
+               
+               {/* Categories */}
+               <div className="flex flex-wrap gap-2">
+                 <button onClick={() => setActiveCategoryTab('Alle')} className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${activeCategoryTab === 'Alle' ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-structure/50 text-text-muted hover:bg-structure'}`}>Alle</button>
+                 {settings.catalog?.map((cat:any) => (
+                   <button key={cat.category} onClick={() => setActiveCategoryTab(cat.category)} className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${activeCategoryTab === cat.category ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-structure/50 text-text-muted hover:bg-structure'}`}>{cat.category}</button>
+                 ))}
+               </div>
+
+               {/* Grid */}
+               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto custom-scrollbar pb-4 pr-2">
+                 {settings.catalog?.flatMap((cat:any) => cat.items.map((item:any) => ({ ...item, category: cat.category }))).filter((item:any) => {
+                    const matchesSearch = item.name.toLowerCase().includes(catalogSearch.toLowerCase());
+                    const matchesCat = activeCategoryTab === 'Alle' || item.category === activeCategoryTab;
+                    return matchesSearch && matchesCat;
+                 }).map((item:any, idx:number) => {
+                    const isTicketTrigger = ['karton', 'box', 'kartons', 'küche', 'kueche', 'einbau', 'montage', 'einpack', 'auspack', 'packservice', 'einräum', 'ausräum'].some(kw => item.name.toLowerCase().includes(kw));
+                    return (
+                     <button key={idx} onClick={() => addServiceFromCatalog(item)} className="bg-bg-dark border border-white/10 hover:border-primary hover:bg-primary/10 rounded-xl p-3 flex flex-col items-center text-center gap-2 transition-all active:scale-95 shadow-sm group relative">
+                        {isTicketTrigger && <StarIconSolid className="w-3 h-3 text-orange-400 absolute top-2 right-2 drop-shadow-[0_0_5px_rgba(251,146,60,0.5)]" title="Erzeugt System-Ticket" />}
+                        <div className="w-10 h-10 rounded-full bg-structure/50 text-primary flex items-center justify-center">
+                          {getCategoryIcon(item.category)}
+                        </div>
+                        <span className="text-xs font-bold text-text-main line-clamp-2 leading-tight">{item.name}</span>
+                        <div className="mt-auto w-full pt-2 border-t border-white/5 flex justify-between items-center">
+                           <span className="text-[10px] text-text-muted">
+                             {!isFlatRate && (item.price || item.defaultPrice || 0) > 0 ? `${(item.price || item.defaultPrice).toFixed(2)} €` : ''}
+                           </span>
+                           <PlusCircleIcon className="w-5 h-5 text-text-muted group-hover:text-primary transition-colors" />
+                        </div>
+                     </button>
+                   )
+                 })}
+               </div>
             </div>
           </div>
 
-          {/* Aktive Leistungen Table */}
-          <div className="w-full">
-            <h3 className="font-semibold text-text-main mb-3">Ausgewählte Leistungen</h3>
-            <div className="glass-panel rounded-xl border border-white/5 overflow-x-auto shadow-inner bg-black/10">
-              <table className="w-full text-left text-sm whitespace-nowrap min-w-[800px]">
-                <thead>
-                  <tr className="text-text-muted border-b border-structure bg-white/[0.02]">
-                    <th className="p-3 w-10 text-center">#</th>
-                    <th className="p-3 w-1/2">Leistungsbeschreibung</th>
-                    <th className="p-3 w-24 text-center">Menge</th>
-                    <th className="p-3 w-28 text-center">Einheit</th>
-                    {!isFlatRate && <th className="p-3 w-32 text-right">Einzelpreis</th>}
-                    {!isFlatRate && <th className="p-3 w-32 text-right">Gesamt</th>}
-                    <th className="p-3 w-12 text-center"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {services.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="p-8 text-center text-text-muted">
-                        Keine Leistungen ausgewählt. Fügen Sie oben Leistungen aus dem Katalog hinzu.
-                      </td>
-                    </tr>
-                  ) : (
-                    services.map((svc, idx) => (
-                      <tr key={svc.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
-                        <td className="p-3 text-center text-text-muted font-medium">{idx + 1}</td>
-                        <td className="p-3">
-                          <textarea 
-                            value={svc.name} 
-                            onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s))} 
-                            className="bg-transparent border border-transparent hover:border-structure focus:border-primary/50 focus:bg-black/20 rounded w-full text-text-main focus:outline-none p-2 resize-none overflow-hidden" 
-                            rows={1}
-                            onInput={(e) => {
-                              const target = e.target as HTMLTextAreaElement;
-                              target.style.height = 'auto';
-                              target.style.height = target.scrollHeight + 'px';
-                            }}
-                          />
-                        </td>
-                        <td className="p-3">
-                          <input type="number" value={svc.quantity} onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: parseFloat(e.target.value) || 0 } : s))} className="input-field py-2 w-full text-center font-semibold" min="0" step="0.5" />
-                        </td>
-                        <td className="p-3">
-                          <input type="text" value={svc.unit} onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, unit: e.target.value } : s))} className="input-field py-2 w-full text-center text-text-muted" />
-                        </td>
+          {/* RIGHT: Selected Items */}
+          <div className="w-full lg:w-1/2 flex flex-col">
+            <h3 className="font-semibold text-text-main mb-3 flex justify-between items-center">
+              <span>Ausgewählte Leistungen</span>
+              <span className="text-xs text-text-muted bg-structure/50 px-2 py-1 rounded-full">{services.length} Positionen</span>
+            </h3>
+            
+            <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2 flex-1">
+               {services.length === 0 ? (
+                 <div className="p-8 text-center text-text-muted border-2 border-dashed border-structure rounded-xl bg-white/[0.01]">
+                   <div className="w-12 h-12 rounded-full bg-structure/50 mx-auto flex items-center justify-center mb-3">
+                     <ShoppingCartIcon className="w-6 h-6" />
+                   </div>
+                   Keine Leistungen ausgewählt.<br/>Klicken Sie links auf Kacheln, um sie hinzuzufügen.
+                 </div>
+               ) : (
+                 services.map((svc, idx) => (
+                   <div key={svc.id} className="bg-bg-dark border border-white/5 rounded-xl p-3 flex flex-col gap-2 relative group hover:border-primary/30 transition-colors shadow-sm">
+                     <button onClick={() => setServices(services.filter(s => s.id !== svc.id))} className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-red-600 z-10">
+                       <XMarkIcon className="w-4 h-4" />
+                     </button>
+                     
+                     <div className="flex justify-between gap-2">
+                       <textarea 
+                         value={svc.name} 
+                         onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s))} 
+                         className="bg-transparent border border-transparent hover:border-structure focus:border-primary/50 focus:bg-black/20 rounded font-semibold text-sm w-full text-text-main focus:outline-none p-1 resize-none" 
+                         rows={1}
+                       />
+                     </div>
+                     
+                     <div className="flex items-center justify-between gap-4 mt-1 border-t border-structure/50 pt-2">
+                        {/* Quantity Controls */}
+                        <div className="flex items-center gap-1 bg-structure/50 rounded-lg p-1 border border-white/5 shrink-0">
+                           <button onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: Math.max(0, s.quantity - 1) } : s))} className="w-6 h-6 flex items-center justify-center text-text-main hover:bg-white/10 rounded font-bold">-</button>
+                           <input type="number" value={svc.quantity} onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: parseFloat(e.target.value) || 0 } : s))} className="w-10 text-center bg-transparent font-bold text-sm focus:outline-none" />
+                           <button onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: s.quantity + 1 } : s))} className="w-6 h-6 flex items-center justify-center text-text-main hover:bg-white/10 rounded font-bold">+</button>
+                        </div>
+                        
+                        <div className="w-16 shrink-0">
+                           <input type="text" value={svc.unit} onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, unit: e.target.value } : s))} className="input-field py-1 px-2 w-full text-center text-xs text-text-muted" placeholder="Einheit" />
+                        </div>
                         
                         {!isFlatRate && (
-                          <td className="p-3">
-                            <div className="relative">
-                              <input type="number" value={svc.unitPrice} onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, unitPrice: parseFloat(e.target.value) || 0 } : s))} disabled={!canEditPrices} className={`input-field py-2 w-full text-right pr-6 font-mono ${!canEditPrices ? 'opacity-50 cursor-not-allowed' : ''}`} />
-                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted">€</span>
-                            </div>
-                          </td>
+                          <div className="flex-1 flex justify-end items-center gap-1">
+                            <input type="number" value={svc.unitPrice} onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, unitPrice: parseFloat(e.target.value) || 0 } : s))} disabled={!canEditPrices} className="input-field py-1 px-2 w-20 text-right text-xs" placeholder="0.00" />
+                            <span className="text-text-muted text-xs">€/{svc.unit}</span>
+                          </div>
                         )}
-                        
                         {!isFlatRate && (
-                          <td className="p-3 text-right text-primary font-bold text-base">
-                            {canViewPrices ? (svc.quantity * svc.unitPrice).toFixed(2) : '***'} €
-                          </td>
+                           <div className="text-right w-20 font-bold text-primary text-sm shrink-0">
+                             {canViewPrices ? (svc.quantity * svc.unitPrice).toFixed(2) : '***'} €
+                           </div>
                         )}
-                        
-                        <td className="p-3 text-center">
-                          <button onClick={() => setServices(services.filter(s => s.id !== svc.id))} className="w-8 h-8 rounded-full bg-transparent hover:bg-red-500/10 text-text-muted hover:text-red-400 flex items-center justify-center transition-colors mx-auto opacity-0 group-hover:opacity-100 focus:opacity-100">
-                            <TrashIcon className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                     </div>
+                   </div>
+                 ))
+               )}
+               <button onClick={() => setServices([...services, { id: Date.now().toString(), name: 'Manuelle Leistung', quantity: 1, unitPrice: 0, unit: 'Pauschal' }])} className="w-full py-3 border-2 border-dashed border-structure rounded-xl text-primary hover:bg-primary/5 hover:border-primary/30 transition-colors flex items-center justify-center gap-2 text-sm font-semibold mt-2">
+                 <PlusIcon className="w-4 h-4" /> Manuelle Leistung hinzufügen
+               </button>
             </div>
-            <button onClick={() => setServices([...services, { id: Date.now().toString(), name: 'Manuelle Leistung', quantity: 1, unitPrice: 0, unit: 'Pauschal' }])} className="text-primary hover:underline text-sm font-medium flex items-center gap-1 mt-4">
-              <PlusIcon className="w-4 h-4" /> Manuelle Leistung hinzufügen
-            </button>
-
-            {/* Summen */}
-            <div className="flex justify-end mt-8">
-              <div className="w-72 space-y-2">
-                {isFlatRate ? (
-                  <div className="mb-4">
-                    <label className="text-xs text-text-muted font-bold uppercase tracking-wider mb-1 block">Pauschalabrechnung (Netto)</label>
-                    <input type="number" value={flatRateNet} onChange={e => setFlatRateNet(parseFloat(e.target.value)||0)} disabled={!canEditPrices} className={`input-field w-full text-right font-bold text-lg ${!canEditPrices ? 'opacity-50 cursor-not-allowed' : ''}`} placeholder="0.00" />
-                  </div>
-                ) : null}
-                
-                {canViewPrices ? (
-                  <>
-                    <div className="flex justify-between text-text-muted text-sm">
-                      <span>Summe Netto:</span><span>{totals.net.toFixed(2)} €</span>
-                    </div>
-                    <div className="flex justify-between text-text-muted text-sm">
-                      <span>MwSt. 19%:</span><span>{totals.tax.toFixed(2)} €</span>
-                    </div>
-                    <div className="flex justify-between text-text-main font-bold text-lg border-t border-structure pt-2 mt-2">
-                      <span>Gesamtbetrag:</span><span className="text-primary">{totals.gross.toFixed(2)} €</span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-right text-text-muted italic text-sm border-t border-structure pt-2 mt-2">
-                    Summen ausgeblendet (fehlende Berechtigung)
-                  </div>
-                )}
-              </div>
+            
+            {/* Totals Section */}
+            <div className="mt-auto pt-6 lg:border-t border-structure">
+               <div className="flex justify-end">
+                 <div className="w-full max-w-xs space-y-2 bg-bg-dark p-4 rounded-xl border border-white/5 shadow-inner">
+                   {isFlatRate ? (
+                     <div className="mb-2">
+                       <label className="text-xs text-text-muted font-bold uppercase tracking-wider mb-1 block">Pauschalabrechnung (Netto)</label>
+                       <div className="relative">
+                          <input type="number" value={flatRateNet} onChange={e => setFlatRateNet(parseFloat(e.target.value)||0)} disabled={!canEditPrices} className={`input-field w-full text-right font-bold text-lg pr-8 ${!canEditPrices ? 'opacity-50 cursor-not-allowed' : ''}`} placeholder="0.00" />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 font-bold text-text-muted">€</span>
+                       </div>
+                     </div>
+                   ) : null}
+                   
+                   {canViewPrices ? (
+                     <>
+                       <div className="flex justify-between text-text-muted text-sm">
+                         <span>Summe Netto:</span><span>{totals.net.toFixed(2)} €</span>
+                       </div>
+                       <div className="flex justify-between text-text-muted text-sm">
+                         <span>MwSt. 19%:</span><span>{totals.tax.toFixed(2)} €</span>
+                       </div>
+                       <div className="flex justify-between text-text-main font-bold text-lg border-t border-white/10 pt-2 mt-2">
+                         <span>Gesamtbetrag:</span><span className="text-primary">{totals.gross.toFixed(2)} €</span>
+                       </div>
+                     </>
+                   ) : (
+                     <div className="text-center text-text-muted text-sm italic py-2">
+                       Preise ausgeblendet
+                     </div>
+                   )}
+                 </div>
+               </div>
             </div>
           </div>
         </div>

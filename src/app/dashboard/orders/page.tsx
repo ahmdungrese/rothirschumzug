@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, doc, updateDoc, where, Timestamp } from 'firebase/firestore';
-import { DocumentCheckIcon, DocumentTextIcon, DocumentIcon, BanknotesIcon, TruckIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { DocumentCheckIcon, DocumentTextIcon, DocumentIcon, BanknotesIcon, TruckIcon, PlusIcon, DocumentPlusIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { PaymentManager } from '@/components/orders/PaymentManager';
@@ -14,22 +14,23 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPaymentOrder, setSelectedPaymentOrder] = useState<any>(null);
-  const [invoiceConfirmOrder, setInvoiceConfirmOrder] = useState<any>(null);
   
   // Disposition Modal State
   const [dispoOrder, setDispoOrder] = useState<any>(null);
 
   useEffect(() => {
-    // Limit to orders from the last 30 days to save Firebase reads
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // Fetch only non-invoice statuses. We remove the 30-day limit so long-term orders don't disappear.
     const q = query(
       collection(db, getCol('orders')),
-      where('createdAt', '>=', Timestamp.fromDate(thirtyDaysAgo))
+      where('status', 'in', ['draft', 'clarification', 'quote', 'confirmed', 'completed', 'canceled', 'rejected'])
     );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetched = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+      // Extra client-side filter to absolutely make sure no invoices sneak in
+      const fetched = snapshot.docs
+        .map((doc: any) => ({ id: doc.id, ...doc.data() }))
+        .filter(o => !o.invoiceNumber && !o.isStorno && !['invoice_open', 'invoice_paid', 'invoice_overdue'].includes(o.status));
+        
       fetched.sort((a: any, b: any) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
       setOrders(fetched);
       setLoading(false);
@@ -42,34 +43,6 @@ export default function OrdersPage() {
   }, []);
 
   const fetchOrders = () => {}; // No-op for PaymentManager compatibility
-
-  const generateInvoice = async (order: any) => {
-    setInvoiceConfirmOrder(order);
-  };
-
-  const confirmGenerateInvoice = async () => {
-    if (!invoiceConfirmOrder) return;
-    try {
-      const currentInvoices = orders.filter(o => o.invoiceNumber).map(o => {
-        const parts = o.invoiceNumber.split('-');
-        return parseInt(parts[2] || '0', 10);
-      });
-      const highestNumber = currentInvoices.length > 0 ? Math.max(...currentInvoices) : 0;
-      const nextNumber = highestNumber + 1;
-      const prefix = `RE-${new Date().getFullYear()}-`;
-      const invoiceNumberString = `${prefix}${nextNumber.toString().padStart(4, '0')}`;
-
-      await updateDoc(doc(db, getCol('orders'), invoiceConfirmOrder.id), {
-        status: 'invoice_open',
-        invoiceNumber: invoiceNumberString,
-        invoiceDate: new Date()
-      });
-      toast.success("Rechnung erfolgreich finalisiert!");
-    } catch (error) {
-      console.error("Error generating invoice", error);
-      toast.error("Fehler bei der Rechnungserstellung");
-    }
-  };
 
   const updateStatus = async (orderId: string, newStatus: string) => {
     try {
@@ -209,14 +182,14 @@ export default function OrdersPage() {
                           </button>
                         )}
                         
-                        {order.status === 'confirmed' && (
-                          <button 
-                            onClick={() => generateInvoice(order)}
-                            className="btn-secondary border-primary/50 text-primary py-2 px-3 text-xs w-full sm:w-auto flex justify-center"
+                        {['confirmed', 'completed'].includes(order.status) && (
+                          <Link 
+                            href={`/dashboard/customers/${order.customerId}/edit-order/new?type=invoice&sourceOrder=${order.id}`}
+                            className="btn-secondary border-green-500/30 text-green-500 hover:bg-green-500/10 py-2 px-3 text-xs w-full sm:w-auto flex justify-center"
                           >
-                            <DocumentCheckIcon className="w-4 h-4 mr-1" />
-                            Finalisieren (Rechnung)
-                          </button>
+                            <DocumentPlusIcon className="w-4 h-4 mr-1" />
+                            Rechnung erstellen
+                          </Link>
                         )}
 
                         {order.invoiceNumber && (
@@ -269,16 +242,6 @@ export default function OrdersPage() {
           onClose={() => setSelectedPaymentOrder(null)} 
         />
       )}
-
-      <ConfirmModal 
-        isOpen={invoiceConfirmOrder !== null}
-        title="Rechnung finalisieren"
-        message="Möchten Sie dieses Dokument wirklich finalisieren? Es wird eine feste Rechnungsnummer (RE-2026-XXXX) vergeben und das Dokument wird für Änderungen gesperrt."
-        confirmText="Finalisieren"
-        isDestructive={false}
-        onConfirm={confirmGenerateInvoice}
-        onCancel={() => setInvoiceConfirmOrder(null)}
-      />
     </div>
   );
 }

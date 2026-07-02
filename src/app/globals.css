@@ -1,100 +1,220 @@
 @import "tailwindcss";
 
+/* ============================================
+   DESIGN TOKENS — Dark Mode (Default)
+   ============================================ */
 :root {
-  /* Default: Dark Mode - Premium Aesthetic */
-  --color-primary: #8F1627;
-  --color-primary-hover: #a11a2d;
-  --color-background-dark: #0f161e;
-  --color-background-panel: rgba(255, 255, 255, 0.04);
-  --color-structure: rgba(255, 255, 255, 0.08);
-  --color-inactive: #273B4B;
-  --color-text-main: #FFFFFF;
-  --color-text-muted: #94a3b8;
-  --color-doc-bg: #F1F1F1;
+  --color-primary:            #8F1627;
+  --color-primary-hover:      #a11a2d;
+  --color-background-dark:    #0f161e;
+  --color-background-panel:   rgba(255, 255, 255, 0.04);
+  --color-structure:          rgba(255, 255, 255, 0.08);
+  --color-inactive:           #273B4B;
+  --color-text-main:          #FFFFFF;
+  --color-text-muted:         #94a3b8;
+  --color-doc-bg:             #F1F1F1;
+
+  /* Surfaces used by hard-coded dark Tailwind classes */
+  --lm-card:                  rgba(255,255,255,0.04);
+  --lm-inset:                 rgba(0,0,0,0.20);
+  --lm-hover:                 rgba(255,255,255,0.05);
+  --lm-border-subtle:         rgba(255,255,255,0.06);
+  --lm-border-medium:         rgba(255,255,255,0.10);
+  --lm-scrollbar:             rgba(255,255,255,0.12);
+  --lm-scrollbar-hover:       rgba(255,255,255,0.25);
+  --lm-sidebar-header:        #0A0F13;
+  --lm-text-on-dark:          #FFFFFF;
+  --lm-kanban-col:            rgba(0,0,0,0.25);
+  --lm-kanban-col-border:     rgba(255,255,255,0.04);
+  --lm-kanban-card-from:      #1a1b24;
+  --lm-kanban-card-to:        #11121a;
 }
 
+/* ============================================
+   DESIGN TOKENS — Light Mode
+   ============================================ */
 :root.light-mode {
-  --color-background-dark: #F8FAFC;
-  --color-background-panel: #FFFFFF;
-  --color-structure: #E2E8F0;
-  --color-inactive: #CBD5E1;
-  --color-text-main: #0F172A;
-  --color-text-muted: #64748B;
+  --color-background-dark:    #EEF2F7;
+  --color-background-panel:   #FFFFFF;
+  --color-structure:          #D0D7E2;
+  --color-inactive:           #B8C4D0;
+  --color-text-main:          #111827;
+  --color-text-muted:         #4B5563;
+  --color-doc-bg:             #F8FAFC;
+
+  /* Light surfaces */
+  --lm-card:                  #FFFFFF;
+  --lm-inset:                 #E4EAF2;
+  --lm-hover:                 #DDE4EF;
+  --lm-border-subtle:         #C8D1DC;
+  --lm-border-medium:         #B8C4D0;
+  --lm-scrollbar:             rgba(0,0,0,0.18);
+  --lm-scrollbar-hover:       rgba(0,0,0,0.35);
+  --lm-sidebar-header:        #1E293B;
+  --lm-text-on-dark:          #FFFFFF;
+  --lm-kanban-col:            #DDE4EF;
+  --lm-kanban-col-border:     #B8C4D0;
+  --lm-kanban-card-from:      #FFFFFF;
+  --lm-kanban-card-to:        #F1F5FB;
 }
 
+/* ============================================
+   TAILWIND THEME MAPPING
+   ============================================ */
 @theme inline {
-  --color-primary: var(--color-primary);
+  --color-primary:       var(--color-primary);
   --color-primary-hover: var(--color-primary-hover);
-  --color-bg-dark: var(--color-background-dark);
-  --color-bg-panel: var(--color-background-panel);
-  --color-structure: var(--color-structure);
-  --color-inactive: var(--color-inactive);
-  --color-text-main: var(--color-text-main);
-  --color-text-muted: var(--color-text-muted);
-  --color-doc-bg: var(--color-doc-bg);
-
-  --font-sans: var(--font-inter), Arial, sans-serif;
-  --font-mono: var(--font-geist-mono);
+  --color-bg-dark:       var(--color-background-dark);
+  --color-bg-panel:      var(--color-background-panel);
+  --color-structure:     var(--color-structure);
+  --color-inactive:      var(--color-inactive);
+  --color-text-main:     var(--color-text-main);
+  --color-text-muted:    var(--color-text-muted);
+  --color-doc-bg:        var(--color-doc-bg);
+  --font-sans:           var(--font-inter), Arial, sans-serif;
+  --font-mono:           var(--font-geist-mono);
 }
 
+/* ============================================
+   BASE STYLES
+   ============================================ */
 body {
   background-color: var(--color-bg-dark);
   color: var(--color-text-main);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Base custom utilities */
+/* ============================================
+   REUSABLE COMPONENT CLASSES
+   ============================================ */
 .btn-primary {
   @apply bg-primary text-white font-semibold py-2 px-4 md:py-3 md:px-6 rounded-lg transition-all duration-200 hover:bg-primary-hover flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:shadow-primary/40;
 }
-
 .btn-secondary {
-  @apply bg-bg-dark backdrop-blur-sm border border-structure text-text-main font-semibold py-2 px-4 md:py-3 md:px-6 rounded-lg transition-all duration-200 hover:bg-bg-panel hover:border-text-muted/30 flex items-center justify-center gap-2 shadow-sm hover:shadow;
+  @apply bg-bg-dark border border-structure text-text-main font-semibold py-2 px-4 md:py-3 md:px-6 rounded-lg transition-all duration-200 hover:bg-bg-panel flex items-center justify-center gap-2 shadow-sm;
 }
-
-/* Glassmorphism & Kanban Styles */
 .panel {
-  @apply bg-bg-panel backdrop-blur-xl rounded-xl border border-structure p-4 md:p-6 shadow-2xl;
+  @apply bg-bg-panel border border-structure rounded-xl p-4 md:p-6 shadow-lg;
 }
-
 .glass-panel {
-  @apply bg-bg-panel backdrop-blur-xl border border-structure rounded-2xl shadow-2xl;
+  @apply bg-bg-panel border border-structure rounded-2xl shadow-lg;
 }
-
 .kanban-col {
-  @apply flex flex-col gap-3.5 p-4 bg-black/25 border border-white/[0.04] rounded-2xl h-full shadow-inner backdrop-blur-sm;
+  background-color: var(--lm-kanban-col);
+  border: 1px solid var(--lm-kanban-col-border);
+  @apply flex flex-col gap-3.5 p-4 rounded-2xl h-full shadow-inner;
 }
-
 .kanban-card {
-  @apply bg-gradient-to-br from-[#1a1b24] to-[#11121a] hover:from-[#21232f] hover:to-[#161722] transition-all duration-300 border border-white/[0.06] hover:border-primary/30 rounded-2xl p-4 shadow-lg hover:shadow-2xl hover:translate-y-[-2px] flex flex-col;
+  background: linear-gradient(135deg, var(--lm-kanban-card-from), var(--lm-kanban-card-to));
+  border: 1px solid var(--lm-border-subtle);
+  @apply transition-all duration-300 rounded-2xl p-4 shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex flex-col;
 }
-
+.kanban-card:hover {
+  border-color: var(--color-primary);
+}
 .input-field {
-  @apply bg-bg-dark border border-structure text-text-main rounded-lg px-4 py-3 focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50 transition-all duration-200 w-full placeholder-text-muted/50 backdrop-blur-sm shadow-inner;
+  background-color: var(--lm-card);
+  border: 1px solid var(--lm-border-medium);
+  color: var(--color-text-main);
+  @apply rounded-lg px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all duration-200 w-full;
+}
+.input-field::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.6;
+}
+.input-field:focus {
+  border-color: var(--color-primary);
 }
 
-/* Sleek Scrollbars (Trello/Mac style) */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* ============================================
+   LIGHT MODE OVERRIDES
+   Override every dark-hardcoded Tailwind class
+   ============================================ */
+
+/* --- Backgrounds --- */
+.light-mode .bg-\[\#0A0F13\],
+.light-mode .bg-\[\#0f161e\],
+.light-mode .bg-\[\#11121a\],
+.light-mode .bg-\[\#1a1b24\],
+.light-mode .bg-\[\#21232f\],
+.light-mode .bg-\[\#161722\] {
+  background-color: var(--lm-sidebar-header) !important;
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+.light-mode .bg-black\/10,
+.light-mode .bg-black\/20,
+.light-mode .bg-black\/25,
+.light-mode .bg-black\/30,
+.light-mode .bg-black\/40 {
+  background-color: var(--lm-inset) !important;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 99px;
+.light-mode .bg-white\/\[0\.01\],
+.light-mode .bg-white\/\[0\.02\],
+.light-mode .bg-white\/\[0\.03\],
+.light-mode .bg-white\/\[0\.04\],
+.light-mode .bg-white\/5,
+.light-mode .bg-white\/10 {
+  background-color: var(--lm-card) !important;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.25);
+/* --- Borders --- */
+.light-mode .border-white\/\[0\.04\],
+.light-mode .border-white\/\[0\.05\],
+.light-mode .border-white\/\[0\.06\],
+.light-mode .border-white\/5 {
+  border-color: var(--lm-border-subtle) !important;
+}
+.light-mode .border-white\/10,
+.light-mode .border-white\/\[0\.08\],
+.light-mode .border-white\/\[0\.09\] {
+  border-color: var(--lm-border-medium) !important;
 }
 
-.custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+/* --- Text on hardcoded dark bg --- */
+.light-mode .text-white\/40,
+.light-mode .text-white\/50,
+.light-mode .text-white\/60,
+.light-mode .text-white\/70,
+.light-mode .text-white\/80 {
+  color: var(--color-text-muted) !important;
 }
+
+/* --- Hover states --- */
+.light-mode .hover\:bg-white\/10:hover,
+.light-mode .hover\:bg-white\/\[0\.02\]:hover,
+.light-mode .hover\:bg-white\/5:hover {
+  background-color: var(--lm-hover) !important;
+}
+.light-mode .hover\:bg-black\/20:hover {
+  background-color: var(--lm-inset) !important;
+}
+
+/* --- Gradient cards (kanban, stat cards, etc.) --- */
+.light-mode .from-\[\#1a1b24\],
+.light-mode .from-\[\#21232f\] {
+  --tw-gradient-from: #FFFFFF !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+.light-mode .to-\[\#11121a\],
+.light-mode .to-\[\#161722\] {
+  --tw-gradient-to: #EEF2F7 !important;
+}
+
+/* --- Sidebar header logo bar --- */
+.light-mode aside div.bg-\[\#0A0F13\] {
+  background-color: #1E293B !important;
+}
+
+/* --- Stat/badge pills --- */
+.light-mode .bg-structure\/50 {
+  background-color: #DDE4EF !important;
+}
+
+/* --- Scrollbars --- */
+.custom-scrollbar::-webkit-scrollbar        { width: 6px; height: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track  { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb  { background: var(--lm-scrollbar); border-radius: 99px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--lm-scrollbar-hover); }
+.custom-scrollbar { scrollbar-width: thin; scrollbar-color: var(--lm-scrollbar) transparent; }

@@ -124,8 +124,8 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
     addTicket('missing_phone', 'Telefonnummer des Kunden fehlt', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}`, phoneDueStatus, hasPhone);
 
     if (order.orderMeta?.viewingDate === 'requested' || states['viewing_requested']) {
-       const isViewingDone = order.orderMeta?.viewingDate !== 'requested' && !!order.orderMeta?.viewingDate;
-       const customViewingStatus = calculateTargetDateStatus(order.orderMeta?.viewingDate);
+       const isViewingDone = (order.orderMeta?.viewingDate !== 'requested' && !!order.orderMeta?.viewingDate) || !!order.orderMeta?.viewingCanceled;
+       const customViewingStatus = order.orderMeta?.viewingCanceled ? null : calculateTargetDateStatus(order.orderMeta?.viewingDate);
        addTicket('viewing_requested', 'Kunde wünscht einen Besichtigungstermin', 2, 'action', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, customViewingStatus || undefined, isViewingDone);
     }
     // Quote urgent checks
@@ -180,6 +180,9 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
     // Always for confirmed
     const hasDispo = !!(order.disposition?.assignedVehicles?.length && order.disposition?.assignedEmployees?.length);
     addTicket('dispo_missing', 'Disposition: Mitarbeiter & Fahrzeuge im Kalender zuweisen', 4, 'warning', 'general', `/dashboard/calendar`, undefined, hasDispo);
+    
+    // Laufzettel für Team
+    addTicket('employee_sheet', 'Laufzettel (Umzugszettel) für das Team ausdrucken', 4, 'action', 'general');
 
     // Manuelle Checklisten-Punkte durch * in Leistungen
     if (order.services && Array.isArray(order.services)) {

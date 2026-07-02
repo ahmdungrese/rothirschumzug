@@ -163,7 +163,8 @@ export default function CalendarPage() {
                           color: 'bg-yellow-500 border-yellow-400 text-black font-medium hover:bg-yellow-400 shadow-md shadow-yellow-500/20',
                           orderId: o.id,
                           customerId: o.customerId,
-                          isDone: !!o.ticketStates?.halteverbot
+                          isDone: !!o.ticketStates?.halteverbot,
+                          timeStr: o.orderMeta?.halteverbotTime
                         });
                       }
                     }
@@ -188,7 +189,8 @@ export default function CalendarPage() {
                           color: 'bg-blue-600 border-blue-500 text-white hover:bg-blue-500 shadow-md shadow-blue-500/20',
                           orderId: o.id,
                           customerId: o.customerId,
-                          isDone: !!o.ticketStates?.kartons_liefern
+                          isDone: !!o.ticketStates?.kartons_liefern,
+                          timeStr: o.orderMeta?.kartonDeliveryTime
                         });
                       }
                     }
@@ -214,7 +216,8 @@ export default function CalendarPage() {
                           color: 'bg-teal-600 border-teal-500 text-white hover:bg-teal-500 shadow-md shadow-teal-500/20',
                           orderId: o.id,
                           customerId: o.customerId,
-                          isDone: !!o.ticketStates?.moebellift_buchen
+                          isDone: !!o.ticketStates?.moebellift_buchen,
+                          timeStr: o.orderMeta?.moebelliftTime
                         });
                       }
                     }
@@ -261,6 +264,7 @@ export default function CalendarPage() {
                             {event.isDone && <CheckIcon className="w-3 h-3 shrink-0" />}
                             <span className={event.isDone ? 'line-through' : ''}>
                               {event.disposition?.movingTimeStr && <span className="mr-1 opacity-80">{event.disposition.movingTimeStr}</span>}
+                              {event.timeStr && <span className="mr-1 opacity-80">{event.timeStr}</span>}
                               {event.title}
                             </span>
                           </div>

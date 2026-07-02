@@ -51,7 +51,7 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
         flex md:static md:inset-0 fixed inset-y-0 left-0 z-50 w-64 flex-col bg-bg-dark md:bg-bg-panel border-r border-structure transform transition-transform duration-300 ease-in-out md:translate-x-0
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
-        <div className="flex items-center justify-between h-16 px-4 border-b border-structure bg-[#0A0F13]">
+        <div className="flex items-center justify-between h-16 px-4 border-b border-structure" style={{ backgroundColor: 'var(--lm-sidebar-header)' }}>
           <Image 
             src="/Rothirsch.png" 
             alt="Rothirsch Logo" 

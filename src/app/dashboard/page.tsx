@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
 import { collection, query, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
@@ -14,6 +15,24 @@ import { generateTickets, SystemTicket } from '@/lib/ticketEngine';
 
 export default function DashboardPage() {
   const { profile } = useAuth();
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
+
+  // Theme-aware class helpers
+  const card      = isLight ? 'bg-white border-slate-200 text-slate-800' : 'bg-[#171821]/80 border-white/[0.06] text-white';
+  const cardHover = isLight ? 'hover:border-primary/40 hover:shadow-lg' : 'hover:border-primary/40 hover:shadow-xl hover:shadow-black/25';
+  const col       = isLight ? 'bg-slate-100 border-slate-300' : 'bg-[#161722]/55 border-white/[0.04]';
+  const statCard  = isLight ? 'bg-white border-slate-200' : 'bg-[#1a1c24]/50 border-white/5';
+  const tabBar    = isLight ? 'bg-slate-100 border-slate-200' : 'bg-[#1a1c24]/80 border-white/5';
+  const tabActive = isLight ? 'bg-white text-slate-900 shadow border-slate-300' : 'bg-white/10 text-white shadow';
+  const tabInact  = isLight ? 'text-slate-500 hover:text-slate-800 hover:bg-white/60' : 'text-text-muted hover:text-white hover:bg-[#1c1d29]';
+  const detailPanel = isLight ? 'bg-white border-slate-200 shadow-lg' : 'bg-[#171821]/60 border-white/[0.06] shadow-xl backdrop-blur-md';
+  const colHeader = isLight ? 'text-slate-600' : 'text-text-muted';
+  const txt       = isLight ? 'text-slate-800' : 'text-white';
+  const txtMuted  = isLight ? 'text-slate-500' : 'text-white/70';
+  const txtFaint  = isLight ? 'text-slate-400' : 'text-white/50';
+  const insetBox  = isLight ? 'bg-slate-100 border-slate-200' : 'bg-black/20 border-white/5';
+  const inlineInput = isLight ? 'bg-white border-slate-300 text-slate-800 placeholder:text-slate-400' : 'bg-black/30 border-white/10 text-white placeholder:text-white/20';
   
   const [activeTodos, setActiveTodos] = useState<SystemTicket[]>([]);
   const [kanbanOrders, setKanbanOrders] = useState<{
@@ -223,12 +242,12 @@ export default function DashboardPage() {
     return (
       <div 
         key={todo.id + todo.orderId} 
-        className={`bg-[#171821]/80 border border-white/[0.06] rounded-xl p-3.5 hover:border-primary/40 shadow-lg hover:shadow-xl hover:shadow-black/25 hover:translate-y-[-2px] transition-all duration-300 flex flex-col gap-2.5 ${
+        className={`${card} ${cardHover} border rounded-xl p-3.5 shadow-lg hover:translate-y-[-2px] transition-all duration-300 flex flex-col gap-2.5 ${
           todo.done ? 'opacity-55' : ''
         }`}
       >
         <div className="flex justify-between items-start gap-2">
-          <span className={`font-bold text-[13px] text-white tracking-tight break-words flex-1 leading-snug ${todo.done ? 'line-through text-white/40' : ''}`}>
+          <span className={`font-bold text-[13px] tracking-tight break-words flex-1 leading-snug ${isLight ? (todo.done ? 'line-through text-slate-400 text-slate-800' : 'text-slate-800') : (todo.done ? 'line-through text-white/40 text-white' : 'text-white')}`}>
             {todo.customerName}
           </span>
           <div className="shrink-0">
@@ -236,12 +255,12 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className={`text-[11px] font-medium leading-relaxed ${todo.done ? 'text-white/30 line-through' : 'text-white/70'}`}>
+        <div className={`text-[11px] font-medium leading-relaxed ${todo.done ? (isLight ? 'text-slate-400 line-through' : 'text-white/30 line-through') : (isLight ? 'text-slate-600' : 'text-white/70')}`}>
           {todo.title}
           <div className="mt-2 space-y-0.5 border-l border-white/10 pl-2">
-            <div className="text-[10px] text-text-muted">Auszug: <span className="text-white/60 font-semibold">{parentOrder?.logistics?.a_street?.split(',')[0] || 'Unbekannt'}</span></div>
+            <div className="text-[10px] text-text-muted">Auszug: <span className={`font-semibold ${isLight ? 'text-slate-700' : 'text-white/60'}`}>{parentOrder?.logistics?.a_street?.split(',')[0] || 'Unbekannt'}</span></div>
             {orderDate !== 'TBA' && (
-              <div className="text-[10px] text-text-muted">Datum: <span className="text-white/60 font-semibold">{orderDate}</span></div>
+              <div className="text-[10px] text-text-muted">Datum: <span className={`font-semibold ${isLight ? 'text-slate-700' : 'text-white/60'}`}>{orderDate}</span></div>
             )}
           </div>
         </div>
@@ -290,7 +309,7 @@ export default function DashboardPage() {
         onDragStart={(e) => handleDragStart(e, order.id)}
         key={order.id} 
         onClick={() => setSelectedOrder(order)} 
-        className="bg-[#161722]/85 border border-white/[0.06] hover:border-primary/45 rounded-xl p-3.5 hover:shadow-xl hover:shadow-black/25 hover:translate-y-[-2px] transition-all duration-200 cursor-grab active:cursor-grabbing flex flex-col gap-2.5 text-white"
+        className={`${card} ${cardHover} border rounded-xl p-3.5 hover:translate-y-[-2px] transition-all duration-200 cursor-grab active:cursor-grabbing flex flex-col gap-2.5`}
       >
         {/* Header: Label and Price */}
         <div className="flex justify-between items-center gap-2">
@@ -305,20 +324,18 @@ export default function DashboardPage() {
         </div>
 
         {/* Customer Name */}
-        <div className="font-extrabold text-[14px] text-white tracking-tight leading-snug break-words">
+        <div className={`font-extrabold text-[14px] tracking-tight leading-snug break-words ${isLight ? 'text-slate-800' : 'text-white'}`}>
           {order.customerName || 'Unbekannt'}
         </div>
 
         {/* Route Details */}
-        <div className="text-[10px] text-white/70 bg-black/20 border border-white/5 p-2 rounded-lg flex items-center justify-between gap-2">
-          <div className="truncate flex-1">
-            <span className="text-[8px] text-text-muted block uppercase font-bold tracking-wider">Auszug</span>
-            <span className="font-semibold text-white/90">{order.logistics?.a_city || '-'}</span>
+        <div className={`text-[10px] ${isLight ? 'bg-slate-100 border-slate-200 text-slate-700' : 'text-white/70 bg-black/20 border-white/5'} p-2 rounded-lg flex items-center justify-between gap-2`}>
+          <div className="flex flex-col gap-0.5">
+            <span className={`font-semibold ${isLight ? 'text-slate-700' : 'text-white/90'}`}>{order.logistics?.a_city || '-'}</span>
           </div>
-          <div className="text-white/30 font-bold">➔</div>
-          <div className="truncate flex-1 text-right">
-            <span className="text-[8px] text-text-muted block uppercase font-bold tracking-wider">Einzug</span>
-            <span className="font-semibold text-white/90">{order.logistics?.b_city || '-'}</span>
+          <div className={`font-bold ${isLight ? 'text-slate-400' : 'text-white/30'}`}>➔</div>
+          <div className="flex flex-col gap-0.5">
+            <span className={`font-semibold ${isLight ? 'text-slate-700' : 'text-white/90'}`}>{order.logistics?.b_city || '-'}</span>
           </div>
         </div>
 
@@ -328,7 +345,7 @@ export default function DashboardPage() {
             {order.status === 'invoice_overdue' ? 'Mahnung offen' : 'Rechnung gestellt'}
           </div>
         ) : order.orderMeta?.movingDateFrom ? (
-          <div className="text-[10px] text-white/80 flex items-center gap-1.5 bg-white/5 border border-white/5 px-2 py-1 rounded-lg w-max font-medium">
+          <div className={`text-[10px] flex items-center gap-1.5 px-2 py-1 rounded-lg w-max font-medium border ${isLight ? 'bg-slate-100 border-slate-200 text-slate-600' : 'text-white/80 bg-white/5 border-white/5'}`}>
             <ClockIcon className="w-3.5 h-3.5 text-text-muted shrink-0" />
             <span>{new Date(order.orderMeta.movingDateFrom).toLocaleDateString('de-DE')}</span>
           </div>
@@ -438,7 +455,7 @@ export default function DashboardPage() {
               className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
                 logisticsFilter === pill.id
                   ? 'bg-primary border-primary-hover text-white shadow-lg shadow-primary/20'
-                  : 'bg-[#171821]/50 border-white/5 text-text-muted hover:text-white hover:bg-[#1c1d29]'
+                  : tabInact
               }`}
             >
               <span>{pill.label}</span>
@@ -450,7 +467,7 @@ export default function DashboardPage() {
         </div>
 
         {/* List View Container */}
-        <div className="bg-[#171821]/60 border border-white/[0.06] rounded-2xl overflow-hidden shadow-xl backdrop-blur-md">
+        <div className={`${detailPanel} border rounded-2xl overflow-hidden`}>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -463,7 +480,7 @@ export default function DashboardPage() {
                   <th className="py-4 px-6 text-right">Aktionen</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5 text-sm text-white/90">
+              <tbody className={`divide-y text-sm ${isLight ? 'divide-slate-100 text-slate-800' : 'divide-white/5 text-white/90'}`}>
                 {filtered.map(todo => {
                   const parentOrder = orders.find(o => o.id === todo.orderId);
                   const orderDate = parentOrder?.orderMeta?.movingDateFrom ? new Date(parentOrder.orderMeta.movingDateFrom).toLocaleDateString('de-DE') : 'TBA';
@@ -490,19 +507,19 @@ export default function DashboardPage() {
                       </td>
 
                       {/* Customer Name */}
-                      <td className="py-4 px-6 font-bold text-white tracking-tight">
+                      <td className={`py-4 px-6 font-bold tracking-tight ${isLight ? 'text-slate-800' : 'text-white'}`}>
                         {todo.customerName}
                       </td>
 
                       {/* Task Title */}
-                      <td className="py-4 px-6 text-xs text-white/80 font-medium">
+                      <td className={`py-4 px-6 text-xs font-medium ${isLight ? 'text-slate-600' : 'text-white/80'}`}>
                         {todo.title}
                       </td>
 
                       {/* Details / Date */}
                       <td className="py-4 px-6 text-xs text-text-muted">
                         <div className="space-y-1.5 border-l border-white/10 pl-2">
-                          <div className="text-[10px] text-white/50">Umzug am: <span className="text-white/80">{orderDate}</span></div>
+                          <div className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-white/50'}`}>Umzug am: <span className={`${isLight ? 'text-slate-700' : 'text-white/80'}`}>{orderDate}</span></div>
                           
                           {(() => {
                             const isKarton = todo.id === 'kartons_liefern';
@@ -541,7 +558,7 @@ export default function DashboardPage() {
                                           toast.success("Datum gespeichert!");
                                         }
                                       }}
-                                      className="bg-black/30 border border-white/10 text-white text-[11px] px-2 py-1 rounded w-28 focus:border-primary outline-none"
+                                      className={`${inlineInput} border text-[11px] px-2 py-1 rounded w-28 focus:border-primary outline-none`}
                                     />
                                     <input 
                                       type="text"
@@ -556,14 +573,14 @@ export default function DashboardPage() {
                                           toast.success("Uhrzeit gespeichert!");
                                         }
                                       }}
-                                      className="bg-black/30 border border-white/10 text-white text-[11px] px-2 py-1 rounded w-28 focus:border-primary outline-none placeholder:text-white/20"
+                                      className={`${inlineInput} border text-[11px] px-2 py-1 rounded w-28 focus:border-primary outline-none`}
                                     />
                                   </div>
                                 </div>
                               );
                             }
                             return (
-                              <div>Auszug: <span className="text-white/70 font-semibold">{parentOrder?.logistics?.a_city || '-'}</span></div>
+                              <div>Auszug: <span className={`font-semibold ${isLight ? 'text-slate-700' : 'text-white/70'}`}>{parentOrder?.logistics?.a_city || '-'}</span></div>
                             );
                           })()}
                         </div>
@@ -630,33 +647,33 @@ export default function DashboardPage() {
 
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pt-4 border-b border-white/5 pb-6">
         <div>
-          <h1 className="text-2xl md:text-4xl font-extrabold tracking-tight text-white bg-gradient-to-r from-white via-white/90 to-white/50 bg-clip-text text-transparent">Zentrale Disposition</h1>
+          <h1 className={`text-2xl md:text-4xl font-extrabold tracking-tight ${isLight ? 'text-slate-900' : 'bg-gradient-to-r from-white via-white/90 to-white/50 bg-clip-text text-transparent'}`}>Zentrale Disposition</h1>
           <p className="text-text-muted mt-2 text-sm md:text-base font-medium">Willkommen zurück, <span className="text-primary font-bold">{profile?.displayName || 'Admin'}</span>. Hier ist deine heutige Auslastung.</p>
         </div>
         
         {/* Modern KPI Widgets */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 w-full md:w-auto shrink-0">
-          <div className="bg-[#1a1c24]/50 border border-white/5 p-3 rounded-xl min-w-[120px] shadow-lg shadow-black/20 hover:border-primary/30 transition-all group">
+          <div className={`${statCard} border p-3 rounded-xl min-w-[120px] shadow-md hover:border-primary/30 transition-all group`}>
             <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider">Angebote</span>
-            <div className="text-xl font-bold text-white group-hover:text-primary transition-colors mt-0.5">{orders.filter(o => o.status === 'quote').length}</div>
+            <div className={`text-xl font-bold group-hover:text-primary transition-colors mt-0.5 ${isLight ? 'text-slate-800' : 'text-white'}`}>{orders.filter(o => o.status === 'quote').length}</div>
           </div>
-          <div className="bg-[#1a1c24]/50 border border-white/5 p-3 rounded-xl min-w-[120px] shadow-lg shadow-black/20 hover:border-emerald-500/30 transition-all group">
+          <div className={`${statCard} border p-3 rounded-xl min-w-[120px] shadow-md hover:border-emerald-500/30 transition-all group`}>
             <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider">Umzüge</span>
-            <div className="text-xl font-bold text-white group-hover:text-emerald-400 transition-colors mt-0.5">{orders.filter(o => o.status === 'confirmed').length}</div>
+            <div className={`text-xl font-bold group-hover:text-emerald-400 transition-colors mt-0.5 ${isLight ? 'text-slate-800' : 'text-white'}`}>{orders.filter(o => o.status === 'confirmed').length}</div>
           </div>
-          <div className="bg-[#1a1c24]/50 border border-white/5 p-3 rounded-xl min-w-[120px] shadow-lg shadow-black/20 hover:border-red-500/30 transition-all group">
+          <div className={`${statCard} border p-3 rounded-xl min-w-[120px] shadow-md hover:border-red-500/30 transition-all group`}>
             <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider">Überfällig</span>
-            <div className="text-xl font-bold text-white group-hover:text-red-400 transition-colors mt-0.5">{activeTodos.filter(t => !t.done && t.dueDateStatus === 'overdue').length}</div>
+            <div className={`text-xl font-bold group-hover:text-red-400 transition-colors mt-0.5 ${isLight ? 'text-slate-800' : 'text-white'}`}>{activeTodos.filter(t => !t.done && t.dueDateStatus === 'overdue').length}</div>
           </div>
-          <div className="bg-[#1a1c24]/50 border border-white/5 p-3 rounded-xl min-w-[120px] shadow-lg shadow-black/20 hover:border-purple-500/30 transition-all group">
+          <div className={`${statCard} border p-3 rounded-xl min-w-[120px] shadow-md hover:border-purple-500/30 transition-all group`}>
             <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider">Aufgaben</span>
-            <div className="text-xl font-bold text-white group-hover:text-purple-400 transition-colors mt-0.5">{activeTodos.filter(t => !t.done).length}</div>
+            <div className={`text-xl font-bold group-hover:text-purple-400 transition-colors mt-0.5 ${isLight ? 'text-slate-800' : 'text-white'}`}>{activeTodos.filter(t => !t.done).length}</div>
           </div>
         </div>
       </header>
 
       {/* Dynamic View Tab Switcher */}
-      <div className="flex bg-[#1a1c24]/80 p-1.5 rounded-2xl border border-white/5 w-max max-w-full shadow-lg shadow-black/20 shrink-0">
+      <div className={`flex ${tabBar} border p-1.5 rounded-2xl w-max max-w-full shadow-md shrink-0`}>
         <button
           onClick={() => setDashboardView('pipeline')}
           className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${
@@ -687,11 +704,11 @@ export default function DashboardPage() {
       {dashboardView === 'pipeline' ? (
         <div className="space-y-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
+            <h2 className={`text-base font-extrabold uppercase tracking-wider flex items-center gap-2 ${isLight ? 'text-slate-700' : 'text-white'}`}>
               Kunden-Status
             </h2>
-            <span className="text-[10px] text-text-muted bg-white/5 border border-white/5 px-2.5 py-1 rounded-xl">
-              Drag & Drop zum Verschieben aktiv
+            <span className={`text-[10px] px-2.5 py-1 rounded-xl ${isLight ? 'bg-slate-200 text-slate-500' : 'bg-white/5 border border-white/5 text-text-muted'}`}>
+              Drag &amp; Drop zum Verschieben aktiv
             </span>
           </div>
 
@@ -699,13 +716,13 @@ export default function DashboardPage() {
           <div className="flex flex-row gap-5 overflow-x-auto pb-6 pt-2 items-start custom-scrollbar w-full min-h-[500px]">
             
             {/* Neu / Entwurf */}
-            <div className="flex flex-col gap-3.5 p-3.5 bg-[#161722]/55 border border-white/[0.04] rounded-2xl h-fit max-h-[85vh] shadow-sm flex-1 min-w-[280px] max-w-[420px] shrink-0" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'draft')}>
-              <div className="flex justify-between items-center px-2 py-1.5 mb-2 w-full text-white/90 border-b border-white/5 pb-2.5">
+            <div className={`flex flex-col gap-3.5 p-3.5 ${col} border rounded-2xl h-fit max-h-[85vh] shadow-sm flex-1 min-w-[280px] max-w-[420px] shrink-0`} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'draft')}>
+              <div className={`flex justify-between items-center px-2 py-1.5 mb-2 w-full border-b pb-2.5 ${isLight ? 'border-slate-200' : 'border-white/5'}`}>
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-red-500"></div>
-                  <h3 className="font-extrabold text-[11px] text-white/70 uppercase tracking-wider">NEU / ENTWURF</h3>
+                  <h3 className={`font-extrabold text-[11px] uppercase tracking-wider ${colHeader}`}>NEU / ENTWURF</h3>
                 </div>
-                <span className="text-[10px] text-white/60 font-bold font-mono bg-white/5 px-2 py-0.5 rounded-lg">{kanbanOrders.drafts.length}</span>
+                <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-lg ${isLight ? 'bg-slate-200 text-slate-600' : 'bg-white/5 text-white/60'}`}>{kanbanOrders.drafts.length}</span>
               </div>
               <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
                 {kanbanOrders.drafts.map(order => renderKanbanCard(order, 'draft'))}
@@ -713,13 +730,13 @@ export default function DashboardPage() {
             </div>
 
             {/* Angebot Erstellt */}
-            <div className="flex flex-col gap-3.5 p-3.5 bg-[#161722]/55 border border-white/[0.04] rounded-2xl h-fit max-h-[85vh] shadow-sm flex-1 min-w-[280px] max-w-[420px] shrink-0" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'quote')}>
-              <div className="flex justify-between items-center px-2 py-1.5 mb-2 w-full text-white/90 border-b border-white/5 pb-2.5">
+            <div className={`flex flex-col gap-3.5 p-3.5 ${col} border rounded-2xl h-fit max-h-[85vh] shadow-sm flex-1 min-w-[280px] max-w-[420px] shrink-0`} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'quote')}>
+              <div className={`flex justify-between items-center px-2 py-1.5 mb-2 w-full border-b pb-2.5 ${isLight ? 'border-slate-200' : 'border-white/5'}`}>
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-yellow-500"></div>
-                  <h3 className="font-extrabold text-[11px] text-white/70 uppercase tracking-wider">ANGEBOT ERSTELLT</h3>
+                  <h3 className={`font-extrabold text-[11px] uppercase tracking-wider ${colHeader}`}>ANGEBOT ERSTELLT</h3>
                 </div>
-                <span className="text-[10px] text-white/60 font-bold font-mono bg-white/5 px-2 py-0.5 rounded-lg">{kanbanOrders.quotes.length}</span>
+                <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-lg ${isLight ? 'bg-slate-200 text-slate-600' : 'bg-white/5 text-white/60'}`}>{kanbanOrders.quotes.length}</span>
               </div>
               <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
                 {kanbanOrders.quotes.map(order => renderKanbanCard(order, 'quote'))}
@@ -727,13 +744,13 @@ export default function DashboardPage() {
             </div>
 
             {/* Umzug Bestätigt */}
-            <div className="flex flex-col gap-3.5 p-3.5 bg-[#161722]/55 border border-white/[0.04] rounded-2xl h-fit max-h-[85vh] shadow-sm flex-1 min-w-[280px] max-w-[420px] shrink-0 relative" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'confirmed')}>
-              <div className="flex justify-between items-center px-2 py-1.5 mb-2 w-full text-white/90 border-b border-white/5 pb-2.5">
+            <div className={`flex flex-col gap-3.5 p-3.5 ${col} border rounded-2xl h-fit max-h-[85vh] shadow-sm flex-1 min-w-[280px] max-w-[420px] shrink-0 relative`} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'confirmed')}>
+              <div className={`flex justify-between items-center px-2 py-1.5 mb-2 w-full border-b pb-2.5 ${isLight ? 'border-slate-200' : 'border-white/5'}`}>
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-blue-500"></div>
-                  <h3 className="font-extrabold text-[11px] text-white/70 uppercase tracking-wider">UMZUG BESTÄTIGT</h3>
+                  <h3 className={`font-extrabold text-[11px] uppercase tracking-wider ${colHeader}`}>UMZUG BESTÄTIGT</h3>
                 </div>
-                <span className="text-[10px] text-white/60 font-bold font-mono bg-white/5 px-2 py-0.5 rounded-lg">{kanbanOrders.confirmed.length}</span>
+                <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-lg ${isLight ? 'bg-slate-200 text-slate-600' : 'bg-white/5 text-white/60'}`}>{kanbanOrders.confirmed.length}</span>
               </div>
               <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
                 {kanbanOrders.confirmed.map(order => renderKanbanCard(order, 'confirmed'))}
@@ -741,13 +758,13 @@ export default function DashboardPage() {
             </div>
 
             {/* Abgeschlossen */}
-            <div className="flex flex-col gap-3.5 p-3.5 bg-[#161722]/55 border border-white/[0.04] rounded-2xl h-fit max-h-[85vh] shadow-sm flex-1 min-w-[280px] max-w-[420px] shrink-0" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'invoice_open')}>
-              <div className="flex justify-between items-center px-2 py-1.5 mb-2 w-full text-white/90 border-b border-white/5 pb-2.5">
+            <div className={`flex flex-col gap-3.5 p-3.5 ${col} border rounded-2xl h-fit max-h-[85vh] shadow-sm flex-1 min-w-[280px] max-w-[420px] shrink-0`} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, 'invoice_open')}>
+              <div className={`flex justify-between items-center px-2 py-1.5 mb-2 w-full border-b pb-2.5 ${isLight ? 'border-slate-200' : 'border-white/5'}`}>
                 <div className="flex items-center gap-2">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
-                  <h3 className="font-extrabold text-[11px] text-white/70 uppercase tracking-wider">ABGESCHLOSSEN</h3>
+                  <h3 className={`font-extrabold text-[11px] uppercase tracking-wider ${colHeader}`}>ABGESCHLOSSEN</h3>
                 </div>
-                <span className="text-[10px] text-white/60 font-bold font-mono bg-white/5 px-2 py-0.5 rounded-lg">{kanbanOrders.invoicing.length}</span>
+                <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-lg ${isLight ? 'bg-slate-200 text-slate-600' : 'bg-white/5 text-white/60'}`}>{kanbanOrders.invoicing.length}</span>
               </div>
               <div className="flex-1 space-y-3 overflow-y-auto custom-scrollbar pr-1">
                 {kanbanOrders.invoicing.map(order => renderKanbanCard(order, 'invoicing'))}
@@ -758,8 +775,8 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="space-y-6">
-          <h2 className="text-base font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
-            Logistik-Aufgaben & To-Dos
+          <h2 className={`text-base font-extrabold uppercase tracking-wider flex items-center gap-2 ${isLight ? 'text-slate-700' : 'text-white'}`}>
+            Logistik-Aufgaben &amp; To-Dos
           </h2>
           {renderLogisticsList()}
         </div>
