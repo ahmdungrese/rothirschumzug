@@ -1,7 +1,7 @@
 export type SystemTicket = {
   id: string;
   title: string;
-  phase: 1 | 2 | 3;
+  phase: 1 | 2 | 3 | 4 | 5;
   type: 'warning' | 'action' | 'info';
   done: boolean;
   actionLink?: string;
@@ -57,7 +57,7 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
   const addTicket = (
     id: string, 
     title: string, 
-    phase: 1|2|3, 
+    phase: 1|2|3|4|5, 
     type: 'warning'|'action'|'info', 
     kanbanCategory: 'kartons' | 'halteverbot' | 'moebellift' | 'rechnung' | 'general' = 'general',
     actionLink?: string,
@@ -110,6 +110,15 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
     const destDueStatus = isPhase1Overdue && !hasDestination ? { status: 'overdue' as const, text: 'ÜBERFÄLLIG' } : undefined;
     addTicket('missing_destination', 'Entladeadresse fehlt (Zielort nicht bekannt)', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, destDueStatus, hasDestination);
 
+    const hasAFloor = !!(order.logistics?.a_floor);
+    const aFloorDueStatus = isPhase1Overdue && !hasAFloor ? { status: 'overdue' as const, text: 'ÜBERFÄLLIG' } : undefined;
+    addTicket('missing_a_floor', 'Etage für Beladeadresse (A) fehlt', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, aFloorDueStatus, hasAFloor);
+
+    const hasBFloor = !!(order.logistics?.b_floor);
+    const bFloorDueStatus = isPhase1Overdue && !hasBFloor ? { status: 'overdue' as const, text: 'ÜBERFÄLLIG' } : undefined;
+    addTicket('missing_b_floor', 'Etage für Entladeadresse (B) fehlt', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, bFloorDueStatus, hasBFloor);
+
+
     const hasPhone = !!(order.billingAddress?.phone || customer?.phone);
     const phoneDueStatus = isPhase1Overdue && !hasPhone ? { status: 'overdue' as const, text: 'ÜBERFÄLLIG' } : undefined;
     addTicket('missing_phone', 'Telefonnummer des Kunden fehlt', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}`, phoneDueStatus, hasPhone);
@@ -117,70 +126,86 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
     if (order.orderMeta?.viewingDate === 'requested' || states['viewing_requested']) {
        const isViewingDone = order.orderMeta?.viewingDate !== 'requested' && !!order.orderMeta?.viewingDate;
        const customViewingStatus = calculateTargetDateStatus(order.orderMeta?.viewingDate);
-       addTicket('viewing_requested', 'Kunde wünscht einen Besichtigungstermin', 1, 'action', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, customViewingStatus || undefined, isViewingDone);
+       addTicket('viewing_requested', 'Kunde wünscht einen Besichtigungstermin', 2, 'action', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, customViewingStatus || undefined, isViewingDone);
+    }
+    // Quote urgent checks
+    if (status === 'quote') {
+      if (order.orderMeta?.validUntil) {
+        const validDate = new Date(order.orderMeta.validUntil).getTime();
+        if (validDate < Date.now()) {
+          addTicket('quote_expired', 'Angebot ist abgelaufen! Bitte Kunde kontaktieren.', 3, 'warning', 'general', `/dashboard/customers/${order.customerId}`, { status: 'overdue', text: 'ABGELAUFEN' });
+        }
+      }
+      if (daysToMove !== null && daysToMove <= 5) {
+        addTicket('quote_urgent_move', `Umzug in ${daysToMove} Tagen, aber Angebot nicht bestätigt!`, 3, 'warning', 'general', `/dashboard/customers/${order.customerId}`, { status: 'overdue', text: 'EILT SEHR' });
+      }
     }
   }
 
-  // === Phase 2: Nach Bestätigung (confirmed) ===
+  // === Phase 4: Nach Bestätigung (confirmed) ===
   if (status === 'confirmed') {
+    if (daysToMove !== null && daysToMove < 0) {
+      addTicket('move_past_due', 'Umzug liegt in der Vergangenheit! Bitte auf "Umzug durchgeführt" setzen.', 4, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, { status: 'overdue', text: 'ÜBERFÄLLIG' });
+    }
+
     if (hasServiceLike(['karton', 'box', 'kartons'])) {
       // Check for custom carton delivery date first, else calculate relative (due: 28 days before, overdue: 23 days before)
       const customKartonStatus = calculateTargetDateStatus(order.orderMeta?.kartonDeliveryDate);
       const relativeKartonStatus = calculateDueDateStatus(daysToMove, 28, 23);
-      addTicket('kartons_liefern', 'Umzugskartons besorgen & an Kunden liefern', 2, 'action', 'kartons', undefined, customKartonStatus || relativeKartonStatus);
+      addTicket('kartons_liefern', 'Umzugskartons besorgen & an Kunden liefern', 4, 'action', 'kartons', undefined, customKartonStatus || relativeKartonStatus);
     }
 
     if (hasServiceLike(['küche', 'kueche', 'einbau', 'montage'])) {
-      addTicket('einbau_service', 'Einbauservice / Handwerker (Küche/Montage) einplanen', 2, 'action', 'general');
+      addTicket('einbau_service', 'Einbauservice / Handwerker (Küche/Montage) einplanen', 4, 'action', 'general');
     }
 
     if (hasServiceLike(['einpack', 'auspack', 'packservice', 'einräum', 'ausräum'])) {
-      addTicket('pack_service', 'Packservice Team einplanen (Ein-/Auspacken)', 2, 'action', 'general');
+      addTicket('pack_service', 'Packservice Team einplanen (Ein-/Auspacken)', 4, 'action', 'general');
     }
 
     if (order.logistics?.a_parking || order.logistics?.b_parking || hasServiceLike(['halteverbot'])) {
       // Check for custom HV date first, else relative (overdue: 7 days before)
       const customHvStatus = calculateTargetDateStatus(order.orderMeta?.halteverbotDate);
       const relativeHvStatus = calculateDueDateStatus(daysToMove, 7, 7);
-      addTicket('halteverbot', 'Halteverbotszone beantragen & Schilder aufstellen', 2, 'action', 'halteverbot', undefined, customHvStatus || relativeHvStatus);
+      addTicket('halteverbot', 'Halteverbotszone beantragen & Schilder aufstellen', 4, 'action', 'halteverbot', undefined, customHvStatus || relativeHvStatus);
     }
 
     if (hasServiceLike(['lift', 'möbellift', 'aufzug'])) {
       // Check for custom Lift date, else relative (overdue: 3 days before)
       const customLiftStatus = calculateTargetDateStatus(order.orderMeta?.moebelliftDate);
       const relativeLiftStatus = calculateDueDateStatus(daysToMove, 3, 3);
-      addTicket('moebellift_buchen', 'Möbellift extern buchen / reservieren', 2, 'action', 'moebellift', undefined, customLiftStatus || relativeLiftStatus);
+      addTicket('moebellift_buchen', 'Möbellift extern buchen / reservieren', 4, 'action', 'moebellift', undefined, customLiftStatus || relativeLiftStatus);
     }
 
     // Always for confirmed
     const hasDispo = !!(order.disposition?.assignedVehicles?.length && order.disposition?.assignedEmployees?.length);
-    addTicket('dispo_missing', 'Disposition: Mitarbeiter & Fahrzeuge im Kalender zuweisen', 2, 'warning', 'general', `/dashboard/calendar`, undefined, hasDispo);
+    addTicket('dispo_missing', 'Disposition: Mitarbeiter & Fahrzeuge im Kalender zuweisen', 4, 'warning', 'general', `/dashboard/calendar`, undefined, hasDispo);
 
     // Manuelle Checklisten-Punkte durch * in Leistungen
     if (order.services && Array.isArray(order.services)) {
       order.services.forEach((s: any, index: number) => {
         if (s.name && s.name.includes('*')) {
           const cleanName = s.name.replace(/\*/g, '').trim();
-          addTicket(`manual_star_${index}`, `Manuelle Aufgabe: ${cleanName}`, 2, 'action', 'general');
+          addTicket(`manual_star_${index}`, `Manuelle Aufgabe: ${cleanName}`, 4, 'action', 'general');
         }
       });
     }
   }
 
-  // === Phase 3: Nach Umzug (completed, invoice_*) ===
+  // === Phase 5: Nach Umzug (completed, invoice_*) ===
   if (status === 'completed' || status === 'invoice_open' || status === 'invoice_paid') {
     if (status === 'completed') {
       // Invoice: overdue if daysToMove is <= -5 (5 days after move)
       let dueStatus = calculateDueDateStatus(daysToMove, -1, -5);
-      addTicket('invoice_missing', 'Rechnung erstellen (Umzug beendet)', 3, 'warning', 'rechnung', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, dueStatus);
+      addTicket('invoice_missing', 'Rechnung erstellen (Umzug beendet)', 5, 'warning', 'rechnung', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, dueStatus);
     }
 
     if (status === 'invoice_open' || status === 'invoice_overdue') {
-      addTicket('payment_check', 'Zahlungseingang prüfen (Rechnung ist noch offen)', 3, 'action', 'rechnung', `/dashboard/customers/${order.customerId}`);
+      addTicket('payment_check', 'Zahlungseingang prüfen (Rechnung ist noch offen)', 5, 'action', 'rechnung', `/dashboard/customers/${order.customerId}`);
     }
 
     if (status !== 'invoice_cancelled') {
-      addTicket('review_requested', 'Kunden-Anfrage zur Bewertung schicken', 3, 'info', 'general', `/dashboard/customers/${order.customerId}`);
+      addTicket('review_requested', 'Kunden-Anfrage zur Bewertung schicken', 5, 'info', 'general', `/dashboard/customers/${order.customerId}`);
     }
   }
 

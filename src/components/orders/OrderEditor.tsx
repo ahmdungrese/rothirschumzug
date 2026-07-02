@@ -581,8 +581,21 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             <input type="date" value={orderMeta.movingDateFrom} onChange={e => setOrderMeta({...orderMeta, movingDateFrom: e.target.value})} className="input-field w-full" />
           </div>
           <div>
-            <label className="block text-xs text-text-muted mb-1">Besichtigungstermin</label>
-            <input type="datetime-local" value={orderMeta.viewingDate || ''} onChange={e => setOrderMeta({...orderMeta, viewingDate: e.target.value})} className="input-field w-full" />
+            <label className="flex items-center justify-between text-xs text-text-muted mb-1">
+              <span>Besichtigungstermin</span>
+              {(orderMeta.viewingDate === 'requested' || orderMeta.viewingDate === '') && (
+                <button type="button" onClick={() => setOrderMeta({...orderMeta, viewingDate: 'erledigt_fotos'})} className="text-primary hover:text-white underline">
+                  Durch Fotos erledigt
+                </button>
+              )}
+            </label>
+            <input type="datetime-local" value={['requested', 'erledigt_fotos'].includes(orderMeta.viewingDate) ? '' : (orderMeta.viewingDate || '')} onChange={e => setOrderMeta({...orderMeta, viewingDate: e.target.value})} className="input-field w-full" />
+            {orderMeta.viewingDate === 'erledigt_fotos' && (
+              <p className="text-xs font-bold text-green-400 mt-1">✓ Erledigt durch Fotos/Inventarliste</p>
+            )}
+            {orderMeta.viewingDate === 'requested' && (
+              <p className="text-xs font-bold text-orange-400 mt-1">Kunde hat Besichtigung angefragt!</p>
+            )}
             <p className="text-[10px] text-text-muted mt-1">Erscheint automatisch im Kalender.</p>
           </div>
           <div>

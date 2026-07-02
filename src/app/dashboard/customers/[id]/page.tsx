@@ -170,7 +170,24 @@ export default function CustomerProfilePage() {
           status: phase2Status, 
           action: () => router.push(`/dashboard/customers/${customerId}/new-order`) 
         });
-      } else if (activeOrder.status === 'draft' || activeOrder.status === 'quote') {
+      } else if (activeOrder.status === 'draft') {
+        if (activeOrder.orderMeta?.viewingDate === 'requested') {
+          items.push({ 
+            phase: 2, 
+            title: 'Besichtigungstermin planen', 
+            desc: 'Kunde wünscht einen Besichtigungstermin.', 
+            status: 'warning',
+            action: () => router.push(`/dashboard/customers/${customerId}/edit-order/${activeOrder.id}`)
+          });
+        } else {
+          items.push({ 
+            phase: 2, 
+            title: 'Angebot fertigstellen & vorlegen', 
+            desc: 'Bitte sende dem Kunden das finale Angebot.', 
+            status: 'info' 
+          });
+        }
+      } else if (activeOrder.status === 'quote') {
         if (activeOrder.orderMeta?.viewingDate === 'requested') {
           items.push({ 
             phase: 2, 
@@ -185,11 +202,11 @@ export default function CustomerProfilePage() {
 
     // Phase 3 & 4: Auftragsdetails & Status
     if (activeOrder && missingData.length === 0) {
-      if (activeOrder.status === 'draft' || activeOrder.status === 'quote') {
+      if (activeOrder.status === 'quote') {
         items.push({ 
           phase: 3, 
           title: 'Angebot bestätigen', 
-          desc: 'Warten auf Kundenbestätigung (Digitale Signatur oder externe WhatsApp/E-Mail Zusage).', 
+          desc: 'Warten auf Kundenbestätigung (Digitale Signatur oder externe Zusage).', 
           status: 'warning' 
         });
       }

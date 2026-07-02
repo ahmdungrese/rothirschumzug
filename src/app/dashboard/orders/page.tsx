@@ -1,77 +1,45 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot, doc, updateDoc, where, Timestamp, addDoc, deleteDoc } from 'firebase/firestore';
-import { DocumentCheckIcon, DocumentTextIcon, DocumentIcon, BanknotesIcon, TruckIcon, PlusIcon, ChartBarIcon, CurrencyEuroIcon, CalendarDaysIcon, MagnifyingGlassIcon, FunnelIcon, ClockIcon, DocumentDuplicateIcon, TrashIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
+import { collection, query, onSnapshot, doc, updateDoc, where, Timestamp } from 'firebase/firestore';
+import { DocumentCheckIcon, DocumentTextIcon, DocumentIcon, BanknotesIcon, TruckIcon, PlusIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
-import { useRouter } from 'next/navigation';
 import { PaymentManager } from '@/components/orders/PaymentManager';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { DispoModal } from '@/components/orders/DispoModal';
-import { StatusBadge } from '@/components/ui/StatusBadge';
 import { getCol } from '@/lib/demoMode';
-import { SmartOrderTable } from '@/components/orders/SmartOrderTable';
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
-  const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [selectedPaymentOrder, setSelectedPaymentOrder] = useState<any>(null);
   const [invoiceConfirmOrder, setInvoiceConfirmOrder] = useState<any>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [dateFilter, setDateFilter] = useState('30days');
-  const [deleteConfirmOrder, setDeleteConfirmOrder] = useState<any>(null);
-  const router = useRouter();
   
   // Disposition Modal State
   const [dispoOrder, setDispoOrder] = useState<any>(null);
 
   useEffect(() => {
-    setLoading(true);
-    let q;
-    const colRef = collection(db, getCol('orders'));
-    
-    if (dateFilter === 'all') {
-      q = query(colRef);
-    } else {
-      const startDate = new Date();
-      if (dateFilter === '30days') startDate.setDate(startDate.getDate() - 30);
-      else if (dateFilter === '6months') startDate.setMonth(startDate.getMonth() - 6);
-      else if (dateFilter === 'thisYear') {
-        startDate.setMonth(0, 1);
-        startDate.setHours(0,0,0,0);
-      }
-      q = query(colRef, where('createdAt', '>=', Timestamp.fromDate(startDate)));
-    }
+    // Limit to orders from the last 30 days to save Firebase reads
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const q = query(
+      collection(db, getCol('orders')),
+      where('createdAt', '>=', Timestamp.fromDate(thirtyDaysAgo))
+    );
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetched = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
-      const angeboteOnly = fetched.filter((o: any) => !o.invoiceNumber); // EXCLUDE INVOICES
-      angeboteOnly.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
-      setOrders(angeboteOnly);
+      fetched.sort((a: any, b: any) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
+      setOrders(fetched);
       setLoading(false);
     }, (error) => {
       console.error("Error fetching orders", error);
       setLoading(false);
     });
 
-    const unsubscribeCustomers = onSnapshot(query(collection(db, getCol('customers'))), (snapshot) => {
-      const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setCustomers(fetched);
-      setLoadingCustomers(false);
-    }, (error) => {
-      console.error("Error fetching customers", error);
-      setLoadingCustomers(false);
-    });
-
-    return () => {
-      unsubscribe();
-      unsubscribeCustomers();
-    };
-  }, [dateFilter]);
+    return () => unsubscribe();
+  }, []);
 
   const fetchOrders = () => {}; // No-op for PaymentManager compatibility
 
@@ -111,72 +79,33 @@ export default function OrdersPage() {
     }
   };
 
-  const duplicateOrder = async (order: any) => {
-    try {
-      const { id, invoiceNumber, orderNumber, invoiceDate, ...rest } = order;
-      const newOrder = {
-        ...rest,
-        status: 'draft',
-        createdAt: Timestamp.now(),
-        payments: []
-      };
-      const docRef = await addDoc(collection(db, getCol('orders')), newOrder);
-      toast.success("Auftrag dupliziert!");
-      router.push(`/dashboard/customers/${order.customerId}/edit-order/${docRef.id}`);
-    } catch (error) {
-      console.error("Error duplicating order", error);
-      toast.error("Fehler beim Duplizieren");
-    }
-  };
-
-  const confirmDeleteOrder = async () => {
-    if (!deleteConfirmOrder) return;
-    try {
-      await deleteDoc(doc(db, getCol('orders'), deleteConfirmOrder.id));
-      toast.success("Angebot gelöscht!");
-      setDeleteConfirmOrder(null);
-    } catch (error) {
-      console.error("Error deleting", error);
-      toast.error("Fehler beim Löschen");
-    }
-  };
-
-  const handleStorno = async (order: any) => {
-    if (confirm("Möchten Sie diese Rechnung wirklich stornieren?")) {
-      try {
-        await updateDoc(doc(db, getCol('orders'), order.id), { status: 'canceled' });
-        toast.success("Erfolgreich storniert");
-      } catch (error) {
-        console.error("Fehler", error);
-        toast.error("Fehler beim Stornieren");
+  const getStatusBadge = (order: any) => {
+    const status = order.status;
+    
+    // Check for partial payment
+    if (status === 'invoice_open' && order.payments && order.payments.length > 0) {
+      const totalGross = order.totals?.gross || order.calcInput?.gross || 0;
+      const totalPaid = order.payments.reduce((sum: number, p: any) => sum + p.amount, 0);
+      if (totalPaid > 0 && totalPaid < totalGross) {
+        return <span className="px-2 py-1 bg-yellow-500/20 text-yellow-500 rounded text-xs font-semibold uppercase tracking-wider">Teilweise bezahlt</span>;
       }
     }
+
+    switch(status) {
+      case 'draft': return <span className="px-2 py-1 bg-structure text-text-muted rounded text-xs font-semibold uppercase tracking-wider">Entwurf</span>;
+      case 'clarification': return <span className="px-2 py-1 bg-yellow-500/20 text-yellow-500 rounded text-xs font-semibold uppercase tracking-wider">In Klärung</span>;
+      case 'quote': return <span className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-xs font-semibold uppercase tracking-wider">Angebot</span>;
+      case 'confirmed': return <span className="px-2 py-1 bg-primary/20 text-primary rounded text-xs font-semibold uppercase tracking-wider">Bestätigt (Aktiv)</span>;
+      case 'invoice_open': return <span className="px-2 py-1 bg-orange-500/20 text-orange-400 rounded text-xs font-semibold uppercase tracking-wider">Offen</span>;
+      case 'invoice_paid': return <span className="px-2 py-1 bg-green-500/20 text-green-400 rounded text-xs font-semibold uppercase tracking-wider">Bezahlt</span>;
+      case 'invoice_overdue': return <span className="px-2 py-1 bg-red-500/20 text-red-400 rounded text-xs font-semibold uppercase tracking-wider">In Mahnung</span>;
+      case 'canceled': return <span className="px-2 py-1 bg-red-900/30 text-red-500 rounded text-xs font-semibold uppercase tracking-wider line-through">Storniert</span>;
+      case 'rejected': return <span className="px-2 py-1 bg-red-900/30 text-red-400 rounded text-xs font-semibold uppercase tracking-wider line-through">Abgelehnt</span>;
+      default: return <span className="px-2 py-1 bg-structure text-text-muted rounded text-xs">{status}</span>;
+    }
   };
 
-
-  // --- Calculations ---
-  const openQuotes = orders.filter(o => o.status === 'quote');
-  const openQuotesValue = openQuotes.reduce((sum, o) => sum + (o.totals?.gross || o.calcInput?.gross || 0), 0);
-  
-  const activeMoves = orders.filter(o => o.status === 'confirmed');
-
-  const filteredOrders = orders.filter(order => {
-    const customer = customers.find(c => c.id === order.customerId);
-    const displayName = customer 
-      ? (customer.type === 'firma' ? customer.lastName : `${customer.firstName || ''} ${customer.lastName || ''}`.trim())
-      : (order.customerName || '');
-
-    const matchesSearch = 
-      displayName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.invoiceNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (order.orderNumber || '').toLowerCase().includes(searchTerm.toLowerCase());
-      
-    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
-
-  if (loading || loadingCustomers) {
+  if (loading) {
     return <div className="flex justify-center p-12"><div className="animate-spin h-8 w-8 border-t-2 border-primary rounded-full"></div></div>;
   }
 
@@ -184,8 +113,8 @@ export default function OrdersPage() {
     <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-text-main">Angebote & Disposition</h1>
-          <p className="text-text-muted mt-1">Verwalten Sie Angebote, teilen Sie Ressourcen ein und überwachen Sie Finanzen.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-text-main">Aufträge & Disposition</h1>
+          <p className="text-text-muted mt-1">Verwalten Sie Angebote, teilen Sie Fahrzeuge/Mitarbeiter ein und erstellen Sie Rechnungen.</p>
         </div>
         <Link 
           href="/dashboard/orders/new" 
@@ -196,93 +125,135 @@ export default function OrdersPage() {
         </Link>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div 
-          onClick={() => setStatusFilter(statusFilter === 'quote' ? 'all' : 'quote')}
-          className={`bg-bg-dark rounded-xl p-4 border shadow-sm transition-colors cursor-pointer ${statusFilter === 'quote' ? 'border-blue-500 ring-1 ring-blue-500/50' : 'border-structure hover:border-blue-500/50'}`}
-        >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-blue-500/10 text-blue-500 rounded-lg">
-              <DocumentTextIcon className="w-6 h-6" />
-            </div>
-            <h3 className="text-text-muted font-medium">Offene Angebote</h3>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <p className="text-2xl font-bold text-text-main">€ {openQuotesValue.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-            <p className="text-sm text-text-muted">{openQuotes.length} Vorgänge</p>
-          </div>
-        </div>
+      <div className="panel border-t-4 border-t-primary shadow-xl overflow-hidden">
+        <div className="overflow-x-hidden md:overflow-x-auto">
+          <table className="w-full text-left border-collapse block md:table">
+            <thead className="hidden md:table-header-group">
+              <tr className="bg-bg-dark text-text-muted text-sm border-b border-structure md:table-row">
+                <th className="p-4 font-medium md:table-cell">Datum</th>
+                <th className="p-4 font-medium md:table-cell">Nummer / Kunde / Details</th>
+                <th className="p-4 font-medium md:table-cell">Status</th>
+                <th className="p-4 font-medium md:text-right md:table-cell">Summe (Brutto)</th>
+                <th className="p-4 font-medium md:text-right md:table-cell">Aktion</th>
+              </tr>
+            </thead>
+            <tbody className="block md:table-row-group">
+              {orders.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-text-muted italic">Keine Aufträge vorhanden.</td>
+                </tr>
+              ) : (
+                orders.map((order) => (
+                  <tr key={order.id} className="block md:table-row border-b border-structure/50 hover:bg-structure/20 transition-colors p-4 md:p-0 mb-4 md:mb-0 bg-bg-dark md:bg-transparent rounded-lg md:rounded-none">
+                    <td className="block md:table-cell p-2 md:p-4 text-sm text-text-muted border-b border-structure md:border-none">
+                      <span className="md:hidden font-semibold text-text-main mr-2">Datum:</span>
+                      {new Date(order.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')}
+                    </td>
+                    <td className="block md:table-cell p-2 md:p-4 border-b border-structure md:border-none">
+                      <Link href={`/dashboard/customers/${order.customerId}`} className="hover:text-primary transition-colors flex flex-col md:block items-start md:items-stretch">
+                        <div className="font-semibold text-text-main">
+                          {order.invoiceNumber ? order.invoiceNumber : (order.orderNumber || (order.status === 'quote' ? 'Angebot' : 'Entwurf'))}
+                        </div>
+                        <div className="text-sm text-text-main mt-1">{order.customerName || `Kunde ID: ${order.customerId.slice(0, 8)}...`}</div>
+                        {(order.logistics?.a_city || order.logistics?.b_city || order.orderMeta?.movingDateFrom) && (
+                          <div className="text-xs text-text-muted mt-1 space-y-0.5">
+                            {(order.logistics?.a_city || order.logistics?.b_city) && (
+                              <div className="flex items-center gap-1">
+                                {order.logistics?.a_city || '?'} &rarr; {order.logistics?.b_city || '?'}
+                              </div>
+                            )}
+                            {order.orderMeta?.movingDateFrom && (
+                              <div>Umzug: {new Date(order.orderMeta.movingDateFrom).toLocaleDateString('de-DE')}</div>
+                            )}
+                          </div>
+                        )}
+                      </Link>
+                    </td>
+                    <td className="block md:table-cell p-2 md:p-4 border-b border-structure md:border-none">
+                      <div className="flex items-center gap-2 justify-between md:justify-start">
+                        <span className="md:hidden text-text-muted text-sm">Status:</span>
+                        <div className="flex items-center gap-2">
+                          {getStatusBadge(order)}
+                          {order.payments && order.payments.length > 0 && (
+                            <span className="text-xs text-text-muted bg-structure/50 px-2 py-0.5 rounded-full border border-structure flex items-center gap-1">
+                              <BanknotesIcon className="w-3 h-3" />
+                              {order.payments.length}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="block md:table-cell p-2 md:p-4 md:text-right font-medium text-text-main border-b border-structure md:border-none">
+                      <div className="flex flex-col md:items-end gap-1">
+                        <div className="flex justify-between md:justify-end w-full">
+                          <span className="md:hidden text-text-muted text-sm">Summe:</span>
+                          <span>€ {order.totals?.gross?.toFixed(2) || '0.00'}</span>
+                        </div>
+                        {order.payments && order.payments.length > 0 && order.status !== 'invoice_paid' && (
+                          <div className="text-xs text-primary font-bold">
+                            Offen: € {Math.max(0, (order.totals?.gross || 0) - order.payments.reduce((sum: number, p: any) => sum + p.amount, 0)).toFixed(2)}
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="block md:table-cell p-2 md:p-4 md:text-right mt-2 md:mt-0">
+                      <div className="flex flex-col sm:flex-row items-stretch md:items-center justify-end gap-2 w-full">
+                        
+                        {order.status === 'quote' && (
+                          <button 
+                            onClick={() => setDispoOrder(order)}
+                            className="btn-primary py-2 px-3 text-xs w-full sm:w-auto flex justify-center"
+                          >
+                            <TruckIcon className="w-4 h-4 mr-1" />
+                            Bestätigen & Disponieren
+                          </button>
+                        )}
+                        
+                        {order.status === 'confirmed' && (
+                          <button 
+                            onClick={() => generateInvoice(order)}
+                            className="btn-secondary border-primary/50 text-primary py-2 px-3 text-xs w-full sm:w-auto flex justify-center"
+                          >
+                            <DocumentCheckIcon className="w-4 h-4 mr-1" />
+                            Finalisieren (Rechnung)
+                          </button>
+                        )}
 
-        <div 
-          onClick={() => setStatusFilter(statusFilter === 'confirmed' ? 'all' : 'confirmed')}
-          className={`bg-bg-dark rounded-xl p-4 border shadow-sm transition-colors cursor-pointer ${statusFilter === 'confirmed' ? 'border-primary ring-1 ring-primary/50' : 'border-structure hover:border-primary/50'}`}
-        >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2 bg-primary/10 text-primary rounded-lg">
-              <CalendarDaysIcon className="w-6 h-6" />
-            </div>
-            <h3 className="text-text-muted font-medium">Aktive Umzüge</h3>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <p className="text-2xl font-bold text-text-main">{activeMoves.length}</p>
-            <p className="text-sm text-text-muted">bestätigt</p>
-          </div>
+                        {order.invoiceNumber && (
+                          <div className="flex flex-col sm:flex-row items-stretch md:items-center gap-2 w-full sm:w-auto">
+                            <select 
+                              value={order.status} 
+                              onChange={(e) => updateStatus(order.id, e.target.value)}
+                              className="bg-bg-dark border border-structure text-xs rounded px-2 py-2 text-text-muted focus:border-primary w-full sm:w-auto"
+                            >
+                              <option value="invoice_open">Offen</option>
+                              <option value="invoice_paid">Bezahlt</option>
+                              <option value="invoice_overdue">In Mahnung</option>
+                              <option value="canceled">Storniert</option>
+                            </select>
+                            <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                              <button 
+                                onClick={() => setSelectedPaymentOrder(order)}
+                                className="btn-secondary py-2 px-3 text-xs flex-1 sm:flex-none flex justify-center items-center"
+                                title="Zahlungen"
+                              >
+                                <BanknotesIcon className="w-4 h-4 mr-1" /> Zahlungen
+                              </button>
+                              <Link href={`/dashboard/customers/${order.customerId}`} className="btn-secondary py-2 px-3 text-xs flex-1 sm:flex-none flex justify-center items-center">
+                                <DocumentIcon className="w-4 h-4 mr-1" /> PDF
+                              </Link>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
-
-      {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row gap-4 bg-bg-dark p-4 rounded-xl border border-structure">
-        <div className="relative flex-1">
-          <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
-          <input 
-            type="text" 
-            placeholder="Suche nach Name, RE-Nummer..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-structure/50 border border-structure rounded-lg pl-10 pr-4 py-2 text-text-main focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all"
-          />
-        </div>
-        <div className="relative w-full sm:w-48">
-          <FunnelIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
-          <select 
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="w-full bg-structure/50 border border-structure rounded-lg pl-10 pr-4 py-2 text-text-main focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all appearance-none cursor-pointer"
-          >
-            <option value="30days">Letzte 30 Tage</option>
-            <option value="6months">Letzte 6 Monate</option>
-            <option value="thisYear">Dieses Jahr</option>
-            <option value="all">Alle Historie</option>
-          </select>
-        </div>
-        <div className="relative w-full sm:w-64">
-          <FunnelIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted" />
-          <select 
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="w-full bg-structure/50 border border-structure rounded-lg pl-10 pr-4 py-2 text-text-main focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all appearance-none cursor-pointer"
-          >
-            <option value="all">Alle Status</option>
-            <option value="draft">Entwürfe</option>
-            <option value="quote">Offene Angebote</option>
-            <option value="confirmed">Bestätigt (Umzüge)</option>
-            <option value="completed">Abgeschlossen</option>
-            <option value="canceled">Storniert</option>
-          </select>
-        </div>
-      </div>
-
-      <SmartOrderTable 
-        orders={filteredOrders} 
-        customers={customers}
-        onGenerateInvoice={generateInvoice}
-        onUpdateStatus={updateStatus}
-        onDuplicate={duplicateOrder}
-        onDelete={setDeleteConfirmOrder}
-        onDispo={setDispoOrder}
-        onStorno={handleStorno}
-      />
 
       {dispoOrder && (
         <DispoModal 
@@ -307,16 +278,6 @@ export default function OrdersPage() {
         isDestructive={false}
         onConfirm={confirmGenerateInvoice}
         onCancel={() => setInvoiceConfirmOrder(null)}
-      />
-
-      <ConfirmModal 
-        isOpen={deleteConfirmOrder !== null}
-        title="Angebot löschen"
-        message="Möchten Sie dieses Angebot wirklich unwiderruflich löschen?"
-        confirmText="Löschen"
-        isDestructive={true}
-        onConfirm={confirmDeleteOrder}
-        onCancel={() => setDeleteConfirmOrder(null)}
       />
     </div>
   );

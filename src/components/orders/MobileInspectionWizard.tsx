@@ -323,7 +323,19 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
               <h1 className="text-2xl font-bold text-text-main mb-6">Termine</h1>
               <div className="bg-bg-panel border border-structure rounded-2xl p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div><label className="block text-sm text-text-muted mb-2">Besichtigung am</label><input type="datetime-local" value={orderMeta.viewingDate} onChange={e => setOrderMeta({...orderMeta, viewingDate: e.target.value})} className="input-field w-full text-lg py-3" /></div>
+                  <div>
+                    <label className="flex items-center justify-between text-sm text-text-muted mb-2">
+                      <span>Besichtigung am</span>
+                      {(orderMeta.viewingDate === 'requested' || orderMeta.viewingDate === '') && (
+                        <button type="button" onClick={() => setOrderMeta({...orderMeta, viewingDate: 'erledigt_fotos'})} className="text-primary hover:text-white underline text-xs">
+                          Durch Fotos erledigt
+                        </button>
+                      )}
+                    </label>
+                    <input type="datetime-local" value={['requested', 'erledigt_fotos'].includes(orderMeta.viewingDate) ? '' : (orderMeta.viewingDate || '')} onChange={e => setOrderMeta({...orderMeta, viewingDate: e.target.value})} className="input-field w-full text-lg py-3" />
+                    {orderMeta.viewingDate === 'erledigt_fotos' && <p className="text-xs font-bold text-green-400 mt-1">✓ Erledigt durch Fotos/Liste</p>}
+                    {orderMeta.viewingDate === 'requested' && <p className="text-xs font-bold text-orange-400 mt-1">Kunde hat Besichtigung angefragt!</p>}
+                  </div>
                   <div><label className="block text-sm text-text-muted mb-2">Angebot gültig bis</label><input type="date" value={orderMeta.validUntil} onChange={e => setOrderMeta({...orderMeta, validUntil: e.target.value})} className="input-field w-full text-lg py-3" /></div>
                   <div><label className="block text-sm text-text-muted mb-2">Umzugstermin (Wunsch) von</label><input type="date" value={orderMeta.movingDateFrom} onChange={e => setOrderMeta({...orderMeta, movingDateFrom: e.target.value})} className="input-field w-full text-lg py-3" /></div>
                   <div><label className="block text-sm text-text-muted mb-2">Umzugstermin (Wunsch) bis</label><input type="date" value={orderMeta.movingDateTo} onChange={e => setOrderMeta({...orderMeta, movingDateTo: e.target.value})} className="input-field w-full text-lg py-3" /></div>

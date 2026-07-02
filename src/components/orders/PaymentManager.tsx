@@ -53,7 +53,7 @@ export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpd
         status: newStatus
       });
       setPayments(updatedPayments);
-      setAmount('');
+      setAmount(remaining - Number(amount) > 0 ? remaining - Number(amount) : '');
       onUpdate();
     } catch (error) {
       console.error("Fehler beim Speichern der Zahlung", error);
@@ -79,6 +79,7 @@ export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpd
         status: newStatus
       });
       setPayments(updatedPayments);
+      setAmount(totalGross - newTotalPaid);
       onUpdate();
     } catch (error) {
       console.error("Fehler beim Löschen der Zahlung", error);
@@ -95,9 +96,6 @@ export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpd
             <BanknotesIcon className="w-6 h-6 text-primary" />
             Zahlungen verwalten
           </h2>
-          {order.invoiceNumber && (
-            <p className="text-sm text-text-muted mt-1 ml-8">Rechnung: {order.invoiceNumber}</p>
-          )}
         </div>
 
         <div className="grid grid-cols-3 gap-4 mb-8">
