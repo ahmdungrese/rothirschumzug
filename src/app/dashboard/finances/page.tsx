@@ -16,28 +16,39 @@ export default function FinancesPage() {
   const [activeTab, setActiveTab] = useState<'open' | 'all'>('open');
 
   useEffect(() => {
-    // Fetch all orders that have an invoiceNumber.
-    const q = query(
-      collection(db, getCol('orders'))
-    );
-    
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const allOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const allInvoices = allOrders.filter((o: any) => !!o.invoiceNumber);
-      
-      // Sort by date descending
-      allInvoices.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
-      
-      setInvoices(allInvoices);
+    // Subscribe to orders with invoiceNumber
+    const unsubOrders = onSnapshot(query(collection(db, getCol('orders'))), (snapshot) => {
+      const allOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), _source: 'orders' }));
+      const orderInvoices = allOrders.filter((o: any) => !!o.invoiceNumber);
+      setInvoices(prev => {
+        const freeInvs = prev.filter((i: any) => i._source === 'invoices');
+        const merged = [...orderInvoices, ...freeInvs];
+        merged.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
+        return merged;
+      });
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    // Subscribe to standalone invoices (free invoices collection)
+    const unsubFreeInvoices = onSnapshot(query(collection(db, getCol('invoices'))), (snapshot) => {
+      const freeInvs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), _source: 'invoices', _collection: 'invoices' }));
+      setInvoices(prev => {
+        const orderInvs = prev.filter((i: any) => i._source === 'orders');
+        const merged = [...orderInvs, ...freeInvs];
+        merged.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
+        return merged;
+      });
+      setLoading(false);
+    });
+
+    return () => { unsubOrders(); unsubFreeInvoices(); };
   }, []);
 
   // Compute Open Invoices
   const openInvoices = invoices.filter((inv: any) => {
     if (inv.status === 'canceled') return false;
+    if (inv.status === 'invoice_cancelled') return false; // Storniert = ausgeglichen
+    if (inv.isStorno) return false; // Storno-Belege selbst sind keine offenen Rechnungen
     const gross = inv.totals?.gross || inv.calcInput?.gross || 0;
     const paid = (inv.payments || []).reduce((sum: number, p: any) => sum + p.amount, 0);
     return (gross - paid) > 0;

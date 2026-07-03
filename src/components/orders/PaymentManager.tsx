@@ -8,6 +8,8 @@ import { getCol } from '@/lib/demoMode';
 import { changeOrderStatus } from '@/lib/orderStateMachine';
 
 export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpdate: () => void, onClose: () => void }) {
+  const isFreeInvoice = order._collection === 'invoices';
+  const targetCol = isFreeInvoice ? 'invoices' : 'orders';
   const totalGross = order.totals?.gross ?? order.calcInput?.gross ?? 0;
   
   const [payments, setPayments] = useState<any[]>(order.payments || []);
@@ -49,9 +51,15 @@ export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpd
     }
 
     try {
-      await changeOrderStatus(order.id, newStatus as any, {
-        additionalData: { payments: updatedPayments }
-      });
+      if (isFreeInvoice) {
+        // Free invoices don't go through the state machine – just update directly
+        const newStatus = newTotalPaid >= totalGross ? 'paid' : 'open';
+        await updateDoc(doc(db, getCol(targetCol), order.id), { payments: updatedPayments, status: newStatus });
+      } else {
+        await changeOrderStatus(order.id, newStatus as any, {
+          additionalData: { payments: updatedPayments }
+        });
+      }
       setPayments(updatedPayments);
       setAmount(remaining - Number(amount) > 0 ? remaining - Number(amount) : '');
       onUpdate();
@@ -74,9 +82,14 @@ export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpd
     }
 
     try {
-      await changeOrderStatus(order.id, newStatus as any, {
-        additionalData: { payments: updatedPayments }
-      });
+      if (isFreeInvoice) {
+        const newStatus2 = updatedPayments.reduce((s: number, p: any) => s + p.amount, 0) >= totalGross ? 'paid' : 'open';
+        await updateDoc(doc(db, getCol(targetCol), order.id), { payments: updatedPayments, status: newStatus2 });
+      } else {
+        await changeOrderStatus(order.id, newStatus as any, {
+          additionalData: { payments: updatedPayments }
+        });
+      }
       setPayments(updatedPayments);
       setAmount(totalGross - newTotalPaid);
       onUpdate();

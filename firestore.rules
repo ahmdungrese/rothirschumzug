@@ -1,0 +1,128 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper Functions ───────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ─── customers ──────────────────────────────────────────────
+    match /customers/{customerId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /customers_demo/{customerId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // ─── orders ─────────────────────────────────────────────────
+    match /orders/{orderId} {
+      allow read: if isAuthenticated();
+
+      // Create: authenticated users may create new orders
+      allow create: if isAuthenticated();
+
+      // Update: invoiceNumber must not change once set; no hard deletes
+      allow update: if isAuthenticated() &&
+        (
+          // invoiceNumber is not yet set, or it stays the same
+          !('invoiceNumber' in resource.data) ||
+          resource.data.invoiceNumber == null ||
+          request.resource.data.invoiceNumber == resource.data.invoiceNumber
+        );
+
+      // Delete: ABSOLUTELY FORBIDDEN for all orders — use status 'archived' instead
+      allow delete: if false;
+    }
+
+    match /orders_demo/{orderId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() &&
+        (
+          !('invoiceNumber' in resource.data) ||
+          resource.data.invoiceNumber == null ||
+          request.resource.data.invoiceNumber == resource.data.invoiceNumber
+        );
+      allow delete: if false;
+    }
+
+    // ─── invoices (Freie Rechnungen) ─────────────────────────────
+    // Same strict rules as orders: invoiceNumber is immutable once set.
+    // No hard deletes — use status 'invoice_cancelled' or 'canceled'.
+    match /invoices/{invoiceId} {
+      allow read: if isAuthenticated();
+
+      allow create: if isAuthenticated();
+
+      allow update: if isAuthenticated() &&
+        (
+          !('invoiceNumber' in resource.data) ||
+          resource.data.invoiceNumber == null ||
+          request.resource.data.invoiceNumber == resource.data.invoiceNumber
+        );
+
+      // Permanently forbid deletes — issue a storno/cancellation instead
+      allow delete: if false;
+    }
+
+    match /invoices_demo/{invoiceId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() &&
+        (
+          !('invoiceNumber' in resource.data) ||
+          resource.data.invoiceNumber == null ||
+          request.resource.data.invoiceNumber == resource.data.invoiceNumber
+        );
+      allow delete: if false;
+    }
+
+    // ─── claims ─────────────────────────────────────────────────
+    match /claims/{claimId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /claims_demo/{claimId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // ─── system / settings ──────────────────────────────────────
+    match /system/{docId} {
+      allow read: if isAuthenticated();
+      // Only admins may modify global settings (e.g. nextInvoiceNumber counter)
+      allow write: if isAdmin();
+    }
+
+    match /system_demo/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated(); // demo mode is less strict
+    }
+
+    // ─── activity_logs ───────────────────────────────────────────
+    match /activity_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+
+    match /activity_logs_demo/{logId} {
+      allow read, create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+
+    // ─── users ──────────────────────────────────────────────────
+    match /users/{userId} {
+      // Users can read their own doc; admins can read/write all
+      allow read: if request.auth.uid == userId || isAdmin();
+      allow write: if isAdmin();
+    }
+  }
+}

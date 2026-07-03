@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, Timestamp, where } from 'firebase/firestore';
+import { getCol } from '@/lib/demoMode';
 import { useAuth } from '@/context/AuthContext';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer,
@@ -40,9 +41,14 @@ export default function StatisticsPage() {
 
     const fetchStats = async () => {
       try {
-        // --- 1. Fetch Orders (for Revenue & Sources) ---
-        const ordersSnap = await getDocs(collection(db, 'orders'));
+        // --- 1. Fetch Orders + Free Invoices (for Revenue & Sources) ---
+        const ordersSnap = await getDocs(collection(db, getCol('orders')));
         const orders = ordersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+        const freeInvoicesSnap = await getDocs(collection(db, getCol('invoices')));
+        const freeInvoices = freeInvoicesSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), _isFreeInvoice: true }));
+
+        const allRevenueDocs = [...orders, ...freeInvoices];
 
         let totalRev = 0;
         let confirmedOrdersCount = 0;
@@ -53,9 +59,14 @@ export default function StatisticsPage() {
         // Group by month
         const monthMap: Record<string, number> = {};
 
-        orders.forEach((o: any) => {
-          // Nur bestätigte Aufträge / Rechnungen betrachten
-          if (!['confirmed', 'completed', 'invoice_open', 'invoice_overdue', 'invoice_paid'].includes(o.status)) return;
+        allRevenueDocs.forEach((o: any) => {
+          // For free invoices: count if open or paid; for orders: count if confirmed/completed/invoice_*
+          const isFreeInv = o._isFreeInvoice;
+          if (isFreeInv) {
+            if (!['open', 'paid'].includes(o.status)) return;
+          } else {
+            if (!['confirmed', 'completed', 'invoice_open', 'invoice_overdue', 'invoice_paid'].includes(o.status)) return;
+          }
           
           confirmedOrdersCount++;
           const rev = o.totals?.gross || 0;

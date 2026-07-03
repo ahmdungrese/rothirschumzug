@@ -43,6 +43,7 @@ export default function CustomerProfilePage() {
   const customerId = params.id as string;
   const [customer, setCustomer] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
+  const [freeInvoices, setFreeInvoices] = useState<any[]>([]); // From 'invoices' collection
   const [loading, setLoading] = useState(true);
   
   // Modals & Context States
@@ -102,39 +103,55 @@ export default function CustomerProfilePage() {
       setClaims(fetchedClaims);
     });
 
-    return () => { unsubCustomer(); unsubOrders(); unsubSettings(); unsubClaims(); };
+    const qInvoices = query(collection(db, getCol('invoices')), where('customerId', '==', customerId));
+    const unsubInvoices = onSnapshot(qInvoices, (querySnapshot) => {
+      const fetched = querySnapshot.docs.map(d => ({ id: d.id, ...d.data(), _collection: 'invoices' }));
+      fetched.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
+      setFreeInvoices(fetched);
+    });
+
+    return () => { unsubCustomer(); unsubOrders(); unsubSettings(); unsubClaims(); unsubInvoices(); };
   }, [customerId]);
 
   const activeOrdersList = useMemo(() => {
-    return orders
+    const orderItems = orders
       .filter(o => o.status !== 'archived')
-      .filter(o => !(o.type === 'invoice' && o.sourceOrderId)) // Hide nested invoices
+      .filter(o => !(o.type === 'invoice' && o.sourceOrderId)); // Hide nested invoices
+    // Add free invoices (from dedicated invoices collection) – they are never 'archived' in the usual sense
+    const freeInvItems = freeInvoices.filter(inv => inv.status !== 'canceled');
+    return [...orderItems, ...freeInvItems]
       .sort((a: any, b: any) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
-  }, [orders]);
+  }, [orders, freeInvoices]);
 
   const checklist = useMemo(() => {
     if (!customer) return null;
     const items = [];
     
     // Phase 1: Kundendaten & Verifizierung
-    const missingData = [];
-    if (!customer.phone) missingData.push("Telefonnummer");
-    if (!customer.email) missingData.push("E-Mail");
+    // ── Shared logic: same rules as ticketEngine.ts ──────────────────────────
+    const missingData: { label: string, action: () => void }[] = [];
+    const goToCustomerEdit = () => setIsEditing(true);
+    const goToLogisticsStep = (ordId: string) => router.push(`/dashboard/customers/${customerId}/edit-order/${ordId}?step=2`);
+
+    if (!customer.phone) missingData.push({ label: 'Telefonnummer', action: goToCustomerEdit });
+    if (!customer.email) missingData.push({ label: 'E-Mail', action: goToCustomerEdit });
     if (!customer.street || !customer.houseNr || !customer.zip || !customer.city) {
-      missingData.push("Vollständige Adresse (Str., Hausnr., PLZ, Ort)");
+      missingData.push({ label: 'Vollständige Rechnungsadresse (Str., Hausnr., PLZ, Ort)', action: goToCustomerEdit });
     }
     
     const activeOrder = orders.find(o => o.status !== 'archived');
     if (activeOrder) {
       if (!activeOrder.orderMeta?.movingDateFrom) {
-        missingData.push("Umzugsdatum");
+        missingData.push({ label: 'Umzugsdatum', action: () => goToLogisticsStep(activeOrder.id) });
       }
       const log = activeOrder.logistics;
+      // Strict 4-field check — same as ticketEngine missing_origin
       if (!log?.a_street || !log?.a_houseNr || !log?.a_zip || !log?.a_city) {
-        missingData.push("Auszugsadresse (A)");
+        missingData.push({ label: 'Auszugsadresse (A) unvollständig', action: () => goToLogisticsStep(activeOrder.id) });
       }
+      // Strict 4-field check — same as ticketEngine missing_destination
       if (!log?.b_street || !log?.b_houseNr || !log?.b_zip || !log?.b_city) {
-        missingData.push("Einzugsadresse (B)");
+        missingData.push({ label: 'Einzugsadresse (B) unvollständig', action: () => goToLogisticsStep(activeOrder.id) });
       }
     }
     
@@ -153,11 +170,13 @@ export default function CustomerProfilePage() {
       items.push({ 
         phase: 1, 
         title: phase1Status === 'danger' ? 'Kundendaten-Verifizierung (ÜBERFÄLLIG!)' : 'Kundendaten-Verifizierung', 
-        desc: `Es fehlen wichtige Verifizierungsdaten: ${missingData.join(', ')}`, 
+        desc: `Es fehlen wichtige Verifizierungsdaten: ${missingData.map(m => m.label).join(', ')}`, 
         status: phase1Status, 
-        action: () => setIsEditing(true) 
+        // Route to the most specific action (e.g. logistics if address A/B is the first missing item)
+        action: missingData[0].action
       });
     }
+
 
     // Phase 2: Angebot erstellen
     if (missingData.length === 0) { // Only if verified
@@ -251,38 +270,60 @@ export default function CustomerProfilePage() {
   }, [customer, orders, customerId, router]);
 
   const deleteOrder = async (orderId: string) => {
-    if (!confirm('Möchten Sie diesen Auftrag wirklich archivieren/löschen?')) return;
+    const ord = orders.find(o => o.id === orderId);
+    // Guard: never allow deletion if order has an invoiceNumber or child invoices
+    if (ord?.invoiceNumber) {
+      toast.error('Aufträge mit Rechnungen können nicht gelöscht werden. Bitte Rechnung stornieren.');
+      return;
+    }
+    const hasChildInvoice = orders.some(o => o.sourceOrderId === orderId && !!o.invoiceNumber);
+    if (hasChildInvoice) {
+      toast.error('Dieser Auftrag hat zugeordnete Rechnungen und kann nicht gelöscht werden.');
+      return;
+    }
+    if (!confirm('Möchten Sie diesen Auftrag wirklich archivieren?')) return;
     try {
       await updateDoc(doc(db, getCol('orders'), orderId), { status: 'archived', updatedAt: serverTimestamp() });
-      toast.success("Dokument wurde archiviert!");
+      toast.success('Dokument wurde archiviert!');
     } catch (e) {
-      toast.error("Fehler beim Archivieren.");
+      toast.error('Fehler beim Archivieren.');
     }
   };
 
   const handleDeleteCustomer = async () => {
-    const hasInvoices = orders.some(o => o.type === 'invoice' || o.invoiceNumber || o.status.startsWith('invoice_') || o.status === 'completed');
+    // Aufbewahrungsregel: Kunden MIT Rechnungen (jeder Status) dürfen nicht hart gelöscht werden
+    const hasAnyInvoiceDocs = orders.some(o => !!o.invoiceNumber || o.type === 'invoice') || freeInvoices.length > 0;
     
-    if (hasInvoices) {
-      if (!confirm('Dieser Kunde hat bereits Rechnungen oder abgeschlossene Aufträge und kann aus rechtlichen Gründen nicht gelöscht werden. Bitte stornieren Sie zuerst die Rechnungen. Möchten Sie den Kunden stattdessen archivieren?')) return;
+    if (hasAnyInvoiceDocs) {
+      toast(
+        'Dieser Kunde hat Rechnungsbelege und kann aus Aufbewahrungsgründen nicht gelöscht werden. Der Kunde wird stattdessen archiviert (verschwindet aus Listen, Belege bleiben erhalten).',
+        { icon: 'ℹ️', duration: 6000 }
+      );
+      if (!confirm('Kunden archivieren (deaktivieren)? Der Kunde verschwindet aus allen Listen, seine Belege bleiben erhalten.')) return;
       try {
         await updateDoc(doc(db, getCol('customers'), customerId), { status: 'archived', updatedAt: serverTimestamp() });
-        toast.success("Kunde wurde archiviert!");
+        toast.success('Kunde wurde archiviert!');
         router.push('/dashboard/customers');
       } catch (e) {
-        toast.error("Fehler beim Archivieren.");
+        toast.error('Fehler beim Archivieren.');
       }
     } else {
-      if (!confirm('Möchten Sie diesen Kunden wirklich unwiderruflich löschen? Alle zugehörigen Angebote und Entwürfe werden dabei ebenfalls gelöscht.')) return;
+      // Hard delete only if truly no invoices/orders exist
+      const hasOrders = orders.some(o => o.status !== 'archived');
+      if (hasOrders) {
+        if (!confirm('Dieser Kunde hat noch Angebote/Entwürfe. Diese werden ebenfalls gelöscht. Wirklich fortfahren?')) return;
+      } else {
+        if (!confirm('Möchten Sie diesen Kunden wirklich unwiderruflich löschen?')) return;
+      }
       try {
         for (const o of orders) {
-          await deleteDoc(doc(db, getCol('orders'), o.id));
+          await updateDoc(doc(db, getCol('orders'), o.id), { status: 'archived', updatedAt: serverTimestamp() });
         }
-        await deleteDoc(doc(db, getCol('customers'), customerId));
-        toast.success("Kunde und zugehörige Dokumente erfolgreich gelöscht!");
+        await updateDoc(doc(db, getCol('customers'), customerId), { status: 'archived', updatedAt: serverTimestamp() });
+        toast.success('Kunde archiviert!');
         router.push('/dashboard/customers');
       } catch (e) {
-        toast.error("Fehler beim Löschen.");
+        toast.error('Fehler beim Löschen.');
       }
     }
   };
@@ -369,7 +410,11 @@ export default function CustomerProfilePage() {
 
   const handleStorno = async (order: any, createCorrection: boolean = true) => {
     try {
-      await updateDoc(doc(db, getCol('orders'), order.id), { status: 'invoice_cancelled', updatedAt: serverTimestamp() });
+      // Determine which collection holds the original invoice
+      const isFreeInvoice = order._collection === 'invoices';
+      const targetCol = isFreeInvoice ? 'invoices' : 'orders';
+
+      await updateDoc(doc(db, getCol(targetCol), order.id), { status: 'invoice_cancelled', updatedAt: serverTimestamp() });
       const settingsSnap = await getDoc(doc(db, getCol('system'), 'settings'));
       const nextInvoiceNum = settingsSnap.data()?.nextInvoiceNumber || 1000;
       const stornoInvoiceNumber = `RE-${new Date().getFullYear()}-${nextInvoiceNum}`;
@@ -381,7 +426,7 @@ export default function CustomerProfilePage() {
       
       const stornoTotals = { net: -origNet, tax: -origTax, gross: -origGross };
       
-      const { id, customerSignature, ...orderDataWithoutId } = order;
+      const { id, customerSignature, _collection, ...orderDataWithoutId } = order;
       
       // Negate services and flatRate for the Storno document so the PDF table is correct
       const stornoServices = (order.services || []).map((s: any) => ({
@@ -390,7 +435,8 @@ export default function CustomerProfilePage() {
       }));
       const stornoFlatRateNet = order.flatRateNet ? -order.flatRateNet : 0;
       
-      await addDoc(collection(db, getCol('orders')), {
+      // Storno Beleg goes into the same collection as the original
+      await addDoc(collection(db, getCol(targetCol)), {
         ...orderDataWithoutId,
         status: 'invoice_cancelled',
         isStorno: true,
@@ -405,13 +451,21 @@ export default function CustomerProfilePage() {
         updatedAt: serverTimestamp()
       });
 
-      if (createCorrection) {
+      if (createCorrection && !isFreeInvoice) {
+        // Correction draft: a clean new order (status 'draft'), NOT an invoice.
+        // Explicitly strip all invoice-specific fields so it never appears as an invoice.
+        const { type, invoiceNumber: _inv, isStorno: _ist, stornoFor: _stf, quoteCreatedAt, confirmedSnapshot, ...correctionBase } = orderDataWithoutId;
         await addDoc(collection(db, getCol('orders')), {
-          ...orderDataWithoutId,
+          ...correctionBase,
           status: 'draft',
+          type: 'order', // ensure it's treated as an order, not an invoice
           invoiceNumber: null,
           contractNumber: null,
-          orderNumber: `${order.orderNumber}-KORR`,
+          isStorno: false,
+          stornoFor: null,
+          quoteCreatedAt: null,
+          confirmedSnapshot: null,
+          orderNumber: `${order.orderNumber || ''}-KORR`,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
@@ -448,15 +502,21 @@ export default function CustomerProfilePage() {
   if (loading) return <div className="flex justify-center p-12"><div className="animate-spin h-8 w-8 border-t-2 border-primary rounded-full"></div></div>;
   if (!customer) return <div className="text-center p-12 text-red-400">Kunde nicht gefunden.</div>;
 
-  // Filter for valid financial documents to avoid double-counting
-  const validFinancialDocs = orders.filter(o => o.status !== 'archived' && o.status !== 'canceled').filter(o => {
+  // Filter for valid financial documents to avoid double-counting.
+  // Excluded: archived, canceled, invoice_cancelled (storniert = ausgeglichen)
+  const validFinancialDocs = orders.filter(o =>
+    o.status !== 'archived' &&
+    o.status !== 'canceled' &&
+    o.status !== 'invoice_cancelled'
+  ).filter(o => {
     if (o.type === 'invoice') return true; // Invoices always count
     // Orders only count if they haven't been invoiced yet
-    const hasChildInvoice = orders.some(child => child.sourceOrderId === o.id && child.type === 'invoice' && child.status !== 'archived' && child.status !== 'canceled');
+    const hasChildInvoice = orders.some(child => child.sourceOrderId === o.id && child.type === 'invoice' && child.status !== 'archived' && child.status !== 'canceled' && child.status !== 'invoice_cancelled');
     return !hasChildInvoice;
   });
 
   const totalRevenue = validFinancialDocs.filter(o => ['quote', 'confirmed', 'completed', 'invoice_open', 'invoice_paid'].includes(o.status)).reduce((sum, o) => sum + (o.totals?.gross ?? o.calcInput?.gross ?? 0), 0);
+  // Open = not cancelled, not paid, not storno
   const openItems = validFinancialDocs.filter(o => ['invoice_open', 'invoice_overdue', 'confirmed', 'completed'].includes(o.status)).reduce((sum, o) => {
     const gross = o.totals?.gross ?? o.calcInput?.gross ?? 0;
     const paid = o.payments?.reduce((pSum: number, p: any) => pSum + p.amount, 0) || 0;
@@ -599,7 +659,8 @@ export default function CustomerProfilePage() {
           <div className="space-y-4">
             {activeOrdersList.map((order, index) => {
               const isExpanded = expandedOrderId === order.id;
-              const isInvoice = order.type === 'invoice' || order.status.startsWith('invoice_');
+              const isFreeInvoice = order._collection === 'invoices'; // from dedicated invoices collection
+              const isInvoice = isFreeInvoice || order.type === 'invoice' || order.status?.startsWith('invoice_');
               const isQuote = order.status === 'draft' || order.status === 'quote' || order.status === 'clarification';
               const linkedInvoices = orders.filter(o => o.sourceOrderId === order.id);
               const hasActiveInvoice = linkedInvoices.some(inv => inv.status !== 'canceled' && inv.status !== 'archived');
@@ -618,7 +679,7 @@ export default function CustomerProfilePage() {
                       </div>
                       <div>
                         <h3 className="font-bold text-text-main text-base flex items-center gap-2">
-                          {isInvoice ? 'Rechnung' : (['draft', 'quote'].includes(order.status) ? 'Angebot' : 'Auftrag')} {order.invoiceNumber ? `#${order.invoiceNumber}` : order.orderNumber ? `#${order.orderNumber}` : ''}
+                          {isFreeInvoice ? 'Freie Rechnung' : isInvoice ? 'Rechnung' : (['draft', 'quote'].includes(order.status) ? 'Angebot' : 'Auftrag')} {order.invoiceNumber ? `#${order.invoiceNumber}` : order.orderNumber ? `#${order.orderNumber}` : ''}
                         </h3>
                         <div className="text-xs text-text-muted mt-0.5 flex items-center gap-2">
                           {new Date(order.createdAt?.toMillis?.() || Date.now()).toLocaleDateString('de-DE')}
