@@ -5,6 +5,7 @@ import { doc, updateDoc, Timestamp } from 'firebase/firestore';
 import { BanknotesIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { Modal } from '@/components/ui/Modal';
 import { getCol } from '@/lib/demoMode';
+import { changeOrderStatus } from '@/lib/orderStateMachine';
 
 export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpdate: () => void, onClose: () => void }) {
   const totalGross = order.totals?.gross ?? order.calcInput?.gross ?? 0;
@@ -48,9 +49,8 @@ export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpd
     }
 
     try {
-      await updateDoc(doc(db, getCol('orders'), order.id), {
-        payments: updatedPayments,
-        status: newStatus
+      await changeOrderStatus(order.id, newStatus as any, {
+        additionalData: { payments: updatedPayments }
       });
       setPayments(updatedPayments);
       setAmount(remaining - Number(amount) > 0 ? remaining - Number(amount) : '');
@@ -74,9 +74,8 @@ export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpd
     }
 
     try {
-      await updateDoc(doc(db, getCol('orders'), order.id), {
-        payments: updatedPayments,
-        status: newStatus
+      await changeOrderStatus(order.id, newStatus as any, {
+        additionalData: { payments: updatedPayments }
       });
       setPayments(updatedPayments);
       setAmount(totalGross - newTotalPaid);

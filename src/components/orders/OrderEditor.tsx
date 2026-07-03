@@ -12,6 +12,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp } from 'fir
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { calculateRoute } from '@/lib/routeCalculator';
 import { getCol } from '@/lib/demoMode';
+import { changeOrderStatus } from '@/lib/orderStateMachine';
 import { InventoryWizardModal, ROOM_TYPES } from './InventoryWizardModal';
 
 const getPropertyIcon = (type: string) => {
@@ -228,20 +229,20 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         if (docSnap.exists()) {
           const c = docSnap.data();
           setCustomerData(prev => ({
-            // If we already loaded a billingAddress from the order, we don't want to overwrite the form with the customer profile again.
-            // So we only merge if the fields are empty or if we didn't have an order.
-            type: prev.lastName ? prev.type : (c.type || 'privat'),
-            salutation: prev.lastName ? prev.salutation : (c.salutation || ''),
-            firstName: prev.lastName ? prev.firstName : (c.firstName || ''),
-            lastName: prev.lastName ? prev.lastName : (c.lastName || ''),
-            email: prev.lastName ? prev.email : (c.email || ''),
-            phone: prev.lastName ? prev.phone : (c.phone || ''),
-            source: prev.lastName ? prev.source : (c.source || ''),
+            // PRIORITIZE CUSTOMER PROFILE: The customer document is the single source of truth.
+            // If it exists in the customer profile, it overwrites the old snapshot from the order.
+            type: c.type || prev.type || 'privat',
+            salutation: c.salutation || prev.salutation || '',
+            firstName: c.firstName || prev.firstName || '',
+            lastName: c.lastName || prev.lastName || '',
+            email: c.email || prev.email || '',
+            phone: c.phone || prev.phone || '',
+            source: c.source || prev.source || '',
             customerContact: '',
-            street: prev.lastName ? prev.street : (c.street || ''),
-            houseNr: prev.lastName ? prev.houseNr : (c.houseNr || ''),
-            zip: prev.lastName ? prev.zip : (c.zip || ''),
-            city: prev.lastName ? prev.city : (c.city || '')
+            street: c.street || prev.street || '',
+            houseNr: c.houseNr || prev.houseNr || '',
+            zip: c.zip || prev.zip || '',
+            city: c.city || prev.city || ''
           }));
         }
       });
@@ -315,7 +316,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
 
-  const saveOrder = async (status: 'draft' | 'quote' | 'invoice_open') => {
+  const saveOrder = async (status: 'draft' | 'quote' | 'invoice_open', generateQuote: boolean = false) => {
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       toast.error('Speichern fehlgeschlagen: Du bist offline!', { duration: 5000 });
       setErrorMessage('Kein Internet! Bitte warte auf eine Verbindung.');
@@ -394,16 +395,28 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       if (orderId) {
         await updateDoc(doc(db, getCol('orders'), orderId), payload);
         await logActivity(profile?.uid || 'unknown', profile?.displayName || profile?.email || 'Unbekannt', 'UPDATE_ORDER', `Angebot/Auftrag aktualisiert für Kunde ${payload.customerName}`);
+        
+        if (generateQuote) {
+          try {
+            await changeOrderStatus(orderId, 'quote', { userId: profile?.uid });
+          } catch (err: any) {
+            toast.error(err.message || "Fehler bei der Angebotserstellung.");
+          }
+        }
       } else {
-        await addDoc(collection(db, getCol('orders')), { 
+        const docRef = await addDoc(collection(db, getCol('orders')), { 
           ...payload, 
-          orderNumber: `${settings?.nextQuoteNumber ? `ANG-${new Date().getFullYear()}-${settings.nextQuoteNumber}` : `ANG-${Date.now()}`}`,
           createdAt: serverTimestamp(),
           createdBy: profile?.displayName || profile?.email || 'Unbekannt' 
         });
         await logActivity(profile?.uid || 'unknown', profile?.displayName || profile?.email || 'Unbekannt', 'CREATE_ORDER', `Angebot erstellt für Kunde ${payload.customerName}`);
-        if (settings?.nextQuoteNumber) {
-          await updateDoc(doc(db, getCol('system'), 'settings'), { nextQuoteNumber: settings.nextQuoteNumber + 1 });
+        
+        if (generateQuote) {
+          try {
+            await changeOrderStatus(docRef.id, 'quote', { userId: profile?.uid });
+          } catch (err: any) {
+            toast.error(err.message || "Fehler bei der Angebotserstellung.");
+          }
         }
       }
       setSaveStatus('success');
@@ -1260,10 +1273,23 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             Abbrechen
           </button>
           
-          <button onClick={() => saveOrder(isInvoice ? 'invoice_open' : orderStatus === 'draft' ? 'quote' : (orderStatus as 'draft' | 'quote' | 'invoice_open'))} disabled={isSaving} className={`${currentStep === 5 ? 'btn-primary shadow-lg shadow-primary/30' : 'btn-secondary'} flex items-center gap-2 text-xs sm:text-sm px-3 sm:px-4`}>
+          <button onClick={() => saveOrder(isInvoice ? 'invoice_open' : 'draft', false)} disabled={isSaving} className={`btn-secondary flex items-center gap-2 text-xs sm:text-sm px-3 sm:px-4`}>
             {isSaving && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
             {isSaving ? 'Speichert...' : (isInvoice ? 'Als Rechnung speichern' : 'Speichern')}
           </button>
+          
+          {currentStep === 5 && !isInvoice && orderStatus === 'draft' && (
+            <button 
+              onClick={() => {
+                if (services.length === 0 && !confirm("Es sind keine Leistungen erfasst — trotzdem erstellen?")) return;
+                saveOrder('draft', true);
+              }} 
+              disabled={isSaving} 
+              className="btn-primary shadow-lg shadow-primary/30 flex items-center gap-2 text-xs sm:text-sm px-3 sm:px-4"
+            >
+              Angebot erstellen
+            </button>
+          )}
 
           {currentStep > 1 && (
             <button onClick={() => setCurrentStep(prev => prev - 1)} disabled={isSaving} className="btn-secondary hidden sm:flex text-xs sm:text-sm px-3 sm:px-4">

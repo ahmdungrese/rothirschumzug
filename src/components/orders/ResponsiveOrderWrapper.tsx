@@ -29,6 +29,13 @@ export function ResponsiveOrderWrapper({ orderId }: { orderId?: string }) {
       }
       if (orderId && orderId !== 'new') {
         try {
+          // First check invoices collection
+          const invSnap = await getDoc(doc(db, getCol('invoices'), orderId));
+          if (invSnap.exists()) {
+            setIsInvoice(true);
+            return;
+          }
+          // Fallback to orders collection (for legacy free invoices or storno docs)
           const snap = await getDoc(doc(db, getCol('orders'), orderId));
           if (snap.exists() && snap.data().type === 'invoice') {
             setIsInvoice(true);

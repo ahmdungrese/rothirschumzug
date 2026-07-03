@@ -12,10 +12,11 @@ import {
 } from '@heroicons/react/24/outline';
 import { getCol } from '@/lib/demoMode';
 import { generateTickets, SystemTicket } from '@/lib/ticketEngine';
+import { changeOrderStatus } from '@/lib/orderStateMachine';
 import toast from 'react-hot-toast';
 
 export default function DashboardPage() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const { theme } = useTheme();
   const isLight = theme === 'light';
 
@@ -185,14 +186,20 @@ export default function DashboardPage() {
           const updatedChecklist = parentOrder.checklist.map((t:any) => 
             t.id === realId ? { ...t, done: !todo.done } : t
           );
-          await updateDoc(doc(db, getCol('orders'), todo.orderId as string), { checklist: updatedChecklist });
+          await changeOrderStatus(todo.orderId as string, parentOrder.status as any, { 
+            userId: user?.uid,
+            additionalData: { checklist: updatedChecklist } 
+          });
         }
       } else {
         const parentOrder = orders.find((o: any) => o.id === todo.orderId);
         if (parentOrder) {
           const updatedStates = parentOrder.ticketStates || {};
           updatedStates[todo.id] = !todo.done;
-          await updateDoc(doc(db, getCol('orders'), todo.orderId as string), { ticketStates: updatedStates });
+          await changeOrderStatus(todo.orderId as string, parentOrder.status as any, { 
+            userId: user?.uid,
+            additionalData: { ticketStates: updatedStates } 
+          });
         }
       }
     } catch (err) {
@@ -217,9 +224,15 @@ export default function DashboardPage() {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
 
     try {
-      await updateDoc(doc(db, getCol('orders'), orderId), { status: newStatus });
-    } catch (err) {
+      await changeOrderStatus(orderId, newStatus as any, { userId: user?.uid });
+    } catch (err: any) {
       console.error("Fehler beim Verschieben des Auftrags", err);
+      toast.error(err.message || "Fehler beim Verschieben.");
+      // Revert optimistic update
+      const originalOrder = orders.find(o => o.id === orderId);
+      if (originalOrder) {
+        setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: originalOrder.status } : o));
+      }
     }
   };
 
@@ -435,7 +448,7 @@ export default function DashboardPage() {
   };
   const renderLogisticsList = () => {
     const filtered = activeTodos.filter(t => {
-      const isLogistics = t.id === 'viewing_requested' || ['kartons', 'halteverbot', 'moebellift', 'rechnung'].includes(t.kanbanCategory);
+      const isLogistics = t.id === 'viewing_requested' || ['kartons', 'halteverbot', 'moebellift', 'rechnung'].includes(t.kanbanCategory as string);
       if (!isLogistics) return false;
       if (logisticsFilter === 'all') return true;
       if (logisticsFilter === 'viewing') return t.id === 'viewing_requested';
@@ -454,7 +467,7 @@ export default function DashboardPage() {
         {/* Filter Pills */}
         <div className="flex flex-wrap gap-2 pb-2">
           {[
-            { id: 'all', label: 'Alle Aufgaben', count: activeTodos.filter(t => t.id === 'viewing_requested' || ['kartons', 'halteverbot', 'moebellift', 'rechnung'].includes(t.kanbanCategory)).length },
+            { id: 'all', label: 'Alle Aufgaben', count: activeTodos.filter(t => t.id === 'viewing_requested' || ['kartons', 'halteverbot', 'moebellift', 'rechnung'].includes(t.kanbanCategory as string)).length },
             { id: 'viewing', label: 'Besichtigungen', count: activeTodos.filter(t => t.id === 'viewing_requested').length },
             { id: 'kartons', label: 'Kartons', count: activeTodos.filter(t => t.kanbanCategory === 'kartons').length },
             { id: 'halteverbot', label: 'Halteverbot', count: activeTodos.filter(t => t.kanbanCategory === 'halteverbot').length },
@@ -504,7 +517,7 @@ export default function DashboardPage() {
                     moebellift: { label: 'Möbellift', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
                     rechnung: { label: 'Rechnung', color: 'bg-green-500/10 text-green-400 border-green-500/20' }
                   };
-                  const catMeta = catMetaMap[todo.id === 'viewing_requested' ? 'viewing_requested' : todo.kanbanCategory] || { label: 'Logistik', color: 'bg-white/5 text-white/60 border-white/10' };
+                  const catMeta = catMetaMap[todo.id === 'viewing_requested' ? 'viewing_requested' : (todo.kanbanCategory || 'general')] || { label: 'Logistik', color: 'bg-white/5 text-white/60 border-white/10' };
 
                   return (
                     <tr 
@@ -705,9 +718,9 @@ export default function DashboardPage() {
           }`}
         >
           <span>Logistik-Aufgaben & To-Dos</span>
-          {activeTodos.filter(t => t.id === 'viewing_requested' || ['kartons', 'halteverbot', 'moebellift', 'rechnung'].includes(t.kanbanCategory)).filter(t => !t.done).length > 0 && (
+          {activeTodos.filter(t => t.id === 'viewing_requested' || ['kartons', 'halteverbot', 'moebellift', 'rechnung'].includes(t.kanbanCategory as string)).filter(t => !t.done).length > 0 && (
             <span className="bg-red-500 text-white text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center animate-pulse">
-              {activeTodos.filter(t => t.id === 'viewing_requested' || ['kartons', 'halteverbot', 'moebellift', 'rechnung'].includes(t.kanbanCategory)).filter(t => !t.done).length}
+              {activeTodos.filter(t => t.id === 'viewing_requested' || ['kartons', 'halteverbot', 'moebellift', 'rechnung'].includes(t.kanbanCategory as string)).filter(t => !t.done).length}
             </span>
           )}
         </button>
@@ -874,9 +887,9 @@ export default function DashboardPage() {
                       id: 'transition_quote',
                       title: 'Angebot erstellen & senden',
                       phase: 2,
-                      done: isQuoteOrHigher || !!selectedOrder.ticketStates?.transition_quote,
-                      dueDateStatus: !isQuoteOrHigher ? 'due' as const : 'neutral' as const,
-                      dueDateText: !isQuoteOrHigher ? 'Angebot ausstehend' : '',
+                      done: !!selectedOrder.orderMeta?.quoteCreatedAt || !!selectedOrder.ticketStates?.transition_quote,
+                      dueDateStatus: (!!selectedOrder.orderMeta?.quoteCreatedAt || !!selectedOrder.ticketStates?.transition_quote) ? 'neutral' as const : 'due' as const,
+                      dueDateText: (!!selectedOrder.orderMeta?.quoteCreatedAt || !!selectedOrder.ticketStates?.transition_quote) ? '' : 'ANGEBOT ERSTELLEN',
                       systemEvaluated: true
                     }
                   ];
@@ -918,6 +931,11 @@ export default function DashboardPage() {
                   ];
 
                   const handleToggleTask = async (todo: any) => {
+                    if (todo.systemEvaluated) {
+                      toast('Wird automatisch erledigt, sobald das Feld ausgefüllt ist.', { icon: 'ℹ️' });
+                      return;
+                    }
+
                     const parentOrder = selectedOrder;
                     const updatedStates = parentOrder.ticketStates || {};
                     const newDone = !todo.done;
@@ -955,8 +973,15 @@ export default function DashboardPage() {
                     extraFields.updatedAt = serverTimestamp();
 
                     try {
-                      const orderRef = doc(db, getCol('orders'), parentOrder.id);
-                      await updateDoc(orderRef, extraFields);
+                      let additionalData: any = { ticketStates: updatedStates };
+                      if (extraFields.externallyConfirmed !== undefined) {
+                        additionalData.externallyConfirmed = extraFields.externallyConfirmed;
+                      }
+                      await changeOrderStatus(parentOrder.id, newStatus as any, {
+                        userId: user?.uid,
+                        additionalData
+                      });
+                      
                       setSelectedOrder((prev: any) => ({
                         ...prev,
                         status: newStatus,
@@ -964,9 +989,9 @@ export default function DashboardPage() {
                         externallyConfirmed: extraFields.externallyConfirmed || prev.externallyConfirmed
                       }));
                       toast.success("Phase aktualisiert!");
-                    } catch (err) {
+                    } catch (err: any) {
                       console.error("Fehler beim Umschalten der Aufgabe", err);
-                      toast.error("Fehler beim Speichern.");
+                      toast.error(err.message || "Fehler beim Speichern.");
                     }
                   };
 

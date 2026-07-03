@@ -6,6 +6,7 @@ import { XMarkIcon, TruckIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import { CounterInput } from '@/components/ui/CounterInput';
 import { getCol } from '@/lib/demoMode';
+import { changeOrderStatus } from '@/lib/orderStateMachine';
 
 export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose: () => void, onSuccess?: () => void }) {
   const [movingDate, setMovingDate] = useState('');
@@ -88,10 +89,11 @@ export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose:
 
       const todos = generateTodos(helpers, koffer35t, lkw7t);
 
-      await updateDoc(doc(db, getCol('orders'), order.id), {
-        status: 'confirmed',
-        disposition: dispoData,
-        todos: todos
+      await changeOrderStatus(order.id, 'confirmed', {
+        additionalData: {
+          disposition: dispoData,
+          todos: todos
+        }
       });
       
       toast.success("Auftrag erfolgreich disponiert und bestätigt!");
@@ -111,9 +113,10 @@ export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose:
       // Wenn wir nur bestätigen, übernehmen wir trotzdem die System-Todos (ohne Helfer/Auto spezifische Todos)
       const todos = generateTodos(0, 0, 0); 
       
-      await updateDoc(doc(db, getCol('orders'), order.id), {
-        status: 'confirmed',
-        todos: todos
+      await changeOrderStatus(order.id, 'confirmed', {
+        additionalData: {
+          todos: todos
+        }
       });
       
       toast.success("Auftrag bestätigt (Ressourcen können später im Kalender geplant werden)!");

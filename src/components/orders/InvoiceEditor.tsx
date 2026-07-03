@@ -110,7 +110,14 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
       // 3. Load existing order or source order
       const idToLoad = orderId || sourceOrderId;
       if (idToLoad) {
-        const oSnap = await getDoc(doc(db, getCol('orders'), idToLoad));
+        let targetCol = sourceOrderId ? 'orders' : 'invoices';
+        let oSnap = await getDoc(doc(db, getCol(targetCol), idToLoad));
+        
+        // Fallback for legacy free invoices that might still be in orders
+        if (!oSnap.exists() && targetCol === 'invoices') {
+          oSnap = await getDoc(doc(db, getCol('orders'), idToLoad));
+        }
+
         if (oSnap.exists()) {
           const o = oSnap.data();
           if (orderId) setStatus(o.status);
@@ -198,13 +205,21 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
         await updateDoc(doc(db, getCol('system'), 'settings'), { nextInvoiceNumber: nextInvoiceNumber + 1 });
       }
 
+      const targetCol = sourceOrderId ? 'orders' : 'invoices';
+
       if (orderId) {
-        await updateDoc(doc(db, getCol('orders'), orderId), payload);
+        // Find correct collection for update (could be legacy order)
+        let updateCol = targetCol;
+        if (!sourceOrderId) {
+          const checkInv = await getDoc(doc(db, getCol('invoices'), orderId));
+          if (!checkInv.exists()) updateCol = 'orders';
+        }
+        await updateDoc(doc(db, getCol(updateCol), orderId), payload);
         await logActivity(user?.uid || '', profile?.displayName || 'Unbekannt', 'UPDATE_ORDER', `Rechnung bearbeitet`);
         toast.success(finalStatus === 'invoice_open' ? 'Rechnung ausgestellt!' : 'Rechnungsentwurf gespeichert!');
       } else {
         payload.createdAt = serverTimestamp();
-        await addDoc(collection(db, getCol('orders')), payload);
+        await addDoc(collection(db, getCol(targetCol)), payload);
         await logActivity(user?.uid || '', profile?.displayName || 'Unbekannt', 'CREATE_ORDER', `Neue Rechnung für ${customerData.lastName}`);
         toast.success('Rechnung erfolgreich erstellt!');
       }

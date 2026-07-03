@@ -9,6 +9,7 @@ export type SystemTicket = {
   dueDateStatus?: 'neutral' | 'due' | 'overdue';
   dueDateText?: string;
   orderId?: string;
+  customerId?: string;
   customerName?: string;
   systemEvaluated?: boolean;
 };
@@ -76,6 +77,7 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
       dueDateStatus: dueStatus?.status || 'neutral',
       dueDateText: dueStatus?.text || '',
       orderId: order.id,
+      customerId: order.customerId,
       customerName: order.customerName || 'Unbekannt',
       systemEvaluated: isSystemEvaluated
     });
@@ -106,17 +108,21 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
     const dateDueStatus = isPhase1Overdue && !hasDate ? { status: 'overdue' as const, text: 'ÜBERFÄLLIG' } : undefined;
     addTicket('missing_date', 'Umzugsdatum fehlt (Kunde hat kein Datum genannt)', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, dateDueStatus, hasDate);
     
-    const hasDestination = !!(order.logistics?.b_city || order.logistics?.b_street);
+    const hasOrigin = !!(order.logistics?.a_city && order.logistics?.a_street && order.logistics?.a_houseNr && order.logistics?.a_zip);
+    const originDueStatus = isPhase1Overdue && !hasOrigin ? { status: 'overdue' as const, text: 'ÜBERFÄLLIG' } : undefined;
+    addTicket('missing_origin', 'Auszugsadresse (A) unvollständig', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}?step=2`, originDueStatus, hasOrigin);
+
+    const hasDestination = !!(order.logistics?.b_city && order.logistics?.b_street && order.logistics?.b_houseNr && order.logistics?.b_zip);
     const destDueStatus = isPhase1Overdue && !hasDestination ? { status: 'overdue' as const, text: 'ÜBERFÄLLIG' } : undefined;
-    addTicket('missing_destination', 'Entladeadresse fehlt (Zielort nicht bekannt)', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, destDueStatus, hasDestination);
+    addTicket('missing_destination', 'Einzugsadresse (B) unvollständig', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}?step=2`, destDueStatus, hasDestination);
 
     const hasAFloor = !!(order.logistics?.a_floor);
     const aFloorDueStatus = isPhase1Overdue && !hasAFloor ? { status: 'overdue' as const, text: 'ÜBERFÄLLIG' } : undefined;
-    addTicket('missing_a_floor', 'Etage für Beladeadresse (A) fehlt', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, aFloorDueStatus, hasAFloor);
+    addTicket('missing_a_floor', 'Etage für Beladeadresse (A) fehlt', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}?step=2`, aFloorDueStatus, hasAFloor);
 
     const hasBFloor = !!(order.logistics?.b_floor);
     const bFloorDueStatus = isPhase1Overdue && !hasBFloor ? { status: 'overdue' as const, text: 'ÜBERFÄLLIG' } : undefined;
-    addTicket('missing_b_floor', 'Etage für Entladeadresse (B) fehlt', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, bFloorDueStatus, hasBFloor);
+    addTicket('missing_b_floor', 'Etage für Entladeadresse (B) fehlt', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}?step=2`, bFloorDueStatus, hasBFloor);
 
 
     const hasPhone = !!(order.billingAddress?.phone || customer?.phone);
@@ -145,13 +151,13 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
   // === Phase 4: Nach Bestätigung (confirmed) ===
   if (status === 'confirmed') {
     // Auftragsbestätigung
-    addTicket('confirmation_sent', 'Auftragsbestätigung an Kunden senden (Digitale Zusage)', 4, 'action', 'general', undefined, undefined, !!states['confirmation_sent']);
+    addTicket('confirmation_sent', 'Auftragsbestätigung an Kunden senden (Digitale Zusage)', 4, 'action', 'general');
     
     // Abnahmeprotokoll
-    addTicket('abnahmeprotokoll', 'Am Umzugstag: Abnahmeprotokoll auf Tablet unterschreiben lassen', 4, 'action', 'general', undefined, undefined, !!order.signatureProtocol);
+    addTicket('abnahmeprotokoll', 'Am Umzugstag: Abnahmeprotokoll auf Tablet unterschreiben lassen', 4, 'action', 'general', undefined, undefined, !!(order.signatureProtocol || (order.protocols && order.protocols.length > 0)));
 
     if (daysToMove !== null && daysToMove < 0) {
-      addTicket('move_past_due', 'Umzug liegt in der Vergangenheit! Bitte auf "Umzug durchgeführt" setzen.', 4, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, { status: 'overdue', text: 'ÜBERFÄLLIG' });
+      addTicket('move_past_due', 'Umzug liegt in der Vergangenheit! Bitte auf "Umzug durchgeführt" setzen.', 4, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, { status: 'overdue', text: 'ÜBERFÄLLIG' }, false);
     }
 
     if (hasServiceLike(['karton', 'box', 'kartons'])) {
@@ -206,11 +212,11 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
     if (status === 'completed') {
       // Invoice: overdue if daysToMove is <= -5 (5 days after move)
       let dueStatus = calculateDueDateStatus(daysToMove, -1, -5);
-      addTicket('invoice_missing', 'Rechnung erstellen (Umzug beendet)', 5, 'warning', 'rechnung', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, dueStatus);
+      addTicket('invoice_missing', 'Rechnung erstellen (Umzug beendet)', 5, 'warning', 'rechnung', `/dashboard/customers/${order.customerId}/edit-order/${order.id}`, dueStatus, false);
     }
 
     if (status === 'invoice_open' || status === 'invoice_overdue') {
-      addTicket('payment_check', 'Zahlungseingang prüfen (Rechnung ist noch offen)', 5, 'action', 'rechnung', `/dashboard/customers/${order.customerId}`);
+      addTicket('payment_check', 'Zahlungseingang prüfen (Rechnung ist noch offen)', 5, 'action', 'rechnung', `/dashboard/customers/${order.customerId}`, undefined, false);
     }
 
     if (status !== 'invoice_cancelled') {

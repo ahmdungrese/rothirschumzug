@@ -9,7 +9,7 @@ import {
   UserIcon, PencilIcon, CheckBadgeIcon, CheckCircleIcon, DocumentArrowDownIcon, TrashIcon, EnvelopeIcon,
   LinkIcon, PlusIcon, UserCircleIcon, PhoneIcon, StarIcon, BanknotesIcon, ExclamationTriangleIcon, 
   ArrowUturnLeftIcon, EllipsisHorizontalIcon, ChevronDownIcon, ChevronUpIcon, BoltIcon, 
-  ClipboardDocumentIcon, ClipboardDocumentListIcon 
+  ClipboardDocumentIcon, ClipboardDocumentListIcon, ClipboardDocumentCheckIcon
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import Image from 'next/image';
@@ -29,13 +29,14 @@ import { PaymentManager } from '@/components/orders/PaymentManager';
 import { PdfModal } from '@/components/ui/PdfModal';
 import { calculateRoute } from '@/lib/routeCalculator';
 import { getCol } from '@/lib/demoMode';
+import { changeOrderStatus, generateContract } from '@/lib/orderStateMachine';
 import { LogisticsBoard } from '@/components/orders/LogisticsBoard';
 import { MessageSenderModal } from '@/components/customers/MessageSenderModal';
 import { useAuth } from '@/context/AuthContext';
 import { PDFDownloadButton } from '@/components/pdf/PDFDownloadButton';
 
 export default function CustomerProfilePage() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -228,13 +229,20 @@ export default function CustomerProfilePage() {
           status: 'danger', 
           action: () => setPaymentOrder(unpaidInvoices[0]) 
         });
-      } else if (activeOrder.status === 'completed' && activeOrder.type !== 'invoice' && !orders.some(o => o.sourceOrderId === activeOrder.id)) {
+      } else if (activeOrder.status === 'completed' && activeOrder.type !== 'invoice' && !activeOrder.invoiceNumber) {
         items.push({ 
           phase: 5, 
           title: 'Rechnung erstellen', 
           desc: 'Der Umzug ist abgeschlossen. Es wurde noch keine Rechnung generiert.', 
           status: 'warning', 
-          action: () => router.push(`/dashboard/customers/${customerId}/edit-order/new?type=invoice&sourceOrder=${activeOrder.id}`) 
+          action: async () => {
+             try {
+               await changeOrderStatus(activeOrder.id, 'invoice_open', { userId: profile?.uid });
+               toast.success('Rechnung generiert!');
+             } catch (err: any) {
+               toast.error(err.message || 'Fehler beim Erstellen der Rechnung');
+             }
+          }
         });
       }
     }
@@ -322,38 +330,19 @@ export default function CustomerProfilePage() {
 
   const handleUpdateOrderStatus = async (order: any, newStatus: string) => {
     try {
-      const payload: any = { status: newStatus, updatedAt: serverTimestamp() };
+      await changeOrderStatus(order.id, newStatus as any, { 
+        userId: user?.uid,
+        userName: user?.email || 'System'
+      });
       
-      const settingsDoc = await getDoc(doc(db, getCol('system'), 'settings'));
-      const settingsData = settingsDoc.exists() ? settingsDoc.data() : null;
-
-      if (newStatus === 'confirmed') {
-        if (!order.contractNumber && settingsData) {
-          const nextOrderNumber = settingsData.nextOrderNumber || 1;
-          payload.contractNumber = `AUF-${new Date().getFullYear()}-${nextOrderNumber.toString().padStart(3, '0')}`;
-          await updateDoc(doc(db, getCol('system'), 'settings'), { nextOrderNumber: nextOrderNumber + 1 });
-        }
-        toast.success("Angebot bestätigt!");
-      }
-
-      // Undo Confirmation (back to quote)
-      if (newStatus === 'quote' && order.status === 'confirmed') {
-         payload.contractNumber = null; // Revert to Angebot
-      }
-
-      if ((newStatus === 'invoice_open' || newStatus === 'invoice_paid') && !order.invoiceNumber && settingsData) {
-        const nextInvoiceNumber = settingsData.nextInvoiceNumber || 1;
-        payload.invoiceNumber = `RE-${new Date().getFullYear()}-${nextInvoiceNumber.toString().padStart(3, '0')}`;
-        payload.invoiceDate = new Date().toISOString();
-        await updateDoc(doc(db, getCol('system'), 'settings'), { nextInvoiceNumber: nextInvoiceNumber + 1 });
-        toast.success(`Rechnung ${payload.invoiceNumber} generiert!`);
-      }
+      if (newStatus === 'confirmed') toast.success("Angebot bestätigt!");
+      else if (newStatus === 'invoice_open') toast.success("Rechnung generiert!");
+      else toast.success("Status aktualisiert!");
       
-      await updateDoc(doc(db, getCol('orders'), order.id), payload);
       setActiveDropdown(null);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      toast.error("Ein Fehler ist aufgetreten.");
+      toast.error(error.message || "Ein Fehler ist aufgetreten.");
     }
   };
 
@@ -774,13 +763,20 @@ export default function CustomerProfilePage() {
                               )}
 
                               {/* 5. Invoicing */}
-                              {(order.status === 'completed' && !isInvoice && !hasActiveInvoice) && (
+                              {(order.status === 'completed' && !isInvoice && !order.invoiceNumber) && (
                                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 flex flex-wrap justify-between items-center gap-3">
                                   <div>
                                     <div className="text-[10px] text-blue-400/70 font-bold uppercase mb-0.5">Phase 5 • Rechnung</div>
                                     <div className="text-sm text-blue-400 font-bold">Es fehlt noch die Rechnung</div>
                                   </div>
-                                  <button onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/new?type=invoice&sourceOrder=${order.id}`)} className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">🧾 Rechnung generieren</button>
+                                  <button onClick={async () => {
+                                    try {
+                                      await changeOrderStatus(order.id, 'invoice_open', { userId: profile?.uid });
+                                      toast.success('Rechnung generiert!');
+                                    } catch (err: any) {
+                                      toast.error(err.message || 'Fehler beim Generieren der Rechnung');
+                                    }
+                                  }} className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">🧾 Rechnung generieren</button>
                                 </div>
                               )}
 
@@ -1048,8 +1044,23 @@ export default function CustomerProfilePage() {
                              </button>
                            )}
                            {!isInvoice && (
-                             <button onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/new?type=invoice&sourceOrder=${order.id}`)} className="btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 text-green-400 font-bold border border-green-500/30 bg-green-500/10 hover:bg-green-500/20">
-                                <PlusIcon className="w-4 h-4 shrink-0" /> Rechnung erstellen
+                             <button onClick={async () => {
+                               if (order.status !== 'completed' && order.status !== 'invoice_open' && order.status !== 'invoice_paid') {
+                                 toast.error(`Der Umzug ist noch nicht abgeschlossen (Status: ${order.status}). Bitte erst abschließen.`);
+                                 return;
+                               }
+                               if (!order.invoiceNumber) {
+                                 try {
+                                   await changeOrderStatus(order.id, 'invoice_open', { userId: profile?.uid });
+                                   toast.success('Rechnung wurde erstellt!');
+                                 } catch (err: any) {
+                                   toast.error(err.message || 'Fehler');
+                                 }
+                               } else {
+                                 toast('Rechnung wurde bereits erstellt.', { icon: 'ℹ️' });
+                               }
+                             }} className="btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 text-green-400 font-bold border border-green-500/30 bg-green-500/10 hover:bg-green-500/20">
+                                <PlusIcon className="w-4 h-4 shrink-0" /> {order.invoiceNumber ? 'Rechnung generiert' : 'Rechnung erstellen'}
                              </button>
                            )}
                            {isInvoice && order.status !== 'canceled' && (
