@@ -6,19 +6,44 @@ import { BanknotesIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
 import { Modal } from '@/components/ui/Modal';
 import { getCol } from '@/lib/demoMode';
 import { changeOrderStatus } from '@/lib/orderStateMachine';
+import { calculateOrderTotals, calculateOpenAmount, calculateTotalPaid } from '@/lib/financeHelpers';
 
-export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpdate: () => void, onClose: () => void }) {
+export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpdate, onClose }: { order: any, allOrders?: any[], freeInvoices?: any[], onUpdate: () => void, onClose: () => void }) {
   const isFreeInvoice = order._collection === 'invoices';
   const targetCol = isFreeInvoice ? 'invoices' : 'orders';
-  const totalGross = order.totals?.gross ?? order.calcInput?.gross ?? 0;
+  const totalGross = calculateOrderTotals(order).gross;
   
   const [payments, setPayments] = useState<any[]>(order.payments || []);
   
-  const totalPaid = payments.reduce((sum, p) => sum + p.amount, 0);
+  const totalPaid = calculateTotalPaid({ payments }); // Using temporary object for the state array
   const remaining = Math.max(0, totalGross - totalPaid);
   
+  // Finde verfügbare Guthabenquellen (andere stornierte/abgeschlossene Aufträge oder Rechnungen mit positiven Zahlungen)
+  const availableCredits = [...allOrders, ...freeInvoices]
+    .filter(doc => doc.id !== order.id) // Nicht dieses Dokument
+    .map(doc => {
+      const docPaid = (doc.payments || []).reduce((sum: number, p: any) => sum + p.amount, 0);
+      const isCancelled = doc.status === 'canceled' || doc.status === 'invoice_cancelled';
+      // Ein Guthaben ist verfügbar, wenn das Dokument storniert ist und noch Geld hat,
+      // oder wenn es 'completed' ist, keine aktive Rechnung hat und noch Geld hat.
+      const hasCredit = docPaid > 0 && (isCancelled || (doc.status === 'completed' && !doc.invoiceNumber));
+      
+      // Bestimme den Namen für die Anzeige
+      let sourceName = '';
+      if (doc.invoiceHistory && doc.invoiceHistory.length > 0) {
+        sourceName = `Storno ${doc.invoiceHistory[doc.invoiceHistory.length - 1].invoiceNumber}`;
+      } else if (doc.invoiceNumber) {
+        sourceName = `Rechnung ${doc.invoiceNumber} (Storniert)`;
+      } else {
+        sourceName = `Auftrag ${doc.orderNumber || doc.id.substring(0, 4)}`;
+      }
+
+      return { doc, docPaid, hasCredit, sourceName };
+    })
+    .filter(item => item.hasCredit);
+
   const [amount, setAmount] = useState<number | ''>(remaining > 0 ? remaining : '');
-  const [method, setMethod] = useState<'bar' | 'ueberweisung' | 'ec-karte' | 'paypal'>('bar');
+  const [method, setMethod] = useState<'bar' | 'ueberweisung' | 'ec-karte' | 'paypal' | 'guthaben'>('bar');
   const [isSaving, setIsSaving] = useState(false);
 
   const addPayment = async (e: React.FormEvent) => {
@@ -126,35 +151,113 @@ export function PaymentManager({ order, onUpdate, onClose }: { order: any, onUpd
         </div>
 
         {remaining > 0 ? (
-          <form onSubmit={addPayment} className="grid grid-cols-[1fr_140px_auto] gap-3 mb-6 p-4 bg-bg-dark/50 rounded-xl border border-structure/50 items-center shadow-inner">
-            <div className="relative h-full">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted font-bold text-lg">€</span>
-              <input 
-                type="number" 
-                step="0.01" 
+          <>
+          <form onSubmit={addPayment} className="flex gap-2 mb-4 h-11">
+            <div className="relative flex-1 h-full">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted font-bold">€</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0.01"
                 max={remaining > 0 ? remaining : undefined}
-                value={amount} 
-                onChange={e => setAmount(Number(e.target.value))} 
-                className="input-field pl-10 w-full h-full text-xl font-bold text-white bg-black/40 border-primary/40 focus:border-primary shadow-inner" 
-                placeholder="Betrag"
                 required
+                value={amount}
+                onChange={e => setAmount(e.target.value ? Number(e.target.value) : '')}
+                className="input-field w-full h-full pl-8 font-mono"
+                placeholder="0.00"
               />
             </div>
             <select
-              aria-label="Zahlungsmethode"
               value={method}
               onChange={e => setMethod(e.target.value as any)}
-              className="input-field w-full h-full bg-bg-dark font-medium text-sm"
+              className="input-field h-full max-w-[140px] text-sm"
             >
               <option value="bar">Bar</option>
               <option value="ueberweisung">Überweisung</option>
               <option value="ec-karte">EC-Karte</option>
               <option value="paypal">PayPal</option>
+              <option value="guthaben" disabled={availableCredits.length === 0}>Guthaben</option>
             </select>
             <button type="submit" aria-label="Zahlung hinzufügen" disabled={isSaving || !amount} className="btn-primary h-full px-4 rounded-xl">
               <PlusIcon className="w-6 h-6" />
             </button>
           </form>
+
+          {/* Quick-Transfer Guthaben Buttons */}
+          {availableCredits.length > 0 && remaining > 0 && (
+            <div className="mb-4 flex flex-col gap-2">
+              <div className="text-[10px] uppercase font-bold tracking-wider text-emerald-400 mb-1">Verfügbares Guthaben</div>
+              {availableCredits.map(credit => {
+                const transferAmount = Math.min(credit.docPaid, remaining);
+                return (
+                  <button
+                    key={credit.doc.id}
+                    type="button"
+                    disabled={isSaving}
+                    onClick={async () => {
+                      if (!confirm(`Möchten Sie ${transferAmount.toFixed(2)} € aus ${credit.sourceName} verrechnen?`)) return;
+                      setIsSaving(true);
+                      
+                      try {
+                        const transferDate = Timestamp.now();
+                        const transferId = Date.now().toString();
+                        
+                        // 1. Zahlung zum aktuellen Auftrag hinzufügen
+                        const newPayment = {
+                          id: transferId,
+                          amount: transferAmount,
+                          method: 'guthaben',
+                          date: transferDate,
+                          note: `Verrechnet von ${credit.sourceName}`
+                        };
+                        const updatedPayments = [...payments, newPayment];
+                        const newTotalPaid = updatedPayments.reduce((sum, p) => sum + p.amount, 0);
+                        
+                        let newStatus = order.status;
+                        if (newTotalPaid >= totalGross && order.status !== 'canceled') {
+                          newStatus = 'invoice_paid';
+                        }
+                        
+                        await updateDoc(doc(db, targetCol, order.id), {
+                          payments: updatedPayments,
+                          status: newStatus
+                        });
+                        if (newStatus !== order.status && targetCol === 'orders') {
+                          await changeOrderStatus(order.id, newStatus);
+                        }
+                        
+                        // 2. Gegenbuchung beim Quell-Auftrag/Rechnung einfügen
+                        const actualSourceCol = credit.doc.sourceOrderId ? 'invoices' : 'orders';
+                        
+                        const sourcePayment = {
+                          id: `transfer-${transferId}`,
+                          amount: -transferAmount, // Negative amount removes credit
+                          method: 'guthaben',
+                          date: transferDate,
+                          note: `Verrechnet auf Rechnung ${order.invoiceNumber || order.id.substring(0,4)}`
+                        };
+                        const updatedSourcePayments = [...(credit.doc.payments || []), sourcePayment];
+                        await updateDoc(doc(db, actualSourceCol, credit.doc.id), {
+                          payments: updatedSourcePayments
+                        });
+                        
+                        setPayments(updatedPayments);
+                        setAmount('');
+                        onUpdate();
+                      } catch (e: any) {
+                        alert("Fehler bei der Verrechnung: " + e.message);
+                      }
+                      setIsSaving(false);
+                    }}
+                    className="btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 border-emerald-500/30 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                  >
+                    Verrechnung mit Guthaben ({transferAmount.toFixed(2)} €) aus {credit.sourceName}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          </>
         ) : (
           <div className="mb-6 p-4 bg-green-500/10 border border-green-500/30 rounded-xl text-center text-green-400 text-sm font-semibold">
             Rechnung ist vollständig bezahlt.

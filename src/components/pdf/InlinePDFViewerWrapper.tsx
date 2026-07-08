@@ -10,7 +10,7 @@ import { doc, getDoc } from 'firebase/firestore';
 import { getCol } from '@/lib/demoMode';
 import { useAuth } from '@/context/AuthContext';
 
-export default function InlinePDFViewerWrapper({ order, customer, type = 'order' }: { order: any, customer: any, type?: 'order' | 'employee' | 'invoice' | 'contract' | 'protocol' }) {
+export default function InlinePDFViewerWrapper({ order, customer, type = 'order', forceLiveQuote = false }: { order: any, customer: any, type?: 'order' | 'employee' | 'invoice' | 'contract' | 'protocol', forceLiveQuote?: boolean }) {
   const [settings, setSettings] = useState<any>(null);
   const { profile } = useAuth();
   
@@ -38,7 +38,18 @@ export default function InlinePDFViewerWrapper({ order, customer, type = 'order'
     if (type === 'invoice') return <InvoicePDF order={order} customer={customer} settings={settings} employeeName={employeeName} />;
     if (type === 'contract') return <OrderPDF order={order} customer={customer} settings={settings} isContract={true} employeeName={employeeName} />;
     if (type === 'protocol') return <ProtocolPDF order={order} customer={customer} employeeName={employeeName} />;
-    return <OrderPDF order={order} customer={customer} settings={settings} employeeName={employeeName} />;
+    
+    // For 'order', use confirmedSnapshot if it exists and order is no longer in draft/quote, UNLESS forceLiveQuote is true
+    const isPastQuote = ['confirmed', 'completed', 'invoice_open', 'invoice_paid', 'invoice_overdue', 'invoice_cancelled'].includes(order.status);
+    const useSnapshot = isPastQuote && order.confirmedSnapshot && !forceLiveQuote;
+    const orderData = useSnapshot ? order.confirmedSnapshot : order;
+    
+    // Add a flag if it's past quote but missing snapshot AND not forcing live quote
+    if (isPastQuote && !order.confirmedSnapshot && !forceLiveQuote) {
+      orderData._missingSnapshotWarning = true;
+    }
+
+    return <OrderPDF order={orderData} customer={customer} settings={settings} employeeName={employeeName} />;
   };
 
   return (

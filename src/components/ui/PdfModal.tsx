@@ -12,9 +12,10 @@ interface PdfModalProps {
   customer: any;
   type: 'order' | 'contract' | 'employee' | 'invoice' | 'protocol';
   onClose: () => void;
+  forceLiveQuote?: boolean;
 }
 
-export function PdfModal({ order, customer, type, onClose }: PdfModalProps) {
+export function PdfModal({ order, customer, type, onClose, forceLiveQuote = false }: PdfModalProps) {
   const [settings, setSettings] = useState<any>(null);
 
   useEffect(() => {
@@ -64,6 +65,7 @@ export function PdfModal({ order, customer, type, onClose }: PdfModalProps) {
               order={order} 
               customer={customer} 
               type={type}
+              forceLiveQuote={forceLiveQuote}
             />
           ) : (
             <div className="text-text-muted animate-pulse mt-20">Lade Vorschau...</div>

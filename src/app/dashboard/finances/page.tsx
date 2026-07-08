@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { getCol } from '@/lib/demoMode';
 import { PaymentManager } from '@/components/orders/PaymentManager';
 import { StatusBadge } from '@/components/ui/StatusBadge';
+import { calculateOrderTotals, calculateOpenAmount, calculateTotalPaid } from '@/lib/financeHelpers';
 
 export default function FinancesPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -49,15 +50,11 @@ export default function FinancesPage() {
     if (inv.status === 'canceled') return false;
     if (inv.status === 'invoice_cancelled') return false; // Storniert = ausgeglichen
     if (inv.isStorno) return false; // Storno-Belege selbst sind keine offenen Rechnungen
-    const gross = inv.totals?.gross || inv.calcInput?.gross || 0;
-    const paid = (inv.payments || []).reduce((sum: number, p: any) => sum + p.amount, 0);
-    return (gross - paid) > 0;
+    return calculateOpenAmount(inv) > 0;
   });
 
   const totalOpenAmount = openInvoices.reduce((sum, inv) => {
-    const gross = inv.totals?.gross || inv.calcInput?.gross || 0;
-    const paid = inv.payments?.reduce((s: number, p: any) => s + p.amount, 0) || 0;
-    return sum + (gross - paid);
+    return sum + calculateOpenAmount(inv);
   }, 0);
 
   // Apply Search & Tab Filter
@@ -173,10 +170,10 @@ export default function FinancesPage() {
               </thead>
               <tbody className="divide-y divide-structure">
                 {displayedInvoices.map(inv => {
-                  const gross = inv.totals?.gross || inv.calcInput?.gross || 0;
-                  const paid = inv.payments?.reduce((s: number, p: any) => s + p.amount, 0) || 0;
-                  const open = Math.max(0, gross - paid);
-                  const isCanceled = inv.status === 'canceled';
+                  const gross = calculateOrderTotals(inv).gross;
+                  const paid = calculateTotalPaid(inv);
+                  const isCanceled = inv.status === 'canceled' || inv.status === 'invoice_cancelled';
+                  const open = calculateOpenAmount(inv);
                   
                   return (
                     <tr key={inv.id} className={`hover:bg-white/[0.02] transition-colors ${isCanceled ? 'opacity-50' : ''}`}>

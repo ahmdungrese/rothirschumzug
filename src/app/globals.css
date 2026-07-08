@@ -218,3 +218,18 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb  { background: var(--lm-scrollbar); border-radius: 99px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--lm-scrollbar-hover); }
 .custom-scrollbar { scrollbar-width: thin; scrollbar-color: var(--lm-scrollbar) transparent; }
+
+
+@keyframes target-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(143, 22, 39, 0.7); border-color: var(--color-primary); }
+  50% { box-shadow: 0 0 0 10px rgba(143, 22, 39, 0); border-color: var(--color-primary); }
+  100% { box-shadow: 0 0 0 0 rgba(143, 22, 39, 0); border-color: var(--color-primary); }
+}
+.highlight-pulse {
+  animation: target-pulse 1.2s ease-out 3;
+  border-color: var(--color-primary) !important;
+  transition: border-color 0.3s;
+}
+.highlight-idle {
+  border-color: var(--color-primary) !important;
+}

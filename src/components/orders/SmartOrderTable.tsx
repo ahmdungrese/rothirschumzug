@@ -21,6 +21,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { PDFDownloadButton } from '@/components/pdf/PDFDownloadButton';
+import { calculateOrderTotals, calculateOpenAmount, calculateTotalPaid } from '@/lib/financeHelpers';
 
 // Helper for Source Colors
 const getSourceBadgeColor = (source: string) => {
@@ -88,16 +89,14 @@ export function SmartOrderTable({
                 ? (isCompany ? (customer.lastName || "Firma") : `${customer.firstName || ''} ${customer.lastName || ''}`.trim())
                 : (order.customerName || `ID: ${order.customerId?.slice(0, 8)}...`);
 
-              // Intelligent Total Calculation (Checking both calcInput and totals)
-              const grossTotal = order.totals?.gross ?? order.calcInput?.gross ?? 0;
-              const paidAmount = (order.payments || []).reduce((sum: number, p: any) => sum + p.amount, 0);
-              const openAmount = Math.max(0, grossTotal - paidAmount);
-
-              const isInvoice = !!order.invoiceNumber;
+              // Intelligent Total Calculation
+              const grossTotal = calculateOrderTotals(order).gross;
+              const totalPaid = calculateTotalPaid(order);
+              const isCanceled = order.status === 'canceled' || order.status === 'invoice_cancelled';
+              const openAmount = calculateOpenAmount(order);
+              const isInvoice = order.type === 'invoice' || order.status?.startsWith('invoice');
               const displayNumber = order.invoiceNumber || order.orderNumber || '-';
-
-              const isMovingSoon = order.status === 'confirmed' && order.orderMeta?.movingDateFrom && 
-                new Date(order.orderMeta.movingDateFrom).getTime() - Date.now() < 7 * 24 * 60 * 60 * 1000;
+              const isMovingSoon = !isInvoice && order.logistics?.movingDate && new Date(order.logistics.movingDate).getTime() < Date.now() + 7 * 24 * 60 * 60 * 1000;
 
               return (
                 <tr 
@@ -162,7 +161,7 @@ export function SmartOrderTable({
                     <div className="font-bold text-text-main text-base">
                       € {grossTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
-                    {isInvoice && openAmount > 0 && order.status !== 'canceled' && (
+                    {isInvoice && openAmount > 0 && !isCanceled && (
                       <div className="text-xs text-red-400 font-bold mt-1">
                         Offen: € {openAmount.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>

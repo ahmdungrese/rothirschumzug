@@ -3,12 +3,12 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, useMemo } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, collection, query, where, onSnapshot, updateDoc, deleteDoc, serverTimestamp, getDoc, addDoc } from 'firebase/firestore';
-import { 
-  XMarkIcon, ArchiveBoxIcon, MapIcon, ArrowUpOnSquareIcon, 
+import {
+  XMarkIcon, ArchiveBoxIcon, MapIcon, ArrowUpOnSquareIcon,
   DocumentTextIcon, TruckIcon, CheckIcon, MapPinIcon, ClockIcon,
   UserIcon, PencilIcon, CheckBadgeIcon, CheckCircleIcon, DocumentArrowDownIcon, TrashIcon, EnvelopeIcon,
-  LinkIcon, PlusIcon, UserCircleIcon, PhoneIcon, StarIcon, BanknotesIcon, ExclamationTriangleIcon, 
-  ArrowUturnLeftIcon, EllipsisHorizontalIcon, ChevronDownIcon, ChevronUpIcon, BoltIcon, 
+  LinkIcon, PlusIcon, UserCircleIcon, PhoneIcon, StarIcon, BanknotesIcon, ExclamationTriangleIcon,
+  ArrowUturnLeftIcon, EllipsisHorizontalIcon, ChevronDownIcon, ChevronUpIcon, BoltIcon,
   ClipboardDocumentIcon, ClipboardDocumentListIcon, ClipboardDocumentCheckIcon
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
@@ -31,6 +31,7 @@ import { calculateRoute } from '@/lib/routeCalculator';
 import { getCol } from '@/lib/demoMode';
 import { changeOrderStatus, generateContract } from '@/lib/orderStateMachine';
 import { LogisticsBoard } from '@/components/orders/LogisticsBoard';
+import { calculateOrderTotals, calculateTotalPaid, calculateOpenAmount } from '@/lib/financeHelpers';
 import { MessageSenderModal } from '@/components/customers/MessageSenderModal';
 import { useAuth } from '@/context/AuthContext';
 import { PDFDownloadButton } from '@/components/pdf/PDFDownloadButton';
@@ -45,7 +46,7 @@ export default function CustomerProfilePage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [freeInvoices, setFreeInvoices] = useState<any[]>([]); // From 'invoices' collection
   const [loading, setLoading] = useState(true);
-  
+
   // Modals & Context States
   const [protocolOrder, setProtocolOrder] = useState<any>(null);
   const [dispoOrder, setDispoOrder] = useState<any>(null);
@@ -58,10 +59,12 @@ export default function CustomerProfilePage() {
   const [deleteConfirmOrder, setDeleteConfirmOrder] = useState<string | null>(null);
   const [paymentOrder, setPaymentOrder] = useState<any>(null);
   const [messageOrder, setMessageOrder] = useState<any>(null);
+  const [confirmInvoiceOrder, setConfirmInvoiceOrder] = useState<any>(null);
   const [signatureOrder, setSignatureOrder] = useState<any>(null);
   const [pdfModalOrder, setPdfModalOrder] = useState<any>(null);
   const [inlinePdfOrder, setInlinePdfOrder] = useState<any>(null);
   const [inlinePdfType, setInlinePdfType] = useState<string>('order');
+  const [inlinePdfForceLive, setInlinePdfForceLive] = useState<boolean>(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
 
@@ -116,45 +119,93 @@ export default function CustomerProfilePage() {
   const activeOrdersList = useMemo(() => {
     const orderItems = orders
       .filter(o => o.status !== 'archived')
-      .filter(o => !(o.type === 'invoice' && o.sourceOrderId)); // Hide nested invoices
+      .filter(o => !o.isStorno) // Hide Storno documents from the main order list
+      .filter(o => !(o.type === 'invoice' && (o.sourceOrderId || o.orderNumber))); // Hide nested invoices and corrupted ones with orderNumber
     // Add free invoices (from dedicated invoices collection) – they are never 'archived' in the usual sense
-    const freeInvItems = freeInvoices.filter(inv => inv.status !== 'canceled');
+    const freeInvItems = freeInvoices.filter(inv => inv.status !== 'canceled' && !inv.isStorno);
     return [...orderItems, ...freeInvItems]
       .sort((a: any, b: any) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
   }, [orders, freeInvoices]);
 
+
+  const highlightParam = searchParams?.get('highlight');
+
+  useEffect(() => {
+    if (highlightParam) {
+      if (!isEditing) {
+        setIsEditing(true);
+      } else {
+        setTimeout(() => {
+          let isComplete = false;
+          if (highlightParam === 'phone') isComplete = !!editData?.phone;
+          else if (highlightParam === 'email') isComplete = !!editData?.email;
+          else if (highlightParam === 'billingAddress') isComplete = !!(editData?.street && editData?.houseNr && editData?.zip && editData?.city);
+
+          const el = document.getElementById(`highlight-${highlightParam}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (!isComplete) {
+              el.classList.add('highlight-pulse', 'border', 'rounded-lg', 'transition-all');
+              setTimeout(() => el.classList.remove('highlight-pulse', 'border', 'rounded-lg'), 3600);
+            }
+          }
+
+          if (!isComplete) {
+            const focusMap: any = {
+              'phone': 'input-phone',
+              'email': 'input-email',
+              'billingAddress': !editData?.street ? 'input-street' : !editData?.houseNr ? 'input-houseNr' : !editData?.zip ? 'input-zip' : 'input-city'
+            };
+            const targetId = focusMap[highlightParam];
+            if (targetId) document.getElementById(targetId)?.focus();
+          }
+        }, 300);
+      }
+    }
+  }, [highlightParam, isEditing, editData]);
+
   const checklist = useMemo(() => {
     if (!customer) return null;
     const items = [];
-    
-    // Phase 1: Kundendaten & Verifizierung
-    // ── Shared logic: same rules as ticketEngine.ts ──────────────────────────
-    const missingData: { label: string, action: () => void }[] = [];
-    const goToCustomerEdit = () => setIsEditing(true);
-    const goToLogisticsStep = (ordId: string) => router.push(`/dashboard/customers/${customerId}/edit-order/${ordId}?step=2`);
 
-    if (!customer.phone) missingData.push({ label: 'Telefonnummer', action: goToCustomerEdit });
-    if (!customer.email) missingData.push({ label: 'E-Mail', action: goToCustomerEdit });
+    // Phase 1: Kundendaten & Verifizierung
+    const missingData: { label: string, action: () => void }[] = [];
+    const goToCustomerEdit = (highlightStr?: string) => {
+      // Just set isEditing. We can pass the highlight to a state or append it to URL.
+      // Easiest is to push to router with ?highlight=... and then open edit modal.
+      if (highlightStr) {
+        router.push(`/dashboard/customers/${customerId}?highlight=${highlightStr}`, { scroll: false });
+      }
+      setIsEditing(true);
+    };
+    const goToLogisticsStep = (ordId: string, highlightStr?: string) => {
+      const qs = highlightStr ? `&highlight=${highlightStr}` : '';
+      router.push(`/dashboard/customers/${customerId}/edit-order/${ordId}?step=2${qs}`);
+    };
+
+    if (!customer.phone) missingData.push({ label: 'Telefonnummer', action: () => goToCustomerEdit('phone') });
+    if (!customer.email) missingData.push({ label: 'E-Mail', action: () => goToCustomerEdit('email') });
     if (!customer.street || !customer.houseNr || !customer.zip || !customer.city) {
-      missingData.push({ label: 'Vollständige Rechnungsadresse (Str., Hausnr., PLZ, Ort)', action: goToCustomerEdit });
+      missingData.push({ label: 'Vollständige Rechnungsadresse (Str., Hausnr., PLZ, Ort)', action: () => goToCustomerEdit('billingAddress') });
     }
-    
+
     const activeOrder = orders.find(o => o.status !== 'archived');
+
     if (activeOrder) {
       if (!activeOrder.orderMeta?.movingDateFrom) {
-        missingData.push({ label: 'Umzugsdatum', action: () => goToLogisticsStep(activeOrder.id) });
+        missingData.push({ label: 'Umzugsdatum', action: () => goToLogisticsStep(activeOrder.id, 'movingDate') });
       }
       const log = activeOrder.logistics;
       // Strict 4-field check — same as ticketEngine missing_origin
       if (!log?.a_street || !log?.a_houseNr || !log?.a_zip || !log?.a_city) {
-        missingData.push({ label: 'Auszugsadresse (A) unvollständig', action: () => goToLogisticsStep(activeOrder.id) });
+        missingData.push({ label: 'Auszugsadresse (A) unvollständig', action: () => goToLogisticsStep(activeOrder.id, 'addressA') });
       }
       // Strict 4-field check — same as ticketEngine missing_destination
       if (!log?.b_street || !log?.b_houseNr || !log?.b_zip || !log?.b_city) {
-        missingData.push({ label: 'Einzugsadresse (B) unvollständig', action: () => goToLogisticsStep(activeOrder.id) });
+        missingData.push({ label: 'Einzugsadresse (B) unvollständig', action: () => goToLogisticsStep(activeOrder.id, 'addressB') });
       }
     }
-    
+
     // Check if customer was created > 3 days ago for overdue status in Phase 1
     let phase1Status: 'warning' | 'danger' = 'warning';
     if (customer.createdAt) {
@@ -167,11 +218,11 @@ export default function CustomerProfilePage() {
     }
 
     if (missingData.length > 0) {
-      items.push({ 
-        phase: 1, 
-        title: phase1Status === 'danger' ? 'Kundendaten-Verifizierung (ÜBERFÄLLIG!)' : 'Kundendaten-Verifizierung', 
-        desc: `Es fehlen wichtige Verifizierungsdaten: ${missingData.map(m => m.label).join(', ')}`, 
-        status: phase1Status, 
+      items.push({
+        phase: 1,
+        title: phase1Status === 'danger' ? 'Kundendaten-Verifizierung (ÜBERFÄLLIG!)' : 'Kundendaten-Verifizierung',
+        desc: `Es fehlen wichtige Verifizierungsdaten: ${missingData.map(m => m.label).join(', ')}`,
+        status: phase1Status,
         // Route to the most specific action (e.g. logistics if address A/B is the first missing item)
         action: missingData[0].action
       });
@@ -190,36 +241,36 @@ export default function CustomerProfilePage() {
             phase2Status = 'danger';
           }
         }
-        items.push({ 
-          phase: 2, 
-          title: phase2Status === 'danger' ? 'Erstes Angebot erstellen (ÜBERFÄLLIG!)' : 'Erstes Angebot erstellen', 
-          desc: 'Der Kunde hat noch kein Angebot.', 
-          status: phase2Status, 
-          action: () => router.push(`/dashboard/customers/${customerId}/new-order`) 
+        items.push({
+          phase: 2,
+          title: phase2Status === 'danger' ? 'Erstes Angebot erstellen (ÜBERFÄLLIG!)' : 'Erstes Angebot erstellen',
+          desc: 'Der Kunde hat noch kein Angebot.',
+          status: phase2Status,
+          action: () => router.push(`/dashboard/customers/${customerId}/new-order`)
         });
       } else if (activeOrder.status === 'draft') {
         if (activeOrder.orderMeta?.viewingDate === 'requested') {
-          items.push({ 
-            phase: 2, 
-            title: 'Besichtigungstermin planen', 
-            desc: 'Kunde wünscht einen Besichtigungstermin.', 
+          items.push({
+            phase: 2,
+            title: 'Besichtigungstermin planen',
+            desc: 'Kunde wünscht einen Besichtigungstermin.',
             status: 'warning',
             action: () => router.push(`/dashboard/customers/${customerId}/edit-order/${activeOrder.id}`)
           });
         } else {
-          items.push({ 
-            phase: 2, 
-            title: 'Angebot fertigstellen & vorlegen', 
-            desc: 'Bitte sende dem Kunden das finale Angebot.', 
-            status: 'info' 
+          items.push({
+            phase: 2,
+            title: 'Angebot fertigstellen & vorlegen',
+            desc: 'Bitte sende dem Kunden das finale Angebot.',
+            status: 'info'
           });
         }
       } else if (activeOrder.status === 'quote') {
         if (activeOrder.orderMeta?.viewingDate === 'requested') {
-          items.push({ 
-            phase: 2, 
-            title: 'Besichtigungstermin planen', 
-            desc: 'Kunde wünscht einen Besichtigungstermin.', 
+          items.push({
+            phase: 2,
+            title: 'Besichtigungstermin planen',
+            desc: 'Kunde wünscht einen Besichtigungstermin.',
             status: 'warning',
             action: () => router.push(`/dashboard/customers/${customerId}/edit-order/${activeOrder.id}`)
           });
@@ -230,42 +281,42 @@ export default function CustomerProfilePage() {
     // Phase 3 & 4: Auftragsdetails & Status
     if (activeOrder && missingData.length === 0) {
       if (activeOrder.status === 'quote') {
-        items.push({ 
-          phase: 3, 
-          title: 'Angebot bestätigen', 
-          desc: 'Warten auf Kundenbestätigung (Digitale Signatur oder externe Zusage).', 
-          status: 'warning' 
+        items.push({
+          phase: 3,
+          title: 'Angebot bestätigen',
+          desc: 'Warten auf Kundenbestätigung (Digitale Signatur oder externe Zusage).',
+          status: 'warning'
         });
       }
-      
+
       // Phase 5: Rechnungen & Reklamationen
       const unpaidInvoices = orders.filter(o => o.status === 'invoice_open' || o.status === 'invoice_overdue');
       if (unpaidInvoices.length > 0) {
-        items.push({ 
-          phase: 5, 
-          title: 'Offene Rechnungen', 
-          desc: `${unpaidInvoices.length} Rechnung(en) warten auf Zahlungseingang.`, 
-          status: 'danger', 
-          action: () => setPaymentOrder(unpaidInvoices[0]) 
+        items.push({
+          phase: 5,
+          title: 'Offene Rechnungen',
+          desc: `${unpaidInvoices.length} Rechnung(en) warten auf Zahlungseingang.`,
+          status: 'danger',
+          action: () => setPaymentOrder(unpaidInvoices[0])
         });
       } else if (activeOrder.status === 'completed' && activeOrder.type !== 'invoice' && !activeOrder.invoiceNumber) {
-        items.push({ 
-          phase: 5, 
-          title: 'Rechnung erstellen', 
-          desc: 'Der Umzug ist abgeschlossen. Es wurde noch keine Rechnung generiert.', 
-          status: 'warning', 
+        items.push({
+          phase: 5,
+          title: 'Rechnung erstellen',
+          desc: 'Der Umzug ist abgeschlossen. Es wurde noch keine Rechnung generiert.',
+          status: 'warning',
           action: async () => {
-             try {
-               await changeOrderStatus(activeOrder.id, 'invoice_open', { userId: profile?.uid });
-               toast.success('Rechnung generiert!');
-             } catch (err: any) {
-               toast.error(err.message || 'Fehler beim Erstellen der Rechnung');
-             }
+            try {
+              await changeOrderStatus(activeOrder.id, 'invoice_open', { userId: profile?.uid });
+              toast.success('Rechnung generiert!');
+            } catch (err: any) {
+              toast.error(err.message || 'Fehler beim Erstellen der Rechnung');
+            }
           }
         });
       }
     }
-    
+
     return items;
   }, [customer, orders, customerId, router]);
 
@@ -293,7 +344,7 @@ export default function CustomerProfilePage() {
   const handleDeleteCustomer = async () => {
     // Aufbewahrungsregel: Kunden MIT Rechnungen (jeder Status) dürfen nicht hart gelöscht werden
     const hasAnyInvoiceDocs = orders.some(o => !!o.invoiceNumber || o.type === 'invoice') || freeInvoices.length > 0;
-    
+
     if (hasAnyInvoiceDocs) {
       toast(
         'Dieser Kunde hat Rechnungsbelege und kann aus Aufbewahrungsgründen nicht gelöscht werden. Der Kunde wird stattdessen archiviert (verschwindet aus Listen, Belege bleiben erhalten).',
@@ -332,7 +383,7 @@ export default function CustomerProfilePage() {
     const addressA = `${logistics?.a_street || ''} ${logistics?.a_houseNr || ''}, ${logistics?.a_zip || ''} ${logistics?.a_city || ''}`.trim();
     const addressB = `${logistics?.b_street || ''} ${logistics?.b_houseNr || ''}, ${logistics?.b_zip || ''} ${logistics?.b_city || ''}`.trim();
     const baseAddress = "Bochum, Germany"; // Hauptsitz
-    
+
     if (addressA.length > 5 && addressB.length > 5 && addressA !== addressB) {
       setIsCalculatingRoute(prev => ({ ...prev, [orderId]: true }));
       setRouteError(prev => ({ ...prev, [orderId]: null }));
@@ -344,7 +395,7 @@ export default function CustomerProfilePage() {
         if (resDirect && resBaseToA && resBToBase) {
           const totalDistance = resBaseToA.distanceKm + resDirect.distanceKm + resBToBase.distanceKm;
           const totalDuration = resBaseToA.durationMinutes + resDirect.durationMinutes + resBToBase.durationMinutes;
-          
+
           setRouteInfo(prev => ({
             ...prev,
             [orderId]: {
@@ -371,15 +422,15 @@ export default function CustomerProfilePage() {
 
   const handleUpdateOrderStatus = async (order: any, newStatus: string) => {
     try {
-      await changeOrderStatus(order.id, newStatus as any, { 
+      await changeOrderStatus(order.id, newStatus as any, {
         userId: user?.uid,
         userName: user?.email || 'System'
       });
-      
+
       if (newStatus === 'confirmed') toast.success("Angebot bestätigt!");
       else if (newStatus === 'invoice_open') toast.success("Rechnung generiert!");
       else toast.success("Status aktualisiert!");
-      
+
       setActiveDropdown(null);
     } catch (error: any) {
       console.error(error);
@@ -408,33 +459,53 @@ export default function CustomerProfilePage() {
     }
   };
 
+  const [isStornoLoading, setIsStornoLoading] = useState(false);
+
   const handleStorno = async (order: any, createCorrection: boolean = true) => {
+    if (isStornoLoading) return;
     try {
+      setIsStornoLoading(true);
       // Determine which collection holds the original invoice
       const isFreeInvoice = order._collection === 'invoices';
       const targetCol = isFreeInvoice ? 'invoices' : 'orders';
+      const isChildInvoice = order.type === 'invoice' && order.sourceOrderId;
 
-      await updateDoc(doc(db, getCol(targetCol), order.id), { status: 'invoice_cancelled', updatedAt: serverTimestamp() });
       const settingsSnap = await getDoc(doc(db, getCol('system'), 'settings'));
       const nextInvoiceNum = settingsSnap.data()?.nextInvoiceNumber || 1000;
-      const stornoInvoiceNumber = `RE-${new Date().getFullYear()}-${nextInvoiceNum}`;
+      const stornoInvoiceNumber = `RE-${new Date().getFullYear()}-${nextInvoiceNum.toString().padStart(3, '0')}`;
       await updateDoc(doc(db, getCol('system'), 'settings'), { nextInvoiceNumber: nextInvoiceNum + 1 });
+
+      const orderUpdatePayload: any = { updatedAt: serverTimestamp() };
       
-      const origNet = order.totals?.net ?? order.calcInput?.net ?? (order.isFlatRate ? (order.flatRateNet || 0) : (order.services || []).reduce((acc: number, curr: any) => acc + (curr.quantity * (curr.unitPrice || 0)), 0));
-      const origTax = order.totals?.tax ?? order.calcInput?.tax ?? (origNet * 0.19);
-      const origGross = order.totals?.gross ?? order.calcInput?.gross ?? (origNet + origTax);
-      
+      if (!isFreeInvoice && !isChildInvoice) { // Es ist der Hauptauftrag (Angebot)
+        orderUpdatePayload.status = 'completed';
+        const newHistoryEntry = {
+          invoiceNumber: order.invoiceNumber,
+          status: 'cancelled',
+          stornoRef: stornoInvoiceNumber,
+          date: new Date().toISOString()
+        };
+        orderUpdatePayload.invoiceHistory = [...(order.invoiceHistory || []), newHistoryEntry];
+        orderUpdatePayload.invoiceNumber = null;
+        orderUpdatePayload.invoiceDate = null;
+      } else { // Es ist eine freie Rechnung oder eine generierte Unter-Rechnung
+        orderUpdatePayload.status = 'invoice_cancelled';
+      }
+
+      await updateDoc(doc(db, getCol(targetCol), order.id), orderUpdatePayload);
+
+      const { net: origNet, tax: origTax, gross: origGross } = calculateOrderTotals(order);
       const stornoTotals = { net: -origNet, tax: -origTax, gross: -origGross };
-      
+
       const { id, customerSignature, _collection, ...orderDataWithoutId } = order;
-      
+
       // Negate services and flatRate for the Storno document so the PDF table is correct
       const stornoServices = (order.services || []).map((s: any) => ({
         ...s,
         unitPrice: s.unitPrice ? -s.unitPrice : 0
       }));
       const stornoFlatRateNet = order.flatRateNet ? -order.flatRateNet : 0;
-      
+
       // Storno Beleg goes into the same collection as the original
       await addDoc(collection(db, getCol(targetCol)), {
         ...orderDataWithoutId,
@@ -451,29 +522,45 @@ export default function CustomerProfilePage() {
         updatedAt: serverTimestamp()
       });
 
-      if (createCorrection && !isFreeInvoice) {
-        // Correction draft: a clean new order (status 'draft'), NOT an invoice.
-        // Explicitly strip all invoice-specific fields so it never appears as an invoice.
-        const { type, invoiceNumber: _inv, isStorno: _ist, stornoFor: _stf, quoteCreatedAt, confirmedSnapshot, ...correctionBase } = orderDataWithoutId;
-        await addDoc(collection(db, getCol('orders')), {
-          ...correctionBase,
-          status: 'draft',
-          type: 'order', // ensure it's treated as an order, not an invoice
-          invoiceNumber: null,
-          contractNumber: null,
-          isStorno: false,
-          stornoFor: null,
-          quoteCreatedAt: null,
-          confirmedSnapshot: null,
-          orderNumber: `${order.orderNumber || ''}-KORR`,
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        });
+      if (createCorrection) {
+        if (isFreeInvoice) {
+          // Free Invoice "Neu"
+          const { id, ...freeInvData } = order;
+          const docRef = await addDoc(collection(db, getCol('invoices')), {
+            ...freeInvData,
+            status: 'draft',
+            invoiceNumber: null,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          });
+          toast.success("Storno & Entwurf erstellt! Leite weiter...");
+          router.push(`/dashboard/customers/${customerId}/edit-invoice/${docRef.id}`);
+        } else {
+          // Order "Neu" clones the original order into a new draft invoice
+          const { id, _collection, ...orderData } = order;
+          const newInvoiceData = {
+            ...orderData,
+            type: 'invoice',
+            status: 'draft',
+            sourceOrderId: order.id,
+            invoiceNumber: null,
+            invoiceDate: null,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          };
+          const docRef = await addDoc(collection(db, getCol('orders')), newInvoiceData);
+          toast.success("Storno & Neuer Rechnungs-Entwurf erstellt! Leite weiter...");
+          router.push(`/dashboard/customers/${customerId}/edit-invoice/${docRef.id}`);
+        }
+      } else {
+        toast.success("Erfolgreich storniert!");
       }
-      toast.success(createCorrection ? "Erfolgreich storniert! Storno-Beleg & neuer Entwurf erstellt." : "Erfolgreich storniert!");
+
       setActiveDropdown(null);
     } catch (error) {
       toast.error("Fehler beim Stornieren.");
+    } finally {
+      setIsStornoLoading(false);
     }
   };
 
@@ -494,7 +581,12 @@ export default function CustomerProfilePage() {
       });
       setIsEditing(false);
       toast.success("Kundendaten gespeichert!");
+      const url = new URL(window.location.href);
+      if (url.searchParams.has('highlight')) {
+        router.replace(`/dashboard/customers/${customerId}`, { scroll: false });
+      }
     } catch (error) {
+      console.error("Save Customer Error:", error);
       toast.error("Fehler beim Speichern");
     }
   };
@@ -515,12 +607,10 @@ export default function CustomerProfilePage() {
     return !hasChildInvoice;
   });
 
-  const totalRevenue = validFinancialDocs.filter(o => ['quote', 'confirmed', 'completed', 'invoice_open', 'invoice_paid'].includes(o.status)).reduce((sum, o) => sum + (o.totals?.gross ?? o.calcInput?.gross ?? 0), 0);
+  const totalRevenue = validFinancialDocs.filter(o => ['quote', 'confirmed', 'completed', 'invoice_open', 'invoice_paid'].includes(o.status)).reduce((sum, o) => sum + calculateOrderTotals(o).gross, 0);
   // Open = not cancelled, not paid, not storno
   const openItems = validFinancialDocs.filter(o => ['invoice_open', 'invoice_overdue', 'confirmed', 'completed'].includes(o.status)).reduce((sum, o) => {
-    const gross = o.totals?.gross ?? o.calcInput?.gross ?? 0;
-    const paid = o.payments?.reduce((pSum: number, p: any) => pSum + p.amount, 0) || 0;
-    return sum + Math.max(0, gross - paid);
+    return sum + calculateOpenAmount(o);
   }, 0);
 
   return (
@@ -532,7 +622,7 @@ export default function CustomerProfilePage() {
       <div className="w-full lg:w-[320px] shrink-0 space-y-4">
         <div className="bg-bg-panel border border-white/10 rounded-2xl p-6 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
-          
+
           <div className="flex items-center gap-4 mb-6 relative z-10">
             <div className="w-16 h-16 rounded-full bg-black/40 border border-white/10 flex items-center justify-center text-text-muted shadow-inner">
               <UserCircleIcon className="w-10 h-10" />
@@ -548,20 +638,28 @@ export default function CustomerProfilePage() {
 
           {isEditing ? (
             <div className="space-y-3 bg-black/20 p-4 rounded-xl border border-white/5 relative z-10">
-              <input type="text" placeholder="Vorname" value={editData.firstName} onChange={e => setEditData({...editData, firstName: e.target.value})} className="input-field w-full text-sm" />
-              <input type="text" placeholder="Nachname" value={editData.lastName} onChange={e => setEditData({...editData, lastName: e.target.value})} className="input-field w-full text-sm" />
-              <input type="text" placeholder="Telefon" value={editData.phone} onChange={e => setEditData({...editData, phone: e.target.value})} className="input-field w-full text-sm" />
-              <input type="email" placeholder="E-Mail" value={editData.email} onChange={e => setEditData({...editData, email: e.target.value})} className="input-field w-full text-sm" />
-              <div className="flex gap-2"><input type="text" placeholder="Str." value={editData.street} onChange={e => setEditData({...editData, street: e.target.value})} className="input-field w-full text-sm" /><input type="text" placeholder="Nr" value={editData.houseNr} onChange={e => setEditData({...editData, houseNr: e.target.value})} className="input-field w-16 text-sm" /></div>
-              <div className="flex gap-2"><input type="text" placeholder="PLZ" value={editData.zip} onChange={e => setEditData({...editData, zip: e.target.value})} className="input-field w-24 text-sm" /><input type="text" placeholder="Ort" value={editData.city} onChange={e => setEditData({...editData, city: e.target.value})} className="input-field w-full text-sm" /></div>
+              <input type="text" placeholder="Vorname" value={editData.firstName} onChange={e => setEditData({ ...editData, firstName: e.target.value })} className="input-field w-full text-sm" />
+              <input type="text" placeholder="Nachname" value={editData.lastName} onChange={e => setEditData({ ...editData, lastName: e.target.value })} className="input-field w-full text-sm" />
+              <div id="highlight-phone"><input id="input-phone" type="text" placeholder="Telefon" value={editData.phone} onChange={e => setEditData({ ...editData, phone: e.target.value })} className="input-field w-full text-sm" /></div>
+              <div id="highlight-email"><input id="input-email" type="email" placeholder="E-Mail" value={editData.email} onChange={e => setEditData({ ...editData, email: e.target.value })} className="input-field w-full text-sm" /></div>
+              <div id="highlight-billingAddress" className="space-y-2 p-1">
+                <div className="flex gap-2"><input id="input-street" type="text" placeholder="Str." value={editData.street} onChange={e => setEditData({ ...editData, street: e.target.value })} className="input-field w-full text-sm" /><input id="input-houseNr" type="text" placeholder="Nr" value={editData.houseNr} onChange={e => setEditData({ ...editData, houseNr: e.target.value })} className="input-field w-16 text-sm" /></div>
+                <div className="flex gap-2"><input id="input-zip" type="text" placeholder="PLZ" value={editData.zip} onChange={e => setEditData({ ...editData, zip: e.target.value })} className="input-field w-24 text-sm" /><input id="input-city" type="text" placeholder="Ort" value={editData.city} onChange={e => setEditData({ ...editData, city: e.target.value })} className="input-field w-full text-sm" /></div>
+              </div>
               <div className="pt-2">
-                <select value={editData.source} onChange={e => setEditData({...editData, source: e.target.value})} className="input-field w-full text-sm border-primary/30 focus:border-primary text-text-main">
+                <select value={editData.source} onChange={e => setEditData({ ...editData, source: e.target.value })} className="input-field w-full text-sm border-primary/30 focus:border-primary text-text-main">
                   <option value="">Kundenquelle auswählen...</option>
                   {settings?.customerSources?.map((s: string) => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div className="flex gap-2 mt-4">
-                <button onClick={() => setIsEditing(false)} className="btn-secondary flex-1 py-1.5 text-xs">Abbrechen</button>
+                <button onClick={() => {
+                  setIsEditing(false);
+                  const url = new URL(window.location.href);
+                  if (url.searchParams.has('highlight')) {
+                    router.replace(`/dashboard/customers/${customerId}`, { scroll: false });
+                  }
+                }} className="btn-secondary flex-1 py-1.5 text-xs">Abbrechen</button>
                 <button onClick={handleSaveCustomer} className="btn-primary flex-1 py-1.5 text-xs">Speichern</button>
               </div>
             </div>
@@ -569,8 +667,9 @@ export default function CustomerProfilePage() {
             <div className="space-y-4 text-sm relative z-10">
               {customer.phone && <div className="flex items-center gap-3 text-text-muted"><PhoneIcon className="w-4 h-4 text-primary" /> {customer.phone}</div>}
               {customer.email && <div className="flex items-center gap-3 text-text-muted"><EnvelopeIcon className="w-4 h-4 text-primary" /> {customer.email}</div>}
-              {(customer.street || customer.city) && <div className="flex items-start gap-3 text-text-muted"><MapPinIcon className="w-4 h-4 text-primary shrink-0 mt-0.5" /> <span>{customer.street} {customer.houseNr}<br/>{customer.zip} {customer.city}</span></div>}
-              <button onClick={() => setIsEditing(true)} className="text-xs text-primary hover:text-white transition-colors mt-2 underline underline-offset-2">Bearbeiten</button>
+              {(customer.street || customer.city) && <div className="flex items-start gap-3 text-text-muted"><MapPinIcon className="w-4 h-4 text-primary shrink-0 mt-0.5" /> <span>{customer.street} {customer.houseNr}<br />{customer.zip} {customer.city}</span></div>}
+              <button onClick={() => setIsEditing(true)} className="text-xs text-primary hover:text-white transition-colors mt-2 underline underline-offset-2">Kundendaten bearbeiten</button>
+
             </div>
           )}
 
@@ -582,12 +681,12 @@ export default function CustomerProfilePage() {
               <DocumentTextIcon className="w-4 h-4" /> Neue freie Rechnung
             </button>
           </div>
-          
+
           {/* Danger Zone */}
           <div className="mt-6 pt-6 border-t border-red-500/20 relative z-10">
-             <button onClick={handleDeleteCustomer} className="w-full py-2 flex justify-center items-center gap-2 text-xs text-red-500 hover:bg-red-500/10 rounded-lg transition-colors border border-transparent hover:border-red-500/20">
-               <TrashIcon className="w-4 h-4" /> Kunde löschen / archivieren
-             </button>
+            <button onClick={handleDeleteCustomer} className="w-full py-2 flex justify-center items-center gap-2 text-xs text-red-500 hover:bg-red-500/10 rounded-lg transition-colors border border-transparent hover:border-red-500/20">
+              <TrashIcon className="w-4 h-4" /> Kunde löschen / archivieren
+            </button>
           </div>
         </div>
 
@@ -629,7 +728,7 @@ export default function CustomerProfilePage() {
 
       {/* RIGHT MAIN AREA: Timeline & Finances */}
       <div className="flex-1 space-y-4">
-        
+
         {/* Unified Top Financial Bar */}
         <div className="flex flex-wrap items-center justify-between gap-4 bg-bg-panel border border-white/5 rounded-2xl p-4 shadow-md">
           <h2 className="text-lg font-bold text-text-main flex items-center gap-2"><DocumentTextIcon className="w-5 h-5 text-primary" /> Auftragshistorie</h2>
@@ -651,46 +750,49 @@ export default function CustomerProfilePage() {
 
         {/* Timeline */}
         {activeOrdersList.length === 0 ? (
-           <div className="flex flex-col items-center justify-center p-20 bg-black/10 border border-dashed border-white/10 rounded-2xl">
-             <DocumentTextIcon className="w-12 h-12 text-text-muted/30 mb-4" />
-             <div className="text-text-muted font-medium">Bisher keine Aufträge vorhanden.</div>
-           </div>
+          <div className="flex flex-col items-center justify-center p-20 bg-black/10 border border-dashed border-white/10 rounded-2xl">
+            <DocumentTextIcon className="w-12 h-12 text-text-muted/30 mb-4" />
+            <div className="text-text-muted font-medium">Bisher keine Aufträge vorhanden.</div>
+          </div>
         ) : (
           <div className="space-y-4">
             {activeOrdersList.map((order, index) => {
               const isExpanded = expandedOrderId === order.id;
               const isFreeInvoice = order._collection === 'invoices'; // from dedicated invoices collection
               const isInvoice = isFreeInvoice || order.type === 'invoice' || order.status?.startsWith('invoice_');
-              const isQuote = order.status === 'draft' || order.status === 'quote' || order.status === 'clarification';
-              const linkedInvoices = orders.filter(o => o.sourceOrderId === order.id);
-              const hasActiveInvoice = linkedInvoices.some(inv => inv.status !== 'canceled' && inv.status !== 'archived');
-              
+              const linkedInvoices = orders.filter((o: any) => 
+                o.type === 'invoice' && 
+                (o.sourceOrderId === order.id || (o.orderNumber === order.orderNumber && !o.sourceOrderId))
+              );
+              const hasActiveInvoice = linkedInvoices.some(inv => inv.status !== 'canceled' && inv.status !== 'invoice_cancelled' && inv.status !== 'archived');
+
               return (
                 <div key={order.id} className={`bg-bg-panel border ${isExpanded ? 'border-primary/40 shadow-lg shadow-primary/5' : 'border-white/5 hover:border-white/10 shadow-sm'} rounded-2xl overflow-hidden transition-all duration-300`}>
-                  
+
                   {/* Timeline Header (Always Visible) */}
-                  <div 
+                  <div
                     onClick={() => setExpandedOrderId(isExpanded ? null : order.id)}
                     className="p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 cursor-pointer hover:bg-white/[0.02] transition-colors"
                   >
                     <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${isInvoice ? 'bg-purple-500/10 border-purple-500/30 text-purple-400' : 'bg-primary/10 border-primary/30 text-primary'}`}>
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${isFreeInvoice ? 'bg-purple-500/10 border-purple-500/30 text-purple-400' : 'bg-primary/10 border-primary/30 text-primary'}`}>
                         <DocumentTextIcon className="w-5 h-5" />
                       </div>
                       <div>
                         <h3 className="font-bold text-text-main text-base flex items-center gap-2">
-                          {isFreeInvoice ? 'Freie Rechnung' : isInvoice ? 'Rechnung' : (['draft', 'quote'].includes(order.status) ? 'Angebot' : 'Auftrag')} {order.invoiceNumber ? `#${order.invoiceNumber}` : order.orderNumber ? `#${order.orderNumber}` : ''}
+                          {isFreeInvoice ? `Freie Rechnung ${order.invoiceNumber ? `#${order.invoiceNumber}` : ''}` : `Angebot ${order.orderNumber ? `#${order.orderNumber}` : ''}`}
                         </h3>
                         <div className="text-xs text-text-muted mt-0.5 flex items-center gap-2">
                           {new Date(order.createdAt?.toMillis?.() || Date.now()).toLocaleDateString('de-DE')}
                           <span>•</span>
-                          <StatusBadge status={order.status} payments={order.payments} totals={order.totals} calcInput={order.calcInput} />
+                          <StatusBadge status={order.status} payments={order.payments} totals={{ gross: calculateOrderTotals(order).gross }} />
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-6">
                       <div className="text-right">
-                        <div className="font-bold text-text-main">€ {Number(order.totals?.gross || order.calcInput?.gross || 0).toFixed(2)}</div>
+                        <div className="font-bold text-text-main">€ {calculateOrderTotals(order).gross.toFixed(2)}</div>
+                        <div className="text-xs text-text-muted mt-1">{order.status === 'canceled' ? '-' : 'Brutto'}</div>
                       </div>
                       <div className="text-text-muted">
                         {isExpanded ? <ChevronUpIcon className="w-5 h-5" /> : <ChevronDownIcon className="w-5 h-5" />}
@@ -701,7 +803,7 @@ export default function CustomerProfilePage() {
                   {/* Expanded Detail View */}
                   {isExpanded && (
                     <div className="border-t border-white/5 bg-black/20 p-5 animate-in slide-in-from-top-2 duration-300">
-                      
+
                       {/* Unified Live-Reaktions-Fläche */}
                       <div className="mb-6 bg-bg-dark border border-structure rounded-2xl shadow-xl overflow-hidden">
                         <div className="p-4 bg-gradient-to-r from-bg-panel to-bg-dark border-b border-white/5 flex items-center justify-between">
@@ -711,27 +813,27 @@ export default function CustomerProfilePage() {
                           {/* Right Side Actions */}
                           <div className="flex items-center gap-2">
                             {order.status !== 'archived' && order.status !== 'canceled' && (
-                              <button 
-                                onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/${order.id}`)} 
+                              <button
+                                onClick={() => router.push(`/dashboard/customers/${customerId}/edit-order/${order.id}`)}
                                 className="px-3 py-1.5 bg-bg-panel border border-structure text-text-main hover:text-primary text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-sm"
                               >
-                                <PencilIcon className="w-3.5 h-3.5 text-primary"/> Bearbeiten
+                                <PencilIcon className="w-3.5 h-3.5 text-primary" /> Umzug/Angebot bearbeiten
                               </button>
                             )}
                             {/* Permanent Undo Button */}
                             {['quote', 'confirmed', 'completed'].includes(order.status) && !hasActiveInvoice && (
-                              <button 
+                              <button
                                 onClick={() => {
                                   const map: any = { 'quote': 'draft', 'confirmed': 'quote', 'completed': 'confirmed' };
                                   handleUpdateOrderStatus(order, map[order.status]);
-                                }} 
+                                }}
                                 className="p-1.5 bg-bg-panel hover:bg-white/10 border border-structure text-text-muted hover:text-white rounded-lg transition-colors"
                                 title="Einen Schritt zurück"
                               >
                                 <ArrowUturnLeftIcon className="w-4 h-4" />
                               </button>
                             )}
-                            <button 
+                            <button
                               onClick={() => setActiveDropdown(activeDropdown === order.id ? null : order.id)}
                               className="p-1.5 bg-bg-panel hover:bg-white/10 border border-structure rounded-lg text-text-main transition-colors"
                             >
@@ -739,12 +841,19 @@ export default function CustomerProfilePage() {
                             </button>
                             {activeDropdown === order.id && (
                               <div className="absolute right-6 mt-10 w-56 bg-bg-panel border border-structure rounded-xl shadow-2xl py-1 z-50">
-                                {['confirmed', 'completed'].includes(order.status) && (
-                                  <button onClick={() => { setActiveDropdown(null); setInlinePdfOrder(inlinePdfOrder?.id === order.id ? null : order); setInlinePdfType('protocol'); }} className="w-full text-left px-4 py-2 text-sm text-text-main hover:bg-structure flex items-center gap-2"><DocumentArrowDownIcon className="w-4 h-4"/> Leeres Protokoll drucken</button>
+                                {['confirmed', 'completed', 'invoice_open', 'invoice_overdue', 'invoice_paid'].includes(order.status) && (
+                                  <button onClick={() => { setActiveDropdown(null); setInlinePdfOrder(inlinePdfOrder?.id === order.id ? null : order); setInlinePdfType('protocol'); }} className="w-full text-left px-4 py-2 text-sm text-text-main hover:bg-structure flex items-center gap-2"><DocumentArrowDownIcon className="w-4 h-4" /> Leeres Protokoll drucken</button>
                                 )}
-                                <button onClick={() => { setActiveDropdown(null); setInlinePdfOrder(inlinePdfOrder?.id === order.id ? null : order); setInlinePdfType(isInvoice ? 'invoice' : 'order'); }} className="w-full text-left px-4 py-2 text-sm text-text-main hover:bg-structure flex items-center gap-2"><DocumentArrowDownIcon className="w-4 h-4"/> PDF / Drucken</button>
+                                {isInvoice && !isFreeInvoice ? (
+                                  <>
+                                    <button onClick={() => { setActiveDropdown(null); setInlinePdfOrder(inlinePdfOrder?.id === order.id ? null : order); setInlinePdfType('invoice'); }} className="w-full text-left px-4 py-2 text-sm text-text-main hover:bg-structure flex items-center gap-2"><DocumentArrowDownIcon className="w-4 h-4" /> Rechnung drucken</button>
+                                    <button onClick={() => { setActiveDropdown(null); setInlinePdfOrder(inlinePdfOrder?.id === order.id ? null : order); setInlinePdfType('order'); }} className="w-full text-left px-4 py-2 text-sm text-text-main hover:bg-structure flex items-center gap-2"><DocumentArrowDownIcon className="w-4 h-4" /> Urspr. Angebot drucken</button>
+                                  </>
+                                ) : (
+                                  <button onClick={() => { setActiveDropdown(null); setInlinePdfOrder(inlinePdfOrder?.id === order.id ? null : order); setInlinePdfType(isFreeInvoice ? 'invoice' : 'order'); }} className="w-full text-left px-4 py-2 text-sm text-text-main hover:bg-structure flex items-center gap-2"><DocumentArrowDownIcon className="w-4 h-4" /> {isFreeInvoice ? 'Rechnung drucken' : 'Angebot drucken'}</button>
+                                )}
                                 {['draft', 'quote', 'clarification', 'rejected'].includes(order.status) && (
-                                  <button onClick={() => { setActiveDropdown(null); deleteOrder(order.id); }} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2"><TrashIcon className="w-4 h-4"/> Löschen</button>
+                                  <button onClick={() => { setActiveDropdown(null); deleteOrder(order.id); }} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2"><TrashIcon className="w-4 h-4" /> Löschen</button>
                                 )}
                               </div>
                             )}
@@ -795,7 +904,7 @@ export default function CustomerProfilePage() {
                                   </div>
                                   <div className="flex gap-2">
                                     <button onClick={() => handleUpdateOrderStatus(order, 'rejected')} className="px-3 py-1.5 bg-white/5 hover:bg-red-500/10 text-text-muted hover:text-red-400 text-xs font-bold rounded-lg transition-colors">Kunde hat abgesagt</button>
-                                    <button onClick={() => handleConfirmOrder(order)} className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1"><CheckIcon className="w-4 h-4"/> Auftrag bestätigen</button>
+                                    <button onClick={() => handleConfirmOrder(order)} className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1"><CheckIcon className="w-4 h-4" /> Auftrag bestätigen</button>
                                   </div>
                                 </div>
                               )}
@@ -823,24 +932,6 @@ export default function CustomerProfilePage() {
                                 </div>
                               )}
 
-                              {/* 5. Invoicing */}
-                              {(order.status === 'completed' && !isInvoice && !order.invoiceNumber) && (
-                                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 flex flex-wrap justify-between items-center gap-3">
-                                  <div>
-                                    <div className="text-[10px] text-blue-400/70 font-bold uppercase mb-0.5">Phase 5 • Rechnung</div>
-                                    <div className="text-sm text-blue-400 font-bold">Es fehlt noch die Rechnung</div>
-                                  </div>
-                                  <button onClick={async () => {
-                                    try {
-                                      await changeOrderStatus(order.id, 'invoice_open', { userId: profile?.uid });
-                                      toast.success('Rechnung generiert!');
-                                    } catch (err: any) {
-                                      toast.error(err.message || 'Fehler beim Generieren der Rechnung');
-                                    }
-                                  }} className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">🧾 Rechnung generieren</button>
-                                </div>
-                              )}
-
                               {/* 6. System Tickets (Pending) */}
                               {generateTickets(order, customer).filter(t => !t.done).map(todo => {
                                 const isKarton = todo.id === 'kartons_liefern';
@@ -849,9 +940,9 @@ export default function CustomerProfilePage() {
                                 return (
                                   <div key={todo.id} className="bg-bg-panel border border-white/5 rounded-xl p-3 flex flex-wrap justify-between items-center gap-3 hover:bg-white/5 transition-colors">
                                     <div className="flex items-start gap-3">
-                                      <input 
-                                        type="checkbox" 
-                                        checked={todo.done} 
+                                      <input
+                                        type="checkbox"
+                                        checked={todo.done}
                                         disabled={todo.systemEvaluated && todo.done}
                                         onChange={async () => {
                                           if (todo.systemEvaluated) return;
@@ -875,12 +966,12 @@ export default function CustomerProfilePage() {
                                           <div className="flex flex-wrap items-center gap-2 mt-2">
                                             <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-white/5 w-fit">
                                               <span className="text-[10px] text-text-muted uppercase">Datum:</span>
-                                              <input 
+                                              <input
                                                 type="date"
                                                 value={
                                                   isKarton ? (order.orderMeta?.kartonDeliveryDate || '') :
-                                                  isHV ? (order.orderMeta?.halteverbotDate || '') :
-                                                  (order.orderMeta?.moebelliftDate || '')
+                                                    isHV ? (order.orderMeta?.halteverbotDate || '') :
+                                                      (order.orderMeta?.moebelliftDate || '')
                                                 }
                                                 onChange={async (e) => {
                                                   const val = e.target.value;
@@ -892,13 +983,13 @@ export default function CustomerProfilePage() {
                                             </div>
                                             <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-white/5 w-fit">
                                               <span className="text-[10px] text-text-muted uppercase">Zeitfenster:</span>
-                                              <input 
+                                              <input
                                                 type="text"
                                                 placeholder="z.B. 10-14 Uhr"
                                                 value={
                                                   isKarton ? (order.orderMeta?.kartonDeliveryTime || '') :
-                                                  isHV ? (order.orderMeta?.halteverbotTime || '') :
-                                                  (order.orderMeta?.moebelliftTime || '')
+                                                    isHV ? (order.orderMeta?.halteverbotTime || '') :
+                                                      (order.orderMeta?.moebelliftTime || '')
                                                 }
                                                 onChange={async (e) => {
                                                   const val = e.target.value;
@@ -913,11 +1004,11 @@ export default function CustomerProfilePage() {
                                         {/* Viewing Requested Special Button */}
                                         {todo.id === 'viewing_requested' && (
                                           <div className="mt-3">
-                                            <button 
+                                            <button
                                               onClick={async () => {
                                                 await updateDoc(doc(db, getCol('orders'), order.id), { 'orderMeta.viewingCanceled': true });
                                                 toast.success("Als 'Durch Fotos ersetzt' markiert");
-                                              }} 
+                                              }}
                                               className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-text-muted hover:text-white text-[10px] font-bold rounded-lg transition-colors border border-white/5"
                                             >
                                               Durch Fotos/Liste ersetzt
@@ -928,11 +1019,11 @@ export default function CustomerProfilePage() {
                                         {/* Confirmation Sent Button */}
                                         {todo.id === 'confirmation_sent' && (
                                           <div className="mt-3 flex gap-2">
-                                            <button 
-                                              onClick={() => setMessageOrder(order)} 
+                                            <button
+                                              onClick={() => setMessageOrder({ data: order, defaultTemplate: 'Angebot bestätigen' })}
                                               className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-[10px] font-bold rounded-lg transition-colors border border-blue-500/20 flex items-center gap-1"
                                             >
-                                              <EnvelopeIcon className="w-3.5 h-3.5"/> Nachricht senden
+                                              <EnvelopeIcon className="w-3.5 h-3.5" /> Nachricht senden
                                             </button>
                                           </div>
                                         )}
@@ -940,11 +1031,11 @@ export default function CustomerProfilePage() {
                                         {/* Abnahmeprotokoll Button */}
                                         {todo.id === 'abnahmeprotokoll' && (
                                           <div className="mt-3">
-                                            <button 
-                                              onClick={() => setProtocolOrder(order)} 
+                                            <button
+                                              onClick={() => setProtocolOrder(order)}
                                               className="px-3 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 text-[10px] font-bold rounded-lg transition-colors border border-emerald-500/20 flex items-center gap-1"
                                             >
-                                              <DocumentTextIcon className="w-3.5 h-3.5"/> Protokoll öffnen
+                                              <DocumentTextIcon className="w-3.5 h-3.5" /> Protokoll öffnen
                                             </button>
                                           </div>
                                         )}
@@ -952,22 +1043,62 @@ export default function CustomerProfilePage() {
                                         {/* Employee Sheet Special Button */}
                                         {todo.id === 'employee_sheet' && (
                                           <div className="mt-3">
-                                            <button 
+                                            <button
                                               onClick={() => {
                                                 setInlinePdfOrder(order); setInlinePdfType('employee');
                                                 setTimeout(() => {
                                                   document.getElementById(`pdf-viewer-${order.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                                                 }, 100);
-                                              }} 
+                                              }}
                                               className="px-3 py-1.5 bg-primary/20 hover:bg-primary/30 text-primary text-[10px] font-bold rounded-lg transition-colors border border-primary/20 flex items-center gap-1"
                                             >
-                                              <DocumentTextIcon className="w-3.5 h-3.5"/> Laufzettel generieren
+                                              <DocumentTextIcon className="w-3.5 h-3.5" /> Laufzettel generieren
+                                            </button>
+                                          </div>
+                                        )}
+
+                                        {/* Dispo Missing Special Button */}
+                                        {todo.id === 'dispo_missing' && (
+                                          <div className="mt-3">
+                                            {order.orderMeta?.movingDateFrom ? (
+                                              <button
+                                                onClick={() => setDispoOrder(order)}
+                                                className="inline-flex items-center justify-center px-4 py-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-white border border-primary/20 hover:border-primary text-[10px] uppercase tracking-wider font-bold rounded-lg transition-all shadow-sm"
+                                              >
+                                                Disposition zuweisen
+                                              </button>
+                                            ) : (
+                                              <button
+                                                onClick={() => toast.error("Bitte zuerst Umzugsdatum festlegen!")}
+                                                className="inline-flex items-center justify-center px-4 py-1.5 bg-white/5 hover:bg-white/10 text-text-muted hover:text-white border border-white/5 text-[10px] uppercase tracking-wider font-bold rounded-lg transition-all shadow-sm"
+                                              >
+                                                Bitte zuerst Umzugsdatum festlegen
+                                              </button>
+                                            )}
+                                          </div>
+                                        )}
+
+                                        {/* Invoice Missing Special Button */}
+                                        {todo.id === 'invoice_missing' && !hasActiveInvoice && (
+                                          <div className="mt-3">
+                                            <button onClick={() => setConfirmInvoiceOrder(order)} className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-[10px] font-bold rounded-lg shadow-sm transition-colors">🧾 Rechnung generieren</button>
+                                          </div>
+                                        )}
+
+                                        {/* Review Requested Special Button */}
+                                        {todo.id === 'review_requested' && (
+                                          <div className="mt-3 flex gap-2">
+                                            <button
+                                              onClick={() => setMessageOrder({ data: order, defaultTemplate: 'Bewertung' })}
+                                              className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-[10px] font-bold rounded-lg transition-colors border border-blue-500/20 flex items-center gap-1"
+                                            >
+                                              <EnvelopeIcon className="w-3.5 h-3.5" /> Nachricht senden
                                             </button>
                                           </div>
                                         )}
 
                                         {/* Default Action Link */}
-                                        {todo.actionLink && todo.id !== 'viewing_requested' && (
+                                        {todo.actionLink && todo.id !== 'viewing_requested' && todo.id !== 'review_requested' && todo.id !== 'invoice_missing' && (
                                           <div className="mt-3">
                                             <Link href={todo.actionLink} className="inline-flex items-center justify-center px-4 py-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-white border border-primary/20 hover:border-primary text-[10px] uppercase tracking-wider font-bold rounded-lg transition-all shadow-sm">
                                               Jetzt erledigen
@@ -995,7 +1126,7 @@ export default function CustomerProfilePage() {
                               <CheckCircleIcon className="w-4 h-4 text-emerald-500" /> Verlauf & Erledigte Tickets
                             </h4>
                             <div className="space-y-1 relative before:absolute before:inset-0 before:ml-[11px] before:-translate-x-px before:h-full before:w-0.5 before:bg-white/10">
-                              
+
                               {/* Order Creation */}
                               <div className="relative pl-8 py-1">
                                 <div className="absolute left-0 top-2 w-6 h-6 rounded-full bg-bg-dark border-2 border-emerald-500 flex items-center justify-center shrink-0">
@@ -1012,7 +1143,7 @@ export default function CustomerProfilePage() {
                                     <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
                                   </div>
                                   <div className="text-[10px] text-text-muted">{order.signatureOrderDate ? new Date(order.signatureOrderDate.toMillis?.() || Date.now()).toLocaleDateString('de-DE') : order.signatureOrderDateString}</div>
-                                  <div className="text-sm text-emerald-400 font-bold flex items-center gap-1"><CheckBadgeIcon className="w-4 h-4"/> Auftrag unterschrieben</div>
+                                  <div className="text-sm text-emerald-400 font-bold flex items-center gap-1"><CheckBadgeIcon className="w-4 h-4" /> Auftrag unterschrieben</div>
                                 </div>
                               )}
 
@@ -1025,7 +1156,7 @@ export default function CustomerProfilePage() {
                                   <div className="text-[10px] text-text-muted">Erledigt</div>
                                   <div className="text-sm text-text-muted flex items-center justify-between">
                                     <span><span className="line-through">{todo.title}</span></span>
-                                    <button 
+                                    <button
                                       onClick={async () => {
                                         const updatedStates = order.ticketStates || {};
                                         updatedStates[todo.id] = false;
@@ -1043,13 +1174,13 @@ export default function CustomerProfilePage() {
                         </div>
                       </div>
 
-                    {/* Info Cards inside Expanded View */}
+                      {/* Info Cards inside Expanded View */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Logistics Summary */}
                         {order.logistics && (
                           <div className="bg-bg-dark border border-structure p-4 rounded-xl shadow-inner">
                             <h4 className="text-xs uppercase tracking-widest text-text-muted font-bold mb-3 flex items-center justify-between">
-                              <span className="flex items-center gap-2"><TruckIcon className="w-4 h-4 text-primary"/> Route</span>
+                              <span className="flex items-center gap-2"><TruckIcon className="w-4 h-4 text-primary" /> Route</span>
                               <button onClick={() => handleCalculateRoute(order.id, order.logistics)} disabled={isCalculatingRoute[order.id]} className="text-[10px] bg-primary/10 text-primary px-2 py-1 rounded hover:bg-primary/20 transition-colors">
                                 {isCalculatingRoute[order.id] ? 'Berechne...' : 'Route berechnen'}
                               </button>
@@ -1059,7 +1190,7 @@ export default function CustomerProfilePage() {
                               <div className="w-0.5 h-3 bg-structure ml-1"></div>
                               <div className="flex items-start gap-2"><div className="w-2 h-2 rounded-full bg-green-500 mt-1.5 shrink-0"></div> {order.logistics.b_city || 'Ausstehend'}</div>
                             </div>
-                            
+
                             {/* Route Results */}
                             {(routeInfo[order.id] || routeError[order.id]) && (
                               <div className="mt-4 pt-4 border-t border-structure space-y-3">
@@ -1069,11 +1200,11 @@ export default function CustomerProfilePage() {
                                   <>
                                     <div className="flex justify-between items-center text-xs">
                                       <span className="text-text-muted">A ➔ B (Direkt):</span>
-                                      <span className="font-bold">{routeInfo[order.id].direct.distanceKm} km <span className="font-normal text-text-muted ml-1">({Math.floor(routeInfo[order.id].direct.durationMinutes/60)}h {routeInfo[order.id].direct.durationMinutes%60}m)</span></span>
+                                      <span className="font-bold">{routeInfo[order.id].direct.distanceKm} km <span className="font-normal text-text-muted ml-1">({Math.floor(routeInfo[order.id].direct.durationMinutes / 60)}h {routeInfo[order.id].direct.durationMinutes % 60}m)</span></span>
                                     </div>
                                     <div className="flex justify-between items-center text-xs">
                                       <span className="text-text-muted">Gesamt (ab Bochum):</span>
-                                      <span className="font-bold text-primary">{routeInfo[order.id].total.distanceKm} km <span className="font-normal text-text-muted ml-1">({Math.floor(routeInfo[order.id].total.durationMinutes/60)}h {routeInfo[order.id].total.durationMinutes%60}m)</span></span>
+                                      <span className="font-bold text-primary">{routeInfo[order.id].total.distanceKm} km <span className="font-normal text-text-muted ml-1">({Math.floor(routeInfo[order.id].total.durationMinutes / 60)}h {routeInfo[order.id].total.durationMinutes % 60}m)</span></span>
                                     </div>
                                     <a href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(`${order.logistics.a_street || ''} ${order.logistics.a_houseNr || ''}, ${order.logistics.a_zip || ''} ${order.logistics.a_city || ''}`)}&destination=${encodeURIComponent(`${order.logistics.b_street || ''} ${order.logistics.b_houseNr || ''}, ${order.logistics.b_zip || ''} ${order.logistics.b_city || ''}`)}`} target="_blank" rel="noopener noreferrer" className="mt-2 w-full btn-secondary text-[11px] py-1.5 flex justify-center items-center gap-1.5 hover:text-blue-400">
                                       <MapPinIcon className="w-3.5 h-3.5" /> Auf Google Maps öffnen
@@ -1084,125 +1215,310 @@ export default function CustomerProfilePage() {
                             )}
                           </div>
                         )}
-                        
+
                         {/* Actions Quick Links */}
                         <div className="bg-bg-dark border border-structure p-4 rounded-xl shadow-inner flex flex-col justify-center gap-2">
-                           <button onClick={() => { setInlinePdfOrder(inlinePdfOrder?.id === order.id ? null : order); setInlinePdfType(isInvoice ? 'invoice' : 'order'); }} className={`btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 transition-colors ${inlinePdfOrder?.id === order.id ? 'border-primary text-primary' : ''}`}>
-                              <DocumentTextIcon className="w-4 h-4 shrink-0" /> PDF Vorschau
-                           </button>
-                           <PDFDownloadButton 
-                              order={order} 
-                              customer={customer} 
-                              type={isInvoice ? 'invoice' : 'order'} 
-                              className="btn-primary w-full justify-center flex items-center gap-2 text-xs py-2 transition-colors shadow-sm"
-                           />
-                           <button onClick={() => setMessageOrder(order)} className="btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 text-blue-400">
-                              <EnvelopeIcon className="w-4 h-4 shrink-0" /> Nachricht senden
-                           </button>
-                           {['confirmed', 'completed'].includes(order.status) && (
-                             <button onClick={() => setProtocolOrder(order)} className="btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 text-orange-500">
-                                <PlusIcon className="w-4 h-4 shrink-0" /> Neues Protokoll (Digital)
-                             </button>
-                           )}
-                           {!isInvoice && (
-                             <button onClick={async () => {
-                               if (order.status !== 'completed' && order.status !== 'invoice_open' && order.status !== 'invoice_paid') {
-                                 toast.error(`Der Umzug ist noch nicht abgeschlossen (Status: ${order.status}). Bitte erst abschließen.`);
-                                 return;
-                               }
-                               if (!order.invoiceNumber) {
-                                 try {
-                                   await changeOrderStatus(order.id, 'invoice_open', { userId: profile?.uid });
-                                   toast.success('Rechnung wurde erstellt!');
-                                 } catch (err: any) {
-                                   toast.error(err.message || 'Fehler');
-                                 }
-                               } else {
-                                 toast('Rechnung wurde bereits erstellt.', { icon: 'ℹ️' });
-                               }
-                             }} className="btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 text-green-400 font-bold border border-green-500/30 bg-green-500/10 hover:bg-green-500/20">
-                                <PlusIcon className="w-4 h-4 shrink-0" /> {order.invoiceNumber ? 'Rechnung generiert' : 'Rechnung erstellen'}
-                             </button>
-                           )}
-                           {isInvoice && order.status !== 'canceled' && (
-                             <button onClick={() => setPaymentOrder(order)} className="btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 text-green-500">
-                                <BanknotesIcon className="w-4 h-4 shrink-0" /> Zahlungen verwalten
-                             </button>
-                           )}
-                           {isInvoice && order.status !== 'canceled' && (
-                             <div className="flex gap-2 w-full">
-                               <button onClick={() => { if(confirm('Rechnung stornieren und Kopie anlegen?')) handleStorno(order, true); }} className="btn-secondary flex-1 justify-center flex items-center gap-1 text-[10px] py-2 text-red-400">
-                                  Storno & Neu
-                               </button>
-                               <button onClick={() => { if(confirm('Nur stornieren?')) handleStorno(order, false); }} className="btn-secondary flex-1 justify-center flex items-center gap-1 text-[10px] py-2 text-red-400 opacity-80">
-                                  Nur Storno
-                               </button>
-                             </div>
-                           )}
-                         </div>
+                          <button onClick={() => { setInlinePdfOrder(inlinePdfOrder?.id === order.id ? null : order); setInlinePdfType(isInvoice ? 'invoice' : 'order'); }} className={`btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 transition-colors ${inlinePdfOrder?.id === order.id ? 'border-primary text-primary' : ''}`}>
+                            <DocumentTextIcon className="w-4 h-4 shrink-0" /> PDF Vorschau
+                          </button>
+                          <PDFDownloadButton
+                            order={order}
+                            customer={customer}
+                            type={isInvoice ? 'invoice' : 'order'}
+                            className="btn-primary w-full justify-center flex items-center gap-2 text-xs py-2 transition-colors shadow-sm"
+                          />
+                          <button onClick={() => setMessageOrder({ data: order })} className="btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 text-blue-400">
+                            <EnvelopeIcon className="w-4 h-4 shrink-0" /> Nachricht senden
+                          </button>
+                          {['confirmed', 'completed'].includes(order.status) && (
+                            <button onClick={() => setProtocolOrder(order)} className="btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 text-orange-500">
+                              <PlusIcon className="w-4 h-4 shrink-0" /> Neues Protokoll (Digital)
+                            </button>
+                          )}
+                          {(!isInvoice || (!isFreeInvoice && (order.status === 'canceled' || order.status === 'invoice_cancelled'))) && (
+                            <button 
+                              onClick={async () => {
+                                if (!['completed', 'invoice_open', 'invoice_paid', 'canceled', 'invoice_cancelled'].includes(order.status)) {
+                                  toast.error(`Der Umzug ist noch nicht abgeschlossen (Status: ${order.status}). Bitte erst abschließen.`);
+                                  return;
+                                }
+                                if (hasActiveInvoice) {
+                                  toast.error('Es existiert bereits ein aktiver Rechnungsentwurf oder eine generierte Rechnung in der Historie.');
+                                  return;
+                                }
+                                // For old storned orders, clear the invoiceNumber if it exists before opening the modal
+                                if (order.invoiceNumber && (order.status === 'canceled' || order.status === 'invoice_cancelled')) {
+                                  setConfirmInvoiceOrder({ ...order, invoiceNumber: null }); // Pass a clean state to modal
+                                } else if (!order.invoiceNumber) {
+                                  setConfirmInvoiceOrder(order);
+                                } else {
+                                  toast('Rechnung wurde bereits erstellt.', { icon: 'ℹ️' });
+                                }
+                              }} 
+                              className={`btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 font-bold border transition-all shadow-sm ${hasActiveInvoice ? 'bg-gray-500/10 text-gray-500 border-gray-500/30 cursor-not-allowed' : 'text-green-400 border-green-500/30 bg-green-500/10 hover:bg-green-500/20'}`}
+                            >
+                              <PlusIcon className="w-4 h-4 shrink-0" /> 
+                              {(hasActiveInvoice || (order.invoiceNumber && !['canceled', 'invoice_cancelled'].includes(order.status))) ? 'Rechnung generiert' : 'Neue Rechnung erstellen'}
+                            </button>
+                          )}
+                          {isInvoice && order.status !== 'canceled' && order.status !== 'invoice_cancelled' && (
+                            <button onClick={() => setPaymentOrder(order)} className="btn-secondary w-full justify-center flex items-center gap-2 text-xs py-2 text-green-500">
+                              <BanknotesIcon className="w-4 h-4 shrink-0" /> Zahlungen verwalten
+                            </button>
+                          )}
+                          {isInvoice && order.status !== 'canceled' && order.status !== 'invoice_cancelled' && (
+                            <div className="flex gap-2 w-full">
+                              <button onClick={() => { if (confirm('Rechnung stornieren und Kopie anlegen?')) handleStorno(order, true); }} className="btn-secondary flex-1 justify-center flex items-center gap-1 text-[10px] py-2 text-red-400">
+                                Storno & Neu
+                              </button>
+                              <button onClick={() => { if (confirm('Nur stornieren?')) handleStorno(order, false); }} className="btn-secondary flex-1 justify-center flex items-center gap-1 text-[10px] py-2 text-red-400 opacity-80">
+                                Nur Storno
+                              </button>
+                            </div>
+                          )}
+                        </div>
 
-                         {/* Signed Protocols Quick View */}
-                         {order.protocols && order.protocols.length > 0 && (
-                           <div className="bg-bg-panel border border-structure p-4 rounded-xl shadow-inner flex flex-col gap-2 mt-2">
-                             <h4 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-1">Signierte Protokolle</h4>
-                             {order.protocols.map((proto: any, idx: number) => (
-                               <div key={proto.id || idx} className="bg-bg-dark border border-structure p-3 rounded-lg flex flex-col gap-2">
-                                 <div className="flex justify-between items-start">
-                                   <div className="text-sm font-bold text-text-main flex items-center gap-1.5">
-                                     <ClipboardDocumentCheckIcon className="w-4 h-4 text-emerald-500" /> {proto.type}
-                                   </div>
-                                   <div className="text-[10px] text-text-muted">{new Date(proto.createdAt).toLocaleDateString('de-DE')}</div>
-                                 </div>
-                                 <p className="text-xs text-text-muted line-clamp-2">{proto.text}</p>
-                                 {proto.signature && (
-                                   <div className="mt-1 pt-2 border-t border-structure/50 flex flex-col">
-                                     <div className="text-[10px] text-text-muted mb-1 uppercase tracking-wider">Kunden-Unterschrift</div>
-                                     <div className="bg-white/90 rounded p-1 inline-block">
-                                       <img src={proto.signature} alt="Unterschrift" className="h-12 object-contain" />
-                                     </div>
-                                   </div>
-                                 )}
-                               </div>
-                             ))}
-                           </div>
-                         )}
-
-                        {/* Nested Invoices Section */}
-                        {linkedInvoices.length > 0 && linkedInvoices.map(inv => (
-                          <div key={inv.id} className="col-span-1 md:col-span-2 bg-bg-panel border border-structure p-4 rounded-xl shadow-sm mt-2">
-                            <div className="flex justify-between items-center mb-4">
-                              <h4 className="text-sm font-bold text-primary flex items-center gap-2"><DocumentTextIcon className="w-5 h-5"/> Rechnung {inv.invoiceNumber ? `#${inv.invoiceNumber}` : ''}</h4>
-                              <StatusBadge status={inv.status} payments={inv.payments} totals={inv.totals} calcInput={inv.calcInput} />
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2">
-                              <button onClick={() => {
-                                setInlinePdfOrder(inlinePdfOrder?.id === inv.id ? null : inv); setInlinePdfType('invoice');
-                                setTimeout(() => {
-                                  document.getElementById(`pdf-viewer-${inv.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                }, 100);
-                              }} className={`btn-secondary flex items-center gap-2 text-xs py-2 px-4 transition-colors ${inlinePdfOrder?.id === inv.id ? 'border-primary text-primary' : ''}`}><DocumentTextIcon className="w-4 h-4 shrink-0" /> PDF ansehen</button>
-                              {inv.status !== 'canceled' && (
-                                <button onClick={() => setPaymentOrder(inv)} className="btn-secondary flex items-center gap-2 text-xs py-2 px-4 text-green-500"><BanknotesIcon className="w-4 h-4 shrink-0" /> Zahlungen verwalten</button>
-                              )}
-                              {inv.status !== 'canceled' && (
-                                <>
-                                  <button onClick={() => { if(confirm('Rechnung stornieren und Kopie anlegen?')) handleStorno(inv, true); }} className="btn-secondary flex items-center gap-1 text-[10px] py-2 px-3 text-red-400">Storno & Neu</button>
-                                  <button onClick={() => { if(confirm('Nur stornieren?')) handleStorno(inv, false); }} className="btn-secondary flex items-center gap-1 text-[10px] py-2 px-3 text-red-400 opacity-80">Nur Storno</button>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                        {/* Inline PDF Viewer Area */}
-                        {(inlinePdfOrder?.id === order.id || linkedInvoices.some(inv => inlinePdfOrder?.id === inv.id)) && (
-                          <div id={`pdf-viewer-${inlinePdfOrder?.id}`} className="col-span-1 md:col-span-2 mt-4 bg-bg-dark rounded-xl border border-white/10 overflow-hidden h-[700px] shadow-2xl relative">
-                            <div className="absolute top-4 right-4 z-10 flex gap-2">
-                              <button onClick={() => setInlinePdfOrder(null)} className="p-2 bg-red-500/80 hover:bg-red-500 text-white rounded-lg backdrop-blur-sm transition-colors shadow-lg"><XMarkIcon className="w-5 h-5" /></button>
-                            </div>
-                            <InlinePDFViewer order={inlinePdfOrder} customer={customer} type={inlinePdfType as any} />
+                        {/* Signed Protocols Quick View */}
+                        {order.protocols && order.protocols.length > 0 && (
+                          <div className="bg-bg-panel border border-structure p-4 rounded-xl shadow-inner flex flex-col gap-2 mt-2">
+                            <h4 className="text-xs font-bold text-text-muted uppercase tracking-wider mb-1">Signierte Protokolle</h4>
+                            {order.protocols.map((proto: any, idx: number) => (
+                              <div key={proto.id || idx} className="bg-bg-dark border border-structure p-3 rounded-lg flex flex-col gap-2">
+                                <div className="flex justify-between items-start">
+                                  <div className="text-sm font-bold text-text-main flex items-center gap-1.5">
+                                    <ClipboardDocumentCheckIcon className="w-4 h-4 text-emerald-500" /> {proto.type}
+                                  </div>
+                                  <div className="text-[10px] text-text-muted">{new Date(proto.createdAt).toLocaleDateString('de-DE')}</div>
+                                </div>
+                                <p className="text-xs text-text-muted line-clamp-2">{proto.text}</p>
+                                {proto.signature && (
+                                  <div className="mt-1 pt-2 border-t border-structure/50 flex flex-col">
+                                    <div className="text-[10px] text-text-muted mb-1 uppercase tracking-wider">Kunden-Unterschrift</div>
+                                    <div className="bg-white/90 rounded p-1 inline-block">
+                                      <img src={proto.signature} alt="Unterschrift" className="h-12 object-contain" />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
                           </div>
                         )}
-                        
+
+                        {/* Dokumentenhistorie (Document Chain) */}
+                        <div className="col-span-1 md:col-span-2 bg-bg-panel border border-structure p-4 rounded-xl shadow-sm mt-2">
+                          <h4 className="text-sm font-bold text-primary flex items-center gap-2 mb-4">
+                            <DocumentTextIcon className="w-5 h-5" /> Dokumentenhistorie
+                          </h4>
+                          
+                          <div className="space-y-3 relative before:absolute before:inset-0 before:ml-[15px] before:-translate-x-px before:h-full before:w-0.5 before:bg-white/10">
+                            {(() => {
+                              const docs = [];
+                              
+                              // 1. Angebot / Entwurf (Nur für Umzüge, nicht für Freie Rechnungen)
+                              if (!isFreeInvoice) {
+                                docs.push({
+                                  id: `angebot-live-${order.id}`,
+                                  title: order.status === 'draft' ? 'Angebot (Entwurf)' : `Angebot ${order.orderNumber ? `#${order.orderNumber}` : ''}`,
+                                  date: order.createdAt,
+                                  type: 'order',
+                                  forceLiveQuote: true, // User wants the live quote
+                                  icon: <DocumentTextIcon className="w-4 h-4 text-gray-400" />,
+                                  statusLabel: order.status === 'draft' ? 'Entwurf' : 'Aktuell',
+                                  isMain: true
+                                });
+                              }
+
+                              // 3. Rechnungen aus Historie + Stornos
+                              const allDocs = [...orders, ...freeInvoices];
+                              const stornosForOrder = allDocs.filter((o: any) => o.isStorno && (
+                                o.stornoFor === order.invoiceNumber || 
+                                (order.invoiceHistory || []).some((h: any) => h.invoiceNumber === o.stornoFor)
+                              ));
+
+                              if (order.invoiceHistory && order.invoiceHistory.length > 0) {
+                                order.invoiceHistory.forEach((hist: any, histIdx: number) => {
+                                  // Historische Rechnung
+                                  docs.push({
+                                    id: `invoice-hist-${hist.invoiceNumber}-${histIdx}`,
+                                    title: `Rechnung #${hist.invoiceNumber}`,
+                                    date: hist.date,
+                                    type: 'invoice',
+                                    overrideOrder: { ...order, invoiceNumber: hist.invoiceNumber, isStorno: false, status: hist.status },
+                                    icon: <DocumentTextIcon className="w-4 h-4 text-blue-400" />,
+                                    statusLabel: hist.status === 'cancelled' ? 'Storniert' : 'Historisch',
+                                    isHistorical: true
+                                  });
+                                  
+                                  // Dazugehöriges Storno
+                                  const matchingStorno = stornosForOrder.find((s: any) => s.stornoFor === hist.invoiceNumber);
+                                  if (matchingStorno && !docs.some(d => d.id === `storno-${matchingStorno.id}`)) {
+                                    docs.push({
+                                      id: `storno-${matchingStorno.id}`,
+                                      title: `Stornorechnung #${matchingStorno.invoiceNumber}`,
+                                      date: matchingStorno.createdAt,
+                                      type: 'invoice',
+                                      overrideOrder: matchingStorno,
+                                      icon: <DocumentTextIcon className="w-4 h-4 text-red-400" />,
+                                      statusLabel: 'Storno-Beleg'
+                                    });
+                                  }
+                                });
+                              }
+
+                              // 3b. Falls es Stornos für die aktuelle Rechnungsnummer gibt (oder alte Stornos ohne History)
+                              stornosForOrder.forEach((storno: any) => {
+                                if (!docs.some(d => d.id === `storno-${storno.id}`)) {
+                                  docs.push({
+                                    id: `storno-${storno.id}`,
+                                    title: `Stornorechnung #${storno.invoiceNumber}`,
+                                    date: storno.createdAt,
+                                    type: 'invoice',
+                                    overrideOrder: storno,
+                                    icon: <DocumentTextIcon className="w-4 h-4 text-red-400" />,
+                                    statusLabel: 'Storno-Beleg'
+                                  });
+                                }
+                              });
+
+                              // 4. Aktuelle Rechnung (inkl. Freie Rechnungen, die abgebrochen sind, haben evtl eine Nummer)
+                              if (order.invoiceNumber) {
+                                docs.push({
+                                  id: `invoice-current-${order.id}`,
+                                  title: `Rechnung #${order.invoiceNumber}`,
+                                  date: order.invoiceDate || order.updatedAt,
+                                  type: 'invoice',
+                                  forceLiveQuote: false,
+                                  icon: <DocumentTextIcon className="w-4 h-4 text-primary" />,
+                                  statusLabel: (order.status === 'invoice_cancelled' || order.status === 'canceled') ? 'Storniert' : 'Aktuell',
+                                  isMain: true
+                                });
+                              } else if (isFreeInvoice) {
+                                // Freie Rechnung als Entwurf
+                                docs.push({
+                                  id: `invoice-current-${order.id}`,
+                                  title: `Rechnung (Entwurf)`,
+                                  date: order.createdAt,
+                                  type: 'invoice',
+                                  forceLiveQuote: false,
+                                  icon: <DocumentTextIcon className="w-4 h-4 text-gray-400" />,
+                                  statusLabel: 'Entwurf',
+                                  isMain: true
+                                });
+                              }
+                              
+                              // Storno für Freie Rechnung (falls storniert und Storno existiert)
+                              if (isFreeInvoice && order.status === 'invoice_cancelled' && order.invoiceNumber) {
+                                const matchingStorno = stornosForOrder.find((s: any) => s.stornoFor === order.invoiceNumber);
+                                if (matchingStorno && !docs.some(d => d.id === `storno-${matchingStorno.id}`)) {
+                                  docs.push({
+                                    id: `storno-${matchingStorno.id}`,
+                                    title: `Stornorechnung #${matchingStorno.invoiceNumber}`,
+                                    date: matchingStorno.createdAt,
+                                    type: 'invoice',
+                                    overrideOrder: matchingStorno,
+                                    icon: <DocumentTextIcon className="w-4 h-4 text-red-400" />,
+                                    statusLabel: 'Storno-Beleg'
+                                  });
+                                }
+                              }
+
+                              // 5. Verknüpfte Freie Rechnungen
+                              linkedInvoices.forEach(inv => {
+                                // Exclude if already pushed via stornosForOrder
+                                if (docs.some(d => d.overrideOrder?.id === inv.id)) return;
+                                docs.push({
+                                  id: `linked-inv-${inv.id}`,
+                                  title: `Rechnung ${inv.invoiceNumber ? `#${inv.invoiceNumber}` : '(Entwurf)'}`,
+                                  date: inv.createdAt,
+                                  type: 'invoice',
+                                  overrideOrder: inv,
+                                  icon: <DocumentTextIcon className="w-4 h-4 text-primary" />,
+                                  statusLabel: 'Verknüpft'
+                                });
+                              });
+
+                              return docs.map(docItem => {
+                                const targetOrder = docItem.overrideOrder || order;
+                                const isCurrentlyOpen = inlinePdfOrder?.id === targetOrder.id && inlinePdfType === docItem.type;
+                                
+                                return (
+                                  <div key={docItem.id} className="relative pl-10 flex flex-col gap-2">
+                                    <div className="absolute left-0 top-3 w-8 h-8 rounded-full bg-bg-dark border border-structure flex items-center justify-center shrink-0 shadow-sm z-10">
+                                      {docItem.icon}
+                                    </div>
+                                    <div className={`bg-bg-dark border border-structure p-3 rounded-xl flex flex-wrap items-center justify-between gap-4 transition-all ${isCurrentlyOpen ? 'ring-2 ring-primary border-primary' : 'hover:border-white/20'}`}>
+                                      <div>
+                                        <div className="flex items-center gap-2">
+                                          <h5 className={`font-bold ${docItem.isMain ? 'text-text-main' : 'text-text-muted'}`}>{docItem.title}</h5>
+                                          <span className="px-2 py-0.5 rounded text-[9px] uppercase tracking-wider font-bold bg-white/5 border border-white/10 text-text-muted">
+                                            {docItem.statusLabel}
+                                          </span>
+                                        </div>
+                                        <div className="text-[10px] text-text-muted mt-0.5">
+                                          Erstellt: {new Date(docItem.date?.toMillis?.() || docItem.date || Date.now()).toLocaleDateString('de-DE')}
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <button 
+                                          onClick={() => {
+                                            if (isCurrentlyOpen) {
+                                              setInlinePdfOrder(null);
+                                              setInlinePdfForceLive(false);
+                                            } else {
+                                              setInlinePdfOrder(targetOrder);
+                                              setInlinePdfType(docItem.type);
+                                              setInlinePdfForceLive(!!docItem.forceLiveQuote);
+                                              setTimeout(() => {
+                                                document.getElementById(`pdf-viewer-${targetOrder.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                              }, 100);
+                                            }
+                                          }} 
+                                          className={`btn-secondary flex items-center gap-2 text-xs py-1.5 px-3 ${isCurrentlyOpen ? 'bg-primary/20 text-primary border-primary' : ''}`}
+                                        >
+                                          <DocumentTextIcon className="w-3.5 h-3.5" /> PDF ansehen
+                                        </button>
+                                        
+                                        {/* Spezielle Buttons für aktuelle Rechnung oder Entwurf */}
+                                        {docItem.type === 'invoice' && targetOrder.status !== 'invoice_cancelled' && targetOrder.status !== 'canceled' && (
+                                          <>
+                                            {(!targetOrder.invoiceNumber || targetOrder.invoiceNumber === '') && (
+                                              <button 
+                                                onClick={() => router.push(`/dashboard/customers/${customerId}/edit-invoice/${targetOrder.id}`)} 
+                                                className="btn-secondary flex items-center gap-2 text-xs py-1.5 px-3 text-primary border-primary/20 hover:border-primary"
+                                              >
+                                                <PencilIcon className="w-3.5 h-3.5" /> Bearbeiten
+                                              </button>
+                                            )}
+                                            {targetOrder.invoiceNumber && (
+                                              <button onClick={() => setPaymentOrder(targetOrder)} className="btn-secondary flex items-center gap-2 text-xs py-1.5 px-3 text-green-500 border-green-500/20 hover:border-green-500">
+                                                <BanknotesIcon className="w-3.5 h-3.5" /> Zahlungen
+                                              </button>
+                                            )}
+                                            {targetOrder.invoiceNumber && !docItem.isMain && (
+                                              <button onClick={() => { if (confirm('Möchten Sie diese Rechnung wirklich stornieren?')) handleStorno(targetOrder, false); }} className="btn-secondary flex items-center gap-2 text-xs py-1.5 px-3 text-red-400 border-red-500/20 hover:border-red-500">
+                                                <TrashIcon className="w-3.5 h-3.5" /> Stornieren
+                                              </button>
+                                            )}
+                                          </>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              });
+                            })()}
+                          </div>
+                        </div>
+                        {/* Inline PDF Viewer Area */}
+                        {(inlinePdfOrder?.id === order.id || orders.some(o => o.type === 'invoice' && (o.sourceOrderId === order.id || o.orderNumber === order.orderNumber) && inlinePdfOrder?.id === o.id) || [...orders, ...freeInvoices].some(o => o.isStorno && (o.stornoFor === order.invoiceNumber || (order.invoiceHistory || []).some((h: any) => h.invoiceNumber === o.stornoFor)) && inlinePdfOrder?.id === o.id)) && (
+                          <div id={`pdf-viewer-${inlinePdfOrder?.id}`} className="col-span-1 md:col-span-2 mt-4 bg-bg-dark rounded-xl border border-white/10 overflow-hidden h-[700px] shadow-2xl relative">
+                            <div className="absolute top-4 right-4 z-10 flex gap-2">
+                              <button onClick={() => { setInlinePdfOrder(null); setInlinePdfForceLive(false); }} className="p-2 bg-red-500/80 hover:bg-red-500 text-white rounded-lg backdrop-blur-sm transition-colors shadow-lg"><XMarkIcon className="w-5 h-5" /></button>
+                            </div>
+                            <InlinePDFViewer order={inlinePdfOrder} customer={customer} type={inlinePdfType as any} forceLiveQuote={inlinePdfForceLive} />
+                          </div>
+                        )}
+
                       </div>
                     </div>
                   )}
@@ -1215,7 +1531,7 @@ export default function CustomerProfilePage() {
 
       {/* Modals */}
       {showClaimModal && customer && <ClaimModal customerId={customerId} customerName={`${customer.firstName} ${customer.lastName}`} onClose={() => setShowClaimModal(false)} />}
-      {paymentOrder && <PaymentManager order={paymentOrder} onUpdate={() => {}} onClose={() => setPaymentOrder(null)} />}
+      {paymentOrder && <PaymentManager order={paymentOrder} allOrders={orders} freeInvoices={freeInvoices} onUpdate={() => { }} onClose={() => setPaymentOrder(null)} />}
       {pdfModalOrder && customer && (
         <PdfModal
           onClose={() => setPdfModalOrder(null)}
@@ -1226,18 +1542,53 @@ export default function CustomerProfilePage() {
       )}
       {protocolOrder && <ProtocolModal order={protocolOrder} onClose={() => setProtocolOrder(null)} />}
       {dispoOrder && <DispoModal order={dispoOrder} onClose={() => setDispoOrder(null)} />}
-      {messageOrder && <MessageSenderModal order={messageOrder} customer={customer} onClose={() => setMessageOrder(null)} />}
+      {messageOrder && <MessageSenderModal order={messageOrder.data} customer={customer} defaultTemplateName={messageOrder.defaultTemplate} onClose={() => setMessageOrder(null)} />}
       {signatureOrder && (
-        <SignatureModal 
-          order={signatureOrder} 
-          onClose={() => setSignatureOrder(null)} 
+        <SignatureModal
+          order={signatureOrder}
+          onClose={() => setSignatureOrder(null)}
           onSigned={() => {
             // Data is already saved by the modal. Just close it.
             setSignatureOrder(null);
-          }} 
+          }}
         />
       )}
-      {deleteConfirmOrder && <ConfirmModal isOpen={true} title="Löschen bestätigen" message="Wirklich löschen?" onConfirm={() => {}} onCancel={() => setDeleteConfirmOrder(null)} />}
+      {confirmInvoiceOrder && (
+        <ConfirmModal 
+          isOpen={true} 
+          title="Rechnungs-Entwurf erstellen" 
+          message={`Für das Angebot ${confirmInvoiceOrder.orderNumber ? `#${confirmInvoiceOrder.orderNumber}` : ''} wird nun ein bearbeitbarer Rechnungs-Entwurf erstellt. Du kannst die Rechnung (z.B. Adressen oder Leistungen) vor dem endgültigen Ausstellen noch anpassen. Fortfahren?`} 
+          confirmText="Entwurf erstellen & bearbeiten"
+          isDestructive={false}
+          onConfirm={async () => {
+            try {
+              // 1. Create a clone of the order as a draft invoice
+              const { id, _collection, ...orderData } = confirmInvoiceOrder;
+              const newInvoiceData = {
+                ...orderData,
+                type: 'invoice',
+                status: 'draft',
+                sourceOrderId: confirmInvoiceOrder.id,
+                invoiceNumber: null, // Ensure it's empty
+                createdAt: new Date(),
+                updatedAt: new Date()
+              };
+              
+              // We put it in the orders collection so the normal flow picks it up
+              const docRef = await addDoc(collection(db, getCol('orders')), newInvoiceData);
+              toast.success('Rechnungs-Entwurf erstellt! Leite zum Editor weiter...');
+              
+              // 2. Redirect to the Invoice Editor
+              router.push(`/dashboard/customers/${customerId}/edit-invoice/${docRef.id}`);
+            } catch (err: any) {
+              toast.error(err.message || 'Fehler beim Generieren der Rechnung');
+            }
+            setConfirmInvoiceOrder(null);
+          }} 
+          onCancel={() => setConfirmInvoiceOrder(null)} 
+        />
+      )}
+      {deleteConfirmOrder && <ConfirmModal isOpen={true} title="Löschen bestätigen" message="Wirklich löschen?" onConfirm={() => { }} onCancel={() => setDeleteConfirmOrder(null)} />}
     </div>
   );
 }

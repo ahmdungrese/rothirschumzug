@@ -13,6 +13,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { calculateRoute } from '@/lib/routeCalculator';
 import { getCol } from '@/lib/demoMode';
 import { changeOrderStatus } from '@/lib/orderStateMachine';
+import { calculateOrderTotals } from '@/lib/financeHelpers';
 import { InventoryWizardModal, ROOM_TYPES } from './InventoryWizardModal';
 
 const getPropertyIcon = (type: string) => {
@@ -249,6 +250,51 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     }
   }, [orderId, urlCustomerId]);
 
+  useEffect(() => {
+    const stepParam = searchParams?.get('step');
+    if (stepParam) {
+      setCurrentStep(parseInt(stepParam));
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    const highlightParam = searchParams?.get('highlight');
+    if (highlightParam) {
+      setTimeout(() => {
+        const el = document.getElementById(`highlight-${highlightParam}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          
+          let isComplete = false;
+          if (highlightParam === 'addressA') isComplete = !!(logistics.a_street && logistics.a_houseNr && logistics.a_zip && logistics.a_city);
+          else if (highlightParam === 'addressB') isComplete = !!(logistics.b_street && logistics.b_houseNr && logistics.b_zip && logistics.b_city);
+          else if (highlightParam === 'movingDate') isComplete = !!orderMeta.movingDateFrom;
+          else if (highlightParam === 'viewingDate') isComplete = !!orderMeta.viewingDate;
+          else if (highlightParam === 'floorA') isComplete = !!logistics.a_floor;
+          else if (highlightParam === 'floorB') isComplete = !!logistics.b_floor;
+
+          if (!isComplete) {
+            el.classList.add('highlight-pulse', 'border');
+            setTimeout(() => el.classList.remove('highlight-pulse', 'border'), 3600);
+            
+            // Auto Focus
+            const focusMap: any = {
+              'addressA': !logistics.a_street ? 'a_street' : !logistics.a_houseNr ? 'a_houseNr' : !logistics.a_zip ? 'a_zip' : 'a_city',
+              'addressB': !logistics.b_street ? 'b_street' : !logistics.b_houseNr ? 'b_houseNr' : !logistics.b_zip ? 'b_zip' : 'b_city',
+              'movingDate': 'movingDateFrom',
+              'viewingDate': 'viewingDate',
+              'floorA': 'a_floor',
+              'floorB': 'b_floor'
+            };
+            const targetId = focusMap[highlightParam];
+            if (targetId) document.getElementById(`input-${targetId}`)?.focus();
+          }
+        }
+      }, 500); // Wait for render and optional tab switch
+    }
+  }, [searchParams, currentStep]);
+
+
   const copyCustomerAddress = (target: 'a' | 'b') => {
     if (customerData.street || customerData.zip) {
       setLogistics(prev => ({
@@ -275,9 +321,12 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   };
 
   const calculateTotal = () => {
-    if (isFlatRate) return { net: flatRateNet, tax: flatRateNet * 0.19, gross: flatRateNet * 1.19 };
-    const net = services.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
-    return { net, tax: net * 0.19, gross: net * 1.19 };
+    return calculateOrderTotals({
+      isFlatRate,
+      flatRateNet,
+      services,
+      calcInput: calcInput.gross > 0 ? calcInput : null
+    });
   };
   const totals = calculateTotal();
 
@@ -360,6 +409,14 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         });
       }
 
+      let finalStatus = status;
+      // Prevent downgrading the order status to draft when simply saving.
+      // If generateQuote is true, status is already passed as 'quote' or changed later.
+      // If it's an invoice, status is 'invoice_open'.
+      if (orderId && orderStatus && orderStatus !== 'draft' && status === 'draft') {
+        finalStatus = orderStatus as any;
+      }
+
       const payload = {
         customerId: finalCustomerId,
         customerName: customerData.type === 'firma' ? customerData.lastName : `${customerData.firstName} ${customerData.lastName}`.trim(),
@@ -376,7 +433,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           type: customerData.type || 'privat'
         },
         customerSource: customerData.source || 'Unbekannt',
-        status,
+        status: finalStatus,
         orderMeta,
         logistics,
         viewingDate: orderMeta.viewingDate || '', // Expose on root level for calendar
@@ -597,11 +654,11 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             </div>
           </div>
 
-          <div>
+          <div id="highlight-movingDate" className="rounded-xl transition-all">
             <label className="block text-xs text-text-muted mb-1">Umzugsdatum (von)</label>
-            <input type="date" value={orderMeta.movingDateFrom} onChange={e => setOrderMeta({...orderMeta, movingDateFrom: e.target.value})} className="input-field w-full" />
+            <input id="input-movingDateFrom" type="date" value={orderMeta.movingDateFrom} onChange={e => setOrderMeta({...orderMeta, movingDateFrom: e.target.value})} className="input-field w-full" />
           </div>
-          <div>
+          <div id="highlight-viewingDate" className="rounded-xl transition-all">
             <label className="flex items-center justify-between text-xs text-text-muted mb-1">
               <span>Besichtigungstermin</span>
               {(orderMeta.viewingDate === 'requested' || orderMeta.viewingDate === '') && (
@@ -610,7 +667,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 </button>
               )}
             </label>
-            <input type="datetime-local" value={['requested', 'erledigt_fotos'].includes(orderMeta.viewingDate) ? '' : (orderMeta.viewingDate || '')} onChange={e => setOrderMeta({...orderMeta, viewingDate: e.target.value})} className="input-field w-full" />
+            <input id="input-viewingDate" type="datetime-local" value={['requested', 'erledigt_fotos'].includes(orderMeta.viewingDate) ? '' : (orderMeta.viewingDate || '')} onChange={e => setOrderMeta({...orderMeta, viewingDate: e.target.value})} className="input-field w-full" />
             {orderMeta.viewingDate === 'erledigt_fotos' && (
               <p className="text-xs font-bold text-green-400 mt-1">✓ Erledigt durch Fotos/Inventarliste</p>
             )}
@@ -721,17 +778,20 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           <option value="Dachgeschoss" />
         </datalist>
 
-        <div className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-structure shadow-lg">
+        <div id="highlight-addressA" className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-structure shadow-lg transition-all">
           <div className="flex justify-between items-center mb-4 border-b border-structure pb-2">
-            <h2 className="text-xl font-bold text-text-main flex items-center gap-2">Beladeadresse (A)</h2>
+            <h2 className="text-xl font-bold text-text-main flex items-center gap-2">
+              Beladeadresse (A)
+              {!!(logistics.a_street && logistics.a_houseNr && logistics.a_zip && logistics.a_city) && <CheckCircleIcon className="w-5 h-5 text-green-500" />}
+            </h2>
             <button onClick={() => copyCustomerAddress('a')} className="text-xs btn-secondary py-1 px-2">Kundenadresse übernehmen</button>
           </div>
           <div className="grid grid-cols-4 gap-3">
-            <div className="col-span-3"><label className="block text-xs text-text-muted mb-1">Straße</label><input type="text" value={logistics.a_street} onChange={e => setLogistics({...logistics, a_street: e.target.value})} className="input-field w-full" /></div>
-            <div className="col-span-1"><label className="block text-xs text-text-muted mb-1">Haus-Nr.</label><input type="text" value={logistics.a_houseNr} onChange={e => setLogistics({...logistics, a_houseNr: e.target.value})} className="input-field w-full" /></div>
+            <div className="col-span-3"><label className="block text-xs text-text-muted mb-1">Straße</label><input id="input-a_street" type="text" value={logistics.a_street} onChange={e => setLogistics({...logistics, a_street: e.target.value})} className="input-field w-full" /></div>
+            <div className="col-span-1"><label className="block text-xs text-text-muted mb-1">Haus-Nr.</label><input id="input-a_houseNr" type="text" value={logistics.a_houseNr} onChange={e => setLogistics({...logistics, a_houseNr: e.target.value})} className="input-field w-full" /></div>
             <div className="col-span-1">
               <label className="block text-xs text-text-muted mb-1">PLZ</label>
-              <input type="text" value={logistics.a_zip} onChange={async (e) => {
+              <input id="input-a_zip" type="text" value={logistics.a_zip} onChange={async (e) => {
                   const val = e.target.value;
                   setLogistics(prev => ({...prev, a_zip: val}));
                   if (val.length === 5) {
@@ -747,9 +807,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   }
                 }} className="input-field w-full" />
             </div>
-            <div className="col-span-3"><label className="block text-xs text-text-muted mb-1">Ort</label><input type="text" value={logistics.a_city} onChange={e => setLogistics({...logistics, a_city: e.target.value})} className="input-field w-full" /></div>
+            <div className="col-span-3"><label className="block text-xs text-text-muted mb-1">Ort</label><input id="input-a_city" type="text" value={logistics.a_city} onChange={e => setLogistics({...logistics, a_city: e.target.value})} className="input-field w-full" /></div>
             
-            <div className="col-span-2"><label className="block text-xs text-text-muted mb-1">Etage</label><input type="text" list="floors" value={logistics.a_floor} onChange={e => setLogistics({...logistics, a_floor: e.target.value})} className="input-field w-full" placeholder="Auswählen oder tippen..." /></div>
+            <div id="highlight-floorA" className="col-span-2 transition-all rounded-lg"><label className="block text-xs text-text-muted mb-1">Etage</label><input id="input-a_floor" type="text" list="floors" value={logistics.a_floor} onChange={e => setLogistics({...logistics, a_floor: e.target.value})} className="input-field w-full" placeholder="Auswählen oder tippen..." /></div>
             <div className="col-span-2"><label className="block text-xs text-text-muted mb-1">Laufweg (m)</label><input type="number" min="0" value={logistics.a_distance === 0 ? '' : logistics.a_distance} onChange={e => setLogistics({...logistics, a_distance: e.target.value === '' ? 0 : parseInt(e.target.value)})} className="input-field w-full" placeholder="Unter 10 Meter" /></div>
             
             <div className="col-span-4">
@@ -801,17 +861,20 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           </div>
         </div>
 
-        <div className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-structure shadow-lg">
+        <div id="highlight-addressB" className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-structure shadow-lg transition-all">
           <div className="flex justify-between items-center mb-4 border-b border-structure pb-2">
-            <h2 className="text-xl font-bold text-text-main flex items-center gap-2">Entladeadresse (B)</h2>
+            <h2 className="text-xl font-bold text-text-main flex items-center gap-2">
+              Entladeadresse (B)
+              {!!(logistics.b_street && logistics.b_houseNr && logistics.b_zip && logistics.b_city) && <CheckCircleIcon className="w-5 h-5 text-green-500" />}
+            </h2>
             <button onClick={() => copyCustomerAddress('b')} className="text-xs btn-secondary py-1 px-2">Kundenadresse übernehmen</button>
           </div>
           <div className="grid grid-cols-4 gap-3">
-            <div className="col-span-3"><label className="block text-xs text-text-muted mb-1">Straße</label><input type="text" value={logistics.b_street} onChange={e => setLogistics({...logistics, b_street: e.target.value})} className="input-field w-full" /></div>
-            <div className="col-span-1"><label className="block text-xs text-text-muted mb-1">Haus-Nr.</label><input type="text" value={logistics.b_houseNr} onChange={e => setLogistics({...logistics, b_houseNr: e.target.value})} className="input-field w-full" /></div>
+            <div className="col-span-3"><label className="block text-xs text-text-muted mb-1">Straße</label><input id="input-b_street" type="text" value={logistics.b_street} onChange={e => setLogistics({...logistics, b_street: e.target.value})} className="input-field w-full" /></div>
+            <div className="col-span-1"><label className="block text-xs text-text-muted mb-1">Haus-Nr.</label><input id="input-b_houseNr" type="text" value={logistics.b_houseNr} onChange={e => setLogistics({...logistics, b_houseNr: e.target.value})} className="input-field w-full" /></div>
             <div className="col-span-1">
               <label className="block text-xs text-text-muted mb-1">PLZ</label>
-              <input type="text" value={logistics.b_zip} onChange={async (e) => {
+              <input id="input-b_zip" type="text" value={logistics.b_zip} onChange={async (e) => {
                   const val = e.target.value;
                   setLogistics(prev => ({...prev, b_zip: val}));
                   if (val.length === 5) {
@@ -827,9 +890,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   }
                 }} className="input-field w-full" />
             </div>
-            <div className="col-span-3"><label className="block text-xs text-text-muted mb-1">Ort</label><input type="text" value={logistics.b_city} onChange={e => setLogistics({...logistics, b_city: e.target.value})} className="input-field w-full" /></div>
+            <div className="col-span-3"><label className="block text-xs text-text-muted mb-1">Ort</label><input id="input-b_city" type="text" value={logistics.b_city} onChange={e => setLogistics({...logistics, b_city: e.target.value})} className="input-field w-full" /></div>
             
-            <div className="col-span-2"><label className="block text-xs text-text-muted mb-1">Etage</label><input type="text" list="floors" value={logistics.b_floor} onChange={e => setLogistics({...logistics, b_floor: e.target.value})} className="input-field w-full" placeholder="Auswählen oder tippen..." /></div>
+            <div id="highlight-floorB" className="col-span-2 transition-all rounded-lg"><label className="block text-xs text-text-muted mb-1">Etage</label><input id="input-b_floor" type="text" list="floors" value={logistics.b_floor} onChange={e => setLogistics({...logistics, b_floor: e.target.value})} className="input-field w-full" placeholder="Auswählen oder tippen..." /></div>
             <div className="col-span-2"><label className="block text-xs text-text-muted mb-1">Laufweg (m)</label><input type="number" min="0" value={logistics.b_distance === 0 ? '' : logistics.b_distance} onChange={e => setLogistics({...logistics, b_distance: e.target.value === '' ? 0 : parseInt(e.target.value)})} className="input-field w-full" placeholder="Unter 10 Meter" /></div>
             
             <div className="col-span-4">

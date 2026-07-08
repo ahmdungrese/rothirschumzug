@@ -1,5 +1,6 @@
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
+import { calculateOrderTotals } from '@/lib/financeHelpers';
 
 const styles = StyleSheet.create({
   page: { padding: 40, paddingBottom: 55, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
@@ -222,15 +223,15 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
         <View style={styles.totals}>
           <View style={styles.totalRow}>
             <Text>Summe Netto:</Text>
-            <Text>{order?.totals?.net?.toFixed(2)} €</Text>
+            <Text>{calculateOrderTotals(order).net.toFixed(2)} €</Text>
           </View>
           <View style={styles.totalRow}>
             <Text>MwSt. 19%:</Text>
-            <Text>{order?.totals?.tax?.toFixed(2)} €</Text>
+            <Text>{calculateOrderTotals(order).tax.toFixed(2)} €</Text>
           </View>
           <View style={styles.totalRowBold}>
             <Text>Gesamtbetrag (inkl. MwSt.)</Text>
-            <Text>{order?.totals?.gross?.toFixed(2)} €</Text>
+            <Text>{calculateOrderTotals(order).gross.toFixed(2)} €</Text>
           </View>
         </View>
 
@@ -244,7 +245,7 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
           </Text>
         )}
 
-        <View style={styles.footer}>
+        <View style={styles.footer} fixed>
           <View>
             <Text>Unternehmen: {settings?.companyName}</Text>
             <Text>{settings?.street}, {settings?.zip} {settings?.city}</Text>

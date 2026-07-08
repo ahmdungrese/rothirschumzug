@@ -12,10 +12,12 @@ import { InvoicePDF } from '../pdf/InvoicePDF';
 export function MessageSenderModal({ 
   order, 
   customer, 
+  defaultTemplateName,
   onClose 
 }: { 
   order: any; 
   customer: any; 
+  defaultTemplateName?: string;
   onClose: () => void 
 }) {
   const [templates, setTemplates] = useState<any[]>([]);
@@ -39,8 +41,13 @@ export function MessageSenderModal({
             const tpls = data.communicationTemplates;
             setTemplates(tpls);
             if (tpls.length > 0) {
-              setSelectedTemplateId(tpls[0].id);
-              applyTemplate(tpls[0], order, customer, profile);
+              let tplToApply = tpls[0];
+              if (defaultTemplateName) {
+                const found = tpls.find((t: any) => t.name.toLowerCase().includes(defaultTemplateName.toLowerCase()));
+                if (found) tplToApply = found;
+              }
+              setSelectedTemplateId(tplToApply.id);
+              applyTemplate(tplToApply, order, customer, profile);
             }
           }
         }

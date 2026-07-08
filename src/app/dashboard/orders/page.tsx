@@ -9,6 +9,7 @@ import { PaymentManager } from '@/components/orders/PaymentManager';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { DispoModal } from '@/components/orders/DispoModal';
 import { getCol } from '@/lib/demoMode';
+import { calculateOrderTotals, calculateTotalPaid } from '@/lib/financeHelpers';
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -29,7 +30,7 @@ export default function OrdersPage() {
       // Extra client-side filter to absolutely make sure no invoices sneak in
       const fetched = snapshot.docs
         .map((doc: any) => ({ id: doc.id, ...doc.data() }))
-        .filter(o => !o.invoiceNumber && !o.isStorno && !['invoice_open', 'invoice_paid', 'invoice_overdue'].includes(o.status));
+        .filter(o => o.type !== 'invoice' && !o.invoiceNumber && !o.isStorno && !['invoice_open', 'invoice_paid', 'invoice_overdue'].includes(o.status));
         
       fetched.sort((a: any, b: any) => b.createdAt?.toMillis() - a.createdAt?.toMillis());
       setOrders(fetched);
@@ -57,8 +58,8 @@ export default function OrdersPage() {
     
     // Check for partial payment
     if (status === 'invoice_open' && order.payments && order.payments.length > 0) {
-      const totalGross = order.totals?.gross || order.calcInput?.gross || 0;
-      const totalPaid = order.payments.reduce((sum: number, p: any) => sum + p.amount, 0);
+      const totalGross = calculateOrderTotals(order).gross;
+      const totalPaid = calculateTotalPaid(order);
       if (totalPaid > 0 && totalPaid < totalGross) {
         return <span className="px-2 py-1 bg-yellow-500/20 text-yellow-500 rounded text-xs font-semibold uppercase tracking-wider">Teilweise bezahlt</span>;
       }

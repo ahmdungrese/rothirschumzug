@@ -31,10 +31,10 @@ export const ALLOWED_TRANSITIONS: Record<AllowedStatus, AllowedStatus[]> = {
   'quote': ['draft', 'confirmed', 'archived', 'rejected'],
   'confirmed': ['completed', 'canceled', 'archived'], // Backward to quote is BLOCKED
   'completed': ['confirmed', 'invoice_open', 'archived'],
-  'invoice_open': ['invoice_paid', 'invoice_overdue', 'invoice_cancelled', 'archived'], // Backward to completed is BLOCKED
-  'invoice_paid': ['archived'],
-  'invoice_overdue': ['invoice_paid', 'invoice_cancelled'],
-  'invoice_cancelled': ['archived'],
+  'invoice_open': ['invoice_paid', 'invoice_overdue', 'invoice_cancelled', 'archived', 'completed'], // Backward to completed allowed for Storno
+  'invoice_paid': ['archived', 'completed'], // Storno allowed
+  'invoice_overdue': ['invoice_paid', 'invoice_cancelled', 'completed'], // Storno allowed
+  'invoice_cancelled': ['archived', 'completed'],
   'archived': [],
   'canceled': ['archived'],
   'rejected': ['archived'],
@@ -156,6 +156,18 @@ export async function changeOrderStatus(
       transaction.update(settingsRef, { nextInvoiceNumber: increment(1) });
       updatePayload.invoiceNumber = `RE-${new Date().getFullYear()}-${nextInvoiceNumber.toString().padStart(3, '0')}`;
       updatePayload.invoiceDate = new Date().toISOString();
+    }
+
+    // 8. Order Number Generation
+    if (['quote', 'confirmed', 'completed'].includes(targetStatus) && !order.orderNumber && !updatePayload.orderNumber) {
+      const settingsRef = doc(db, getCol('system'), 'settings');
+      const settingsDoc = await transaction.get(settingsRef);
+      let nextQuoteNumber = 1000;
+      if (settingsDoc.exists() && settingsDoc.data().nextQuoteNumber) {
+        nextQuoteNumber = settingsDoc.data().nextQuoteNumber;
+      }
+      transaction.update(settingsRef, { nextQuoteNumber: increment(1) });
+      updatePayload.orderNumber = `ANG-${new Date().getFullYear()}-${nextQuoteNumber.toString().padStart(3, '0')}`;
     }
 
     // Execute the write

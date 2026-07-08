@@ -6,9 +6,10 @@ import { useAuth } from '@/context/AuthContext';
 import { logActivity } from '@/lib/activityLogger';
 import { toast } from 'react-hot-toast';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { useParams, useRouter } from 'next/navigation';
 import { getCol } from '@/lib/demoMode';
+import { calculateOrderTotals } from '@/lib/financeHelpers';
 
 const getCategoryIcon = (category: string) => {
   const c = category.toLowerCase();
@@ -34,6 +35,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
   const [settings, setSettings] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [status, setStatus] = useState('draft'); // invoice_open if final
+  const [activeSourceOrderId, setActiveSourceOrderId] = useState<string | null>(sourceOrderId || null);
 
   // 1. Kundeninformationen
   const [customerData, setCustomerData] = useState({
@@ -70,13 +72,18 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
     paymentTerms: '',
     quoteOutro: 'Wir bedanken uns für Ihren Auftrag.'
   });
+  const [logistics, setLogistics] = useState<any>({
+    from: { address: '', city: '', zip: '', floor: '', lift: 'Nein', parking: 'Nein' },
+    to: { address: '', city: '', zip: '', floor: '', lift: 'Nein', parking: 'Nein' },
+    distance: 0
+  });
 
   useEffect(() => {
     const init = async () => {
-      // 1. Load Settings
-      const setSnap = await getDoc(doc(db, getCol('system'), 'settings'));
-      if (setSnap.exists()) {
-        const s = setSnap.data();
+      // 1. Load System Settings
+      const settingsSnap = await getDoc(doc(db, getCol('system'), 'settings'));
+      if (settingsSnap.exists()) {
+        const s = settingsSnap.data();
         setSettings(s);
         if (s.invoiceIntro) setTexts(t => ({...t, quoteIntro: s.invoiceIntro}));
         if (s.invoiceOutro) setTexts(t => ({...t, quoteOutro: s.invoiceOutro}));
@@ -110,12 +117,13 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
       // 3. Load existing order or source order
       const idToLoad = orderId || sourceOrderId;
       if (idToLoad) {
-        let targetCol = sourceOrderId ? 'orders' : 'invoices';
+        // If orderId is provided (because ResponsiveOrderWrapper passes the id of the draft order), use 'orders' collection
+        // If it's a legacy free invoice, it might be in 'invoices'. We check both.
+        let targetCol = sourceOrderId ? 'orders' : (orderId ? 'orders' : 'invoices');
         let oSnap = await getDoc(doc(db, getCol(targetCol), idToLoad));
         
-        // Fallback for legacy free invoices that might still be in orders
-        if (!oSnap.exists() && targetCol === 'invoices') {
-          oSnap = await getDoc(doc(db, getCol('orders'), idToLoad));
+        if (!oSnap.exists() && targetCol === 'orders') {
+          oSnap = await getDoc(doc(db, getCol('invoices'), idToLoad));
         }
 
         if (oSnap.exists()) {
@@ -126,11 +134,13 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
           else if (o.billingAddress) setCustomerData(o.billingAddress);
           
           if (o.orderMeta) setOrderMeta(prev => ({...prev, ...o.orderMeta}));
+          if (o.logistics) setLogistics(o.logistics);
           if (o.isFlatRate !== undefined) setIsFlatRate(o.isFlatRate);
           if (o.flatRateNet) setFlatRateNet(o.flatRateNet);
           if (o.services) setServices(o.services);
           if (o.calcInput) setCalcInput(o.calcInput);
           if (o.texts && orderId) setTexts(prev => ({...prev, ...o.texts}));
+          if (o.sourceOrderId) setActiveSourceOrderId(o.sourceOrderId);
         }
       }
     };
@@ -148,15 +158,13 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
   };
 
   const calculateTotals = () => {
-    let net = isFlatRate ? flatRateNet : services.reduce((acc, curr) => acc + (curr.quantity * curr.unitPrice), 0);
-    const tax = net * 0.19;
-    const gross = net + tax;
-    
-    setCalcInput({
-      net: Math.round(net * 100) / 100,
-      tax: Math.round(tax * 100) / 100,
-      gross: Math.round(gross * 100) / 100
+    const { net, tax, gross } = calculateOrderTotals({
+      isFlatRate,
+      flatRateNet,
+      services,
+      calcInput: null // Force recalculation from services/flatRate
     });
+    setCalcInput({ net, tax, gross });
   };
 
   useEffect(() => { calculateTotals(); }, [services, isFlatRate, flatRateNet]);
@@ -169,28 +177,17 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
     
     setIsSaving(true);
     try {
-      if (urlCustomerId) {
-        await updateDoc(doc(db, getCol('customers'), urlCustomerId), {
-          salutation: customerData.salutation || '',
-          firstName: customerData.firstName || '',
-          lastName: customerData.lastName || '',
-          email: customerData.email || '',
-          phone: customerData.phone || '',
-          street: customerData.street || '',
-          houseNr: customerData.houseNr || '',
-          zip: customerData.zip || '',
-          city: customerData.city || '',
-          type: customerData.type || 'privat'
-        });
-      }
+      // Wir aktualisieren das Haupt-Kundenprofil absichtlich NICHT mehr aus dem Rechnungs-Editor,
+      // damit abweichende Rechnungsadressen niemals die Stammdaten des Kunden überschreiben!
 
       const payload: any = {
         type: 'invoice',
         status: finalStatus,
         customerId: urlCustomerId,
-        sourceOrderId: sourceOrderId || null,
+        sourceOrderId: activeSourceOrderId || null,
         customerData,
         orderMeta,
+        logistics, // Include logistics in the invoice
         isFlatRate,
         flatRateNet,
         services,
@@ -205,12 +202,12 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
         await updateDoc(doc(db, getCol('system'), 'settings'), { nextInvoiceNumber: nextInvoiceNumber + 1 });
       }
 
-      const targetCol = sourceOrderId ? 'orders' : 'invoices';
+      const targetCol = activeSourceOrderId ? 'orders' : 'invoices';
 
       if (orderId) {
         // Find correct collection for update (could be legacy order)
         let updateCol = targetCol;
-        if (!sourceOrderId) {
+        if (!activeSourceOrderId) {
           const checkInv = await getDoc(doc(db, getCol('invoices'), orderId));
           if (!checkInv.exists()) updateCol = 'orders';
         }
@@ -222,6 +219,16 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
         await addDoc(collection(db, getCol(targetCol)), payload);
         await logActivity(user?.uid || '', profile?.displayName || 'Unbekannt', 'CREATE_ORDER', `Neue Rechnung für ${customerData.lastName}`);
         toast.success('Rechnung erfolgreich erstellt!');
+      }
+
+      // Update parent order if an invoice is issued
+      if (finalStatus === 'invoice_open' && activeSourceOrderId && payload.invoiceNumber) {
+        await updateDoc(doc(db, getCol('orders'), activeSourceOrderId), {
+          invoiceNumber: payload.invoiceNumber,
+          invoiceDate: payload.updatedAt,
+          status: 'invoice_open',
+          updatedAt: serverTimestamp()
+        });
       }
 
       router.push(`/dashboard/customers/${urlCustomerId}`);
@@ -246,6 +253,32 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
             Rechnungsdaten eingeben und dokumentieren.
           </p>
         </div>
+        {orderId && status === 'draft' && (
+          <button
+            onClick={async () => {
+              if (confirm('Möchten Sie diesen Rechnungsentwurf wirklich löschen?')) {
+                try {
+                  const targetCol = activeSourceOrderId ? 'orders' : 'invoices';
+                  // Verify if we need to check the other collection just in case
+                  let updateCol = targetCol;
+                  if (!activeSourceOrderId) {
+                    const checkInv = await getDoc(doc(db, getCol('invoices'), orderId));
+                    if (!checkInv.exists()) updateCol = 'orders';
+                  }
+                  await deleteDoc(doc(db, getCol(updateCol), orderId));
+                  toast.success('Rechnungsentwurf gelöscht!');
+                  router.push(`/dashboard/customers/${urlCustomerId}`);
+                } catch (error) {
+                  console.error(error);
+                  toast.error('Fehler beim Löschen des Entwurfs.');
+                }
+              }
+            }}
+            className="btn-secondary px-4 py-2 bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20 flex items-center gap-2"
+          >
+            <TrashIcon className="w-5 h-5" /> Entwurf löschen
+          </button>
+        )}
       </div>
       
       <div className="glass-panel p-4 rounded-xl shadow-lg flex items-center justify-start overflow-x-auto custom-scrollbar gap-4">
@@ -346,6 +379,41 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
                   <input type="text" value={orderMeta.manager} onChange={e => setOrderMeta({...orderMeta, manager: e.target.value})} className="input-field w-full" />
                 </div>
             </div>
+
+            {/* Logistics Section for Draft Invoices */}
+            {sourceOrderId && (
+              <div className="col-span-1 md:col-span-4 mt-4 border-t border-structure pt-4">
+                <h3 className="text-sm font-semibold text-text-main mb-3">Leistungsort (Auszug / Einzug)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-bg-dark p-3 rounded-xl border border-structure">
+                    <label className="block text-xs font-bold text-primary mb-2">Auszugsort (Start)</label>
+                    <input type="text" placeholder="Straße & Haus-Nr." value={`${logistics?.a_street || ''} ${logistics?.a_houseNr || ''}`.trim()} onChange={e => {
+                      const parts = e.target.value.split(/(?=\d)/);
+                      const street = parts[0]?.trim() || '';
+                      const houseNr = parts.slice(1).join('').trim() || '';
+                      setLogistics({...logistics, a_street: street, a_houseNr: houseNr});
+                    }} className="input-field w-full mb-2 text-xs" />
+                    <div className="flex gap-2">
+                      <input type="text" placeholder="PLZ" value={logistics?.a_zip || ''} onChange={e => setLogistics({...logistics, a_zip: e.target.value})} className="input-field w-1/3 text-xs" />
+                      <input type="text" placeholder="Ort" value={logistics?.a_city || ''} onChange={e => setLogistics({...logistics, a_city: e.target.value})} className="input-field w-2/3 text-xs" />
+                    </div>
+                  </div>
+                  <div className="bg-bg-dark p-3 rounded-xl border border-structure">
+                    <label className="block text-xs font-bold text-primary mb-2">Einzugsort (Ziel)</label>
+                    <input type="text" placeholder="Straße & Haus-Nr." value={`${logistics?.b_street || ''} ${logistics?.b_houseNr || ''}`.trim()} onChange={e => {
+                      const parts = e.target.value.split(/(?=\d)/);
+                      const street = parts[0]?.trim() || '';
+                      const houseNr = parts.slice(1).join('').trim() || '';
+                      setLogistics({...logistics, b_street: street, b_houseNr: houseNr});
+                    }} className="input-field w-full mb-2 text-xs" />
+                    <div className="flex gap-2">
+                      <input type="text" placeholder="PLZ" value={logistics?.b_zip || ''} onChange={e => setLogistics({...logistics, b_zip: e.target.value})} className="input-field w-1/3 text-xs" />
+                      <input type="text" placeholder="Ort" value={logistics?.b_city || ''} onChange={e => setLogistics({...logistics, b_city: e.target.value})} className="input-field w-2/3 text-xs" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex justify-end mt-6">
              <button onClick={() => setCurrentStep(2)} className="btn-primary">Weiter zu Leistungen</button>
@@ -494,6 +562,33 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
             <div>
               <label className="block text-xs text-text-muted mb-1 font-bold">Rechnung Einleitungstext</label>
               <textarea value={texts.quoteIntro} onChange={e => setTexts({...texts, quoteIntro: e.target.value})} className="input-field w-full h-24" placeholder="Sehr geehrte(r)..." />
+              <div className="flex gap-2 mt-2">
+                <button 
+                  onClick={() => {
+                    const from = `${logistics?.a_zip || ''} ${logistics?.a_city || ''}`.trim();
+                    const to = `${logistics?.b_zip || ''} ${logistics?.b_city || ''}`.trim();
+                    if (!from && !to) {
+                      toast.error("Keine Adressdaten hinterlegt.");
+                      return;
+                    }
+                    const textToAdd = `(Umzug von ${from || '?'} nach ${to || '?'})`;
+                    setTexts({...texts, quoteIntro: texts.quoteIntro ? `${texts.quoteIntro} ${textToAdd}` : textToAdd});
+                  }}
+                  className="text-xs px-3 py-1.5 bg-bg-panel border border-structure text-text-main hover:text-primary rounded-lg transition-colors shadow-sm"
+                >
+                  📍 Adressen einfügen
+                </button>
+                <button 
+                  onClick={() => {
+                    const movingDate = orderMeta?.movingDateFrom ? new Date(orderMeta.movingDateFrom).toLocaleDateString('de-DE') : '___';
+                    const textToAdd = `am ${movingDate}`;
+                    setTexts({...texts, quoteIntro: texts.quoteIntro ? `${texts.quoteIntro} ${textToAdd}` : textToAdd});
+                  }}
+                  className="text-xs px-3 py-1.5 bg-bg-panel border border-structure text-text-main hover:text-primary rounded-lg transition-colors shadow-sm"
+                >
+                  📅 Umzugsdatum einfügen
+                </button>
+              </div>
             </div>
             <div>
               <label className="block text-xs text-text-muted mb-1 font-bold">Zahlungsbedingungen</label>

@@ -46,6 +46,7 @@ export default function DashboardPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [customersMap, setCustomersMap] = useState<Record<string, any>>({});
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [pendingConfirmOrder, setPendingConfirmOrder] = useState<any | null>(null);
   const [activePhaseTab, setActivePhaseTab] = useState<number>(1);
   const [showAllPhases, setShowAllPhases] = useState<boolean>(false);
   const [dashboardView, setDashboardView] = useState<'pipeline' | 'logistics'>('pipeline');
@@ -149,7 +150,9 @@ export default function DashboardPage() {
     };
     
     const unsubOrders = onSnapshot(qOrders, (snapshot) => {
-      currentOrders = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+      currentOrders = snapshot.docs
+        .map((doc: any) => ({ id: doc.id, ...doc.data() }))
+        .filter((o: any) => o.type !== 'invoice' && !o.isStorno);
       setOrders(currentOrders);
       processDashboardData();
     });
@@ -220,17 +223,45 @@ export default function DashboardPage() {
     const orderId = e.dataTransfer.getData('orderId');
     if (!orderId) return;
 
-    // Optimistic UI Update
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    const originalOrder = orders.find(o => o.id === orderId);
+    if (!originalOrder) return;
+    const oldStatus = originalOrder.status;
+
+    if (oldStatus === newStatus) return;
+
+    // RULE: Block backward moves from Zone 2 to Zone 1
+    const zone2Statuses = ['confirmed', 'completed', 'invoice_open', 'invoice_overdue', 'invoice_paid'];
+    const zone1Statuses = ['draft', 'quote'];
+    if (zone2Statuses.includes(oldStatus) && zone1Statuses.includes(newStatus)) {
+      toast.error("Bestätigte Aufträge können nur storniert werden.", { duration: 4000 });
+      return;
+    }
+
+    // RULE: Block phase skipping in Zone 2
+    if (oldStatus === 'confirmed' && newStatus === 'invoice_open') {
+      toast.error("Bitte schließe den Auftrag erst ab (Erledigt), bevor du eine Rechnung erstellst.", { duration: 4000 });
+      return;
+    }
+
+    // RULE: Point of No Return Modal (Zone 1 -> confirmed)
+    if (zone1Statuses.includes(oldStatus) && newStatus === 'confirmed') {
+      setPendingConfirmOrder(originalOrder);
+      return;
+    }
+
+    // Optimistic UI Update - ONLY for Zone 1 <-> Zone 1
+    const isZone1Transition = zone1Statuses.includes(oldStatus) && zone1Statuses.includes(newStatus);
+    if (isZone1Transition) {
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    }
 
     try {
       await changeOrderStatus(orderId, newStatus as any, { userId: user?.uid });
     } catch (err: any) {
       console.error("Fehler beim Verschieben des Auftrags", err);
       toast.error(err.message || "Fehler beim Verschieben.");
-      // Revert optimistic update
-      const originalOrder = orders.find(o => o.id === orderId);
-      if (originalOrder) {
+      if (isZone1Transition) {
+        // Revert optimistic update
         setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: originalOrder.status } : o));
       }
     }
@@ -1180,6 +1211,83 @@ export default function DashboardPage() {
                  </Link>
               </div>
 
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingConfirmOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className={`${card} w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border`}>
+            <div className="p-6 border-b border-black/10 dark:border-white/10 flex justify-between items-center bg-gradient-to-r from-primary/10 to-transparent">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                <CheckIcon className="w-6 h-6 text-primary" /> Point of No Return
+              </h2>
+              <button onClick={() => setPendingConfirmOrder(null)} className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors">
+                <XMarkIcon className="w-5 h-5 opacity-70" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-text-muted mb-4">
+                Du bist dabei, den Auftrag von <strong>{pendingConfirmOrder.customerName}</strong> verbindlich zu bestätigen. Ab hier greifen strenge Kanban-Regeln und der Auftrag kann nicht mehr in den Entwurf-Status zurückgeschoben werden.
+              </p>
+
+              {(() => {
+                const hasMovingDate = !!(pendingConfirmOrder.orderMeta?.movingDateFrom || pendingConfirmOrder.orderMeta?.movingDateTo);
+                const hasBothAddresses = !!(pendingConfirmOrder.logistics?.a_city || pendingConfirmOrder.logistics?.a_street) && !!(pendingConfirmOrder.logistics?.b_city || pendingConfirmOrder.logistics?.b_street);
+                const hasSignatureOrExternal = !!pendingConfirmOrder.signatureOrder || !!pendingConfirmOrder.externallyConfirmed;
+                const canConfirm = hasMovingDate && hasBothAddresses && hasSignatureOrExternal;
+
+                return (
+                  <>
+                    <div className="space-y-2">
+                      <div className={`flex items-center gap-3 p-3 rounded-lg border ${hasMovingDate ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                        {hasMovingDate ? <CheckIcon className="w-5 h-5" /> : <XMarkIcon className="w-5 h-5" />}
+                        <span className="text-sm font-medium">Umzugsdatum festgelegt</span>
+                      </div>
+                      <div className={`flex items-center gap-3 p-3 rounded-lg border ${hasBothAddresses ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                        {hasBothAddresses ? <CheckIcon className="w-5 h-5" /> : <XMarkIcon className="w-5 h-5" />}
+                        <span className="text-sm font-medium">Adressen (A & B) vorhanden</span>
+                      </div>
+                      <div className={`flex items-center gap-3 p-3 rounded-lg border ${hasSignatureOrExternal ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+                        {hasSignatureOrExternal ? <CheckIcon className="w-5 h-5" /> : <XMarkIcon className="w-5 h-5" />}
+                        <span className="text-sm font-medium">Unterschrift / Externe Bestätigung</span>
+                      </div>
+                    </div>
+
+                    {!canConfirm && (
+                      <div className="mt-4 p-4 bg-orange-500/10 border border-orange-500/20 rounded-lg">
+                        <p className="text-xs text-orange-400 font-bold flex items-center gap-2">
+                          <XMarkIcon className="w-4 h-4" /> Es fehlen noch wichtige Daten!
+                        </p>
+                        <p className="text-xs text-orange-400/80 mt-1">Bitte öffne den Auftrag und ergänze die fehlenden Informationen, bevor du ihn bestätigst.</p>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-black/10 dark:border-white/10">
+                      <button onClick={() => setPendingConfirmOrder(null)} className="btn-secondary px-6 py-2">
+                        Abbrechen
+                      </button>
+                      <button 
+                        disabled={!canConfirm}
+                        onClick={async () => {
+                          try {
+                            await changeOrderStatus(pendingConfirmOrder.id, 'confirmed', { userId: user?.uid });
+                            toast.success("Auftrag verbindlich bestätigt!");
+                            setPendingConfirmOrder(null);
+                          } catch (err: any) {
+                            toast.error(err.message || "Fehler beim Bestätigen");
+                          }
+                        }} 
+                        className={`btn-primary px-6 py-2 font-bold ${!canConfirm ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        Verbindlich bestätigen
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

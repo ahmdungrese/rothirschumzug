@@ -1,4 +1,5 @@
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
+import { calculateOrderTotals, calculateOpenAmount, calculateTotalPaid } from '@/lib/financeHelpers';
 
 const styles = StyleSheet.create({
   page: { padding: 30, paddingBottom: 90, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
@@ -53,7 +54,7 @@ const styles = StyleSheet.create({
 export const InvoicePDF = ({ order, customer, settings, employeeName }: { order: any, customer: any, settings: any, employeeName?: string }) => {
   const isFlat = order?.isFlatRate;
   const isStorno = order?.isStorno;
-  const billing = order?.billingAddress || customer;
+  const billing = order?.customerData || order?.billingAddress || customer;
   
   // Fälligkeit berechnen
   const pmSettings = settings?.paymentMethods?.find((p:any) => p.name === order?.orderMeta?.paymentMethod) || settings?.paymentMethods?.[0];
@@ -62,9 +63,7 @@ export const InvoicePDF = ({ order, customer, settings, employeeName }: { order:
   dueDate.setDate(dueDate.getDate() + dueDays);
 
   // Fallback Calculation if totals/calcInput are missing
-  const safeNet = order?.totals?.net ?? order?.calcInput?.net ?? (isFlat ? (order?.flatRateNet || 0) : (order?.services || []).reduce((acc: number, curr: any) => acc + (curr.quantity * (curr.unitPrice || 0)), 0));
-  const safeTax = order?.totals?.tax ?? order?.calcInput?.tax ?? (safeNet * 0.19);
-  const safeGross = order?.totals?.gross ?? order?.calcInput?.gross ?? (safeNet + safeTax);
+  const { net: safeNet, tax: safeTax, gross: safeGross } = calculateOrderTotals(order);
 
   const docTitle = isStorno ? `Stornorechnung ${order?.invoiceNumber || order?.orderNumber || 'Entwurf'} - ${billing?.lastName || 'Kunde'}` : `Rechnung ${order?.invoiceNumber || order?.orderNumber || 'Entwurf'} - ${billing?.lastName || 'Kunde'}`;
 
@@ -144,8 +143,22 @@ export const InvoicePDF = ({ order, customer, settings, employeeName }: { order:
         <Text style={{ ...styles.introText, marginTop: -10 }}>
           {isStorno 
             ? `hiermit stornieren wir die Rechnung ${order?.stornoFor}. Der unten ausgewiesene Betrag wird Ihrem Konto gutgeschrieben bzw. gleicht unsere Forderung aus.` 
-            : (order?.texts?.quoteIntro || (settings?.texts?.invoiceIntro || '')).replace(/\{\{Kunde_Anrede\}\}/g, introGreeting.replace(',', ''))}
+            : (order?.texts?.invoiceIntro || settings?.texts?.invoiceIntro || 'Anbei erhalten Sie unsere Rechnung zu den erbrachten Leistungen.').replace(/\{\{Kunde_Anrede\}\}/g, introGreeting.replace(',', ''))}
         </Text>
+
+        {order?.logistics?.a_city && order?.logistics?.b_city && (
+          <View style={{ marginTop: 10, marginBottom: 15, padding: 10, backgroundColor: '#f9f9f9', borderRadius: 4 }}>
+            <Text style={{ fontSize: 9, fontFamily: 'Helvetica-Bold', marginBottom: 4, color: '#333' }}>Leistungsort / Umzugswege:</Text>
+            <Text style={{ fontSize: 9, color: '#444' }}>
+              <Text style={{ fontFamily: 'Helvetica-Bold' }}>Von: </Text>
+              {order.logistics.a_street} {order.logistics.a_houseNr}, {order.logistics.a_zip} {order.logistics.a_city}
+            </Text>
+            <Text style={{ fontSize: 9, color: '#444', marginTop: 2 }}>
+              <Text style={{ fontFamily: 'Helvetica-Bold' }}>Nach: </Text>
+              {order.logistics.b_street} {order.logistics.b_houseNr}, {order.logistics.b_zip} {order.logistics.b_city}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.table}>
           <View style={styles.tableHeader}>
@@ -159,7 +172,7 @@ export const InvoicePDF = ({ order, customer, settings, employeeName }: { order:
               </>
             )}
           </View>
-          {order?.services?.map((item: any, i: number) => {
+          {order?.services?.length ? order.services.map((item: any, i: number) => {
             const itemNameLower = (item.name || '').toLowerCase();
             const showExactAmount = isFlat && (itemNameLower.includes('karton') || itemNameLower.includes('einpack'));
             
@@ -180,7 +193,19 @@ export const InvoicePDF = ({ order, customer, settings, employeeName }: { order:
                 )}
               </View>
             );
-          })}
+          }) : isStorno ? (
+            <View style={styles.tableRow}>
+              <Text style={styles.col1}>1</Text>
+              <Text style={[styles.col2, { width: '70%' }]}>Stornierung der Rechnung {order?.stornoFor}</Text>
+              <Text style={[styles.col3, { width: '20%' }]}></Text>
+              {!isFlat && (
+                <>
+                  <Text style={styles.col4}></Text>
+                  <Text style={styles.col5}>{safeNet.toFixed(2)} €</Text>
+                </>
+              )}
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.totals}>
@@ -201,8 +226,8 @@ export const InvoicePDF = ({ order, customer, settings, employeeName }: { order:
         <Text style={{ ...styles.detailsHeader, fontSize: 12, marginBottom: 5 }}>Zahlungsinformationen</Text>
         {(() => {
           const payments = order?.payments || [];
-          const totalPaid = payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
-          const remaining = Math.max(0, safeGross - totalPaid);
+          const totalPaid = calculateTotalPaid(order);
+          const remaining = calculateOpenAmount(order);
           
           if (totalPaid >= safeGross - 0.01) {
             // Wenn es genau eine Zahlung gab, versuchen wir den Standardtext des Users zu verwenden
@@ -235,19 +260,37 @@ export const InvoicePDF = ({ order, customer, settings, employeeName }: { order:
             );
           }
 
-          // Not paid yet: show the selected payment method text, or default outro
-          return pmSettings?.textInvoice ? (
-            <Text style={styles.textBlock}>{pmSettings.textInvoice}</Text>
-          ) : invoiceOutro ? (
-            <Text style={styles.textBlock}>{invoiceOutro}</Text>
-          ) : null;
+          // Not paid yet or partially paid: show the selected payment method text, or default outro
+          // Always append bank details for open invoices to ensure they have the transfer info
+          return (
+            <View>
+              {pmSettings?.textInvoice ? (
+                <Text style={styles.textBlock}>{pmSettings.textInvoice}</Text>
+              ) : invoiceOutro ? (
+                <Text style={styles.textBlock}>{invoiceOutro}</Text>
+              ) : (
+                <Text style={styles.textBlock}>Bitte überweisen Sie den offenen Betrag auf folgendes Konto:</Text>
+              )}
+              
+              <View style={{ marginTop: 5, backgroundColor: '#f9f9f9', padding: 10, borderRadius: 4 }}>
+                <Text style={{ fontFamily: 'Helvetica-Bold', marginBottom: 3 }}>Bankverbindung für Ihre Zahlung:</Text>
+                <Text>Kontoinhaber: {settings?.companyName}</Text>
+                <Text>IBAN: {settings?.iban}</Text>
+                <Text>BIC: {settings?.bic}</Text>
+                <Text>Bank: {settings?.bankName}</Text>
+                <Text style={{ marginTop: 5, fontFamily: 'Helvetica-Bold' }}>
+                  Zahlungsziel: {dueDays > 0 ? `Innerhalb von ${dueDays} Tagen (bis zum ${dueDate.toLocaleDateString('de-DE')})` : 'Sofort nach Rechnungserhalt'}
+                </Text>
+              </View>
+            </View>
+          );
         })()}
 
         {invoiceGreeting && (
           <Text style={styles.textBlock}>{invoiceGreeting}</Text>
         )}
 
-        <View style={styles.footerBlocks}>
+        <View style={styles.footerBlocks} fixed>
           <View style={styles.footerCol}>
             <Text style={styles.footerTitle}>Unternehmen</Text>
             <Text style={styles.footerText}>{settings?.companyName}</Text>

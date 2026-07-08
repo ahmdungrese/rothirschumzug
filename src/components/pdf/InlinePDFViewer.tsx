@@ -10,6 +10,6 @@ const PDFViewerWrapped = dynamic(() => import('./InlinePDFViewerWrapper'), {
   )
 });
 
-export function InlinePDFViewer({ order, customer, type = 'order' }: { order: any, customer: any, type?: 'order' | 'employee' | 'invoice' | 'contract' | 'protocol' }) {
-  return <PDFViewerWrapped order={order} customer={customer} type={type} />;
+export function InlinePDFViewer({ order, customer, type = 'order', forceLiveQuote = false }: { order: any, customer: any, type?: 'order' | 'employee' | 'invoice' | 'contract' | 'protocol', forceLiveQuote?: boolean }) {
+  return <PDFViewerWrapped order={order} customer={customer} type={type} forceLiveQuote={forceLiveQuote} />;
 }
