@@ -2,7 +2,7 @@
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, useMemo } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, collection, query, where, onSnapshot, updateDoc, deleteDoc, serverTimestamp, getDoc, addDoc } from 'firebase/firestore';
+import { doc, collection, query, where, onSnapshot, updateDoc, deleteDoc, serverTimestamp, getDoc, addDoc, writeBatch } from 'firebase/firestore';
 import {
   XMarkIcon, ArchiveBoxIcon, MapIcon, ArrowUpOnSquareIcon,
   DocumentTextIcon, TruckIcon, CheckIcon, MapPinIcon, ClockIcon,
@@ -54,6 +54,7 @@ export default function CustomerProfilePage() {
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [pdfType, setPdfType] = useState<'order' | 'contract' | 'employee' | 'invoice' | 'protocol'>('order');
   const [isEditing, setIsEditing] = useState(false);
+  const [isSavingCustomer, setIsSavingCustomer] = useState(false);
   const [editData, setEditData] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
   const [deleteConfirmOrder, setDeleteConfirmOrder] = useState<string | null>(null);
@@ -72,6 +73,7 @@ export default function CustomerProfilePage() {
   const [routeInfo, setRouteInfo] = useState<{ [orderId: string]: { direct: { distanceKm: number, durationMinutes: number }, total: { distanceKm: number, durationMinutes: number } } }>({});
   const [isCalculatingRoute, setIsCalculatingRoute] = useState<{ [orderId: string]: boolean }>({});
   const [routeError, setRouteError] = useState<{ [orderId: string]: string | null }>({});
+  const [isProcessingOrder, setIsProcessingOrder] = useState<{ [orderId: string]: boolean }>({});
 
   useEffect(() => {
     const docRef = doc(db, getCol('customers'), customerId);
@@ -122,7 +124,7 @@ export default function CustomerProfilePage() {
       .filter(o => !o.isStorno) // Hide Storno documents from the main order list
       .filter(o => !(o.type === 'invoice' && (o.sourceOrderId || o.orderNumber))); // Hide nested invoices and corrupted ones with orderNumber
     // Add free invoices (from dedicated invoices collection) – they are never 'archived' in the usual sense
-    const freeInvItems = freeInvoices.filter(inv => inv.status !== 'canceled' && !inv.isStorno);
+    const freeInvItems = freeInvoices.filter(inv => inv.status !== 'canceled' && !inv.isStorno && !inv.sourceOrderId);
     return [...orderItems, ...freeInvItems]
       .sort((a: any, b: any) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
   }, [orders, freeInvoices]);
@@ -320,21 +322,23 @@ export default function CustomerProfilePage() {
     return items;
   }, [customer, orders, customerId, router]);
 
-  const deleteOrder = async (orderId: string) => {
-    const ord = orders.find(o => o.id === orderId);
+  const deleteOrder = async (orderId: string, collectionName: string = 'orders') => {
+    const allItems = [...orders, ...freeInvoices];
+    const ord = allItems.find(o => o.id === orderId);
+    
     // Guard: never allow deletion if order has an invoiceNumber or child invoices
     if (ord?.invoiceNumber) {
       toast.error('Aufträge mit Rechnungen können nicht gelöscht werden. Bitte Rechnung stornieren.');
       return;
     }
-    const hasChildInvoice = orders.some(o => o.sourceOrderId === orderId && !!o.invoiceNumber);
+    const hasChildInvoice = allItems.some(o => o.sourceOrderId === orderId && !!o.invoiceNumber);
     if (hasChildInvoice) {
       toast.error('Dieser Auftrag hat zugeordnete Rechnungen und kann nicht gelöscht werden.');
       return;
     }
-    if (!confirm('Möchten Sie diesen Auftrag wirklich archivieren?')) return;
+    if (!confirm('Möchten Sie dieses Dokument wirklich archivieren/löschen?')) return;
     try {
-      await updateDoc(doc(db, getCol('orders'), orderId), { status: 'archived', updatedAt: serverTimestamp() });
+      await updateDoc(doc(db, getCol(collectionName as 'orders' | 'invoices'), orderId), { status: 'archived', updatedAt: serverTimestamp() });
       toast.success('Dokument wurde archiviert!');
     } catch (e) {
       toast.error('Fehler beim Archivieren.');
@@ -421,6 +425,7 @@ export default function CustomerProfilePage() {
   };
 
   const handleUpdateOrderStatus = async (order: any, newStatus: string) => {
+    setIsProcessingOrder(prev => ({ ...prev, [order.id]: true }));
     try {
       await changeOrderStatus(order.id, newStatus as any, {
         userId: user?.uid,
@@ -435,27 +440,33 @@ export default function CustomerProfilePage() {
     } catch (error: any) {
       console.error(error);
       toast.error(error.message || "Ein Fehler ist aufgetreten.");
+    } finally {
+      setIsProcessingOrder(prev => ({ ...prev, [order.id]: false }));
     }
   };
 
   const handleConfirmOrder = async (order: any) => {
-    if (order.signatureOrder || order.externallyConfirmed) {
-      await handleUpdateOrderStatus(order, 'confirmed');
-    } else {
-      if (window.confirm("Der Auftrag hat noch keine digitale Unterschrift. Wurde er extern bestätigt (z.B. per WhatsApp / E-Mail)?\n\nKlicken Sie auf 'OK' für externe Bestätigung, oder 'Abbrechen' um digital zu unterschreiben.")) {
-        try {
+    setIsProcessingOrder(prev => ({ ...prev, [order.id]: true }));
+    try {
+      if (order.signatureOrder || order.externallyConfirmed) {
+        await handleUpdateOrderStatus(order, 'confirmed');
+      } else {
+        if (window.confirm("Der Auftrag hat noch keine digitale Unterschrift. Wurde er extern bestätigt (z.B. per WhatsApp / E-Mail)?\n\nKlicken Sie auf 'OK' für externe Bestätigung, oder 'Abbrechen' um digital zu unterschreiben.")) {
           await updateDoc(doc(db, getCol('orders'), order.id), {
             externallyConfirmed: true,
+            status: 'confirmed',
             updatedAt: serverTimestamp()
           });
-          await handleUpdateOrderStatus({ ...order, externallyConfirmed: true }, 'confirmed');
-          toast.success("Auftrag extern bestätigt!");
-        } catch (e) {
-          toast.error("Fehler beim Bestätigen.");
+          toast.success("Auftrag bestätigt (extern)!");
+          setActiveDropdown(null);
+        } else {
+          setSignatureOrder(order);
         }
-      } else {
-        setSignatureOrder(order);
       }
+    } catch (e: any) {
+      toast.error(e.message || "Fehler beim Bestätigen.");
+    } finally {
+      setIsProcessingOrder(prev => ({ ...prev, [order.id]: false }));
     }
   };
 
@@ -466,33 +477,60 @@ export default function CustomerProfilePage() {
     try {
       setIsStornoLoading(true);
       // Determine which collection holds the original invoice
-      const isFreeInvoice = order._collection === 'invoices';
-      const targetCol = isFreeInvoice ? 'invoices' : 'orders';
-      const isChildInvoice = order.type === 'invoice' && order.sourceOrderId;
-
+      const isChildInvoice = order.type === 'invoice' && (order.sourceOrderId || order.orderNumber);
+      const isFreeInvoice = order._collection === 'invoices' && !isChildInvoice;
+      const targetCol = order._collection || 'orders';
+      
       const settingsSnap = await getDoc(doc(db, getCol('system'), 'settings'));
       const nextInvoiceNum = settingsSnap.data()?.nextInvoiceNumber || 1000;
       const stornoInvoiceNumber = `RE-${new Date().getFullYear()}-${nextInvoiceNum.toString().padStart(3, '0')}`;
-      await updateDoc(doc(db, getCol('system'), 'settings'), { nextInvoiceNumber: nextInvoiceNum + 1 });
 
-      const orderUpdatePayload: any = { updatedAt: serverTimestamp() };
-      
-      if (!isFreeInvoice && !isChildInvoice) { // Es ist der Hauptauftrag (Angebot)
-        orderUpdatePayload.status = 'completed';
-        const newHistoryEntry = {
-          invoiceNumber: order.invoiceNumber,
-          status: 'cancelled',
-          stornoRef: stornoInvoiceNumber,
-          date: new Date().toISOString()
-        };
-        orderUpdatePayload.invoiceHistory = [...(order.invoiceHistory || []), newHistoryEntry];
-        orderUpdatePayload.invoiceNumber = null;
-        orderUpdatePayload.invoiceDate = null;
-      } else { // Es ist eine freie Rechnung oder eine generierte Unter-Rechnung
-        orderUpdatePayload.status = 'invoice_cancelled';
+      const newHistoryEntry = {
+        invoiceNumber: order.invoiceNumber,
+        status: 'cancelled',
+        stornoRef: stornoInvoiceNumber,
+        date: new Date().toISOString()
+      };
+
+      const batch = writeBatch(db);
+      batch.update(doc(db, getCol('system'), 'settings'), { nextInvoiceNumber: nextInvoiceNum + 1 });
+
+      if (isChildInvoice) {
+        // Update the child invoice document itself
+        batch.update(doc(db, getCol(targetCol), order.id), {
+          status: 'invoice_cancelled',
+          updatedAt: serverTimestamp()
+        });
+
+        // Try to find and update the parent order
+        const parentOrder = orders.find(o => o.id === order.sourceOrderId || (o.orderNumber && o.orderNumber === order.orderNumber));
+        if (parentOrder) {
+          batch.update(doc(db, getCol('orders'), parentOrder.id), {
+            status: 'completed',
+            invoiceNumber: null,
+            invoiceDate: null,
+            invoiceHistory: [...(parentOrder.invoiceHistory || []), newHistoryEntry],
+            updatedAt: serverTimestamp()
+          });
+        }
+      } else if (!isFreeInvoice) {
+        // It's a parent order (legacy case, no separate invoice document)
+        batch.update(doc(db, getCol('orders'), order.id), {
+          status: 'completed',
+          invoiceNumber: null,
+          invoiceDate: null,
+          invoiceHistory: [...(order.invoiceHistory || []), newHistoryEntry],
+          updatedAt: serverTimestamp()
+        });
+      } else {
+        // Free invoice
+        batch.update(doc(db, getCol('invoices'), order.id), {
+          status: 'invoice_cancelled',
+          updatedAt: serverTimestamp()
+        });
       }
 
-      await updateDoc(doc(db, getCol(targetCol), order.id), orderUpdatePayload);
+      await batch.commit();
 
       const { net: origNet, tax: origTax, gross: origGross } = calculateOrderTotals(order);
       const stornoTotals = { net: -origNet, tax: -origTax, gross: -origGross };
@@ -513,6 +551,7 @@ export default function CustomerProfilePage() {
         isStorno: true,
         stornoFor: order.invoiceNumber,
         invoiceNumber: stornoInvoiceNumber,
+        invoiceDate: new Date().toISOString(),
         totals: stornoTotals,
         calcInput: stornoTotals,
         services: stornoServices,
@@ -557,14 +596,16 @@ export default function CustomerProfilePage() {
       }
 
       setActiveDropdown(null);
-    } catch (error) {
-      toast.error("Fehler beim Stornieren.");
+    } catch (error: any) {
+      toast.error(`Fehler: ${error.message || error}`);
+      console.error(error);
     } finally {
       setIsStornoLoading(false);
     }
   };
 
   const handleSaveCustomer = async () => {
+    setIsSavingCustomer(true);
     try {
       await updateDoc(doc(db, getCol('customers'), customerId), {
         salutation: editData.salutation || '',
@@ -588,6 +629,8 @@ export default function CustomerProfilePage() {
     } catch (error) {
       console.error("Save Customer Error:", error);
       toast.error("Fehler beim Speichern");
+    } finally {
+      setIsSavingCustomer(false);
     }
   };
 
@@ -596,21 +639,31 @@ export default function CustomerProfilePage() {
 
   // Filter for valid financial documents to avoid double-counting.
   // Excluded: archived, canceled, invoice_cancelled (storniert = ausgeglichen)
-  const validFinancialDocs = orders.filter(o =>
+  const validFinancialDocs = [...orders, ...freeInvoices].filter(o =>
     o.status !== 'archived' &&
     o.status !== 'canceled' &&
     o.status !== 'invoice_cancelled'
   ).filter(o => {
     if (o.type === 'invoice') return true; // Invoices always count
-    // Orders only count if they haven't been invoiced yet
-    const hasChildInvoice = orders.some(child => child.sourceOrderId === o.id && child.type === 'invoice' && child.status !== 'archived' && child.status !== 'canceled' && child.status !== 'invoice_cancelled');
-    return !hasChildInvoice;
+    // Orders only count if they haven't been invoiced at all (not even a cancelled invoice)
+    // If they have a cancelled invoice, they should contribute 0 to revenue until a new active invoice is generated.
+    const hasAnyInvoice = [...orders, ...freeInvoices].some(child => 
+      child.type === 'invoice' && 
+      child.status !== 'archived' && 
+      (child.sourceOrderId === o.id || (child.orderNumber === o.orderNumber && !child.sourceOrderId))
+    );
+    return !hasAnyInvoice;
   });
 
   const totalRevenue = validFinancialDocs.filter(o => ['quote', 'confirmed', 'completed', 'invoice_open', 'invoice_paid'].includes(o.status)).reduce((sum, o) => sum + calculateOrderTotals(o).gross, 0);
-  // Open = not cancelled, not paid, not storno
-  const openItems = validFinancialDocs.filter(o => ['invoice_open', 'invoice_overdue', 'confirmed', 'completed'].includes(o.status)).reduce((sum, o) => {
+  // Open = not cancelled, not paid, not storno. Only count actual open invoices.
+  const openItems = validFinancialDocs.filter(o => ['invoice_open', 'invoice_overdue'].includes(o.status)).reduce((sum, o) => {
     return sum + calculateOpenAmount(o);
+  }, 0);
+
+  const paidAmount = validFinancialDocs.reduce((sum, o) => {
+    const docPaid = (o.payments || []).reduce((pSum: number, p: any) => pSum + (p.amount || 0), 0);
+    return sum + docPaid;
   }, 0);
 
   return (
@@ -660,7 +713,9 @@ export default function CustomerProfilePage() {
                     router.replace(`/dashboard/customers/${customerId}`, { scroll: false });
                   }
                 }} className="btn-secondary flex-1 py-1.5 text-xs">Abbrechen</button>
-                <button onClick={handleSaveCustomer} className="btn-primary flex-1 py-1.5 text-xs">Speichern</button>
+                <button onClick={handleSaveCustomer} disabled={isSavingCustomer} className="btn-primary flex-1 py-1.5 text-xs">
+                  {isSavingCustomer ? 'Speichert...' : 'Speichern'}
+                </button>
               </div>
             </div>
           ) : (
@@ -760,7 +815,7 @@ export default function CustomerProfilePage() {
               const isExpanded = expandedOrderId === order.id;
               const isFreeInvoice = order._collection === 'invoices'; // from dedicated invoices collection
               const isInvoice = isFreeInvoice || order.type === 'invoice' || order.status?.startsWith('invoice_');
-              const linkedInvoices = orders.filter((o: any) => 
+              const linkedInvoices = [...orders, ...freeInvoices].filter((o: any) => 
                 o.type === 'invoice' && 
                 (o.sourceOrderId === order.id || (o.orderNumber === order.orderNumber && !o.sourceOrderId))
               );
@@ -790,9 +845,20 @@ export default function CustomerProfilePage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-6">
+                      {(isInvoice || hasActiveInvoice) && order.status !== 'canceled' && order.status !== 'invoice_cancelled' && (
+                        <div className="text-right border-r border-white/10 pr-6 hidden sm:block">
+                          <div className="font-bold text-emerald-400">
+                            € {(() => {
+                              const targetInv = isInvoice ? order : linkedInvoices.find(inv => inv.status !== 'canceled' && inv.status !== 'invoice_cancelled' && inv.status !== 'archived');
+                              return targetInv ? (targetInv.payments || []).reduce((s: number, p: any) => s + (p.amount || 0), 0).toFixed(2) : '0.00';
+                            })()}
+                          </div>
+                          <div className="text-xs text-emerald-500/80 mt-1 uppercase tracking-wider">Bezahlt</div>
+                        </div>
+                      )}
                       <div className="text-right">
                         <div className="font-bold text-text-main">€ {calculateOrderTotals(order).gross.toFixed(2)}</div>
-                        <div className="text-xs text-text-muted mt-1">{order.status === 'canceled' ? '-' : 'Brutto'}</div>
+                        <div className="text-xs text-text-muted mt-1 uppercase tracking-wider">{order.status === 'canceled' ? '-' : 'Brutto'}</div>
                       </div>
                       <div className="text-text-muted">
                         {isExpanded ? <ChevronUpIcon className="w-5 h-5" /> : <ChevronDownIcon className="w-5 h-5" />}
@@ -853,7 +919,7 @@ export default function CustomerProfilePage() {
                                   <button onClick={() => { setActiveDropdown(null); setInlinePdfOrder(inlinePdfOrder?.id === order.id ? null : order); setInlinePdfType(isFreeInvoice ? 'invoice' : 'order'); }} className="w-full text-left px-4 py-2 text-sm text-text-main hover:bg-structure flex items-center gap-2"><DocumentArrowDownIcon className="w-4 h-4" /> {isFreeInvoice ? 'Rechnung drucken' : 'Angebot drucken'}</button>
                                 )}
                                 {['draft', 'quote', 'clarification', 'rejected'].includes(order.status) && (
-                                  <button onClick={() => { setActiveDropdown(null); deleteOrder(order.id); }} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2"><TrashIcon className="w-4 h-4" /> Löschen</button>
+                                  <button onClick={() => { setActiveDropdown(null); deleteOrder(order.id, order._collection || 'orders'); }} className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-red-500/10 flex items-center gap-2"><TrashIcon className="w-4 h-4" /> Löschen</button>
                                 )}
                               </div>
                             )}
@@ -904,7 +970,10 @@ export default function CustomerProfilePage() {
                                   </div>
                                   <div className="flex gap-2">
                                     <button onClick={() => handleUpdateOrderStatus(order, 'rejected')} className="px-3 py-1.5 bg-white/5 hover:bg-red-500/10 text-text-muted hover:text-red-400 text-xs font-bold rounded-lg transition-colors">Kunde hat abgesagt</button>
-                                    <button onClick={() => handleConfirmOrder(order)} className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1"><CheckIcon className="w-4 h-4" /> Auftrag bestätigen</button>
+                                    <button onClick={() => handleConfirmOrder(order)} disabled={isProcessingOrder[order.id]} className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors flex items-center gap-1">
+                                      <CheckIcon className="w-4 h-4" /> 
+                                      {isProcessingOrder[order.id] ? 'Speichert...' : 'Auftrag bestätigen'}
+                                    </button>
                                   </div>
                                 </div>
                               )}
@@ -916,7 +985,7 @@ export default function CustomerProfilePage() {
                                     <div className="text-[10px] text-teal-400/70 font-bold uppercase mb-0.5">Unterschrift erforderlich</div>
                                     <div className="text-sm text-teal-400 font-bold">Digitale Signatur / Externe Zusage fehlt</div>
                                   </div>
-                                  <button onClick={() => setSignatureOrder(order)} className="px-3 py-1.5 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">✍️ Jetzt unterschreiben lassen</button>
+                                  <button onClick={() => setSignatureOrder(order)} disabled={isProcessingOrder[order.id]} className="px-3 py-1.5 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">✍️ Jetzt unterschreiben lassen</button>
                                 </div>
                               )}
 
@@ -928,7 +997,7 @@ export default function CustomerProfilePage() {
                                     <div className="text-sm text-purple-400 font-bold">Umzug durchführen</div>
                                     <div className="text-xs text-text-muted">Markiere den Auftrag als erledigt, wenn der Umzug abgeschlossen ist.</div>
                                   </div>
-                                  <button onClick={() => handleUpdateOrderStatus(order, 'completed')} className="px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">Umzug durchgeführt (Erledigt)</button>
+                                  <button onClick={() => handleUpdateOrderStatus(order, 'completed')} disabled={isProcessingOrder[order.id]} className="px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors">Umzug durchgeführt (Erledigt)</button>
                                 </div>
                               )}
 
@@ -1097,8 +1166,27 @@ export default function CustomerProfilePage() {
                                           </div>
                                         )}
 
+                                        {/* Payment Check Special Button */}
+                                        {todo.id === 'payment_check' && (
+                                          <div className="mt-3">
+                                            <button
+                                              onClick={() => {
+                                                const invoiceDoc = isInvoice ? order : linkedInvoices.find(inv => inv.status !== 'canceled' && inv.status !== 'invoice_cancelled' && inv.status !== 'archived');
+                                                if (invoiceDoc) {
+                                                  setPaymentOrder(invoiceDoc);
+                                                } else {
+                                                  toast.error("Keine aktive Rechnung gefunden.");
+                                                }
+                                              }}
+                                              className="inline-flex items-center justify-center px-4 py-1.5 bg-green-500/10 hover:bg-green-500 text-green-500 hover:text-white border border-green-500/20 hover:border-green-500 text-[10px] uppercase tracking-wider font-bold rounded-lg transition-all shadow-sm gap-1.5"
+                                            >
+                                              <BanknotesIcon className="w-3.5 h-3.5" /> Zahlung erfassen
+                                            </button>
+                                          </div>
+                                        )}
+
                                         {/* Default Action Link */}
-                                        {todo.actionLink && todo.id !== 'viewing_requested' && todo.id !== 'review_requested' && todo.id !== 'invoice_missing' && (
+                                        {todo.actionLink && todo.id !== 'viewing_requested' && todo.id !== 'review_requested' && todo.id !== 'invoice_missing' && todo.id !== 'payment_check' && (
                                           <div className="mt-3">
                                             <Link href={todo.actionLink} className="inline-flex items-center justify-center px-4 py-1.5 bg-primary/10 hover:bg-primary text-primary hover:text-white border border-primary/20 hover:border-primary text-[10px] uppercase tracking-wider font-bold rounded-lg transition-all shadow-sm">
                                               Jetzt erledigen
@@ -1266,16 +1354,6 @@ export default function CustomerProfilePage() {
                               <BanknotesIcon className="w-4 h-4 shrink-0" /> Zahlungen verwalten
                             </button>
                           )}
-                          {isInvoice && order.status !== 'canceled' && order.status !== 'invoice_cancelled' && (
-                            <div className="flex gap-2 w-full">
-                              <button onClick={() => { if (confirm('Rechnung stornieren und Kopie anlegen?')) handleStorno(order, true); }} className="btn-secondary flex-1 justify-center flex items-center gap-1 text-[10px] py-2 text-red-400">
-                                Storno & Neu
-                              </button>
-                              <button onClick={() => { if (confirm('Nur stornieren?')) handleStorno(order, false); }} className="btn-secondary flex-1 justify-center flex items-center gap-1 text-[10px] py-2 text-red-400 opacity-80">
-                                Nur Storno
-                              </button>
-                            </div>
-                          )}
                         </div>
 
                         {/* Signed Protocols Quick View */}
@@ -1382,11 +1460,13 @@ export default function CustomerProfilePage() {
 
                               // 4. Aktuelle Rechnung (inkl. Freie Rechnungen, die abgebrochen sind, haben evtl eine Nummer)
                               if (order.invoiceNumber) {
+                                const currentChildInvoice = linkedInvoices.find((inv: any) => inv.invoiceNumber === order.invoiceNumber);
                                 docs.push({
                                   id: `invoice-current-${order.id}`,
                                   title: `Rechnung #${order.invoiceNumber}`,
                                   date: order.invoiceDate || order.updatedAt,
                                   type: 'invoice',
+                                  overrideOrder: currentChildInvoice || undefined,
                                   forceLiveQuote: false,
                                   icon: <DocumentTextIcon className="w-4 h-4 text-primary" />,
                                   statusLabel: (order.status === 'invoice_cancelled' || order.status === 'canceled') ? 'Storniert' : 'Aktuell',
@@ -1424,8 +1504,11 @@ export default function CustomerProfilePage() {
 
                               // 5. Verknüpfte Freie Rechnungen
                               linkedInvoices.forEach(inv => {
-                                // Exclude if already pushed via stornosForOrder
+                                // Exclude if already pushed via stornosForOrder or if it's the current main invoice
                                 if (docs.some(d => d.overrideOrder?.id === inv.id)) return;
+                                if (order.invoiceNumber && inv.invoiceNumber === order.invoiceNumber && !inv.isStorno) return;
+                                // Exclude if already rendered from invoiceHistory
+                                if (inv.invoiceNumber && docs.some(d => d.title.includes(`#${inv.invoiceNumber}`))) return;
                                 docs.push({
                                   id: `linked-inv-${inv.id}`,
                                   title: `Rechnung ${inv.invoiceNumber ? `#${inv.invoiceNumber}` : '(Entwurf)'}`,
@@ -1479,7 +1562,7 @@ export default function CustomerProfilePage() {
                                         </button>
                                         
                                         {/* Spezielle Buttons für aktuelle Rechnung oder Entwurf */}
-                                        {docItem.type === 'invoice' && targetOrder.status !== 'invoice_cancelled' && targetOrder.status !== 'canceled' && (
+                                        {docItem.type === 'invoice' && targetOrder.status !== 'invoice_cancelled' && targetOrder.status !== 'canceled' && targetOrder.status !== 'cancelled' && (
                                           <>
                                             {(!targetOrder.invoiceNumber || targetOrder.invoiceNumber === '') && (
                                               <button 
@@ -1494,7 +1577,7 @@ export default function CustomerProfilePage() {
                                                 <BanknotesIcon className="w-3.5 h-3.5" /> Zahlungen
                                               </button>
                                             )}
-                                            {targetOrder.invoiceNumber && !docItem.isMain && (
+                                            {targetOrder.invoiceNumber && (
                                               <button onClick={() => { if (confirm('Möchten Sie diese Rechnung wirklich stornieren?')) handleStorno(targetOrder, false); }} className="btn-secondary flex items-center gap-2 text-xs py-1.5 px-3 text-red-400 border-red-500/20 hover:border-red-500">
                                                 <TrashIcon className="w-3.5 h-3.5" /> Stornieren
                                               </button>
@@ -1574,8 +1657,8 @@ export default function CustomerProfilePage() {
                 updatedAt: new Date()
               };
               
-              // We put it in the orders collection so the normal flow picks it up
-              const docRef = await addDoc(collection(db, getCol('orders')), newInvoiceData);
+              // Rechnungsentwürfe gehören ausschließlich in die invoices Collection
+              const docRef = await addDoc(collection(db, getCol('invoices')), newInvoiceData);
               toast.success('Rechnungs-Entwurf erstellt! Leite zum Editor weiter...');
               
               // 2. Redirect to the Invoice Editor

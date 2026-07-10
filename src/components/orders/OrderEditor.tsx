@@ -611,7 +611,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           </div>
           <div>
             <label className="block text-xs text-text-muted mb-1">Kundenquelle</label>
-            <select value={customerData.source} onChange={e => setCustomerData({...customerData, source: e.target.value})} className="input-field w-full text-text-main">
+            <select value={customerData.source} onChange={e => setCustomerData({...customerData, source: e.target.value})} className="input-field w-full">
               <option value="">Auswählen...</option>
               {settings.customerSources?.map((s:string) => <option key={s} value={s}>{s}</option>)}
             </select>

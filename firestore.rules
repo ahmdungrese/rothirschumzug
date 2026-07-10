@@ -54,35 +54,50 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ─── invoices (Freie Rechnungen) ─────────────────────────────
+    // ─── invoices (Alle Rechnungen & Entwürfe) ─────────────────────────────
     // Same strict rules as orders: invoiceNumber is immutable once set.
     // No hard deletes — use status 'invoice_cancelled' or 'canceled'.
     match /invoices/{invoiceId} {
+      // Lesen: Nur für eingeloggte Nutzer
       allow read: if isAuthenticated();
 
+      // Erstellen: Nur für eingeloggte Nutzer
       allow create: if isAuthenticated();
 
+      // Update: Strenge Unveränderlichkeit für bestimmte Felder/Typen
       allow update: if isAuthenticated() &&
+        // 1. Storno-Belege dürfen niemals geändert werden
+        (!('isStorno' in resource.data) || resource.data.isStorno != true) &&
+        // 2. invoiceNumber darf nicht geändert werden, sobald sie existiert
         (
           !('invoiceNumber' in resource.data) ||
           resource.data.invoiceNumber == null ||
           request.resource.data.invoiceNumber == resource.data.invoiceNumber
         );
 
-      // Permanently forbid deletes — issue a storno/cancellation instead
-      allow delete: if false;
+      // Löschen: Nur für reine Entwürfe erlaubt (Dokumente ohne invoiceNumber)
+      allow delete: if isAuthenticated() &&
+        (
+          !('invoiceNumber' in resource.data) ||
+          resource.data.invoiceNumber == null
+        );
     }
 
     match /invoices_demo/{invoiceId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
       allow update: if isAuthenticated() &&
+        (!('isStorno' in resource.data) || resource.data.isStorno != true) &&
         (
           !('invoiceNumber' in resource.data) ||
           resource.data.invoiceNumber == null ||
           request.resource.data.invoiceNumber == resource.data.invoiceNumber
         );
-      allow delete: if false;
+      allow delete: if isAuthenticated() &&
+        (
+          !('invoiceNumber' in resource.data) ||
+          resource.data.invoiceNumber == null
+        );
     }
 
     // ─── claims ─────────────────────────────────────────────────

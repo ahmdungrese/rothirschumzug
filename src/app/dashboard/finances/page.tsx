@@ -17,32 +17,20 @@ export default function FinancesPage() {
   const [activeTab, setActiveTab] = useState<'open' | 'all'>('open');
 
   useEffect(() => {
-    // Subscribe to orders with invoiceNumber
-    const unsubOrders = onSnapshot(query(collection(db, getCol('orders'))), (snapshot) => {
-      const allOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), _source: 'orders' }));
-      const orderInvoices = allOrders.filter((o: any) => !!o.invoiceNumber);
-      setInvoices(prev => {
-        const freeInvs = prev.filter((i: any) => i._source === 'invoices');
-        const merged = [...orderInvoices, ...freeInvs];
-        merged.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
-        return merged;
-      });
+    // All invoices (both for orders and standalone) are now in the invoices collection
+    const unsubInvoices = onSnapshot(query(collection(db, getCol('invoices'))), (snapshot) => {
+      const allInvoices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      
+      // Filter out drafts that are not finalized invoices
+      const finalizedInvoices = allInvoices.filter(inv => !!inv.invoiceNumber);
+
+      finalizedInvoices.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
+      
+      setInvoices(finalizedInvoices);
       setLoading(false);
     });
 
-    // Subscribe to standalone invoices (free invoices collection)
-    const unsubFreeInvoices = onSnapshot(query(collection(db, getCol('invoices'))), (snapshot) => {
-      const freeInvs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), _source: 'invoices', _collection: 'invoices' }));
-      setInvoices(prev => {
-        const orderInvs = prev.filter((i: any) => i._source === 'orders');
-        const merged = [...orderInvs, ...freeInvs];
-        merged.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || Date.now()) - (a.createdAt?.toMillis?.() || Date.now()));
-        return merged;
-      });
-      setLoading(false);
-    });
-
-    return () => { unsubOrders(); unsubFreeInvoices(); };
+    return () => { unsubInvoices(); };
   }, []);
 
   // Compute Open Invoices

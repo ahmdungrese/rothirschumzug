@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { logActivity } from '@/lib/activityLogger';
 import { toast } from 'react-hot-toast';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, doc, getDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, updateDoc, deleteDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { useParams, useRouter } from 'next/navigation';
 import { getCol } from '@/lib/demoMode';
 import { calculateOrderTotals } from '@/lib/financeHelpers';
@@ -183,8 +183,9 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
       const payload: any = {
         type: 'invoice',
         status: finalStatus,
-        customerId: urlCustomerId,
+        customerId: urlCustomerId || null,
         sourceOrderId: activeSourceOrderId || null,
+        customerName: customerData.type === 'firma' ? customerData.lastName : `${customerData.firstName} ${customerData.lastName}`.trim(),
         customerData,
         orderMeta,
         logistics, // Include logistics in the invoice
@@ -196,39 +197,72 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
         updatedAt: serverTimestamp()
       };
 
-      if (finalStatus === 'invoice_open' && !payload.invoiceNumber && settings) {
-        const nextInvoiceNumber = settings.nextInvoiceNumber || 1;
-        payload.invoiceNumber = `RE-${new Date().getFullYear()}-${nextInvoiceNumber.toString().padStart(3, '0')}`;
-        await updateDoc(doc(db, getCol('system'), 'settings'), { nextInvoiceNumber: nextInvoiceNumber + 1 });
-      }
+      // Centralized finalizing logic for invoices
+      if (finalStatus === 'invoice_open' && !payload.invoiceNumber) {
+        await runTransaction(db, async (t) => {
+          // 1. ALL READS FIRST
+          const settingsRef = doc(db, getCol('system'), 'settings');
+          const settingsSnap = await t.get(settingsRef);
+          
+          let parentOrderSnap = null;
+          let parentOrderRef = null;
+          if (activeSourceOrderId) {
+            parentOrderRef = doc(db, getCol('orders'), activeSourceOrderId);
+            parentOrderSnap = await t.get(parentOrderRef);
+          }
 
-      const targetCol = activeSourceOrderId ? 'orders' : 'invoices';
+          // 2. DATA PREPARATION & CALCULATIONS
+          const nextInvoiceNumber = settingsSnap.data()?.nextInvoiceNumber || 1;
+          const invoiceNum = `RE-${new Date().getFullYear()}-${nextInvoiceNumber.toString().padStart(3, '0')}`;
+          
+          payload.invoiceNumber = invoiceNum;
+          payload.createdAt = payload.createdAt || serverTimestamp();
+          
+          const invoiceRef = orderId ? doc(db, getCol('invoices'), orderId) : doc(collection(db, getCol('invoices')));
 
-      if (orderId) {
-        // Find correct collection for update (could be legacy order)
-        let updateCol = targetCol;
-        if (!activeSourceOrderId) {
-          const checkInv = await getDoc(doc(db, getCol('invoices'), orderId));
-          if (!checkInv.exists()) updateCol = 'orders';
-        }
-        await updateDoc(doc(db, getCol(updateCol), orderId), payload);
-        await logActivity(user?.uid || '', profile?.displayName || 'Unbekannt', 'UPDATE_ORDER', `Rechnung bearbeitet`);
-        toast.success(finalStatus === 'invoice_open' ? 'Rechnung ausgestellt!' : 'Rechnungsentwurf gespeichert!');
-      } else {
-        payload.createdAt = serverTimestamp();
-        await addDoc(collection(db, getCol(targetCol)), payload);
-        await logActivity(user?.uid || '', profile?.displayName || 'Unbekannt', 'CREATE_ORDER', `Neue Rechnung für ${customerData.lastName}`);
-        toast.success('Rechnung erfolgreich erstellt!');
-      }
+          // 3. ALL WRITES AFTER READS
+          t.set(invoiceRef, payload, { merge: true });
 
-      // Update parent order if an invoice is issued
-      if (finalStatus === 'invoice_open' && activeSourceOrderId && payload.invoiceNumber) {
-        await updateDoc(doc(db, getCol('orders'), activeSourceOrderId), {
-          invoiceNumber: payload.invoiceNumber,
-          invoiceDate: payload.updatedAt,
-          status: 'invoice_open',
-          updatedAt: serverTimestamp()
+          if (parentOrderRef && parentOrderSnap && parentOrderSnap.exists()) {
+            const parentData = parentOrderSnap.data();
+            const history = parentData.invoiceHistory || [];
+            
+            // Only push history if there's a previous active invoice number
+            if (parentData.invoiceNumber && parentData.invoiceNumber !== invoiceNum) {
+              history.push({
+                invoiceNumber: parentData.invoiceNumber,
+                status: parentData.status,
+                date: new Date().toISOString()
+              });
+            }
+
+            t.update(parentOrderRef, {
+              invoiceNumber: invoiceNum,
+              invoiceDate: payload.updatedAt,
+              status: 'invoice_open',
+              invoiceHistory: history,
+              updatedAt: serverTimestamp()
+            });
+          }
+          
+          // Update Settings
+          t.update(settingsRef, { nextInvoiceNumber: nextInvoiceNumber + 1 });
         });
+
+        await logActivity(user?.uid || '', profile?.displayName || 'Unbekannt', orderId ? 'UPDATE_ORDER' : 'CREATE_ORDER', `Rechnung ausgestellt: ${payload.invoiceNumber}`);
+        toast.success('Rechnung erfolgreich ausgestellt!');
+      } else {
+        // Just save draft
+        if (orderId) {
+          await updateDoc(doc(db, getCol('invoices'), orderId), payload);
+          await logActivity(user?.uid || '', profile?.displayName || 'Unbekannt', 'UPDATE_ORDER', `Rechnungsentwurf bearbeitet`);
+          toast.success('Rechnungsentwurf gespeichert!');
+        } else {
+          payload.createdAt = serverTimestamp();
+          await addDoc(collection(db, getCol('invoices')), payload);
+          await logActivity(user?.uid || '', profile?.displayName || 'Unbekannt', 'CREATE_ORDER', `Neuer Rechnungsentwurf für ${customerData.lastName}`);
+          toast.success('Rechnungsentwurf erstellt!');
+        }
       }
 
       router.push(`/dashboard/customers/${urlCustomerId}`);

@@ -1,7 +1,7 @@
 // src/lib/firebase.ts
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore, enableIndexedDbPersistence } from "firebase/firestore";
+import { getFirestore, enableMultiTabIndexedDbPersistence } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -22,7 +22,7 @@ export const storage = getStorage(app);
 
 // OFFLINE PERSISTENCE WIEDER AKTIVIERT (verhindert unendliches Laden)
 if (typeof window !== "undefined") {
-  enableIndexedDbPersistence(db).catch((err) => {
+  enableMultiTabIndexedDbPersistence(db).catch((err) => {
     console.warn("Offline persistence error:", err.code);
   });
 }

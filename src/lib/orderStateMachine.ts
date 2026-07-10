@@ -48,21 +48,30 @@ export async function changeOrderStatus(
   const orderRef = doc(db, getCol('orders'), orderId);
 
   return await runTransaction(db, async (transaction) => {
+    // 1. ALL READS
     const orderDoc = await transaction.get(orderRef);
     if (!orderDoc.exists()) {
       throw new Error("Auftrag nicht gefunden.");
     }
-    
     const order = { id: orderDoc.id, ...orderDoc.data() } as any;
+    
+    let customer = null;
+    if (order.customerId) {
+      const custDoc = await transaction.get(doc(db, getCol('customers'), order.customerId));
+      if (custDoc.exists()) customer = { id: custDoc.id, ...custDoc.data() };
+    }
+
+    const settingsRef = doc(db, getCol('system'), 'settings');
+    const settingsDoc = await transaction.get(settingsRef);
+
+    // 2. STATE CHECKS & PREPARATION
     const currentStatus = (order.status || 'draft') as AllowedStatus;
     const currentVersion = order.version || 0;
 
-    // 1. Optimistic Locking Check
     if (context?.expectedVersion !== undefined && currentVersion !== context.expectedVersion) {
       throw new Error("Dieser Auftrag wurde gerade von jemand anderem geändert. Bitte neu laden.");
     }
 
-    // 2. Check Allowed Transitions
     if (currentStatus === targetStatus) {
       if (context?.additionalData && Object.keys(context.additionalData).length > 0) {
         const updatePayload: any = {
@@ -88,18 +97,9 @@ export async function changeOrderStatus(
       version: increment(1)
     };
 
-    // 3. Fetch Customer for Ticket Evaluation (if needed for validation)
-    let customer = null;
-    if (order.customerId) {
-      const custDoc = await transaction.get(doc(db, getCol('customers'), order.customerId));
-      if (custDoc.exists()) customer = { id: custDoc.id, ...custDoc.data() };
-    }
-
     const tickets = generateTickets(order, customer);
 
-    // 4. Point of No Return (Zone 1 -> Zone 2)
     if (targetStatus === 'confirmed') {
-      // Validate Minimum Requirements
       const hasMovingDate = !!(order.orderMeta?.movingDateFrom || order.orderMeta?.movingDateTo);
       const hasBothAddresses = !!(order.logistics?.a_city || order.logistics?.a_street) && !!(order.logistics?.b_city || order.logistics?.b_street);
       const hasSignatureOrExternal = !!order.signatureOrder || !!order.externallyConfirmed;
@@ -108,7 +108,6 @@ export async function changeOrderStatus(
       if (!hasBothAddresses) throw new Error("Beide Adressen (Belade- und Entladeadresse) müssen vorhanden sein.");
       if (!hasSignatureOrExternal) throw new Error("Digitale Unterschrift oder externe Bestätigung fehlt.");
 
-      // Create confirmedSnapshot (but NO contractNumber)
       if (currentStatus === 'draft' || currentStatus === 'quote') {
         updatePayload.confirmedSnapshot = {
           capturedAt: new Date().toISOString(),
@@ -118,9 +117,7 @@ export async function changeOrderStatus(
       }
     }
 
-    // 5. Strict Zone (Zone 2) - Enforce Mandatory Tasks
     if (targetStatus === 'completed') {
-      // Check if all mandatory tasks for Phase 4 are done
       const phase4Tickets = tickets.filter(t => t.phase === 4 && (t.type === 'action' || t.type === 'warning'));
       const incompletePhase4 = phase4Tickets.filter(t => !t.done);
       
@@ -128,27 +125,18 @@ export async function changeOrderStatus(
         throw new Error(`Nicht alle Pflichtaufgaben erledigt. Offen: ${incompletePhase4.map(t => t.title).join(', ')}`);
       }
       
-      // Specifically check Abnahmeprotokoll
       if (!order.signatureProtocol && (!order.protocols || order.protocols.length === 0)) {
         throw new Error("Abnahmeprotokoll fehlt.");
       }
     }
 
-    // 6. Rollback & Archive Logistics
-    if (currentStatus === 'completed' && targetStatus === 'confirmed') {
-      // Backward completed -> confirmed: No need to archive protocols here as they are kept.
-    }
-
     if (targetStatus === 'canceled' && currentStatus === 'confirmed') {
-      // Storno of a confirmed order (contractNumber and disposition stay intact for documentation)
       updatePayload.canceledAt = serverTimestamp();
       updatePayload.canceledReason = context?.reason || 'Kein Grund angegeben';
     }
 
-    // 7. Invoice Number Generation
+    // 3. NUMBER GENERATION & WRITES
     if ((targetStatus === 'invoice_open' || targetStatus === 'invoice_paid') && !order.invoiceNumber) {
-      const settingsRef = doc(db, getCol('system'), 'settings');
-      const settingsDoc = await transaction.get(settingsRef);
       let nextInvoiceNumber = 1000;
       if (settingsDoc.exists() && settingsDoc.data().nextInvoiceNumber) {
         nextInvoiceNumber = settingsDoc.data().nextInvoiceNumber;
@@ -158,10 +146,7 @@ export async function changeOrderStatus(
       updatePayload.invoiceDate = new Date().toISOString();
     }
 
-    // 8. Order Number Generation
     if (['quote', 'confirmed', 'completed'].includes(targetStatus) && !order.orderNumber && !updatePayload.orderNumber) {
-      const settingsRef = doc(db, getCol('system'), 'settings');
-      const settingsDoc = await transaction.get(settingsRef);
       let nextQuoteNumber = 1000;
       if (settingsDoc.exists() && settingsDoc.data().nextQuoteNumber) {
         nextQuoteNumber = settingsDoc.data().nextQuoteNumber;
@@ -170,7 +155,6 @@ export async function changeOrderStatus(
       updatePayload.orderNumber = `ANG-${new Date().getFullYear()}-${nextQuoteNumber.toString().padStart(3, '0')}`;
     }
 
-    // Execute the write
     transaction.update(orderRef, updatePayload);
 
     return { ...order, ...updatePayload, version: currentVersion + 1 };

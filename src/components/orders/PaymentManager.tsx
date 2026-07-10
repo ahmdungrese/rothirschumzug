@@ -1,7 +1,7 @@
 "use client";
 import { useState } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { doc, updateDoc, Timestamp, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { BanknotesIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { Modal } from '@/components/ui/Modal';
 import { getCol } from '@/lib/demoMode';
@@ -9,8 +9,7 @@ import { changeOrderStatus } from '@/lib/orderStateMachine';
 import { calculateOrderTotals, calculateOpenAmount, calculateTotalPaid } from '@/lib/financeHelpers';
 
 export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpdate, onClose }: { order: any, allOrders?: any[], freeInvoices?: any[], onUpdate: () => void, onClose: () => void }) {
-  const isFreeInvoice = order._collection === 'invoices';
-  const targetCol = isFreeInvoice ? 'invoices' : 'orders';
+  const targetCol = order._collection || 'orders';
   const totalGross = calculateOrderTotals(order).gross;
   
   const [payments, setPayments] = useState<any[]>(order.payments || []);
@@ -76,15 +75,27 @@ export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpd
     }
 
     try {
-      if (isFreeInvoice) {
-        // Free invoices don't go through the state machine – just update directly
-        const newStatus = newTotalPaid >= totalGross ? 'paid' : 'open';
-        await updateDoc(doc(db, getCol(targetCol), order.id), { payments: updatedPayments, status: newStatus });
-      } else {
-        await changeOrderStatus(order.id, newStatus as any, {
-          additionalData: { payments: updatedPayments }
+      const newStatus2 = newTotalPaid >= totalGross ? 'invoice_paid' : 'invoice_open';
+      
+      const batch = writeBatch(db);
+      
+      // Update the main document
+      batch.update(doc(db, getCol(targetCol), order.id), { 
+        payments: updatedPayments, 
+        status: newStatus2,
+        updatedAt: serverTimestamp()
+      });
+
+      // Update the parent order if it exists (only if targetCol is invoices)
+      if (order.sourceOrderId && targetCol === 'invoices') {
+        batch.update(doc(db, getCol('orders'), order.sourceOrderId), {
+          status: newStatus2,
+          updatedAt: serverTimestamp()
         });
       }
+      
+      await batch.commit();
+
       setPayments(updatedPayments);
       setAmount(remaining - Number(amount) > 0 ? remaining - Number(amount) : '');
       onUpdate();
@@ -107,14 +118,27 @@ export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpd
     }
 
     try {
-      if (isFreeInvoice) {
-        const newStatus2 = updatedPayments.reduce((s: number, p: any) => s + p.amount, 0) >= totalGross ? 'paid' : 'open';
-        await updateDoc(doc(db, getCol(targetCol), order.id), { payments: updatedPayments, status: newStatus2 });
-      } else {
-        await changeOrderStatus(order.id, newStatus as any, {
-          additionalData: { payments: updatedPayments }
+      const newStatus2 = updatedPayments.reduce((s: number, p: any) => s + p.amount, 0) >= totalGross ? 'invoice_paid' : 'invoice_open';
+      
+      const batch = writeBatch(db);
+      
+      // Update the main document
+      batch.update(doc(db, getCol(targetCol), order.id), { 
+        payments: updatedPayments, 
+        status: newStatus2,
+        updatedAt: serverTimestamp()
+      });
+
+      // Update the parent order if it exists
+      if (order.sourceOrderId && targetCol === 'invoices') {
+        batch.update(doc(db, getCol('orders'), order.sourceOrderId), {
+          status: newStatus2,
+          updatedAt: serverTimestamp()
         });
       }
+
+      await batch.commit();
+
       setPayments(updatedPayments);
       setAmount(totalGross - newTotalPaid);
       onUpdate();

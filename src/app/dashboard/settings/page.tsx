@@ -2,11 +2,13 @@
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon, CalendarIcon, LinkIcon, EnvelopeIcon } from '@heroicons/react/24/outline';
+import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon, CalendarIcon, LinkIcon, EnvelopeIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { TeamAccessManager } from '@/components/settings/TeamAccessManager';
 import { ActivityLogViewer } from '@/components/settings/ActivityLogViewer';
 import { getCol } from '@/lib/demoMode';
 import { toast } from 'react-hot-toast';
+import { useAuth } from '@/context/AuthContext';
+import { ResetDatabaseModal } from '@/components/settings/ResetDatabaseModal';
 
 const TABS = [
   { id: 'basisdaten', name: 'Basisdaten', icon: BuildingOfficeIcon },
@@ -22,7 +24,9 @@ const TABS = [
 ];
 
 export default function SettingsPage() {
+  const { profile } = useAuth();
   const [activeTab, setActiveTab] = useState('basisdaten');
+  const [showResetModal, setShowResetModal] = useState(false);
   const [settings, setSettings] = useState<any>({
     companyName: 'Dein Unternehmen',
     street: 'Musterstraße 1',
@@ -206,65 +210,119 @@ export default function SettingsPage() {
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
 
-  useEffect(() => {
-    const fetchSettings = async () => {
-      const docRef = doc(db, getCol('system'), 'settings');
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        let data = docSnap.data();
-        // AUTO-FIX: Falls in der Datenbank noch die alten "Premium"-Daten stecken, überschreiben wir sie sofort mit den echten Rothirsch-Daten
-        if (data.companyName === 'Premium Umzüge' || data.companyName === 'Dein Unternehmen') {
-          data.companyName = 'Rothirsch Umzüge';
-          data.email = 'info@rothirsch-umzug.de';
-          data.phone = '+49 177 4652154';
-          data.street = 'Grillostr. 70';
-          data.zip = '44799';
-          data.city = 'Bochum';
-          
-          if (data.texts?.quoteGreeting) data.texts.quoteGreeting = data.texts.quoteGreeting.replace('Premium Umzüge', 'Rothirsch Umzüge');
-          if (data.texts?.insurance) data.texts.insurance = data.texts.insurance.replace('Premium Umzüge', 'Rothirsch Umzüge');
-          if (data.texts?.invoiceGreeting) data.texts.invoiceGreeting = data.texts.invoiceGreeting.replace('Premium Umzüge', 'Rothirsch Umzüge');
-          if (data.texts?.agb) data.texts.agb = data.texts.agb.replace(/Premium Umzüge/g, 'Rothirsch Umzüge');
-          
-          await setDoc(docRef, data, { merge: true });
-        }
+  const fetchSettings = async () => {
+    const docRef = doc(db, getCol('system'), 'settings');
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      let data = docSnap.data();
+      // AUTO-FIX: Falls in der Datenbank noch die alten "Premium"-Daten stecken, überschreiben wir sie sofort mit den echten Rothirsch-Daten
+      if (data.companyName === 'Premium Umzüge' || data.companyName === 'Dein Unternehmen') {
+        data.companyName = 'Rothirsch Umzüge';
+        data.email = 'info@rothirsch-umzug.de';
+        data.phone = '+49 177 4652154';
+        data.street = 'Grillostr. 70';
+        data.zip = '44799';
+        data.city = 'Bochum';
         
-        // Ensure arrays and new fields exist
-        if (!data.customerSources) data.customerSources = ['Google Suche', 'Check24', 'Empfehlung', 'Eigene Website', 'Kleinanzeigen', 'Direkter Anruf'];
-        if (!data.employees) data.employees = ['Ali', 'Thomas', 'Klaus', 'Mustafa'];
-        if (!data.vehicles) data.vehicles = ['LKW 7,5t (Eigener)', 'Sixt Koffer 3,5t (A)', 'Sixt Koffer 3,5t (B)'];
-        if (data.nextOrderNumber === undefined) data.nextOrderNumber = 1;
-        if (!data.texts.orderIntro) {
-          data.texts.orderIntro = 'Sehr geehrte Damen und Herren,\nvielen Dank für Ihre Unterschrift. Hiermit bestätigen wir Ihren Auftrag verbindlich.';
-          data.texts.orderOutro = 'Wir freuen uns auf den gemeinsamen Umzug und garantieren Ihnen einen reibungslosen Ablauf.';
-          data.texts.orderGreeting = 'Mit freundlichen Grüßen\nRothirsch Umzüge';
-        }
-
-        // Merge communicationTemplates if missing
-        if (!data.communicationTemplates || data.communicationTemplates.length === 0) {
-          data.communicationTemplates = settings.communicationTemplates;
-        }
+        if (data.texts?.quoteGreeting) data.texts.quoteGreeting = data.texts.quoteGreeting.replace('Premium Umzüge', 'Rothirsch Umzüge');
+        if (data.texts?.insurance) data.texts.insurance = data.texts.insurance.replace('Premium Umzüge', 'Rothirsch Umzüge');
+        if (data.texts?.invoiceGreeting) data.texts.invoiceGreeting = data.texts.invoiceGreeting.replace('Premium Umzüge', 'Rothirsch Umzüge');
+        if (data.texts?.agb) data.texts.agb = data.texts.agb.replace(/Premium Umzüge/g, 'Rothirsch Umzüge');
         
-        // Migration for protocol categories
-        if (!data.protocolCategories || data.protocolCategories.length === 0) {
-          data.protocolCategories = [
-            { id: 'cat1', name: 'Gefahrenübergang (Haftungsausschluss)', text: 'Der Kunde bestätigt hiermit, dass der Transport/Umzug auf eigene Gefahr erfolgt. Das Unternehmen übernimmt keine Haftung für entstandene Kratzer, Schäden oder Mängel an den betreffenden Gegenständen oder am Gebäude.' },
-            { id: 'cat2', name: 'Keine Schäden (Abschluss-Protokoll)', text: 'Der Kunde bestätigt hiermit ausdrücklich, dass der Umzug und alle vereinbarten Leistungen vollständig und zu seiner vollsten Zufriedenheit durchgeführt wurden. Es sind keine Schäden an Möbeln, dem Inventar oder in den Räumlichkeiten (Treppenhaus, Wände, Böden etc.) entstanden.' },
-            { id: 'cat3', name: 'Schadensprotokoll', text: 'Folgende Vorschäden / Schäden wurden vor oder während den Arbeiten dokumentiert:\n1. \n2. \n' }
-          ];
-        }
-
-        setSettings({ ...settings, ...data });
+        await setDoc(docRef, data, { merge: true });
       }
-    };
+      
+      // Ensure arrays and new fields exist
+      if (!data.customerSources) data.customerSources = ['Google Suche', 'Check24', 'Empfehlung', 'Eigene Website', 'Kleinanzeigen', 'Direkter Anruf'];
+      if (!data.employees) data.employees = ['Ali', 'Thomas', 'Klaus', 'Mustafa'];
+      if (!data.vehicles) data.vehicles = ['LKW 7,5t (Eigener)', 'Sixt Koffer 3,5t (A)', 'Sixt Koffer 3,5t (B)'];
+      if (data.nextOrderNumber === undefined) data.nextOrderNumber = 1;
+      if (!data.texts.orderIntro) {
+        data.texts.orderIntro = 'Sehr geehrte Damen und Herren,\nvielen Dank für Ihre Unterschrift. Hiermit bestätigen wir Ihren Auftrag verbindlich.';
+        data.texts.orderOutro = 'Wir freuen uns auf den gemeinsamen Umzug und garantieren Ihnen einen reibungslosen Ablauf.';
+        data.texts.orderGreeting = 'Mit freundlichen Grüßen\nRothirsch Umzüge';
+      }
+
+      // Merge communicationTemplates if missing
+      if (!data.communicationTemplates || data.communicationTemplates.length === 0) {
+        data.communicationTemplates = settings.communicationTemplates;
+      }
+      
+      // Migration for protocol categories
+      if (!data.protocolCategories || data.protocolCategories.length === 0) {
+        data.protocolCategories = [
+          { id: 'cat1', name: 'Gefahrenübergang (Haftungsausschluss)', text: 'Der Kunde bestätigt hiermit, dass der Transport/Umzug auf eigene Gefahr erfolgt. Das Unternehmen übernimmt keine Haftung für entstandene Kratzer, Schäden oder Mängel an den betreffenden Gegenständen oder am Gebäude.' },
+          { id: 'cat2', name: 'Keine Schäden (Abschluss-Protokoll)', text: 'Der Kunde bestätigt hiermit ausdrücklich, dass der Umzug und alle vereinbarten Leistungen vollständig und zu seiner vollsten Zufriedenheit durchgeführt wurden. Es sind keine Schäden an Möbeln, dem Inventar oder in den Räumlichkeiten (Treppenhaus, Wände, Böden etc.) entstanden.' },
+          { id: 'cat3', name: 'Schadensprotokoll', text: 'Folgende Vorschäden / Schäden wurden vor oder während den Arbeiten dokumentiert:\n1. \n2. \n' }
+        ];
+      }
+
+      setSettings((prev: any) => ({ ...prev, ...data }));
+    }
+  };
+
+  useEffect(() => {
     fetchSettings();
   }, []);
+
+  const handleResetSuccess = () => {
+    // Wird nach erfolgreichem DB-Reset aufgerufen
+    fetchSettings();
+  };
 
   const saveSettings = async () => {
     setIsSaving(true);
     setSaveStatus('saving');
     try {
-      await setDoc(doc(db, getCol('system'), 'settings'), settings, { merge: true });
+      // 1. Zähler-Schutz: Höchste verwendete Nummern abfragen
+      const { collection, getDocs } = await import('firebase/firestore');
+      const ordersSnap = await getDocs(collection(db, getCol('orders')));
+      
+      let maxQuote = 0;
+      let maxInvoice = 0;
+
+      ordersSnap.forEach(doc => {
+        const d = doc.data();
+        if (d.orderNumber && typeof d.orderNumber === 'string') {
+          // Format: ANG-2026-006 -> extract 6
+          const parts = d.orderNumber.split('-');
+          if (parts.length === 3) {
+            const num = parseInt(parts[2], 10);
+            if (!isNaN(num) && num > maxQuote) maxQuote = num;
+          }
+        }
+        if (d.invoiceNumber && typeof d.invoiceNumber === 'string') {
+          // Format: RE-2026-011 -> extract 11
+          const parts = d.invoiceNumber.split('-');
+          if (parts.length === 3) {
+            const num = parseInt(parts[2], 10);
+            if (!isNaN(num) && num > maxInvoice) maxInvoice = num;
+          }
+        }
+      });
+
+      if (settings.nextQuoteNumber <= maxQuote) {
+        alert(`Fehler: Es existiert bereits ein Angebot mit der Nummer ANG-${new Date().getFullYear()}-${maxQuote.toString().padStart(3, '0')}. Der Zähler für Angebote darf nicht unter ${maxQuote + 1} gesetzt werden.`);
+        setSaveStatus('error');
+        setIsSaving(false);
+        return;
+      }
+      if (settings.nextInvoiceNumber <= maxInvoice) {
+        alert(`Fehler: Es existiert bereits eine Rechnung mit der Nummer RE-${new Date().getFullYear()}-${maxInvoice.toString().padStart(3, '0')}. Der Zähler für Rechnungen darf nicht unter ${maxInvoice + 1} gesetzt werden.`);
+        setSaveStatus('error');
+        setIsSaving(false);
+        return;
+      }
+
+      // Zombie-Feld "nextOfferNumber" entfernen, falls es noch im State hängt
+      const settingsToSave = { ...settings };
+      delete settingsToSave.nextOfferNumber;
+
+      await setDoc(doc(db, getCol('system'), 'settings'), settingsToSave, { merge: true });
+      // Um es in der DB explizit zu löschen:
+      const { deleteField } = await import('firebase/firestore');
+      await updateDoc(doc(db, getCol('system'), 'settings'), { nextOfferNumber: deleteField() }).catch(() => {});
+
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 3000);
     } catch (error) {
@@ -1115,36 +1173,60 @@ export default function SettingsPage() {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-text-main mb-1">Standard Steuersatz (%)</label>
-                  <input type="number" value={settings.taxRate} onChange={e => handleChange('taxRate', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                </div>
-                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-text-main mb-1">Mahngebühr pro Stufe (€)</label>
-                  <input type="number" value={settings.dunningFee} onChange={e => handleChange('dunningFee', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                </div>
-                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-text-main mb-1">Angebotsgültigkeit (Tage)</label>
-                  <p className="text-xs text-text-muted mb-2">Angebote sind standardmäßig so viele Tage gültig.</p>
-                  <input type="number" value={settings.quoteValidDays} onChange={e => handleChange('quoteValidDays', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                </div>
-                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-text-main mb-1">Nächste Angebotsnummer (Start)</label>
-                  <p className="text-xs text-text-muted mb-2">Das nächste Angebot beginnt mit dieser Nummer.</p>
-                  <input type="number" value={settings.nextQuoteNumber} onChange={e => handleChange('nextQuoteNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                </div>
-                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-text-main mb-1">Nächste Auftragsnummer (Start)</label>
-                  <p className="text-xs text-text-muted mb-2">Der nächste bestätigte Auftrag beginnt mit dieser Nummer.</p>
-                  <input type="number" value={settings.nextOrderNumber || 1} onChange={e => handleChange('nextOrderNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                </div>
-                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-text-main mb-1">Nächste Rechnungsnummer (Start)</label>
-                  <p className="text-xs text-text-muted mb-2">Die nächste Rechnung beginnt mit dieser Nummer.</p>
-                  <input type="number" value={settings.nextInvoiceNumber} onChange={e => handleChange('nextInvoiceNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                </div>
-              </div>
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                      <label className="block text-sm font-medium text-text-main mb-1">Standard Steuersatz (%)</label>
+                      <input type="number" value={settings.taxRate} onChange={e => handleChange('taxRate', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                    </div>
+                    <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                      <label className="block text-sm font-medium text-text-main mb-1">Mahngebühr pro Stufe (€)</label>
+                      <input type="number" value={settings.dunningFee} onChange={e => handleChange('dunningFee', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                    </div>
+                    <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                      <label className="block text-sm font-medium text-text-main mb-1">Angebotsgültigkeit (Tage)</label>
+                      <p className="text-xs text-text-muted mb-2">Angebote sind standardmäßig so viele Tage gültig.</p>
+                      <input type="number" value={settings.quoteValidDays} onChange={e => handleChange('quoteValidDays', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                    </div>
+                    <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                      <label className="block text-sm font-medium text-text-main mb-1">Nächste Angebotsnummer (Start)</label>
+                      <p className="text-xs text-text-muted mb-2">Das nächste Angebot beginnt mit dieser Nummer.</p>
+                      <input type="number" value={settings.nextQuoteNumber} onChange={e => handleChange('nextQuoteNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                    </div>
+                    <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                      <label className="block text-sm font-medium text-text-main mb-1">Nächste Auftragsnummer (Start)</label>
+                      <p className="text-xs text-text-muted mb-2">Der nächste bestätigte Auftrag beginnt mit dieser Nummer.</p>
+                      <input type="number" value={settings.nextOrderNumber || 1} onChange={e => handleChange('nextOrderNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                    </div>
+                    <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                      <label className="block text-sm font-medium text-text-main mb-1">Nächste Rechnungsnummer (Start)</label>
+                      <p className="text-xs text-text-muted mb-2">Die nächste Rechnung beginnt mit dieser Nummer.</p>
+                      <input type="number" value={settings.nextInvoiceNumber} onChange={e => handleChange('nextInvoiceNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                    </div>
+                  </div>
+
+                  {/* DEVELOPER BEREICH */}
+                  {profile?.role === 'admin' && (
+                    <div className="mt-12 border-t border-red-500/20 pt-8">
+                      <div className="bg-red-500/5 border border-red-500/30 rounded-xl p-6 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
+                        <h3 className="text-lg font-bold text-red-400 mb-2 flex items-center gap-2">
+                          <ExclamationTriangleIcon className="w-5 h-5" />
+                          ⚠️ Entwickler-Bereich
+                        </h3>
+                        <p className="text-sm text-text-muted mb-6 max-w-2xl">
+                          Löscht unwiderruflich alle Kunden, Aufträge und Rechnungen. Nur für die Testphase. Nummernkreise werden auf 1 zurückgesetzt.
+                        </p>
+                        <button 
+                          onClick={() => setShowResetModal(true)}
+                          className="btn-primary bg-red-600 hover:bg-red-700 text-white border-none"
+                        >
+                          Datenbank komplett zurücksetzen
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -1224,6 +1306,8 @@ export default function SettingsPage() {
 
         </div>
       </div>
+      {/* Modals */}
+      {showResetModal && <ResetDatabaseModal onClose={() => setShowResetModal(false)} />}
     </div>
   );
 }

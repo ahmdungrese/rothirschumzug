@@ -4,6 +4,7 @@
    DESIGN TOKENS — Dark Mode (Default)
    ============================================ */
 :root {
+  color-scheme: dark;
   --color-primary:            #8F1627;
   --color-primary-hover:      #a11a2d;
   --color-background-dark:    #0f161e;
@@ -34,6 +35,7 @@
    DESIGN TOKENS — Light Mode
    ============================================ */
 :root.light-mode {
+  color-scheme: light;
   --color-background-dark:    #EEF2F7;
   --color-background-panel:   #FFFFFF;
   --color-structure:          #D0D7E2;
@@ -56,6 +58,12 @@
   --lm-kanban-col-border:     #B8C4D0;
   --lm-kanban-card-from:      #FFFFFF;
   --lm-kanban-card-to:        #F1F5FB;
+}
+
+/* Globale Fixes für Select-Optionen */
+option {
+  background-color: var(--color-background-dark);
+  color: var(--color-text-main);
 }
 
 /* ============================================
