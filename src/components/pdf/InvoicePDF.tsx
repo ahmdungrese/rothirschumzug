@@ -307,7 +307,8 @@ export const InvoicePDF = ({ order, customer, settings, employeeName }: { order:
           <View style={styles.footerCol}>
             <Text style={styles.footerTitle}>Kontakt</Text>
             <Text style={styles.footerText}>Tel: {settings?.phone}</Text>
-            <Text style={styles.footerText}>Steuer-Nr: {settings?.taxId}</Text>
+            {settings?.taxNumber && <Text style={styles.footerText}>Steuer-Nr: {settings?.taxNumber}</Text>}
+            {settings?.taxId && <Text style={styles.footerText}>USt-IdNr: {settings?.taxId}</Text>}
           </View>
         </View>
       </Page>

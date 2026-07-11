@@ -37,6 +37,7 @@ export default function SettingsPage() {
     website: 'www.dein-unternehmen.de',
     manager: 'Max Mustermann',
     taxId: 'DE1111111111',
+    taxNumber: '111/111/11111',
     register: 'Musterstraße 1',
     bankName: 'Musterbank',
     iban: 'DE11 0000 0000 0000 0000 00',
@@ -594,8 +595,12 @@ export default function SettingsPage() {
               <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mt-8 mb-4">Rechtliches & Bankverbindung</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-text-muted mb-1">Steuernummer / USt-IdNr.</label>
-                  <input type="text" value={settings.taxId} onChange={e => handleChange('taxId', e.target.value)} className="input-field w-full" />
+                  <label className="block text-sm font-medium text-text-muted mb-1">Steuernummer</label>
+                  <input type="text" value={settings.taxNumber || ''} onChange={e => handleChange('taxNumber', e.target.value)} className="input-field w-full" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-muted mb-1">USt-IdNr.</label>
+                  <input type="text" value={settings.taxId || ''} onChange={e => handleChange('taxId', e.target.value)} className="input-field w-full" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-text-muted mb-1">Handelsregister</label>

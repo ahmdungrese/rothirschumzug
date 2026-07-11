@@ -256,7 +256,8 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
           </View>
           <View>
             <Text>Tel: {settings?.phone}</Text>
-            <Text>Steuer-Nr: {settings?.taxId}</Text>
+            {settings?.taxNumber && <Text>Steuer-Nr: {settings?.taxNumber}</Text>}
+            {settings?.taxId && <Text>USt-IdNr: {settings?.taxId}</Text>}
           </View>
         </View>
       </Page>
