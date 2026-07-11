@@ -3,8 +3,8 @@ import { COMPANY_DETAILS } from '@/lib/constants';
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
-  headerContainer: { alignItems: 'center', marginBottom: 20 },
-  logoWrapper: { backgroundColor: '#1a1a1a', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 6, alignSelf: 'center' },
+  headerContainer: { alignItems: 'flex-end', marginBottom: 20 },
+  logoWrapper: { backgroundColor: '#1a1a1a', width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-end' },
   logoTextPrimary: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#8F1627', textTransform: 'uppercase', letterSpacing: 2 },
   companyInfo: { textAlign: 'right', fontSize: 9, color: '#666' },
   title: { fontSize: 18, fontFamily: 'Helvetica-Bold', marginBottom: 20, color: '#8F1627' },
@@ -24,7 +24,7 @@ export const EmployeeSheetPDF = ({ order, customer, employeeName, settings }: { 
     <Page size="A4" style={styles.page}>
       <View style={styles.headerContainer}>
         <View style={styles.logoWrapper}>
-          <Image src="/Rothirsch.png" style={{ height: 35, objectFit: 'contain' }} />
+          <Image src="/Rothirsch.png" style={{ height: 45, width: 45, objectFit: 'contain' }} />
         </View>
       </View>
 

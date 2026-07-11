@@ -4,8 +4,8 @@ import { calculateOrderTotals } from '@/lib/financeHelpers';
 
 const styles = StyleSheet.create({
   page: { padding: 40, paddingBottom: 55, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
-  headerContainerCentered: { alignItems: 'center', marginBottom: 20 },
-  logoWrapperCentered: { backgroundColor: '#1a1a1a', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 6, alignSelf: 'center' },
+  headerContainerCentered: { alignItems: 'flex-end', marginBottom: 20 },
+  logoWrapperCentered: { backgroundColor: '#1a1a1a', width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-end' },
   logoTextPrimary: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#8F1627', textTransform: 'uppercase', letterSpacing: 2 },
   
   docInfoBox: { width: '40%', alignItems: 'flex-end', justifyContent: 'flex-start' },
@@ -118,7 +118,7 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
       <Page size="A4" style={styles.page}>
         <View style={styles.headerContainerCentered}>
           <View style={styles.logoWrapperCentered}>
-            <Image src="/Rothirsch.png" style={{ height: 35, objectFit: 'contain' }} />
+            <Image src="/Rothirsch.png" style={{ height: 45, width: 45, objectFit: 'contain' }} />
           </View>
         </View>
 
@@ -247,17 +247,24 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
 
         <View style={styles.footer} fixed>
           <View>
-            <Text>Unternehmen: {settings?.companyName}</Text>
-            <Text>{settings?.street}, {settings?.zip} {settings?.city}</Text>
+            <Text>{settings?.companyName}</Text>
+            <Text>{settings?.street}</Text>
+            <Text>{settings?.zip} {settings?.city}</Text>
+            <Text>{settings?.manager ? `Inhaber/-in: ${settings?.manager}` : ''}</Text>
+          </View>
+          <View>
+            <Text>Tel: {settings?.phone}</Text>
+            <Text>E-Mail: {settings?.email}</Text>
+            <Text>Web: {settings?.website}</Text>
           </View>
           <View>
             <Text>Bank: {settings?.bankName}</Text>
             <Text>IBAN: {settings?.iban}</Text>
+            <Text>BIC: {settings?.bic}</Text>
           </View>
           <View>
-            <Text>Tel: {settings?.phone}</Text>
-            {settings?.taxNumber && <Text>Steuer-Nr: {settings?.taxNumber}</Text>}
             {settings?.taxId && <Text>USt-IdNr: {settings?.taxId}</Text>}
+            {settings?.taxNumber && <Text>Steuer-Nr: {settings?.taxNumber}</Text>}
           </View>
         </View>
       </Page>
@@ -266,7 +273,7 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
       <Page size="A4" style={styles.page}>
         <View style={styles.headerContainerCentered} fixed>
           <View style={styles.logoWrapperCentered}>
-            <Image src="/Rothirsch.png" style={{ height: 35, objectFit: 'contain' }} />
+            <Image src="/Rothirsch.png" style={{ height: 45, width: 45, objectFit: 'contain' }} />
           </View>
         </View>
         <Text style={styles.detailsHeader}>{isContract ? 'Auftragsdetails & Bestätigung' : 'Angebotsdetails'}</Text>

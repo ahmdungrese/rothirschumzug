@@ -3,8 +3,8 @@ import { calculateOrderTotals, calculateOpenAmount, calculateTotalPaid } from '@
 
 const styles = StyleSheet.create({
   page: { padding: 30, paddingBottom: 90, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
-  headerContainer: { alignItems: 'center', marginBottom: 30 },
-  logoWrapper: { backgroundColor: '#1a1a1a', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 6, alignSelf: 'center' },
+  headerContainer: { alignItems: 'flex-end', marginBottom: 30 },
+  logoWrapper: { backgroundColor: '#1a1a1a', width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-end' },
   logoTextPrimary: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#8F1627', textTransform: 'uppercase', letterSpacing: 2 },
   
   docInfoBox: { width: '40%', alignItems: 'flex-end', justifyContent: 'flex-start' },
@@ -88,7 +88,7 @@ export const InvoicePDF = ({ order, customer, settings, employeeName }: { order:
       <Page size="A4" style={styles.page}>
         <View style={styles.headerContainer}>
           <View style={styles.logoWrapper}>
-            <Image src="/Rothirsch.png" style={{ height: 35, objectFit: 'contain' }} />
+            <Image src="/Rothirsch.png" style={{ height: 45, width: 45, objectFit: 'contain' }} />
           </View>
         </View>
 
@@ -296,19 +296,21 @@ export const InvoicePDF = ({ order, customer, settings, employeeName }: { order:
             <Text style={styles.footerText}>{settings?.companyName}</Text>
             <Text style={styles.footerText}>{settings?.street}</Text>
             <Text style={styles.footerText}>{settings?.zip} {settings?.city}</Text>
+            {settings?.manager && <Text style={styles.footerText}>Inhaber/-in: {settings?.manager}</Text>}
+          </View>
+          <View style={styles.footerCol}>
+            <Text style={styles.footerTitle}>Kontakt & Steuern</Text>
+            <Text style={styles.footerText}>Tel: {settings?.phone}</Text>
+            <Text style={styles.footerText}>E-Mail: {settings?.email}</Text>
+            <Text style={styles.footerText}>Web: {settings?.website}</Text>
+            {settings?.taxNumber && <Text style={styles.footerText}>Steuer-Nr: {settings?.taxNumber}</Text>}
+            {settings?.taxId && <Text style={styles.footerText}>USt-IdNr: {settings?.taxId}</Text>}
           </View>
           <View style={styles.footerCol}>
             <Text style={styles.footerTitle}>Bankverbindung</Text>
-            <Text style={styles.footerText}>Name: {settings?.companyName}</Text>
             <Text style={styles.footerText}>{settings?.bankName}</Text>
             <Text style={styles.footerText}>IBAN: {settings?.iban}</Text>
             <Text style={styles.footerText}>BIC: {settings?.bic}</Text>
-          </View>
-          <View style={styles.footerCol}>
-            <Text style={styles.footerTitle}>Kontakt</Text>
-            <Text style={styles.footerText}>Tel: {settings?.phone}</Text>
-            {settings?.taxNumber && <Text style={styles.footerText}>Steuer-Nr: {settings?.taxNumber}</Text>}
-            {settings?.taxId && <Text style={styles.footerText}>USt-IdNr: {settings?.taxId}</Text>}
           </View>
         </View>
       </Page>
