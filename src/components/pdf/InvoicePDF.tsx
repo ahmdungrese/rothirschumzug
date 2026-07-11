@@ -4,7 +4,7 @@ import { calculateOrderTotals, calculateOpenAmount, calculateTotalPaid } from '@
 const styles = StyleSheet.create({
   page: { padding: 30, paddingBottom: 90, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
   headerContainer: { alignItems: 'flex-end', marginBottom: 30 },
-  logoWrapper: { backgroundColor: '#1a1a1a', width: 70, height: 70, borderRadius: 35, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-end' },
+  logoWrapper: { backgroundColor: '#1a1a1a', width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-end' },
   logoTextPrimary: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#8F1627', textTransform: 'uppercase', letterSpacing: 2 },
   
   docInfoBox: { width: '40%', alignItems: 'flex-end', justifyContent: 'flex-start' },
@@ -88,7 +88,7 @@ export const InvoicePDF = ({ order, customer, settings, employeeName }: { order:
       <Page size="A4" style={styles.page}>
         <View style={styles.headerContainer}>
           <View style={styles.logoWrapper}>
-            <Image src="/Rothirsch.png" style={{ height: 60, width: 60, objectFit: 'contain' }} />
+            <Image src="/Rothirsch.png" style={{ height: 80, width: 80, objectFit: 'contain' }} />
           </View>
         </View>
 
