@@ -143,20 +143,20 @@ export default function FinancesPage() {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="bg-structure/20 text-text-muted border-b border-structure">
-                  <th className="p-4 font-semibold uppercase tracking-wider text-xs">Rechnungsnr.</th>
-                  <th className="p-4 font-semibold uppercase tracking-wider text-xs">Kunde</th>
-                  <th className="p-4 font-semibold uppercase tracking-wider text-xs">Status</th>
-                  <th className="p-4 font-semibold uppercase tracking-wider text-xs text-right">Brutto</th>
-                  <th className="p-4 font-semibold uppercase tracking-wider text-xs text-right text-emerald-400">Bezahlt</th>
-                  <th className="p-4 font-semibold uppercase tracking-wider text-xs text-right text-red-400">Offen</th>
-                  <th className="p-4 font-semibold uppercase tracking-wider text-xs text-right">Aktionen</th>
+          <div className="overflow-x-hidden md:overflow-x-auto">
+            <table className="w-full text-left text-sm border-collapse block md:table">
+              <thead className="hidden md:table-header-group">
+                <tr className="bg-structure/20 text-text-muted border-b border-structure md:table-row">
+                  <th className="p-4 font-semibold uppercase tracking-wider text-xs md:table-cell">Rechnungsnr.</th>
+                  <th className="p-4 font-semibold uppercase tracking-wider text-xs md:table-cell">Kunde</th>
+                  <th className="p-4 font-semibold uppercase tracking-wider text-xs md:table-cell">Status</th>
+                  <th className="p-4 font-semibold uppercase tracking-wider text-xs md:table-cell text-right">Brutto</th>
+                  <th className="p-4 font-semibold uppercase tracking-wider text-xs md:table-cell text-right text-emerald-400">Bezahlt</th>
+                  <th className="p-4 font-semibold uppercase tracking-wider text-xs md:table-cell text-right text-red-400">Offen</th>
+                  <th className="p-4 font-semibold uppercase tracking-wider text-xs md:table-cell text-right">Aktionen</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-structure">
+              <tbody className="block md:table-row-group">
                 {displayedInvoices.map(inv => {
                   const gross = calculateOrderTotals(inv).gross;
                   const paid = calculateTotalPaid(inv);
@@ -164,35 +164,63 @@ export default function FinancesPage() {
                   const open = calculateOpenAmount(inv);
                   
                   return (
-                    <tr key={inv.id} className={`hover:bg-white/[0.02] transition-colors ${isCanceled ? 'opacity-50' : ''}`}>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <DocumentTextIcon className="w-4 h-4 text-primary" />
-                          <span className="text-text-main font-bold">{inv.invoiceNumber || '-'}</span>
-                        </div>
-                        <div className="text-xs text-text-muted mt-1">
-                          {inv.createdAt?.toDate().toLocaleDateString('de-DE') || '-'}
+                    <tr key={inv.id} className={`block md:table-row border border-structure md:border-none md:border-b hover:bg-white/[0.02] transition-colors p-4 md:p-0 mb-4 md:mb-0 bg-bg-dark md:bg-transparent rounded-xl md:rounded-none ${isCanceled ? 'opacity-50' : ''}`}>
+                      <td className="block md:table-cell p-2 md:p-4 border-b border-structure md:border-none">
+                        <div className="flex items-center justify-between md:justify-start">
+                          <span className="md:hidden text-text-muted text-xs font-semibold uppercase">Rechnungsnr.</span>
+                          <div className="text-right md:text-left">
+                            <div className="flex items-center gap-2 justify-end md:justify-start">
+                              <DocumentTextIcon className="w-4 h-4 text-primary" />
+                              <span className="text-text-main font-bold">{inv.invoiceNumber || '-'}</span>
+                            </div>
+                            <div className="text-xs text-text-muted mt-1">
+                              {inv.createdAt?.toDate().toLocaleDateString('de-DE') || '-'}
+                            </div>
+                          </div>
                         </div>
                       </td>
-                      <td className="p-4 font-semibold text-text-main">{inv.customerName || 'Unbekannt'}</td>
-                      <td className="p-4">
-                        {isCanceled ? (
-                          <span className="text-xs text-red-400 flex items-center gap-1 font-bold bg-red-500/10 px-2 py-0.5 rounded-md border border-red-500/20 w-fit">
-                            <XCircleIcon className="w-3 h-3" /> Storniert
-                          </span>
-                        ) : (
-                          <StatusBadge status={inv.status} payments={inv.payments} totals={{ gross }} />
-                        )}
+                      <td className="block md:table-cell p-2 md:p-4 font-semibold text-text-main border-b border-structure md:border-none">
+                        <div className="flex items-center justify-between md:justify-start">
+                          <span className="md:hidden text-text-muted text-xs font-semibold uppercase">Kunde</span>
+                          <span>{inv.customerName || 'Unbekannt'}</span>
+                        </div>
                       </td>
-                      <td className="p-4 text-right text-text-main font-medium">€ {gross.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td className="p-4 text-right text-emerald-400 font-medium">€ {paid.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td className="p-4 text-right text-red-400 font-bold">€ {isCanceled ? '0,00' : open.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td className="p-4 text-right">
-                        <div className="flex justify-end gap-2">
+                      <td className="block md:table-cell p-2 md:p-4 border-b border-structure md:border-none">
+                        <div className="flex items-center justify-between md:justify-start">
+                          <span className="md:hidden text-text-muted text-xs font-semibold uppercase">Status</span>
+                          {isCanceled ? (
+                            <span className="text-xs text-red-400 flex items-center gap-1 font-bold bg-red-500/10 px-2 py-0.5 rounded-md border border-red-500/20 w-fit">
+                              <XCircleIcon className="w-3 h-3" /> Storniert
+                            </span>
+                          ) : (
+                            <StatusBadge status={inv.status} payments={inv.payments} totals={{ gross }} />
+                          )}
+                        </div>
+                      </td>
+                      <td className="block md:table-cell p-2 md:p-4 md:text-right text-text-main font-medium border-b border-structure md:border-none">
+                        <div className="flex items-center justify-between md:justify-end">
+                          <span className="md:hidden text-text-muted text-xs font-semibold uppercase">Brutto</span>
+                          <span>€ {gross.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      </td>
+                      <td className="block md:table-cell p-2 md:p-4 md:text-right text-emerald-400 font-medium border-b border-structure md:border-none">
+                        <div className="flex items-center justify-between md:justify-end">
+                          <span className="md:hidden text-text-muted text-xs font-semibold uppercase">Bezahlt</span>
+                          <span>€ {paid.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      </td>
+                      <td className="block md:table-cell p-2 md:p-4 md:text-right text-red-400 font-bold border-b border-structure md:border-none">
+                        <div className="flex items-center justify-between md:justify-end">
+                          <span className="md:hidden text-text-muted text-xs font-semibold uppercase">Offen</span>
+                          <span>€ {isCanceled ? '0,00' : open.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      </td>
+                      <td className="block md:table-cell p-2 md:p-4 md:text-right mt-2 md:mt-0">
+                        <div className="flex justify-end gap-2 w-full">
                           {!isCanceled && (
                             <button 
                               onClick={() => setSelectedPaymentOrder(inv)}
-                              className="btn-secondary border-primary/30 hover:border-primary text-text-main py-1.5 px-3 text-xs flex items-center gap-1"
+                              className="btn-secondary border-primary/30 hover:border-primary text-text-main py-2 px-3 text-xs flex-1 md:flex-none flex items-center justify-center gap-1"
                               title="Zahlung erfassen"
                             >
                               <BanknotesIcon className="w-4 h-4" /> Zahlung
@@ -200,7 +228,7 @@ export default function FinancesPage() {
                           )}
                           <Link 
                             href={`/dashboard/customers/${inv.customerId}?orderId=${inv.id}&pdfType=invoice`} 
-                            className="btn-secondary py-1.5 px-3 text-xs hover:text-primary transition-colors"
+                            className="btn-secondary py-2 px-3 text-xs flex-1 md:flex-none hover:text-primary transition-colors text-center flex items-center justify-center"
                           >
                             Öffnen
                           </Link>

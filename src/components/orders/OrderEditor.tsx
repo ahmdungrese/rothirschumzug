@@ -519,7 +519,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
   return (
     <div 
-      className="space-y-8 animate-in fade-in duration-500 pb-32"
+      className="space-y-8 animate-in fade-in duration-500 pb-48"
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEndHandler}
@@ -1324,47 +1324,50 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         </div>
       )}
 {/* Floating Save Button */}
-      <div className="fixed bottom-16 mb-[env(safe-area-inset-bottom)] md:mb-0 md:bottom-0 left-0 right-0 md:left-64 bg-bg-panel/90 backdrop-blur-md border-t border-structure p-4 flex justify-between items-center z-30 shadow-[0_-10px_30px_rgba(0,0,0,0.3)] px-4 lg:px-8">
-        <div>
-          {errorMessage && <span className="text-red-400 text-sm font-semibold animate-in fade-in slide-in-from-bottom-4 bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20">{errorMessage}</span>}
-        </div>
-        <div className="flex justify-end gap-2 sm:gap-4 flex-wrap">
-          <button onClick={() => {
-            if (urlCustomerId) router.push(`/dashboard/customers/${urlCustomerId}`);
-            else router.push('/dashboard/orders');
-          }} disabled={isSaving} className="btn-secondary hidden sm:flex text-xs sm:text-sm px-2 sm:px-4">
-            Abbrechen
-          </button>
-          
-          <button onClick={() => saveOrder(isInvoice ? 'invoice_open' : 'draft', false)} disabled={isSaving} className={`btn-secondary flex items-center gap-2 text-xs sm:text-sm px-3 sm:px-4`}>
-            {isSaving && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-            {isSaving ? 'Speichert...' : (isInvoice ? 'Als Rechnung speichern' : 'Speichern')}
-          </button>
-          
-          {currentStep === 5 && !isInvoice && orderStatus === 'draft' && (
-            <button 
-              onClick={() => {
-                if (services.length === 0 && !confirm("Es sind keine Leistungen erfasst — trotzdem erstellen?")) return;
-                saveOrder('draft', true);
-              }} 
-              disabled={isSaving} 
-              className="btn-primary shadow-lg shadow-primary/30 flex items-center gap-2 text-xs sm:text-sm px-3 sm:px-4"
-            >
-              Angebot erstellen
+      <div className="fixed bottom-0 left-0 right-0 md:left-64 z-[60] flex flex-col justify-end pointer-events-none">
+        <div className="bg-bg-panel/90 backdrop-blur-md border-t border-structure p-4 flex justify-between items-center shadow-[0_-10px_30px_rgba(0,0,0,0.3)] px-4 lg:px-8 pointer-events-auto w-full">
+          <div>
+            {errorMessage && <span className="text-red-400 text-sm font-semibold animate-in fade-in slide-in-from-bottom-4 bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20">{errorMessage}</span>}
+          </div>
+          <div className="flex justify-end gap-2 sm:gap-4 flex-wrap">
+            <button onClick={() => {
+              if (urlCustomerId) router.push(`/dashboard/customers/${urlCustomerId}`);
+              else router.push('/dashboard/orders');
+            }} disabled={isSaving} className="btn-secondary hidden sm:flex text-xs sm:text-sm px-2 sm:px-4">
+              Abbrechen
             </button>
-          )}
+            
+            <button onClick={() => saveOrder(isInvoice ? 'invoice_open' : 'draft', false)} disabled={isSaving} className={`btn-secondary flex items-center gap-2 text-xs sm:text-sm px-3 sm:px-4`}>
+              {isSaving && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+              {isSaving ? 'Speichert...' : (isInvoice ? 'Als Rechnung speichern' : 'Speichern')}
+            </button>
+            
+            {currentStep === 5 && !isInvoice && orderStatus === 'draft' && (
+              <button 
+                onClick={() => {
+                  if (services.length === 0 && !confirm("Es sind keine Leistungen erfasst — trotzdem erstellen?")) return;
+                  saveOrder('draft', true);
+                }} 
+                disabled={isSaving} 
+                className="btn-primary shadow-lg shadow-primary/30 flex items-center gap-2 text-xs sm:text-sm px-3 sm:px-4"
+              >
+                Angebot erstellen
+              </button>
+            )}
 
-          {currentStep > 1 && (
-            <button onClick={() => setCurrentStep(prev => prev - 1)} disabled={isSaving} className="btn-secondary hidden sm:flex text-xs sm:text-sm px-3 sm:px-4">
-              Zurück
-            </button>
-          )}
-          {currentStep < 5 && (
-            <button onClick={() => setCurrentStep(prev => prev + 1)} disabled={isSaving} className="btn-primary flex items-center gap-2 shadow-lg shadow-primary/30 text-xs sm:text-sm px-3 sm:px-4">
-              Weiter
-            </button>
-          )}
+            {currentStep > 1 && (
+              <button onClick={() => setCurrentStep(prev => prev - 1)} disabled={isSaving} className="btn-secondary hidden sm:flex text-xs sm:text-sm px-3 sm:px-4">
+                Zurück
+              </button>
+            )}
+            {currentStep < 5 && (
+              <button onClick={() => setCurrentStep(prev => prev + 1)} disabled={isSaving} className="btn-primary flex items-center gap-2 shadow-lg shadow-primary/30 text-xs sm:text-sm px-3 sm:px-4">
+                Weiter
+              </button>
+            )}
+          </div>
         </div>
+        <div className="md:hidden w-full pointer-events-none" style={{ height: 'calc(64px + env(safe-area-inset-bottom, 0px))' }}></div>
       </div>
       <InventoryWizardModal 
         isOpen={isInventoryWizardOpen}

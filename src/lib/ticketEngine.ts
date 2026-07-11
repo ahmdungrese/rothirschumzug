@@ -130,10 +130,13 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
     const phoneDueStatus = isPhase1Overdue && !hasPhone ? { status: 'overdue' as const, text: 'ÜBERFÄLLIG' } : undefined;
     addTicket('missing_phone', 'Telefonnummer des Kunden fehlt', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}?highlight=phone`, phoneDueStatus, hasPhone);
 
-    if (order.orderMeta?.viewingDate === 'requested' || states['viewing_requested']) {
-       const isViewingDone = (order.orderMeta?.viewingDate !== 'requested' && !!order.orderMeta?.viewingDate) || !!order.orderMeta?.viewingCanceled;
-       const customViewingStatus = order.orderMeta?.viewingCanceled ? null : calculateTargetDateStatus(order.orderMeta?.viewingDate);
-       addTicket('viewing_requested', 'Kunde wünscht einen Besichtigungstermin', 2, 'action', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}?highlight=viewingDate`, customViewingStatus || undefined, isViewingDone);
+    const viewingDateStr = order.orderMeta?.viewingDate || order.viewingDate;
+    if (viewingDateStr && !order.orderMeta?.viewingCanceled) {
+       const isPhotos = viewingDateStr === 'erledigt_fotos';
+       const isViewingDone = isPhotos || !!states['viewing_requested'];
+       const customViewingStatus = isPhotos ? undefined : calculateTargetDateStatus(viewingDateStr === 'requested' ? null : viewingDateStr);
+       const title = isPhotos ? 'Besichtigung (durch Fotos erledigt)' : 'Besichtigungstermin durchführen';
+       addTicket('viewing_requested', title, 1, 'action', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}?highlight=viewingDate`, customViewingStatus || undefined, isViewingDone);
     }
     // Quote urgent checks
     if (status === 'quote') {

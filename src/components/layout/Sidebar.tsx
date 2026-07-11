@@ -13,7 +13,8 @@ import {
   ArchiveBoxIcon,
   CalendarDaysIcon,
   ShieldExclamationIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  QuestionMarkCircleIcon
 } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 
@@ -27,6 +28,7 @@ const navItems = [
   { name: 'Auswertungen', href: '/dashboard/statistics', id: 'nav-statistics', icon: ChartBarIcon, roles: ['admin'] },
   { name: 'Archiv', href: '/dashboard/archive', id: 'nav-archive', icon: ArchiveBoxIcon, roles: ['admin'] },
   { name: 'Einstellungen', href: '/dashboard/settings', id: 'nav-settings', icon: Cog6ToothIcon, roles: ['admin'] },
+  { name: 'Handbuch', href: '/dashboard/manual', id: 'nav-manual', icon: QuestionMarkCircleIcon, roles: ['admin', 'office', 'teamlead'] },
 ];
 
 export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (val: boolean) => void }) {

@@ -723,6 +723,20 @@ export default function CustomerProfilePage() {
               {customer.phone && <div className="flex items-center gap-3 text-text-muted"><PhoneIcon className="w-4 h-4 text-primary" /> {customer.phone}</div>}
               {customer.email && <div className="flex items-center gap-3 text-text-muted"><EnvelopeIcon className="w-4 h-4 text-primary" /> {customer.email}</div>}
               {(customer.street || customer.city) && <div className="flex items-start gap-3 text-text-muted"><MapPinIcon className="w-4 h-4 text-primary shrink-0 mt-0.5" /> <span>{customer.street} {customer.houseNr}<br />{customer.zip} {customer.city}</span></div>}
+              {(() => {
+                const activeOrder = orders.find(o => o.status !== 'archived');
+                const viewingDate = activeOrder?.orderMeta?.viewingDate || activeOrder?.viewingDate;
+                if (viewingDate && viewingDate !== 'erledigt_fotos' && viewingDate !== 'requested') {
+                  const d = new Date(viewingDate);
+                  return (
+                    <div className="flex items-center gap-3 text-text-muted">
+                      <ClockIcon className="w-4 h-4 text-primary" /> 
+                      Besichtigung: {d.toLocaleDateString('de-DE')} {d.toLocaleTimeString('de-DE', {hour: '2-digit', minute:'2-digit'})} Uhr
+                    </div>
+                  );
+                }
+                return null;
+              })()}
               <button onClick={() => setIsEditing(true)} className="text-xs text-primary hover:text-white transition-colors mt-2 underline underline-offset-2">Kundendaten bearbeiten</button>
 
             </div>
@@ -820,7 +834,10 @@ export default function CustomerProfilePage() {
                 (o.sourceOrderId === order.id || (o.orderNumber === order.orderNumber && !o.sourceOrderId))
               );
               const hasActiveInvoice = linkedInvoices.some(inv => inv.status !== 'canceled' && inv.status !== 'invoice_cancelled' && inv.status !== 'archived');
-
+              const pendingTickets = generateTickets(order, customer).filter(t => !t.done);
+              const viewingTicket = pendingTickets.find(t => t.id === 'viewing_requested');
+              const otherPendingTickets = pendingTickets.filter(t => t.id !== 'viewing_requested');
+              const isViewingPending = !!viewingTicket;
               return (
                 <div key={order.id} className={`bg-bg-panel border ${isExpanded ? 'border-primary/40 shadow-lg shadow-primary/5' : 'border-white/5 hover:border-white/10 shadow-sm'} rounded-2xl overflow-hidden transition-all duration-300`}>
 
@@ -933,6 +950,83 @@ export default function CustomerProfilePage() {
                               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> Akuter Handlungsbedarf
                             </h4>
                             <div className="space-y-2">
+                              {/* 0. Viewing Requested (Phase 0) */}
+                              {isViewingPending && viewingTicket && (
+                                <div className="bg-bg-panel border border-red-500/50 rounded-xl p-3 flex flex-wrap justify-between items-center gap-3 hover:bg-white/5 transition-colors shadow-lg shadow-red-500/10 mb-2">
+                                  <div className="flex items-start gap-3 w-full">
+                                    <input
+                                      type="checkbox"
+                                      checked={viewingTicket.done}
+                                      onChange={async () => {
+                                        const updatedStates = order.ticketStates || {};
+                                        updatedStates['viewing_requested'] = !viewingTicket.done;
+                                        await updateDoc(doc(db, getCol('orders'), order.id), { ticketStates: updatedStates });
+                                        toast.success(viewingTicket.done ? "Aufgabe wieder geöffnet" : "Aufgabe abgeschlossen!");
+                                      }}
+                                      className="mt-1 w-4 h-4 rounded border-structure text-primary bg-bg-dark focus:ring-primary focus:ring-offset-bg-panel cursor-pointer"
+                                    />
+                                    <div className="w-full">
+                                      <div className="text-[10px] text-red-500 font-bold uppercase tracking-wider mb-0.5">Phase 0 • Besichtigung (Wichtig!)</div>
+                                      <div className="text-sm font-bold text-text-main flex items-center gap-2">
+                                        {viewingTicket.title}
+                                        {viewingTicket.dueDateStatus === 'overdue' && (
+                                          <span className="bg-red-500/20 text-red-500 text-[10px] px-2 py-0.5 rounded border border-red-500/20 shadow-sm uppercase tracking-wider">ÜBERFÄLLIG</span>
+                                        )}
+                                      </div>
+                                      
+                                      <div className="mt-3 flex flex-col gap-3">
+                                        <div className="flex items-center gap-2 bg-black/20 p-1.5 rounded-lg border border-white/5 w-fit">
+                                          <span className="text-[10px] text-text-muted uppercase">Termin:</span>
+                                          <input
+                                            type="datetime-local"
+                                            value={['requested', 'erledigt_fotos'].includes(order.orderMeta?.viewingDate || '') ? '' : (order.orderMeta?.viewingDate?.slice(0, 16) || '')}
+                                            onChange={async (e) => {
+                                              const val = e.target.value;
+                                              await updateDoc(doc(db, getCol('orders'), order.id), { 'orderMeta.viewingDate': val, viewingDate: val });
+                                            }}
+                                            className="bg-transparent text-xs text-text-main focus:outline-none"
+                                          />
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                          {customer.street && customer.city && (
+                                            <a 
+                                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${customer.street || ''} ${customer.houseNr || ''}, ${customer.zip || ''} ${customer.city || ''}`)}`}
+                                              target="_blank" 
+                                              rel="noopener noreferrer"
+                                              className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-white text-[10px] font-bold rounded-lg transition-colors border border-white/10 flex items-center gap-1 shadow-sm"
+                                            >
+                                              <MapPinIcon className="w-3.5 h-3.5" />
+                                            </a>
+                                          )}
+                                          <button
+                                            onClick={async () => {
+                                              const updatedStates = order.ticketStates || {};
+                                              updatedStates['viewing_requested'] = true;
+                                              await updateDoc(doc(db, getCol('orders'), order.id), { ticketStates: updatedStates });
+                                              toast.success("Besichtigung als durchgeführt markiert!");
+                                            }}
+                                            className="px-3 py-1.5 bg-primary/20 hover:bg-primary/30 text-primary text-[10px] font-bold rounded-lg transition-colors border border-primary/20 flex items-center gap-1 shadow-sm"
+                                          >
+                                            <CheckIcon className="w-3.5 h-3.5" /> Besichtigung durchgeführt
+                                          </button>
+                                          <button
+                                            onClick={async () => {
+                                              const updatedMeta = order.orderMeta || {};
+                                              updatedMeta.viewingDate = 'erledigt_fotos';
+                                              await updateDoc(doc(db, getCol('orders'), order.id), { orderMeta: updatedMeta });
+                                              toast.success("Durch Fotos erledigt!");
+                                            }}
+                                            className="px-3 py-1.5 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-[10px] font-bold rounded-lg transition-colors border border-blue-500/20 flex items-center gap-1 shadow-sm"
+                                          >
+                                            <CheckIcon className="w-3.5 h-3.5" /> Durch Fotos erledigt
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
                               {/* 1. Missing Data (Checklist Items) */}
                               {checklist && checklist.length > 0 && checklist.map((item, idx) => (
                                 <div key={`chk-${idx}`} className={`bg-${item.status === 'info' ? 'blue' : 'red'}-500/10 border border-${item.status === 'info' ? 'blue' : 'red'}-500/20 rounded-xl p-3 flex flex-wrap justify-between items-center gap-3`}>
@@ -949,8 +1043,11 @@ export default function CustomerProfilePage() {
                                 </div>
                               ))}
 
+
                               {/* 2. Next Status Steps */}
-                              {(order.status === 'draft' || order.status === 'clarification' || order.status === 'rejected') && (
+                              {!isViewingPending && (
+                                <>
+                                  {(order.status === 'draft' || order.status === 'clarification' || order.status === 'rejected') && (
                                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 flex flex-wrap justify-between items-center gap-3">
                                   <div>
                                     <div className="text-[10px] text-blue-400/70 font-bold uppercase mb-0.5">Phase 2 • Angebot erstellen</div>
@@ -1001,8 +1098,11 @@ export default function CustomerProfilePage() {
                                 </div>
                               )}
 
+                                </>
+                              )}
+
                               {/* 6. System Tickets (Pending) */}
-                              {generateTickets(order, customer).filter(t => !t.done).map(todo => {
+                              {otherPendingTickets.map(todo => {
                                 const isKarton = todo.id === 'kartons_liefern';
                                 const isHV = todo.id === 'halteverbot_bestellen' || todo.id === 'halteverbot_b_bestellen';
                                 const isLift = todo.id === 'moebellift_bestellen' || todo.id === 'moebellift_b_bestellen';
@@ -1070,20 +1170,7 @@ export default function CustomerProfilePage() {
                                             </div>
                                           </div>
                                         )}
-                                        {/* Viewing Requested Special Button */}
-                                        {todo.id === 'viewing_requested' && (
-                                          <div className="mt-3">
-                                            <button
-                                              onClick={async () => {
-                                                await updateDoc(doc(db, getCol('orders'), order.id), { 'orderMeta.viewingCanceled': true });
-                                                toast.success("Als 'Durch Fotos ersetzt' markiert");
-                                              }}
-                                              className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-text-muted hover:text-white text-[10px] font-bold rounded-lg transition-colors border border-white/5"
-                                            >
-                                              Durch Fotos/Liste ersetzt
-                                            </button>
-                                          </div>
-                                        )}
+
 
                                         {/* Confirmation Sent Button */}
                                         {todo.id === 'confirmation_sent' && (
@@ -1193,6 +1280,8 @@ export default function CustomerProfilePage() {
                                             </Link>
                                           </div>
                                         )}
+                                        
+
                                       </div>
                                     </div>
                                   </div>
@@ -1248,7 +1337,15 @@ export default function CustomerProfilePage() {
                                       onClick={async () => {
                                         const updatedStates = order.ticketStates || {};
                                         updatedStates[todo.id] = false;
-                                        await updateDoc(doc(db, getCol('orders'), order.id), { ticketStates: updatedStates });
+                                        const updates: any = { ticketStates: updatedStates };
+                                        
+                                        if (todo.id === 'viewing_requested' && order.orderMeta?.viewingDate === 'erledigt_fotos') {
+                                          const updatedMeta = order.orderMeta || {};
+                                          updatedMeta.viewingDate = 'requested';
+                                          updates.orderMeta = updatedMeta;
+                                        }
+                                        
+                                        await updateDoc(doc(db, getCol('orders'), order.id), updates);
                                       }}
                                       className="text-[10px] text-primary hover:text-white transition-colors opacity-0 group-hover:opacity-100"
                                     >

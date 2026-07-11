@@ -1,0 +1,4 @@
+- [x] Create `Manualbuch.md` in workspace root directory
+- [x] Create new page `src/app/dashboard/manual/page.tsx`
+- [x] Add sidebar link in `src/components/layout/Sidebar.tsx`
+- [x] Verify build and functionality

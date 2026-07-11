@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, where, getDoc, doc } from 'firebase/firestore';
-import { CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon, CheckIcon } from '@heroicons/react/24/outline';
+import { CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon, CheckIcon, MapPinIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { DispoModal } from './DispoModal';
 import { getCol } from '@/lib/demoMode';
@@ -13,6 +13,7 @@ export default function CalendarPage() {
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
+  const [viewingModalEvent, setViewingModalEvent] = useState<any>(null);
 
   useEffect(() => {
     // Fetch all confirmed or completed orders that have a movingDate
@@ -232,10 +233,12 @@ export default function CalendarPage() {
                       type: 'viewing',
                       title: 'Besichtigung',
                       address: o.customerName,
+                      fullAddress: (o.logistics?.a_city || o.logistics?.a_street) ? `${o.logistics.a_street || ''} ${o.logistics.a_houseNr || ''}, ${o.logistics.a_zip || ''} ${o.logistics.a_city || ''}` : '',
                       color: 'bg-primary border-primary-hover text-white hover:bg-primary-hover shadow-md shadow-primary/20',
                       orderId: o.id,
                       customerId: o.customerId,
-                      isDone: !!o.ticketStates?.viewing_requested
+                      isDone: !!o.ticketStates?.viewing_requested,
+                      timeStr: effectiveViewingDate.split('T')[1] ? effectiveViewingDate.split('T')[1].substring(0,5) : ''
                     });
                   }
                 });
@@ -254,30 +257,50 @@ export default function CalendarPage() {
                     </div>
                     
                     <div className="space-y-1.5">
-                      {dayEvents.map((event: any) => (
-                        <Link 
-                          key={event.id} 
-                          href={event.type === 'move' ? `/dashboard/orders` : `/dashboard/customers/${event.customerId}`}
-                          className={`block border p-1.5 rounded-lg text-xs transition-all shadow-sm ${event.color} ${event.isDone ? 'opacity-30 grayscale' : ''}`}
-                        >
-                          <div className="font-bold truncate flex items-center gap-1">
-                            {event.isDone && <CheckIcon className="w-3 h-3 shrink-0" />}
-                            <span className={event.isDone ? 'line-through' : ''}>
-                              {event.disposition?.movingTimeStr && <span className="mr-1 opacity-80">{event.disposition.movingTimeStr}</span>}
-                              {event.timeStr && <span className="mr-1 opacity-80">{event.timeStr}</span>}
-                              {event.title}
-                            </span>
-                          </div>
-                          <div className="opacity-80 truncate mt-0.5">{event.address}</div>
-                          {event.type === 'move' && event.disposition && (
-                            <div className="mt-1 pt-1 border-t border-current/20 text-[10px] leading-tight flex flex-wrap gap-x-2 gap-y-0.5 opacity-90">
-                              {event.disposition.helpers > 0 && <span>{event.disposition.helpers} Helfer</span>}
-                              {event.disposition.koffer35t > 0 && <span>{event.disposition.koffer35t}x 3,5t</span>}
-                              {event.disposition.lkw7t > 0 && <span>{event.disposition.lkw7t}x 7,5t</span>}
+                      {dayEvents.map((event: any) => {
+                        const eventContent = (
+                          <>
+                            <div className="font-bold truncate flex items-center gap-1">
+                              {event.isDone && <CheckIcon className="w-3 h-3 shrink-0" />}
+                              <span className={event.isDone ? 'line-through' : ''}>
+                                {event.disposition?.movingTimeStr && <span className="mr-1 opacity-80">{event.disposition.movingTimeStr}</span>}
+                                {event.timeStr && <span className="mr-1 opacity-80">{event.timeStr}</span>}
+                                {event.title}
+                              </span>
                             </div>
-                          )}
-                        </Link>
-                      ))}
+                            <div className="opacity-80 truncate mt-0.5">{event.address}</div>
+                            {event.type === 'move' && event.disposition && (
+                              <div className="mt-1 pt-1 border-t border-current/20 text-[10px] leading-tight flex flex-wrap gap-x-2 gap-y-0.5 opacity-90">
+                                {event.disposition.helpers > 0 && <span>{event.disposition.helpers} Helfer</span>}
+                                {event.disposition.koffer35t > 0 && <span>{event.disposition.koffer35t}x 3,5t</span>}
+                                {event.disposition.lkw7t > 0 && <span>{event.disposition.lkw7t}x 7,5t</span>}
+                              </div>
+                            )}
+                          </>
+                        );
+
+                        if (event.type === 'viewing') {
+                          return (
+                            <button
+                              key={event.id}
+                              onClick={(e) => { e.stopPropagation(); setViewingModalEvent(event); }}
+                              className={`block w-full text-left border p-1.5 rounded-lg text-xs transition-all shadow-sm ${event.color} ${event.isDone ? 'opacity-30 grayscale' : ''}`}
+                            >
+                              {eventContent}
+                            </button>
+                          );
+                        }
+
+                        return (
+                          <Link 
+                            key={event.id} 
+                            href={event.type === 'move' ? `/dashboard/orders` : `/dashboard/customers/${event.customerId}`}
+                            className={`block border p-1.5 rounded-lg text-xs transition-all shadow-sm ${event.color} ${event.isDone ? 'opacity-30 grayscale' : ''}`}
+                          >
+                            {eventContent}
+                          </Link>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -294,6 +317,49 @@ export default function CalendarPage() {
           settings={settings} 
           onClose={() => setSelectedDateStr(null)} 
         />
+      )}
+
+      {viewingModalEvent && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setViewingModalEvent(null)}>
+          <div className="relative glass-panel bg-[#131D26]/90 w-full max-w-md p-6 flex flex-col gap-4 shadow-[0_0_50px_rgba(143,22,39,0.15)]" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-start border-b border-white/10 pb-4">
+              <h2 className="text-xl font-bold text-text-main flex items-center gap-2">Besichtigung</h2>
+              <button type="button" onClick={() => setViewingModalEvent(null)} className="p-1.5 bg-white/5 hover:bg-white/10 rounded-full transition-colors border border-white/10">
+                <XMarkIcon className="w-5 h-5 text-text-main" />
+              </button>
+            </div>
+            
+            <div className="space-y-3">
+              <div>
+                <div className="text-xs text-text-muted uppercase tracking-wider mb-1">Kunde</div>
+                <div className="font-bold text-text-main text-lg">{viewingModalEvent.address}</div>
+              </div>
+
+              {viewingModalEvent.fullAddress && (
+                 <div>
+                   <div className="text-xs text-text-muted uppercase tracking-wider mb-1">Adresse</div>
+                   <div className="text-text-main">{viewingModalEvent.fullAddress}</div>
+                 </div>
+              )}
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-white/10 flex flex-col gap-2">
+              {viewingModalEvent.fullAddress && (
+                <a 
+                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(viewingModalEvent.fullAddress)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn-secondary w-full py-2 flex justify-center items-center gap-2 text-sm"
+                >
+                  <MapPinIcon className="w-5 h-5 text-primary" /> Auf Google Maps öffnen
+                </a>
+              )}
+              <Link href={`/dashboard/customers/${viewingModalEvent.customerId}`} className="btn-primary w-full py-2 flex justify-center items-center gap-2 text-sm shadow-sm">
+                Zum Kundenprofil
+              </Link>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

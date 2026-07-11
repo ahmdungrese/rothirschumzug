@@ -29,7 +29,7 @@ interface TransitionContext {
 export const ALLOWED_TRANSITIONS: Record<AllowedStatus, AllowedStatus[]> = {
   'draft': ['quote', 'confirmed', 'archived', 'rejected'],
   'quote': ['draft', 'confirmed', 'archived', 'rejected'],
-  'confirmed': ['completed', 'canceled', 'archived'], // Backward to quote is BLOCKED
+  'confirmed': ['quote', 'completed', 'canceled', 'archived'], // Backward to quote is now allowed for undo
   'completed': ['confirmed', 'invoice_open', 'archived'],
   'invoice_open': ['invoice_paid', 'invoice_overdue', 'invoice_cancelled', 'archived', 'completed'], // Backward to completed allowed for Storno
   'invoice_paid': ['archived', 'completed'], // Storno allowed

@@ -193,54 +193,54 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                   </td>
                   
                   <td className="px-6 py-4">
-                    <div className="grid grid-cols-2 gap-1.5 w-fit ml-auto">
+                    <div className="flex items-center gap-1.5 min-w-max ml-auto">
                       <Link 
                         href={`/dashboard/customers/${customer.id}`} 
-                        className="p-2.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 rounded-lg transition-colors flex items-center justify-center"
+                        className="w-10 h-10 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 rounded-lg transition-colors flex items-center justify-center shrink-0"
                         title="Kundenakte öffnen"
                       >
-                        <FolderOpenIcon className="w-5 h-5" />
+                        <FolderOpenIcon className="w-5 h-5 shrink-0" />
                       </Link>
 
                       <Link 
                         href={btnUrl} 
-                        className="p-2.5 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 hover:text-orange-300 rounded-lg transition-colors flex items-center justify-center"
+                        className="w-10 h-10 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 hover:text-orange-300 rounded-lg transition-colors flex items-center justify-center shrink-0"
                         title="Bearbeiten / Neuer Auftrag"
                       >
-                        <PencilSquareIcon className="w-5 h-5" />
+                        <PencilSquareIcon className="w-5 h-5 shrink-0" />
                       </Link>
 
                       {latestOrder ? (
-                        <div onClick={e => e.stopPropagation()} className="w-full h-full flex">
+                        <div onClick={e => e.stopPropagation()} className="w-10 h-10 shrink-0 [&>div]:w-full [&>div]:h-full [&_a]:w-full [&_a]:h-full [&_a]:flex" title="Auftrag/Rechnung als PDF herunterladen">
                           <PDFDownloadButton 
                             order={latestOrder} 
                             customer={customer} 
                             type={latestOrder.invoiceNumber ? 'invoice' : (['confirmed', 'completed'].includes(latestOrder.status) ? 'contract' : 'order')}
                             iconOnly={true}
-                            customIcon={<DocumentArrowDownIcon className="w-5 h-5" />}
-                            className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-lg transition-colors flex items-center justify-center w-full"
+                            customIcon={<DocumentArrowDownIcon className="w-5 h-5 shrink-0" />}
+                            className="w-full h-full bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-lg transition-colors flex items-center justify-center"
                           />
                         </div>
                       ) : (
-                        <div className="p-2.5 bg-white/5 text-white/20 rounded-lg flex items-center justify-center cursor-not-allowed" title="Kein Auftrag vorhanden">
-                          <DocumentArrowDownIcon className="w-5 h-5" />
+                        <div className="w-10 h-10 bg-white/5 text-white/20 rounded-lg flex items-center justify-center cursor-not-allowed shrink-0" title="Kein Auftrag vorhanden">
+                          <DocumentArrowDownIcon className="w-5 h-5 shrink-0" />
                         </div>
                       )}
 
                       {latestOrder ? (
-                        <div onClick={e => e.stopPropagation()} className="w-full h-full flex">
+                        <div onClick={e => e.stopPropagation()} className="w-10 h-10 shrink-0 [&>div]:w-full [&>div]:h-full [&_a]:w-full [&_a]:h-full [&_a]:flex" title="Protokoll als PDF herunterladen">
                           <PDFDownloadButton 
                             order={latestOrder} 
                             customer={customer} 
                             type="protocol"
                             iconOnly={true}
-                            customIcon={<ClipboardDocumentListIcon className="w-5 h-5" />}
-                            className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 rounded-lg transition-colors flex items-center justify-center w-full"
+                            customIcon={<ClipboardDocumentListIcon className="w-5 h-5 shrink-0" />}
+                            className="w-full h-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 rounded-lg transition-colors flex items-center justify-center"
                           />
                         </div>
                       ) : (
-                        <div className="p-2.5 bg-white/5 text-white/20 rounded-lg flex items-center justify-center cursor-not-allowed" title="Kein Auftrag vorhanden">
-                          <ClipboardDocumentListIcon className="w-5 h-5" />
+                        <div className="w-10 h-10 bg-white/5 text-white/20 rounded-lg flex items-center justify-center cursor-not-allowed shrink-0" title="Kein Auftrag vorhanden">
+                          <ClipboardDocumentListIcon className="w-5 h-5 shrink-0" />
                         </div>
                       )}
                     </div>
