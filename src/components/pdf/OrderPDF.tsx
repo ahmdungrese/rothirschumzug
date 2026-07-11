@@ -118,7 +118,7 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
       <Page size="A4" style={styles.page}>
         <View style={styles.headerContainerCentered}>
           <View style={styles.logoWrapperCentered}>
-            <Image src="/Rothirsch.png" style={{ height: 45, width: 45, objectFit: 'contain' }} />
+            <Image src="/Rothirsch.png" style={{ height: 60, width: 60, objectFit: 'contain' }} />
           </View>
         </View>
 
@@ -273,7 +273,7 @@ export const OrderPDF = ({ order, customer, settings, isContract = false, employ
       <Page size="A4" style={styles.page}>
         <View style={styles.headerContainerCentered} fixed>
           <View style={styles.logoWrapperCentered}>
-            <Image src="/Rothirsch.png" style={{ height: 45, width: 45, objectFit: 'contain' }} />
+            <Image src="/Rothirsch.png" style={{ height: 60, width: 60, objectFit: 'contain' }} />
           </View>
         </View>
         <Text style={styles.detailsHeader}>{isContract ? 'Auftragsdetails & Bestätigung' : 'Angebotsdetails'}</Text>

@@ -27,7 +27,7 @@ export const ProtocolPDF = ({ order, customer, employeeName, settings }: { order
     <Page size="A4" style={styles.page}>
       <View style={styles.headerContainer}>
         <View style={styles.logoWrapper}>
-          <Image src="/Rothirsch.png" style={{ height: 45, width: 45, objectFit: 'contain' }} />
+          <Image src="/Rothirsch.png" style={{ height: 60, width: 60, objectFit: 'contain' }} />
         </View>
       </View>
 
