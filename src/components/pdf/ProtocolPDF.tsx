@@ -15,10 +15,10 @@ const styles = StyleSheet.create({
   protocolBox: { borderWidth: 1, borderColor: '#eee', padding: 15, marginBottom: 20, borderRadius: 4 },
   signatureBox: { marginTop: 10, padding: 10, backgroundColor: '#f9f9f9', borderLeftWidth: 3, borderLeftColor: '#8F1627' },
   signatureImage: { height: 60, marginTop: 10, objectFit: 'contain' },
-  footer: { position: 'absolute', bottom: 30, left: 40, right: 40, textAlign: 'center', fontSize: 8, color: '#999', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10 },
+  footer: { position: 'absolute', bottom: 30, left: 40, right: 40, fontSize: 8, color: '#999', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10, flexDirection: 'row', justifyContent: 'space-between' },
 });
 
-export const ProtocolPDF = ({ order, customer, employeeName }: { order: any, customer: any, employeeName: string }) => {
+export const ProtocolPDF = ({ order, customer, employeeName, settings }: { order: any, customer: any, employeeName: string, settings?: any }) => {
   const docTitle = `Protokoll - ${order?.orderNumber || 'Auftrag'}`;
   const protocols = order?.protocols || [];
 
@@ -92,8 +92,27 @@ export const ProtocolPDF = ({ order, customer, employeeName }: { order: any, cus
         </View>
       )}
       
-      <View style={styles.footer}>
-        <Text>Dieses Protokoll ist Bestandteil der Auftragsdokumentation.</Text>
+      <View style={styles.footer} fixed>
+        <View>
+          <Text>{settings?.companyName}</Text>
+          <Text>{settings?.street}</Text>
+          <Text>{settings?.zip} {settings?.city}</Text>
+          <Text>{settings?.manager ? `Inhaber/-in: ${settings?.manager}` : ''}</Text>
+        </View>
+        <View>
+          <Text>Tel: {settings?.phone}</Text>
+          <Text>E-Mail: {settings?.email}</Text>
+          <Text>Web: {settings?.website}</Text>
+        </View>
+        <View>
+          <Text>Bank: {settings?.bankName}</Text>
+          <Text>IBAN: {settings?.iban}</Text>
+          <Text>BIC: {settings?.bic}</Text>
+        </View>
+        <View>
+          {settings?.taxId && <Text>USt-IdNr: {settings?.taxId}</Text>}
+          {settings?.taxNumber && <Text>Steuer-Nr: {settings?.taxNumber}</Text>}
+        </View>
       </View>
     </Page>
   </Document>

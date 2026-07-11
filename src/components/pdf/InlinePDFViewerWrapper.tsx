@@ -26,7 +26,7 @@ export default function InlinePDFViewerWrapper({ order, customer, type = 'order'
       if(docSnap.exists()) {
         setSettings(docSnap.data());
       } else {
-        setSettings({ companyName: 'Dein Unternehmen', city: 'Musterstadt' });
+        setSettings({ companyName: 'Rothirschumzug', city: 'Bochum' });
       }
     });
   }, []);

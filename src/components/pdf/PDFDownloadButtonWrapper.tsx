@@ -27,7 +27,7 @@ export default function PDFDownloadButtonWrapper({ order, customer, type = 'orde
       if(docSnap.exists()) {
         setSettings(docSnap.data());
       } else {
-        setSettings({ companyName: 'Dein Unternehmen', city: 'Musterstadt' });
+        setSettings({ companyName: 'Rothirschumzug', city: 'Bochum' });
       }
     });
   }, []);

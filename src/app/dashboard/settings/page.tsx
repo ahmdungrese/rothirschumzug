@@ -28,7 +28,7 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('basisdaten');
   const [showResetModal, setShowResetModal] = useState(false);
   const [settings, setSettings] = useState<any>({
-    companyName: 'Rothirsch Umzüge',
+    companyName: 'Rothirschumzug',
     street: 'Haydnstr. 16',
     zip: '44805',
     city: 'Bochum',
@@ -55,17 +55,17 @@ export default function SettingsPage() {
     texts: {
       quoteIntro: 'Sehr geehrte Damen und Herren,\nvielen Dank für Ihre Anfrage. Wir freuen uns, Ihnen folgendes Angebot unterbreiten zu dürfen:',
       quoteOutro: 'Alle angegebenen Preise verstehen sich als Bruttopreise und beinhalten die gesetzliche Mehrwertsteuer.\nWir danken Ihnen herzlich für Ihr Vertrauen und die angenehme Zusammenarbeit.',
-      quoteGreeting: '„Bei Fragen zögern Sie bitte nicht, uns zu kontaktieren. Wir sind jederzeit für Sie erreichbar.“\n\nMit freundlichen Grüßen\nRothirsch Umzüge',
+      quoteGreeting: '„Bei Fragen zögern Sie bitte nicht, uns zu kontaktieren. Wir sind jederzeit für Sie erreichbar.“\n\nMit freundlichen Grüßen\nRothirschumzug',
       orderIntro: 'Sehr geehrte Damen und Herren,\nvielen Dank für Ihre Unterschrift. Hiermit bestätigen wir Ihren Auftrag verbindlich.',
       orderOutro: 'Wir freuen uns auf den gemeinsamen Umzug und garantieren Ihnen einen reibungslosen Ablauf.',
-      orderGreeting: 'Mit freundlichen Grüßen\nRothirsch Umzüge',
+      orderGreeting: 'Mit freundlichen Grüßen\nRothirschumzug',
       insurance: 'Mit unserer Versicherung ist Ihr Umzugsgut abgesichert. Für diesen Transport deckt unser Unternehmen eine Transportgüterversicherung ein, ohne dass hierfür zusätzliche Kosten entstehen. Bei der Übernahme Ihres Umzugsgutes gilt eine gesetzliche Haftung gem. Paragraph 451g HGB - beschränkt auf einen Zeitwert von €620,00 / cbm.',
       invoiceIntro: 'Vielen Dank für Ihren Auftrag. Wir berechnen Ihnen für unsere erbrachten Leistungen:',
       invoiceOutro: 'Bitte überweisen Sie den Rechnungsbetrag innerhalb von 5 Tagen ohne Abzug auf unser Konto.',
-      invoiceGreeting: 'Für etwaige Fragen stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\nRothirsch Umzüge',
+      invoiceGreeting: 'Für etwaige Fragen stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\nRothirschumzug',
       googleReview: 'Wir hoffen, dass alles zu Ihrer Zufriedenheit war, und würden uns über eine positive Bewertung auf Google freuen.',
       dunningIntro: 'Leider konnten wir bis zum heutigen Tag keinen Zahlungseingang für die unten aufgeführte Rechnung feststellen. Sicherlich ist dies nur ein Versehen Ihrerseits.\n\nWir bitten Sie daher, den ausstehenden Betrag innerhalb der nächsten 5 Tage auf unser unten genanntes Konto zu überweisen.',
-      agb: 'Allgemeine Geschäftsbedingungen (AGB) – Rothirsch Umzüge\n\n§1 Geltungsbereich\nDiese Allgemeinen Geschäftsbedingungen (AGB) gelten für alle Verträge zwischen uns und dem Kunden...'
+      agb: 'Allgemeine Geschäftsbedingungen (AGB) – Rothirschumzug\n\n§1 Geltungsbereich\nDiese Allgemeinen Geschäftsbedingungen (AGB) gelten für alle Verträge zwischen uns und dem Kunden...'
     },
     paymentMethods: [
       { name: 'Überweisung', textQuote: 'Wir bitten Sie höflich, den Rechnungsbetrag innerhalb von 5 Tagen nach Abschluss des Umzugs per Überweisung zu begleichen.', textInvoice: 'Bitte überweisen Sie den Rechnungsbetrag innerhalb von 5 Tagen ohne Abzug auf unser Konto.', shortText: '5 Tagen', dueDays: 5 },

@@ -14,10 +14,10 @@ const styles = StyleSheet.create({
   tableRow: { flexDirection: 'row', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#eee' },
   col1: { width: '20%' },
   col2: { width: '80%' },
-  footer: { position: 'absolute', bottom: 30, left: 40, right: 40, textAlign: 'center', fontSize: 8, color: '#999', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10 },
+  footer: { position: 'absolute', bottom: 30, left: 40, right: 40, fontSize: 8, color: '#999', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10, flexDirection: 'row', justifyContent: 'space-between' },
 });
 
-export const EmployeeSheetPDF = ({ order, customer, employeeName }: { order: any, customer: any, employeeName?: string }) => {
+export const EmployeeSheetPDF = ({ order, customer, employeeName, settings }: { order: any, customer: any, employeeName?: string, settings?: any }) => {
   const docTitle = `Laufzettel - ${customer?.lastName || 'Kunde'}`;
   return (
   <Document title={docTitle}>
