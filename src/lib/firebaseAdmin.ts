@@ -56,11 +56,73 @@ function initializeFirebaseAdmin() {
   });
 }
 
-export const adminApp = initializeFirebaseAdmin();
+function createLazyProxy<T extends object>(initFn: () => T): T {
+  let instance: T | null = null;
+  const get = () => {
+    if (!instance) {
+      instance = initFn();
+    }
+    return instance;
+  };
+  return new Proxy({} as T, {
+    get(target, prop, receiver) {
+      const inst = get();
+      const value = Reflect.get(inst, prop, receiver);
+      if (typeof value === 'function') {
+        return value.bind(inst);
+      }
+      return value;
+    },
+    set(target, prop, value, receiver) {
+      const inst = get();
+      return Reflect.set(inst, prop, value, receiver);
+    },
+    has(target, prop) {
+      const inst = get();
+      return Reflect.has(inst, prop);
+    },
+    ownKeys(target) {
+      const inst = get();
+      return Reflect.ownKeys(inst);
+    },
+    getOwnPropertyDescriptor(target, prop) {
+      const inst = get();
+      return Reflect.getOwnPropertyDescriptor(inst, prop);
+    }
+  });
+}
 
-export const adminAuth = getAuth(adminApp);
-export const adminDb = getFirestore(adminApp);
-export const adminStorage = getStorage(adminApp);
+let memoApp: any = null;
+let memoAuth: any = null;
+let memoDb: any = null;
+let memoStorage: any = null;
+
+function getRealApp() {
+  if (!memoApp) {
+    memoApp = initializeFirebaseAdmin();
+  }
+  return memoApp;
+}
+
+export const adminApp = createLazyProxy(() => getRealApp());
+export const adminAuth = createLazyProxy(() => {
+  if (!memoAuth) {
+    memoAuth = getAuth(getRealApp());
+  }
+  return memoAuth;
+});
+export const adminDb = createLazyProxy(() => {
+  if (!memoDb) {
+    memoDb = getFirestore(getRealApp());
+  }
+  return memoDb;
+});
+export const adminStorage = createLazyProxy(() => {
+  if (!memoStorage) {
+    memoStorage = getStorage(getRealApp());
+  }
+  return memoStorage;
+});
+
 export { FieldValue as adminFieldValue };
-
 export default adminApp;
