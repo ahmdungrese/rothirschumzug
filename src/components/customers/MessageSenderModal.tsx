@@ -120,7 +120,7 @@ export function MessageSenderModal({
       
       // Auto-Select Attachment Type based on Template Name
       if (tpl.name.toLowerCase().includes('angebot')) setAttachmentType('order');
-      else if (tpl.name.toLowerCase().includes('rechnung')) setAttachmentType('invoice');
+      else if (tpl.name.toLowerCase().includes('rechnung')) setAttachmentType(order?.invoiceNumber ? 'invoice' : 'none');
       else setAttachmentType('none');
     }
   };
@@ -281,7 +281,7 @@ export function MessageSenderModal({
             >
               <option value="none">Kein Anhang</option>
               <option value="order">Angebot (PDF)</option>
-              <option value="invoice">Rechnung (PDF)</option>
+              <option value="invoice" disabled={!order?.invoiceNumber}>Rechnung (PDF) {!order?.invoiceNumber ? '(Fehlt)' : ''}</option>
             </select>
           </div>
 
