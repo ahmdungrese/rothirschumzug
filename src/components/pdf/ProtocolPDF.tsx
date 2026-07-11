@@ -4,7 +4,7 @@ import { COMPANY_DETAILS } from '@/lib/constants';
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
   headerContainer: { alignItems: 'flex-end', marginBottom: 20 },
-  logoWrapper: { backgroundColor: '#1a1a1a', width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-end' },
+  logoWrapper: { backgroundColor: '#1a1a1a', width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-end' },
   logoTextPrimary: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#8F1627', textTransform: 'uppercase', letterSpacing: 2 },
   companyInfo: { textAlign: 'right', fontSize: 9, color: '#666' },
   title: { fontSize: 18, fontFamily: 'Helvetica-Bold', marginBottom: 10, color: '#8F1627' },

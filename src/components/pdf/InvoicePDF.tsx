@@ -4,7 +4,7 @@ import { calculateOrderTotals, calculateOpenAmount, calculateTotalPaid } from '@
 const styles = StyleSheet.create({
   page: { padding: 30, paddingBottom: 90, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
   headerContainer: { alignItems: 'flex-end', marginBottom: 30 },
-  logoWrapper: { backgroundColor: '#1a1a1a', width: 100, height: 100, borderRadius: 50, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-end' },
+  logoWrapper: { backgroundColor: '#1a1a1a', width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-end' },
   logoTextPrimary: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#8F1627', textTransform: 'uppercase', letterSpacing: 2 },
   
   docInfoBox: { width: '40%', alignItems: 'flex-end', justifyContent: 'flex-start' },
