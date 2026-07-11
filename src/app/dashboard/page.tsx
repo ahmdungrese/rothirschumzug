@@ -602,35 +602,54 @@ export default function DashboardPage() {
                                 <div className="flex flex-col gap-1 mt-1 bg-black/20 p-1.5 rounded border border-white/5">
                                   <span className="text-[9px] font-bold uppercase tracking-wider text-primary">Termin & Zeit:</span>
                                   <div className="flex items-center gap-2">
-                                    <input 
-                                      type="date"
-                                      defaultValue={currentValDate}
-                                      onBlur={async (e) => {
-                                        const val = e.target.value;
-                                        if (val !== currentValDate) {
-                                          await updateDoc(doc(db, getCol('orders'), parentOrder.id), {
-                                            [`orderMeta.${dateField}`]: val, updatedAt: serverTimestamp()
-                                          });
-                                          toast.success("Datum gespeichert!");
-                                        }
-                                      }}
-                                      className={`${inlineInput} border text-[11px] px-2 py-1 rounded w-28 focus:border-primary outline-none`}
-                                    />
-                                    <input 
-                                      type="text"
-                                      placeholder="Zeit (z.B. 10-12 Uhr)"
-                                      defaultValue={currentValTime}
-                                      onBlur={async (e) => {
-                                        const val = e.target.value;
-                                        if (val !== currentValTime) {
-                                          await updateDoc(doc(db, getCol('orders'), parentOrder.id), {
-                                            [`orderMeta.${timeField}`]: val, updatedAt: serverTimestamp()
-                                          });
-                                          toast.success("Uhrzeit gespeichert!");
-                                        }
-                                      }}
-                                      className={`${inlineInput} border text-[11px] px-2 py-1 rounded w-28 focus:border-primary outline-none`}
-                                    />
+                                    {isViewing ? (
+                                      <input
+                                        type="datetime-local"
+                                        defaultValue={['requested', 'erledigt_fotos'].includes(parentOrder.orderMeta?.viewingDate || '') ? '' : (parentOrder.orderMeta?.viewingDate?.slice(0, 16) || '')}
+                                        onBlur={async (e) => {
+                                          const val = e.target.value;
+                                          if (val !== parentOrder.orderMeta?.viewingDate) {
+                                            await updateDoc(doc(db, getCol('orders'), parentOrder.id), {
+                                              'orderMeta.viewingDate': val, viewingDate: val, updatedAt: serverTimestamp()
+                                            });
+                                            toast.success("Besichtigungstermin gespeichert!");
+                                          }
+                                        }}
+                                        className={`${inlineInput} border text-[11px] px-2 py-1 rounded w-36 focus:border-primary outline-none`}
+                                      />
+                                    ) : (
+                                      <>
+                                        <input 
+                                          type="date"
+                                          defaultValue={currentValDate}
+                                          onBlur={async (e) => {
+                                            const val = e.target.value;
+                                            if (val !== currentValDate) {
+                                              await updateDoc(doc(db, getCol('orders'), parentOrder.id), {
+                                                [`orderMeta.${dateField}`]: val, updatedAt: serverTimestamp()
+                                              });
+                                              toast.success("Datum gespeichert!");
+                                            }
+                                          }}
+                                          className={`${inlineInput} border text-[11px] px-2 py-1 rounded w-28 focus:border-primary outline-none`}
+                                        />
+                                        <input 
+                                          type="text"
+                                          placeholder="Zeit (z.B. 10-12 Uhr)"
+                                          defaultValue={currentValTime}
+                                          onBlur={async (e) => {
+                                            const val = e.target.value;
+                                            if (val !== currentValTime) {
+                                              await updateDoc(doc(db, getCol('orders'), parentOrder.id), {
+                                                [`orderMeta.${timeField}`]: val, updatedAt: serverTimestamp()
+                                              });
+                                              toast.success("Uhrzeit gespeichert!");
+                                            }
+                                          }}
+                                          className={`${inlineInput} border text-[11px] px-2 py-1 rounded w-28 focus:border-primary outline-none`}
+                                        />
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -1086,54 +1105,76 @@ export default function DashboardPage() {
                                 <div className="flex flex-col gap-1 bg-black/40 p-1.5 rounded border border-white/5 shrink-0 self-start sm:self-auto">
                                   <span className="text-[9px] text-text-muted font-bold uppercase">Termin & Zeit:</span>
                                   <div className="flex items-center gap-2">
-                                    <input 
-                                      type="date"
-                                      value={
-                                        isKarton ? (selectedOrder.orderMeta?.kartonDeliveryDate || '') :
-                                        isHV ? (selectedOrder.orderMeta?.halteverbotDate || '') :
-                                        isLift ? (selectedOrder.orderMeta?.moebelliftDate || '') :
-                                        (selectedOrder.orderMeta?.viewingDate || '')
-                                      }
-                                      onChange={async (e) => {
-                                        const val = e.target.value;
-                                        const field = isKarton ? 'kartonDeliveryDate' : isHV ? 'halteverbotDate' : isLift ? 'moebelliftDate' : 'viewingDate';
-                                        const orderRef = doc(db, getCol('orders'), selectedOrder.id);
-                                        await updateDoc(orderRef, {
-                                          [`orderMeta.${field}`]: val,
-                                          updatedAt: serverTimestamp()
-                                        });
-                                        setSelectedOrder((prev: any) => ({
-                                          ...prev,
-                                          orderMeta: { ...prev?.orderMeta, [field]: val }
-                                        }));
-                                        toast.success("Datum aktualisiert!");
-                                      }}
-                                      className="bg-bg-dark text-[11px] text-text-main border border-structure rounded px-1.5 py-0.5 focus:border-primary focus:outline-none"
-                                    />
-                                    <input 
-                                      type="text"
-                                      placeholder="Zeit (z.B. 10-12 Uhr)"
-                                      value={
-                                        isKarton ? (selectedOrder.orderMeta?.kartonDeliveryTime || '') :
-                                        isHV ? (selectedOrder.orderMeta?.halteverbotTime || '') :
-                                        isLift ? (selectedOrder.orderMeta?.moebelliftTime || '') :
-                                        (selectedOrder.orderMeta?.viewingTime || '')
-                                      }
-                                      onChange={async (e) => {
-                                        const val = e.target.value;
-                                        const field = isKarton ? 'kartonDeliveryTime' : isHV ? 'halteverbotTime' : isLift ? 'moebelliftTime' : 'viewingTime';
-                                        const orderRef = doc(db, getCol('orders'), selectedOrder.id);
-                                        await updateDoc(orderRef, {
-                                          [`orderMeta.${field}`]: val,
-                                          updatedAt: serverTimestamp()
-                                        });
-                                        setSelectedOrder((prev: any) => ({
-                                          ...prev,
-                                          orderMeta: { ...prev?.orderMeta, [field]: val }
-                                        }));
-                                      }}
-                                      className="bg-bg-dark text-[11px] text-text-main border border-structure rounded px-1.5 py-0.5 focus:border-primary focus:outline-none placeholder:text-text-muted/50 w-28"
-                                    />
+                                    {isViewing ? (
+                                      <input
+                                        type="datetime-local"
+                                        value={['requested', 'erledigt_fotos'].includes(selectedOrder.orderMeta?.viewingDate || '') ? '' : (selectedOrder.orderMeta?.viewingDate?.slice(0, 16) || '')}
+                                        onChange={async (e) => {
+                                          const val = e.target.value;
+                                          const orderRef = doc(db, getCol('orders'), selectedOrder.id);
+                                          await updateDoc(orderRef, {
+                                            'orderMeta.viewingDate': val,
+                                            viewingDate: val,
+                                            updatedAt: serverTimestamp()
+                                          });
+                                          setSelectedOrder((prev: any) => ({
+                                            ...prev,
+                                            orderMeta: { ...prev?.orderMeta, viewingDate: val }
+                                          }));
+                                          toast.success("Besichtigungstermin aktualisiert!");
+                                        }}
+                                        className="bg-bg-dark text-[11px] text-text-main border border-structure rounded px-1.5 py-0.5 focus:border-primary focus:outline-none w-36"
+                                      />
+                                    ) : (
+                                      <>
+                                        <input 
+                                          type="date"
+                                          value={
+                                            isKarton ? (selectedOrder.orderMeta?.kartonDeliveryDate || '') :
+                                            isHV ? (selectedOrder.orderMeta?.halteverbotDate || '') :
+                                            (selectedOrder.orderMeta?.moebelliftDate || '')
+                                          }
+                                          onChange={async (e) => {
+                                            const val = e.target.value;
+                                            const field = isKarton ? 'kartonDeliveryDate' : isHV ? 'halteverbotDate' : 'moebelliftDate';
+                                            const orderRef = doc(db, getCol('orders'), selectedOrder.id);
+                                            await updateDoc(orderRef, {
+                                              [`orderMeta.${field}`]: val,
+                                              updatedAt: serverTimestamp()
+                                            });
+                                            setSelectedOrder((prev: any) => ({
+                                              ...prev,
+                                              orderMeta: { ...prev?.orderMeta, [field]: val }
+                                            }));
+                                            toast.success("Datum aktualisiert!");
+                                          }}
+                                          className="bg-bg-dark text-[11px] text-text-main border border-structure rounded px-1.5 py-0.5 focus:border-primary focus:outline-none"
+                                        />
+                                        <input 
+                                          type="text"
+                                          placeholder="Zeit (z.B. 10-12 Uhr)"
+                                          value={
+                                            isKarton ? (selectedOrder.orderMeta?.kartonDeliveryTime || '') :
+                                            isHV ? (selectedOrder.orderMeta?.halteverbotTime || '') :
+                                            (selectedOrder.orderMeta?.moebelliftTime || '')
+                                          }
+                                          onChange={async (e) => {
+                                            const val = e.target.value;
+                                            const field = isKarton ? 'kartonDeliveryTime' : isHV ? 'halteverbotTime' : 'moebelliftTime';
+                                            const orderRef = doc(db, getCol('orders'), selectedOrder.id);
+                                            await updateDoc(orderRef, {
+                                              [`orderMeta.${field}`]: val,
+                                              updatedAt: serverTimestamp()
+                                            });
+                                            setSelectedOrder((prev: any) => ({
+                                              ...prev,
+                                              orderMeta: { ...prev?.orderMeta, [field]: val }
+                                            }));
+                                          }}
+                                          className="bg-bg-dark text-[11px] text-text-main border border-structure rounded px-1.5 py-0.5 focus:border-primary focus:outline-none placeholder:text-text-muted/50 w-28"
+                                        />
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                               )}

@@ -569,14 +569,43 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
           )}
         </div>
 
-        <div className="p-4 bg-bg-panel border-t border-structure flex justify-between shrink-0 sticky bottom-0 z-20">
-          <button onClick={() => setStep(Math.max(1, step - 1))} disabled={step === 1} className={`btn-secondary py-3 px-4 md:px-6 flex items-center gap-2 text-sm md:text-lg ${step === 1 ? 'opacity-0' : ''}`}><ChevronLeftIcon className="w-5 h-5" /> <span className="hidden md:inline">Zurück</span></button>
-          {step < 7 ? (
-            <button onClick={() => setStep(step + 1)} className="btn-primary py-3 px-6 md:px-8 flex items-center gap-2 text-sm md:text-lg shadow-lg">Weiter <ChevronRightIcon className="w-5 h-5" /></button>
-          ) : (
-            <button onClick={saveOrder} disabled={isSaving} className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 md:px-8 rounded-xl shadow-lg shadow-green-600/30 flex items-center gap-2 text-sm md:text-lg transition-all">{isSaving ? 'Speichert...' : <><CheckCircleIcon className="w-6 h-6" /> <span className="hidden md:inline">Besichtigung abschließen</span><span className="md:hidden">Abschließen</span></>}</button>
-          )}
+        {/* Mobile Sticky Bar */}
+        <div 
+          className="md:hidden p-3 bg-bg-panel/95 backdrop-blur-md border-t border-structure flex flex-col gap-3 shrink-0 sticky z-[60] w-full shadow-[0_-10px_30px_rgba(0,0,0,0.3)]"
+          style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}
+        >
+          <div className="flex justify-between gap-2 w-full">
+            <button onClick={() => { if(onClose) onClose(); else if(urlCustomerId) router.push(`/dashboard/customers/${urlCustomerId}`); else router.push('/dashboard/orders'); }} disabled={isSaving} className="btn-secondary text-xs flex-1 py-2">Abbrechen</button>
+            <button onClick={saveOrder} disabled={isSaving} className="btn-secondary text-xs flex-1 py-2">{isSaving ? 'Speichert...' : 'Speichern'}</button>
+          </div>
+          <div className="flex justify-between gap-2 w-full">
+            <button onClick={() => setStep(Math.max(1, step - 1))} disabled={step === 1} className={`btn-secondary py-3 px-4 flex items-center gap-2 text-sm flex-1 justify-center ${step === 1 ? 'opacity-0 pointer-events-none' : ''}`}><ChevronLeftIcon className="w-5 h-5" /> Zurück</button>
+            {step < 7 ? (
+              <button onClick={() => setStep(step + 1)} className="btn-primary py-3 px-4 flex items-center gap-2 text-sm shadow-lg flex-1 justify-center">Weiter <ChevronRightIcon className="w-5 h-5" /></button>
+            ) : (
+              <button onClick={saveOrder} disabled={isSaving} className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-green-600/30 flex items-center gap-2 text-sm transition-all flex-1 justify-center">{isSaving ? 'Speichert...' : <><CheckCircleIcon className="w-5 h-5" /> Abschließen</>}</button>
+            )}
+          </div>
         </div>
+
+        {/* Desktop Sticky Bar */}
+        <div className="hidden md:flex p-4 bg-bg-panel border-t border-structure justify-between items-center shrink-0 sticky bottom-0 z-20 w-full">
+          <div className="flex gap-4">
+            <button onClick={() => { if(onClose) onClose(); else if(urlCustomerId) router.push(`/dashboard/customers/${urlCustomerId}`); else router.push('/dashboard/orders'); }} disabled={isSaving} className="btn-secondary py-3 px-6 flex items-center gap-2 text-lg">Abbrechen</button>
+            <button onClick={saveOrder} disabled={isSaving} className="btn-secondary py-3 px-6 flex items-center gap-2 text-lg">{isSaving ? 'Speichert...' : 'Speichern'}</button>
+          </div>
+          <div className="flex gap-4">
+            <button onClick={() => setStep(Math.max(1, step - 1))} disabled={step === 1} className={`btn-secondary py-3 px-6 flex items-center gap-2 text-lg ${step === 1 ? 'opacity-0 pointer-events-none' : ''}`}><ChevronLeftIcon className="w-5 h-5" /> Zurück</button>
+            {step < 7 ? (
+              <button onClick={() => setStep(step + 1)} className="btn-primary py-3 px-8 flex items-center gap-2 text-lg shadow-lg">Weiter <ChevronRightIcon className="w-5 h-5" /></button>
+            ) : (
+              <button onClick={saveOrder} disabled={isSaving} className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-green-600/30 flex items-center gap-2 text-lg transition-all">{isSaving ? 'Speichert...' : <><CheckCircleIcon className="w-6 h-6" /> Besichtigung abschließen</>}</button>
+            )}
+          </div>
+        </div>
+
+        {/* Spacer to allow scrolling past the sticky bar and BottomNav */}
+        <div className="md:hidden w-full shrink-0" style={{ height: 'calc(10rem + env(safe-area-inset-bottom, 0px))' }}></div>
       </div>
     </div>
   );
