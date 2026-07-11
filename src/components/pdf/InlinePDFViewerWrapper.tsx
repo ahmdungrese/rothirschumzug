@@ -42,7 +42,10 @@ export default function InlinePDFViewerWrapper({ order, customer, type = 'order'
     // For 'order', use confirmedSnapshot if it exists and order is no longer in draft/quote, UNLESS forceLiveQuote is true
     const isPastQuote = ['confirmed', 'completed', 'invoice_open', 'invoice_paid', 'invoice_overdue', 'invoice_cancelled'].includes(order.status);
     const useSnapshot = isPastQuote && order.confirmedSnapshot && !forceLiveQuote;
-    const orderData = useSnapshot ? order.confirmedSnapshot : order;
+    // Merge snapshot data over the current order data to preserve logistics, billingAddress, etc.
+    const orderData = useSnapshot 
+      ? { ...order, ...order.confirmedSnapshot, _isSnapshotActive: true } 
+      : order;
     
     // Add a flag if it's past quote but missing snapshot AND not forcing live quote
     if (isPastQuote && !order.confirmedSnapshot && !forceLiveQuote) {

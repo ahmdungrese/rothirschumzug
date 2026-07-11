@@ -113,13 +113,17 @@ export async function changeOrderStatus(
           capturedAt: new Date().toISOString(),
           totalPrice: order.price || 0,
           services: order.services || [],
+          totals: order.totals || null,
+          calcInput: order.calcInput || null,
+          isFlatRate: order.isFlatRate || false,
+          flatRateNet: order.flatRateNet || 0,
         };
       }
     }
 
     if (targetStatus === 'completed') {
       const phase4Tickets = tickets.filter(t => t.phase === 4 && (t.type === 'action' || t.type === 'warning'));
-      const incompletePhase4 = phase4Tickets.filter(t => !t.done);
+      const incompletePhase4 = phase4Tickets.filter(t => !t.done && t.id !== 'move_past_due');
       
       if (incompletePhase4.length > 0) {
         throw new Error(`Nicht alle Pflichtaufgaben erledigt. Offen: ${incompletePhase4.map(t => t.title).join(', ')}`);
