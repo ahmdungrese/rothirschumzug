@@ -35,17 +35,6 @@ export function NotificationBell() {
       sevenDaysFromNow.setDate(now.getDate() + 7);
 
       orders.forEach((o: any) => {
-        if (!o.movingDate) return;
-
-        // Parse movingDate (DD.MM.YYYY oder YYYY-MM-DD)
-        let moveDate = new Date();
-        if (o.movingDate.includes('.')) {
-          const parts = o.movingDate.split('.');
-          moveDate = new Date(parseInt(parts[2]), parseInt(parts[1])-1, parseInt(parts[0]));
-        } else {
-          moveDate = new Date(o.movingDate);
-        }
-        
         const customerName = o.customerName || 'Unbekannt';
 
         // --- ALARM: Abgelaufene Angebote (Nachfassen) ---
@@ -58,7 +47,7 @@ export function NotificationBell() {
               id: `${o.id}-quote`,
               type: 'warning',
               title: diffDays < 0 ? 'Angebot abgelaufen!' : 'Angebot läuft ab',
-              message: `Angebot für ${customerName} läuft ${diffDays < 0 ? 'ist abgelaufen' : 'in ' + diffDays + ' Tagen ab'}. Nachfassen!`,
+              message: `Angebot für ${customerName} ${diffDays < 0 ? 'ist abgelaufen' : 'läuft in ' + diffDays + ' Tagen ab'}. Nachfassen!`,
               link: `/dashboard/customers/${o.customerId}`,
               urgency: diffDays < 0 ? 'high' : 'medium'
             });
@@ -76,6 +65,19 @@ export function NotificationBell() {
             urgency: 'high'
           });
         }
+
+        // If there's no moving date, we skip the remaining alarms because they depend on movingDate
+        if (!o.movingDate) return;
+
+        // Parse movingDate (DD.MM.YYYY oder YYYY-MM-DD)
+        let moveDate = new Date();
+        if (o.movingDate.includes('.')) {
+          const parts = o.movingDate.split('.');
+          moveDate = new Date(parseInt(parts[2]), parseInt(parts[1])-1, parseInt(parts[0]));
+        } else {
+          moveDate = new Date(o.movingDate);
+        }
+
 
         // --- ALARMS FOR CONFIRMED MOVES ---
         if (o.status === 'confirmed') {
@@ -97,8 +99,8 @@ export function NotificationBell() {
             });
           }
 
-          // Wenn der Umzug in den nächsten 7 Tagen ist
-          if (moveDate >= now && moveDate <= sevenDaysFromNow) {
+          // Wenn der Umzug in den nächsten 7 Tagen ist oder bereits in der Vergangenheit liegt (und noch auf confirmed steht)
+          if (moveDate <= sevenDaysFromNow) {
             // 1. Personal-Check
           if (!o.disposition || !o.disposition.helpers || o.disposition.helpers === 0) {
             newNotifications.push({

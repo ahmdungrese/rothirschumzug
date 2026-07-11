@@ -134,61 +134,61 @@ export default function SettingsPage() {
         id: 't1',
         name: 'Erstkontakt (Bilder oder Liste erhalten)',
         subject: 'Angebot für Ihren Umzug',
-        body: 'Hallo,\n\nvielen Dank für Ihr Interesse an unserem Service und für die Übersendung der Bilder.\n\nGerne erstellen wir Ihnen ein individuelles Angebot mit Festpreis und lassen Ihnen dieses zeitnah zukommen.\n\nSollten Sie vorab noch weitere Fragen haben, stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug\n\nKontaktdaten: Telefon: +49 1590 6603011 E-Mail: info@rothirsch-umzug.de Webseite: www.rothirsch-umzug.de'
+        body: 'Hallo,\n\nvielen Dank für Ihr Interesse an unserem Service und für die Übersendung der Bilder.\n\nGerne erstellen wir Ihnen ein individuelles Angebot mit Festpreis und lassen Ihnen dieses zeitnah zukommen.\n\nSollten Sie vorab noch weitere Fragen haben, stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\nadmin@rothirsch-umzug.de\nRothirsch Umzüge\n\nKontaktdaten:\nTelefon: +49 1590 6603011\nE-Mail: info@rothirsch-umzug.de\nWebseite: www.rothirsch-umzug.de'
       },
       {
         id: 't2',
         name: 'Erstkontakt (Keine Bilder oder Liste)',
         subject: 'Ihre Umzugsanfrage',
-        body: 'Hallo,\n\nvielen Dank für Ihr Interesse an unserem Service. Gerne erstellen für Sie ein Angebot mit einem festen Preis. Teilen Sie uns bitte Bilder oder eine Liste mit den gewünschten Leistungen mit. Sie können uns auch gerne Ihre Telefonnummer mitteilen oder uns jederzeit anrufen, um Ihren Umzug zu besprechen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug\n\nKontaktdaten: Telefon: +49 1590 6603011 E-Mail: info@rothirsch-umzug.de Webseite: www.rothirsch-umzug.de'
+        body: 'Hallo,\n\nvielen Dank für Ihr Interesse an unserem Service. Gerne erstellen für Sie ein Angebot mit einem festen Preis. Teilen Sie uns bitte Bilder oder eine Liste mit den gewünschten Leistungen mit. Sie können uns auch gerne Ihre Telefonnummer mitteilen oder uns jederzeit anrufen, um Ihren Umzug zu besprechen.\n\nMit freundlichen Grüßen\nadmin@rothirsch-umzug.de\nRothirsch Umzüge\n\nKontaktdaten:\nTelefon: +49 1590 6603011\nE-Mail: info@rothirsch-umzug.de\nWebseite: www.rothirsch-umzug.de'
       },
       {
         id: 't3',
         name: 'Angebot schicken',
         subject: 'Ihr Umzugsangebot',
-        body: 'Sehr geehrte Damen und Herren,\n\nanbei sende ich Ihnen unser Angebot für Ihren bevorstehenden Umzug. Bitte überprüfen Sie die angehängte Datei für die detaillierten Informationen und Konditionen. Das Angebot wurde gemäß Ihren Anforderungen erstellt und beinhaltet alle gewünschten Leistungen.\n\nBei Rothirsch umzug legen wir großen Wert auf den Schutz Ihrer Möbel. Daher werden wir alle Möbelstücke sorgfältig mit Umzugsdecken und hochwertigen Schutzmaterialien schützen, um sicherzustellen, dass sie während des Transports optimal geschützt sind.\n\nIch möchte klarstellen, dass es sich bei unserem Angebot um einen Festpreis handelt. Das bedeutet, dass die vereinbarte Summe die endgültigen Kosten für Ihren Umzug abdeckt. Sie können darauf vertrauen, dass es keine unerwarteten zusätzlichen Gebühren gibt.\n\nWenn Sie mit dem Angebot zufrieden sind, bitten wir Sie um eine schriftliche Bestätigung, damit wir den Umzug entsprechend planen können. Bitte beachten Sie, dass die Termine vorbehaltlich der Verfügbarkeit sind und wir eine rechtzeitige Bestätigung benötigen, um Ihren Umzugstermin zu sichern.\n\nSollten Sie weitere Fragen haben oder Anpassungen am Angebot wünschen, stehe ich Ihnen gerne zur Verfügung. Sie können mich telefonisch oder per E-Mail kontaktieren.\n\nVielen Dank für Ihr Interesse an unseren Umzugsservices. Wir freuen uns darauf, Ihnen bei Ihrem Umzug behilflich zu sein.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug'
+        body: 'Sehr geehrte Damen und Herren,\n\nanbei sende ich Ihnen unser Angebot für Ihren bevorstehenden Umzug. Bitte überprüfen Sie die angehängte Datei für die detaillierten Informationen und Konditionen. Das Angebot wurde gemäß Ihren Anforderungen erstellt und beinhaltet alle gewünschten Leistungen.\n\nBei Rothirsch Umzüge legen wir großen Wert auf den Schutz Ihrer Möbel. Daher werden wir alle Möbelstücke sorgfältig mit Umzugsdecken und hochwertigen Schutzmaterialien schützen, um sicherzustellen, dass sie während des Transports optimal geschützt sind.\n\nIch möchte klarstellen, dass es sich bei unserem Angebot um einen Festpreis handelt. Das bedeutet, dass die vereinbarte Summe die endgültigen Kosten für Ihren Umzug abdeckt. Sie können darauf vertrauen, dass es keine unerwarteten zusätzlichen Gebühren gibt.\n\nWenn Sie mit dem Angebot zufrieden sind, bitten wir Sie um eine schriftliche Bestätigung, damit wir den Umzug entsprechend planen können. Bitte beachten Sie, dass die Termine vorbehaltlich der Verfügbarkeit sind und wir eine rechtzeitige Bestätigung benötigen, um Ihren Umzugstermin zu sichern.\n\nSollten Sie weitere Fragen haben oder Anpassungen am Angebot wünschen, stehe ich Ihnen gerne zur Verfügung. Sie können mich telefonisch oder per E-Mail kontaktieren.\n\nVielen Dank für Ihr Interesse an unseren Umzugsservices. Wir freuen uns darauf, Ihnen bei Ihrem Umzug behilflich zu sein.\n\nMit freundlichen Grüßen\nadmin@rothirsch-umzug.de\nRothirsch Umzüge\n\nKontaktdaten:\nTelefon: +49 1590 6603011\nE-Mail: info@rothirsch-umzug.de\nWebseite: www.rothirsch-umzug.de'
       },
       {
         id: 't4',
         name: 'Nachfrage zu Ihrem Umzugsangebot',
         subject: 'Nachfrage zu Ihrem Umzugsangebot',
-        body: 'Hallo,\n\nich wollte mich erkundigen, ob Sie bereits eine Entscheidung zu unserem Angebot getroffen haben. Der gewünschte Termin ist aktuell noch verfügbar – allerdings erhalten wir viele Anfragen, sodass eine zeitnahe Rückmeldung wichtig für die Reservierung ist.\n\nSollten noch Fragen offen sein oder Sie Anpassungen wünschen, können wir das gerne telefonisch besprechen. Uns ist wichtig, dass der Ablauf für Sie so reibungslos und angenehm wie möglich verläuft.\n\nGeben Sie uns einfach kurz Bescheid.\n\nVielen Dank im Voraus – wir würden uns freuen, Sie bei Ihrem Umzug unterstützen zu dürfen!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug'
+        body: 'Hallo,\n\nich wollte mich erkundigen, ob Sie bereits eine Entscheidung zu unserem Angebot getroffen haben. Der gewünschte Termin ist aktuell noch verfügbar – allerdings erhalten wir viele Anfragen, sodass eine zeitnahe Rückmeldung wichtig für die Reservierung ist.\n\nSollten noch Fragen offen sein oder Sie Anpassungen wünschen, können wir das gerne telefonisch besprechen. Uns ist wichtig, dass der Ablauf für Sie so reibungslos und angenehm wie möglich verläuft.\n\nGeben Sie uns einfach kurz Bescheid.\n\nVielen Dank im Voraus – wir würden uns freuen, Sie bei Ihrem Umzug unterstützen zu dürfen!\n\nMit freundlichen Grüßen\nadmin@rothirsch-umzug.de\nRothirsch Umzüge\n\nKontaktdaten:\nTelefon: +49 1590 6603011\nE-Mail: info@rothirsch-umzug.de\nWebseite: www.rothirsch-umzug.de'
       },
       {
         id: 't5',
         name: 'Aktualisiertes Angebot schicken',
         subject: 'Ihr aktualisiertes Umzugsangebot',
-        body: 'Sehr geehrte(r) [Name],\n\nvielen Dank für Ihre Rückmeldung. Anbei senden wir Ihnen das überarbeitete Angebot sowie die angepasste Umzugsliste, die Ihren Änderungswünschen entspricht.\n\nFalls Sie noch weitere Fragen haben oder weitere Anpassungen benötigen, stehen wir Ihnen jederzeit gern zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug'
+        body: '{{Kunde_Anrede}},\n\nvielen Dank für Ihre Rückmeldung. Anbei erhalten Sie Ihr aktualisiertes Angebot, in dem wir Ihre Änderungswünsche berücksichtigt haben.\n\nFalls Sie noch weitere Fragen haben oder weitere Anpassungen benötigen, stehen wir Ihnen jederzeit gern zur Verfügung.\n\nMit freundlichen Grüßen\nadmin@rothirsch-umzug.de\nRothirsch Umzüge\n\nKontaktdaten:\nTelefon: +49 1590 6603011\nE-Mail: info@rothirsch-umzug.de\nWebseite: www.rothirsch-umzug.de'
       },
       {
         id: 't6',
         name: 'Absage',
         subject: 'Schade, dass es nicht geklappt hat',
-        body: 'Hallo,\n\nes ist schade zu hören, dass Sie sich für einen anderen Anbieter entschieden haben. Wir wünschen Ihnen dennoch viel Erfolg und einen reibungslosen Umzug.\n\nSollten Sie in Zukunft erneut Unterstützung benötigen, stehen wir Ihnen jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug'
+        body: 'Hallo,\n\nes ist schade zu hören, dass Sie sich für einen anderen Anbieter entschieden haben. Wir wünschen Ihnen dennoch viel Erfolg und einen reibungslosen Umzug.\n\nSollten Sie in Zukunft erneut Unterstützung benötigen, stehen wir Ihnen jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\nadmin@rothirsch-umzug.de\nRothirsch Umzüge\n\nKontaktdaten:\nTelefon: +49 1590 6603011\nE-Mail: info@rothirsch-umzug.de\nWebseite: www.rothirsch-umzug.de'
       },
       {
         id: 't7',
         name: 'Bestätigung',
         subject: 'Auftragsbestätigung für Ihren Umzug',
-        body: 'Hallo,\n\nvielen Dank für Ihr Vertrauen und das unterzeichnete Angebot. Hiermit bestätige ich Ihnen den Umzugstermin am [Datum].\n\nWir freuen uns auf die Zusammenarbeit und darauf, Ihnen den Weg in Ihr neues Zuhause zu erleichtern.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug'
+        body: 'Hallo,\n\nvielen Dank für Ihr Vertrauen und die Bestätigung. Hiermit bestätigen wir Ihnen den Umzugstermin am {{Umzugsdatum}}.\n\nWir freuen uns auf die Zusammenarbeit und darauf, Ihnen den Weg in Ihr neues Zuhause zu erleichtern.\n\nMit freundlichen Grüßen\nadmin@rothirsch-umzug.de\nRothirsch Umzüge\n\nKontaktdaten:\nTelefon: +49 1590 6603011\nE-Mail: info@rothirsch-umzug.de\nWebseite: www.rothirsch-umzug.de'
       },
       {
         id: 't8',
         name: 'Zeit des Umzugs (Wann trifft das Team ein?)',
         subject: 'Ihre Umzugs-Uhrzeit',
-        body: 'Hallo,\n\nvielen Dank für Ihre Nachricht. Unser Team wird voraussichtlich zwischen 8:30 und 09:30 Uhr bei Ihnen eintreffen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug'
+        body: 'Hallo,\n\nvielen Dank für Ihre Nachricht. Unser Team wird voraussichtlich zwischen 8:30 und 09:30 Uhr bei Ihnen eintreffen.\n\nMit freundlichen Grüßen\nadmin@rothirsch-umzug.de\nRothirsch Umzüge\n\nKontaktdaten:\nTelefon: +49 1590 6603011\nE-Mail: info@rothirsch-umzug.de\nWebseite: www.rothirsch-umzug.de'
       },
       {
         id: 't9',
         name: 'Rechnung schicken',
         subject: 'Ihre Rechnung',
-        body: 'Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die Rechnung für die von uns erbrachten Dienstleistungen. Bitte nehmen Sie sich einen Moment Zeit, um diese zu überprüfen. Sollten Sie Fragen oder Anmerkungen haben, stehe ich Ihnen selbstverständlich gerne zur Verfügung.\n\nWir möchten uns bei Ihnen für Ihr Vertrauen bedanken und hoffen, dass Sie mit unseren Leistungen zufrieden sind. Falls ja, würden wir uns sehr über eine Bewertung auf Google oder Check24 freuen – oder auf beiden Plattformen. Ihr Feedback ist uns äußerst wichtig und hilft uns, unseren Service kontinuierlich zu verbessern.\n\nVielen Dank für Ihre Unterstützung und Ihr Vertrauen in unsere Arbeit.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch umzug'
+        body: 'Sehr geehrte Damen und Herren,\n\nanbei erhalten Sie die Rechnung für die von uns erbrachten Dienstleistungen. Bitte nehmen Sie sich einen Moment Zeit, um diese zu überprüfen. Sollten Sie Fragen oder Anmerkungen haben, stehe ich Ihnen selbstverständlich gerne zur Verfügung.\n\nWir möchten uns bei Ihnen für Ihr Vertrauen bedanken und hoffen, dass Sie mit unseren Leistungen zufrieden sind. Falls ja, würden wir uns sehr über eine Bewertung auf Google oder Check24 freuen – oder auf beiden Plattformen. Ihr Feedback ist uns äußerst wichtig und hilft uns, unseren Service kontinuierlich zu verbessern.\n\nVielen Dank für Ihre Unterstützung und Ihr Vertrauen in unsere Arbeit.\n\nMit freundlichen Grüßen\nadmin@rothirsch-umzug.de\nRothirsch Umzüge\n\nKontaktdaten:\nTelefon: +49 1590 6603011\nE-Mail: info@rothirsch-umzug.de\nWebseite: www.rothirsch-umzug.de'
       },
       {
         id: 't10',
         name: 'Neue Feature / Bewertung',
         subject: 'Vielen Dank für Ihre Bewertung',
-        body: 'Hallo [Name],\n\nvielen Dank für Ihre großartige Bewertung! Wir freuen uns wirklich sehr über Ihr positives Feedback und es ist schön zu hören, dass alles nach Ihren Wünschen gelaufen ist und Sie zufrieden sind. Es ist immer toll, mit so angenehmen Kunden wie Ihnen zusammenzuarbeiten.\n\nViele Grüße!\n[Mitarbeiter]\nRothirsch umzug'
+        body: 'Hallo {{Kunde_Name}},\n\nvielen Dank für Ihre großartige Bewertung! Wir freuen uns wirklich sehr über Ihr positives Feedback und es ist schön zu hören, dass alles nach Ihren Wünschen gelaufen ist und Sie zufrieden sind. Es ist immer toll, mit so angenehmen Kunden wie Ihnen zusammenzuarbeiten.\n\nViele Grüße!\nadmin@rothirsch-umzug.de\nRothirsch Umzüge\n\nKontaktdaten:\nTelefon: +49 1590 6603011\nE-Mail: info@rothirsch-umzug.de\nWebseite: www.rothirsch-umzug.de'
       }
     ]
   });
@@ -246,6 +246,43 @@ export default function SettingsPage() {
       // Merge communicationTemplates if missing
       if (!data.communicationTemplates || data.communicationTemplates.length === 0) {
         data.communicationTemplates = settings.communicationTemplates;
+      } else {
+        // AUTO-FIX: Update existing templates to new formatting
+        let updated = false;
+        data.communicationTemplates = data.communicationTemplates.map((t: any) => {
+          let newBody = t.body;
+          if (newBody.includes('[Mitarbeiter]')) {
+            newBody = newBody.replace(/\[Mitarbeiter\]/g, 'admin@rothirsch-umzug.de');
+            updated = true;
+          }
+          if (newBody.includes('Kontaktdaten: Telefon: +49 1590 6603011 E-Mail: info@rothirsch-umzug.de Webseite: www.rothirsch-umzug.de')) {
+            newBody = newBody.replace('Kontaktdaten: Telefon: +49 1590 6603011 E-Mail: info@rothirsch-umzug.de Webseite: www.rothirsch-umzug.de', 'Kontaktdaten:\nTelefon: +49 1590 6603011\nE-Mail: info@rothirsch-umzug.de\nWebseite: www.rothirsch-umzug.de');
+            updated = true;
+          }
+          if (t.id === 't7' && t.body.includes('[Datum]')) {
+            newBody = newBody.replace('das unterzeichnete Angebot', 'die Bestätigung');
+            newBody = newBody.replace(/\[Datum\]/g, '{{Umzugsdatum}}');
+            updated = true;
+          }
+          if (t.body.includes('[Name]')) {
+             newBody = newBody.replace(/\[Name\]/g, '{{Kunde_Name}}');
+             updated = true;
+          }
+          if (t.id === 't5') {
+            if (newBody.includes('Sehr geehrte(r) {{Kunde_Name}}')) {
+              newBody = newBody.replace('Sehr geehrte(r) {{Kunde_Name}}', '{{Kunde_Anrede}}');
+              updated = true;
+            }
+            if (newBody.includes('Anbei senden wir Ihnen das überarbeitete Angebot sowie die angepasste Umzugsliste, die Ihren Änderungswünschen entspricht.')) {
+              newBody = newBody.replace('Anbei senden wir Ihnen das überarbeitete Angebot sowie die angepasste Umzugsliste, die Ihren Änderungswünschen entspricht.', 'Anbei erhalten Sie Ihr aktualisiertes Angebot, in dem wir Ihre Änderungswünsche berücksichtigt haben.');
+              updated = true;
+            }
+          }
+          return { ...t, body: newBody };
+        });
+        if (updated) {
+          await setDoc(docRef, { communicationTemplates: data.communicationTemplates }, { merge: true });
+        }
       }
       
       // Migration for protocol categories

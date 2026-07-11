@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, onSnapshot, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { toast } from "react-hot-toast";
@@ -31,6 +31,9 @@ export function TeamAccessManager() {
   const [canViewPrices, setCanViewPrices] = useState(true);
   const [canEditPrices, setCanEditPrices] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const [editingUid, setEditingUid] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
 
   useEffect(() => {
     const q = query(collection(db, getCol('users')));
@@ -86,6 +89,20 @@ export function TeamAccessManager() {
       const secondaryApp = createSecondaryApp();
       getAuth(secondaryApp).signOut().catch(() => {});
       setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdateName = async (uid: string) => {
+    if (!editName.trim()) return;
+    try {
+      await updateDoc(doc(db, getCol('users'), uid), {
+        displayName: editName.trim()
+      });
+      toast.success("Name erfolgreich aktualisiert!");
+      setEditingUid(null);
+    } catch (e) {
+      console.error(e);
+      toast.error("Fehler beim Aktualisieren des Namens.");
     }
   };
 
@@ -154,12 +171,30 @@ export function TeamAccessManager() {
               <th className="p-4 font-medium">Name</th>
               <th className="p-4 font-medium">Login-ID</th>
               <th className="p-4 font-medium">Rolle</th>
+              <th className="p-4 font-medium text-right">Aktionen</th>
             </tr>
           </thead>
           <tbody>
             {teamMembers.map(member => (
               <tr key={member.uid} className="border-b border-structure/50 hover:bg-structure/20">
-                <td className="p-4 font-medium text-text-main">{member.displayName || 'Unbekannt'}</td>
+                <td className="p-4 font-medium text-text-main">
+                  {editingUid === member.uid ? (
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="text" 
+                        value={editName} 
+                        onChange={(e) => setEditName(e.target.value)} 
+                        className="input-field py-1 px-2 text-sm max-w-[200px]" 
+                        autoFocus
+                        onKeyDown={(e) => e.key === 'Enter' && handleUpdateName(member.uid)}
+                      />
+                      <button onClick={() => handleUpdateName(member.uid)} className="text-green-400 hover:bg-green-400/10 p-1 rounded">✔</button>
+                      <button onClick={() => setEditingUid(null)} className="text-red-400 hover:bg-red-400/10 p-1 rounded">✖</button>
+                    </div>
+                  ) : (
+                    member.displayName || 'Unbekannt'
+                  )}
+                </td>
                 <td className="p-4 text-text-muted">{member.loginId || member.email}</td>
                 <td className="p-4">
                   <span className={`px-2 py-1 rounded text-xs font-semibold ${
@@ -169,6 +204,19 @@ export function TeamAccessManager() {
                   }`}>
                     {member.role === 'admin' ? '👑 Admin' : member.role === 'office' ? '💻 Büro' : '🚚 Teamleiter'}
                   </span>
+                </td>
+                <td className="p-4 text-right">
+                  {editingUid !== member.uid && (
+                    <button 
+                      onClick={() => {
+                        setEditingUid(member.uid);
+                        setEditName(member.displayName || '');
+                      }} 
+                      className="text-xs px-2 py-1 bg-structure/50 hover:bg-structure text-text-muted hover:text-text-main rounded transition-colors"
+                    >
+                      Bearbeiten
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

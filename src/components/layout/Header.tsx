@@ -3,6 +3,7 @@ import { Bars3Icon, PlusIcon, ArrowRightOnRectangleIcon, SunIcon, MoonIcon } fro
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { NotificationBell } from '@/components/ui/NotificationBell';
+import { ActivityFeed } from '@/components/ui/ActivityFeed';
 import Link from 'next/link';
 
 export function Header({ onMenuClick }: { onMenuClick: () => void }) {
@@ -36,6 +37,9 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
 
           {/* Anti-Vergess System (Glocke) */}
           <NotificationBell />
+
+          {/* Audit / Aktivitäten-Verlauf */}
+          <ActivityFeed />
 
           {/* Theme Toggle */}
           <button 

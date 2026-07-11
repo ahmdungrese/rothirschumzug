@@ -115,14 +115,36 @@ export default function StatisticsPage() {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         
-        const actQuery = query(collection(db, 'activity_logs'), where('timestamp', '>=', Timestamp.fromDate(thirtyDaysAgo)));
+        const actQuery = query(collection(db, getCol('activity_logs')), where('timestamp', '>=', Timestamp.fromDate(thirtyDaysAgo)));
         const actSnap = await getDocs(actQuery);
         
+        const usersSnap = await getDocs(collection(db, getCol('users')));
+        const usersMapById: Record<string, string> = {};
+        const usersMapByEmail: Record<string, string> = {};
+        usersSnap.docs.forEach(uDoc => {
+          const data = uDoc.data();
+          const displayName = data.displayName || data.email || 'Unbekannt';
+          usersMapById[uDoc.id] = displayName;
+          if (data.email) {
+            usersMapByEmail[data.email.toLowerCase()] = displayName;
+          }
+        });
+
         const employeeMap: Record<string, { creations: number, orders: number }> = {};
         
         actSnap.docs.forEach(doc => {
           const d = doc.data();
-          const emp = d.userName || 'Unbekannt';
+          let emp = 'Unbekannt';
+          if (d.userId && usersMapById[d.userId]) {
+            emp = usersMapById[d.userId];
+          } else if (d.userName) {
+            const possibleEmail = d.userName.toLowerCase();
+            if (usersMapByEmail[possibleEmail]) {
+              emp = usersMapByEmail[possibleEmail];
+            } else {
+              emp = d.userName;
+            }
+          }
           if (!employeeMap[emp]) employeeMap[emp] = { creations: 0, orders: 0 };
           
           if (d.action === 'CREATE_CUSTOMER') employeeMap[emp].creations += 1;
