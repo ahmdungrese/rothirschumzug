@@ -677,6 +677,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
   const date = orderMeta?.movingDateFrom || "";
   const time = orderMeta?.movingTimeFrom || "";
+  const calculatedDuration = orderMeta?.estimatedDuration || "";
 
   return (
     <div 
