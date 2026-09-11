@@ -675,6 +675,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
   if (!settings) return <div className="p-12 text-center text-text-main">Lade Einstellungen...</div>;
 
+  const date = orderMeta?.movingDateFrom || "";
+  const time = orderMeta?.movingTimeFrom || "";
+
   return (
     <div 
       className="space-y-8 animate-in fade-in duration-500 pb-48"
