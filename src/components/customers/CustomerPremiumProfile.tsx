@@ -688,13 +688,63 @@ export function CustomerPremiumProfile({
 
         {/* Right Column (5 cols): Hero "Nächster Schritt" + Contact Info */}
         <div className="lg:col-span-5 space-y-6">
-          {/* Hero Next Step Card */}
+          {/* Hero Next Step Card with 5-Phases Pipeline */}
           <div className="bg-primary text-white p-6 md:p-8 rounded-3xl shadow-xl shadow-primary/20 relative overflow-hidden space-y-6">
-            <div className="relative z-10 space-y-4">
+            <div className="relative z-10 space-y-6">
+              
+              {/* 5-Phasen Pipeline Visualisierung */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-white/70">
+                  <span>Auftrags-Pipeline (5 Phasen)</span>
+                </div>
+                <div className="flex items-center justify-between relative">
+                  {/* Background Line */}
+                  <div className="absolute top-1/2 left-0 right-0 h-1 bg-white/20 -translate-y-1/2 rounded-full z-0"></div>
+                  
+                  {/* Phase 1: Entwurf */}
+                  <div className="relative z-10 flex flex-col items-center gap-1 group" title="Phase 1: Datenerfassung & Entwurf">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 ${!activeOrder || activeOrder.status === 'draft' ? 'bg-white text-primary border-white scale-110 shadow-lg' : 'bg-primary border-white text-white'}`}>
+                      1
+                    </div>
+                  </div>
+
+                  {/* Phase 2: Angebot */}
+                  <div className="relative z-10 flex flex-col items-center gap-1 group" title="Phase 2: Angebot versendet / Warten auf Antwort">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 ${activeOrder && ['quote', 'clarification'].includes(activeOrder.status) ? 'bg-white text-primary border-white scale-110 shadow-lg' : activeOrder && ['confirmed', 'completed', 'invoice_open', 'invoice_paid'].includes(activeOrder.status) ? 'bg-primary border-white text-white' : 'bg-primary border-white/40 text-white/40'}`}>
+                      2
+                    </div>
+                  </div>
+
+                  {/* Phase 3: Bestätigt */}
+                  <div className="relative z-10 flex flex-col items-center gap-1 group" title="Phase 3: Auftrag bestätigt">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 ${activeOrder?.status === 'confirmed' && !logisticsEval?.isComplete ? 'bg-white text-primary border-white scale-110 shadow-lg' : activeOrder && ['confirmed', 'completed', 'invoice_open', 'invoice_paid'].includes(activeOrder.status) && logisticsEval?.isComplete ? 'bg-primary border-white text-white' : 'bg-primary border-white/40 text-white/40'}`}>
+                      3
+                    </div>
+                  </div>
+
+                  {/* Phase 4: Logistik & Umzug */}
+                  <div className="relative z-10 flex flex-col items-center gap-1 group" title="Phase 4: Operative Logistik bereit">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 ${activeOrder?.status === 'confirmed' && logisticsEval?.isComplete ? 'bg-white text-primary border-white scale-110 shadow-lg' : activeOrder && ['completed', 'invoice_open', 'invoice_paid'].includes(activeOrder.status) ? 'bg-primary border-white text-white' : 'bg-primary border-white/40 text-white/40'}`}>
+                      4
+                    </div>
+                  </div>
+
+                  {/* Phase 5: Abschluss */}
+                  <div className="relative z-10 flex flex-col items-center gap-1 group" title="Phase 5: Abgeschlossen & Rechnungsstellung">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border-2 ${activeOrder && ['completed', 'invoice_open', 'invoice_paid'].includes(activeOrder.status) ? 'bg-white text-primary border-white scale-110 shadow-lg' : 'bg-primary border-white/40 text-white/40'}`}>
+                      5
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="border-t border-white/20 pt-4"></div>
+
+              {/* Action Box */}
               <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-white animate-pulse"></span>
                 <span className="text-[11px] font-bold uppercase tracking-widest text-white/80 font-headline">
-                  Nächster Schritt
+                  Nächster Schritt in Pipeline
                 </span>
               </div>
 
@@ -711,8 +761,8 @@ export function CustomerPremiumProfile({
                 onClick={nextStep.action}
                 className="w-full py-4 px-6 rounded-full bg-white text-primary font-extrabold text-sm hover:bg-white/90 transition-all shadow-lg flex items-center justify-center gap-2 group"
               >
-                <span>{nextStep.btnText}</span>
-                <span className="material-symbols-outlined text-base group-hover:translate-x-1 transition-transform">
+                {nextStep.btnText}
+                <span className="material-symbols-outlined text-xl group-hover:translate-x-1 transition-transform">
                   arrow_forward
                 </span>
               </button>
