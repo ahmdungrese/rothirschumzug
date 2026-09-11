@@ -8,42 +8,60 @@ import { PDFDownloadButton } from '@/components/pdf/PDFDownloadButton';
 function RowActions({ customer, latestOrder, btnUrl }: { customer: any; latestOrder: any; btnUrl: string }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [coords, setCoords] = useState({ x: 0, y: 0 });
+
+  const toggleDropdown = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      // Position the dropdown below the button, aligned to the right edge
+      setCoords({ x: rect.right - 224, y: rect.bottom + 8 }); // 224px is w-56
+    }
+    setIsOpen(!isOpen);
+  };
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) && 
+          buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     }
+    
+    function handleScroll() {
+      if (isOpen) setIsOpen(false);
+    }
+
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
+      window.addEventListener('scroll', handleScroll, true);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll, true);
     };
   }, [isOpen]);
 
   return (
-    <div className="relative inline-block text-left" ref={dropdownRef}>
+    <>
       <button 
-        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+        ref={buttonRef}
+        onClick={toggleDropdown}
         className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 text-text-muted hover:text-text-main transition-colors"
       >
         <EllipsisVerticalIcon className="w-6 h-6" />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-56 rounded-xl shadow-2xl bg-bg-panel ring-1 ring-black ring-opacity-5 z-50 border border-structure py-2 animate-in fade-in zoom-in-95 duration-100">
-          <Link 
-            href={`/dashboard/customers/${customer.id}`} 
-            className="group flex items-center px-4 py-2 text-sm text-text-main hover:bg-white/5"
-          >
-            <FolderOpenIcon className="mr-3 h-5 w-5 text-blue-400" aria-hidden="true" />
-            Akte öffnen
-          </Link>
-          
+        <div 
+          ref={dropdownRef}
+          style={{ position: 'fixed', top: coords.y, left: coords.x }}
+          className="w-56 rounded-xl shadow-2xl bg-bg-panel ring-1 ring-black ring-opacity-5 z-[9999] border border-structure py-2 animate-in fade-in zoom-in-95 duration-100"
+        >
           <Link 
             href={btnUrl} 
+            onClick={() => setIsOpen(false)}
             className="group flex items-center px-4 py-2 text-sm text-text-main hover:bg-white/5"
           >
             <PencilSquareIcon className="mr-3 h-5 w-5 text-orange-400" aria-hidden="true" />
@@ -83,17 +101,17 @@ function RowActions({ customer, latestOrder, btnUrl }: { customer: any; latestOr
                   className=""
                 />
               </div>
-              <span className="pointer-events-none">Protokoll</span>
+              <span className="pointer-events-none">Übergabeprotokoll</span>
             </div>
           ) : (
             <div className="group flex items-center px-4 py-2 text-sm text-text-muted opacity-50 cursor-not-allowed">
               <ClipboardDocumentListIcon className="mr-3 h-5 w-5" aria-hidden="true" />
-              Protokoll
+              Übergabeprotokoll
             </div>
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }
 
@@ -227,7 +245,7 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                   className="hover:bg-white/[0.04] transition-colors group"
                 >
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
+                    <Link href={`/dashboard/customers/${customer.id}`} className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
                       {isCompany ? (
                         <div className="bg-primary/20 p-2.5 rounded-xl text-primary shrink-0 shadow-inner">
                           <BuildingSolid className="w-5 h-5" />
@@ -238,7 +256,7 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                         </div>
                       )}
                       <div>
-                        <div className="font-bold text-base text-text-main">{displayName}</div>
+                        <div className="font-bold text-base text-text-main hover:text-primary transition-colors">{displayName}</div>
                         {isCompany && customer.firstName && (
                           <div className="text-sm text-text-muted mb-1">{customer.firstName}</div>
                         )}
@@ -248,7 +266,7 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                           </div>
                         )}
                       </div>
-                    </div>
+                    </Link>
                   </td>
                   
                   <td className="px-6 py-4">
