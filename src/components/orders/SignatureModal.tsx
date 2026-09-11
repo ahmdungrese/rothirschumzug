@@ -5,7 +5,6 @@ import { db } from '@/lib/firebase';
 import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { PencilIcon, CalendarIcon, MapPinIcon, XMarkIcon } from '@heroicons/react/24/outline';
-import { getCol } from '@/lib/demoMode';
 
 interface SignatureModalProps {
   order: any;
@@ -84,7 +83,7 @@ export function SignatureModal({
         updateData.signatureAGBDateString = dateStr.trim();
       }
       
-      await updateDoc(doc(db, getCol('orders'), order.id), updateData);
+      await updateDoc(doc(db, 'orders', order.id), updateData);
       
       onSigned(signatureKey, signatureDataUrl, place.trim(), dateStr.trim());
       toast.success("Erfolgreich unterschrieben!");

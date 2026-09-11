@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+
+<html class="light" lang="de"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Rothirsch Umzüge - Neuer Auftrag</title>
+<!-- Google Fonts: Anybody & Plus Jakarta Sans -->
+<link href="https://fonts.googleapis.com/css2?family=Anybody:ital,wght@0,100..900;1,100..900&amp;family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {"primary-fixed": "#d3ef58", "surface-bright": "#f9f9f9", "primary-fixed-dim": "#c6e04b", "on-error": "#fff7f6", "on-secondary-fixed-variant": "#006577", "on-tertiary-container": "#003b65", tertiary: "#2c6295", "error-dim": "#67040d", "tertiary-fixed-dim": "#80b2ea", outline: "#777b7c", "surface-container-lowest": "#ffffff", error: "#a83836", "tertiary-container": "#8ebff9", background: "#f9f9f9", "secondary-fixed-dim": "#76e3ff", "primary-container": "#d3ef58", "surface-tint": "#566600", "inverse-on-surface": "#9c9d9d", "surface-container-high": "#e6e8e9", "on-tertiary": "#f7f9ff", "secondary-container": "#adecff", "on-primary-container": "#4a5800", "surface-container-highest": "#e0e3e4", "error-container": "#fa746f", "on-tertiary-fixed": "#002442", "on-error-container": "#6e0a12", "on-background": "#2f3334", "on-secondary-container": "#005a6a", "on-primary-fixed": "#394400", primary: "#566600", "tertiary-dim": "#1c5689", "on-primary": "#f4ffbe", "on-primary-fixed-variant": "#536200", "inverse-primary": "#e2fe65", "surface-container-low": "#f3f4f4", "on-tertiary-fixed-variant": "#004473", "on-surface-variant": "#5c6060", "secondary-dim": "#005b6c", "primary-dim": "#4b5900", "on-surface": "#2f3334", "on-secondary-fixed": "#004653", surface: "#f9f9f9", "outline-variant": "#afb3b3", "surface-dim": "#d7dbdb", "tertiary-fixed": "#8ebff9", secondary: "#00687b", "surface-container": "#eceeee", "on-secondary": "#effbff", "inverse-surface": "#0c0f0f", "secondary-fixed": "#adecff", "surface-variant": "#e0e3e4", "brand-red": "#A62025"}, borderRadius: {DEFAULT: "1rem", lg: "2rem", xl: "3rem", full: "9999px"}, fontFamily: {headline: ["Anybody"], display: ["Anybody"], body: ["Plus Jakarta Sans"], label: ["Plus Jakarta Sans"]}, fontSize: {}}}};</script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            vertical-align: middle;
+            line-height: 1;
+        }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f9f9f9; }
+        h1, h2, h3, .font-headline { font-family: 'Anybody', sans-serif; }
+        .stepper-line { flex: 1 1 0%; height: 2px; }
+        input:focus, select:focus { outline: none; border-color: #566600; box-shadow: 0 0 0 2px rgba(86, 102, 0, 0.1); }
+    </style>
+</head>
+<body class="text-on-surface selection:bg-primary-container selection:text-on-primary-container">
+<div class="flex min-h-screen overflow-hidden">
+<!-- SideNavBar -->
+<aside class="hidden md:flex flex-col h-screen w-64 bg-surface-container-low border-r border-outline-variant py-6 space-y-2 z-50">
+<div class="px-6 mb-8 flex items-center space-x-3">
+<div class="w-10 h-10 bg-brand-red rounded-xl flex items-center justify-center text-white">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">mobile_hand_off</span>
+</div>
+<div>
+<div class="font-headline font-bold text-on-surface text-lg leading-none">Rothirsch</div>
+<div class="font-body text-[10px] uppercase tracking-widest text-on-surface-variant font-semibold mt-1">Management</div>
+</div>
+</div>
+<nav class="flex-1 space-y-1 px-2">
+<a class="flex items-center px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-full transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">dashboard</span>
+<span class="font-semibold text-body-sm">Dashboard</span>
+</a>
+<a class="flex items-center px-4 py-3 bg-primary-container text-on-primary-container rounded-full shadow-sm" href="#">
+<span class="material-symbols-outlined mr-3" style="font-variation-settings: 'FILL' 1;">local_shipping</span>
+<span class="font-semibold text-body-sm">Orders</span>
+</a>
+<a class="flex items-center px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-full transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">groups</span>
+<span class="font-semibold text-body-sm">Customers</span>
+</a>
+<a class="flex items-center px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-full transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">calendar_today</span>
+<span class="font-semibold text-body-sm">Calendar</span>
+</a>
+<a class="flex items-center px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-full transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">payments</span>
+<span class="font-semibold text-body-sm">Finance</span>
+</a>
+<a class="flex items-center px-4 py-3 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-full transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">settings</span>
+<span class="font-semibold text-body-sm">Settings</span>
+</a>
+</nav>
+<div class="px-4 py-4 space-y-1">
+<a class="flex items-center px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">contact_support</span>
+<span class="font-semibold text-body-sm">Support</span>
+</a>
+<a class="flex items-center px-4 py-3 text-error hover:bg-error-container/10 rounded-full transition-all duration-200" href="#">
+<span class="material-symbols-outlined mr-3">logout</span>
+<span class="font-semibold text-body-sm">Log Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 flex flex-col h-screen overflow-y-auto bg-surface relative">
+<!-- TopNavBar -->
+<header class="sticky top-0 z-40 bg-surface/80 backdrop-blur-xl border-b border-outline-variant px-6 py-3 flex justify-between items-center w-full">
+<div class="flex items-center space-x-4">
+<button class="md:hidden p-2 hover:bg-surface-container rounded-full">
+<span class="material-symbols-outlined">menu</span>
+</button>
+<h1 class="font-headline font-extrabold text-primary tracking-tight text-xl">Rothirsch Umzüge</h1>
+</div>
+<div class="flex items-center space-x-2">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-colors duration-200">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container-high rounded-full transition-colors duration-200">
+<span class="material-symbols-outlined">help</span>
+</button>
+<div class="w-px h-6 bg-outline-variant mx-2"></div>
+<div class="flex items-center space-x-3 pl-2">
+<div class="text-right hidden sm:block">
+<p class="text-xs font-bold text-on-surface">M. Schmidt</p>
+<p class="text-[10px] text-on-surface-variant">Fleet Manager</p>
+</div>
+<img class="w-10 h-10 rounded-full border-2 border-primary-fixed object-cover" data-alt="A professional headshot of a German logistics manager in a modern office environment, wearing a clean polo shirt, soft natural office lighting, minimalist and professional aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBIcSNsN8XkxC6DQNn2p9RbxHTqV6KjTnvvlewE7PZnoODHzempPV7aQHdojYSc5KAKDyu2CNERKRA4m5lMsU9imlO9jgcZREMyr5oEouIOcfyRAc1qdlcWMEcKand7d8XC0nlovnW67EoUQCBp-C_zuiD2v0Xwoowm93Io4kVArUWFWwzr5ryRSB3bY9WpikBhE64blFFHRSzJVhbScqT5NO6SebzuR4chOAaKISFcdQa3KnoFvEdB52DAWC25yFIiZb_oRAq51R6l"/>
+</div>
+</div>
+</header>
+<!-- Page Container -->
+<div class="p-6 md:p-10 max-w-5xl mx-auto w-full">
+<!-- Stepper Section -->
+<div class="mb-12">
+<div class="flex items-center justify-between w-full max-w-3xl mx-auto">
+<!-- Step 1: Active -->
+<div class="flex flex-col items-center group">
+<div class="w-12 h-12 rounded-full bg-brand-red text-white flex items-center justify-center shadow-lg shadow-brand-red/20 z-10 ring-4 ring-white">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">person</span>
+</div>
+<span class="mt-2 text-xs font-bold text-brand-red font-label uppercase tracking-tighter">1. Kunde</span>
+</div>
+<div class="stepper-line bg-surface-container-highest -mx-4 -mt-6"></div>
+<!-- Step 2 -->
+<div class="flex flex-col items-center opacity-50">
+<div class="w-12 h-12 rounded-full bg-surface-container-highest text-on-surface-variant flex items-center justify-center z-10 ring-4 ring-white">
+<span class="material-symbols-outlined">local_shipping</span>
+</div>
+<span class="mt-2 text-xs font-bold text-on-surface-variant font-label uppercase tracking-tighter">2. Logistik</span>
+</div>
+<div class="stepper-line bg-surface-container-highest -mx-4 -mt-6"></div>
+<!-- Step 3 -->
+<div class="flex flex-col items-center opacity-50">
+<div class="w-12 h-12 rounded-full bg-surface-container-highest text-on-surface-variant flex items-center justify-center z-10 ring-4 ring-white">
+<span class="material-symbols-outlined">construction</span>
+</div>
+<span class="mt-2 text-xs font-bold text-on-surface-variant font-label uppercase tracking-tighter">3. Leistungen</span>
+</div>
+<div class="stepper-line bg-surface-container-highest -mx-4 -mt-6"></div>
+<!-- Step 4 -->
+<div class="flex flex-col items-center opacity-50">
+<div class="w-12 h-12 rounded-full bg-surface-container-highest text-on-surface-variant flex items-center justify-center z-10 ring-4 ring-white">
+<span class="material-symbols-outlined">inventory_2</span>
+</div>
+<span class="mt-2 text-xs font-bold text-on-surface-variant font-label uppercase tracking-tighter">4. Inventar</span>
+</div>
+<div class="stepper-line bg-surface-container-highest -mx-4 -mt-6"></div>
+<!-- Step 5 -->
+<div class="flex flex-col items-center opacity-50">
+<div class="w-12 h-12 rounded-full bg-surface-container-highest text-on-surface-variant flex items-center justify-center z-10 ring-4 ring-white">
+<span class="material-symbols-outlined">task_alt</span>
+</div>
+<span class="mt-2 text-xs font-bold text-on-surface-variant font-label uppercase tracking-tighter">5. Abschluss</span>
+</div>
+</div>
+</div>
+<!-- Form Content Card -->
+<div class="bg-white rounded-lg border border-outline-variant shadow-sm overflow-hidden mb-8">
+<div class="p-8 border-b border-outline-variant bg-surface-container-lowest flex items-center justify-between">
+<div>
+<h2 class="text-2xl font-headline font-bold text-on-surface">Kunde &amp; Termine</h2>
+<p class="text-on-surface-variant text-sm mt-1">Geben Sie die Basisdaten des Umzugsauftrags ein.</p>
+</div>
+<div class="bg-primary-container/20 text-on-primary-container px-4 py-2 rounded-full text-xs font-bold uppercase tracking-widest">
+                            Entwurf #UMZ-2024-001
+                        </div>
+</div>
+<div class="p-8 grid grid-cols-1 md:grid-cols-2 gap-12">
+<!-- Left Column: Stammdaten -->
+<div class="space-y-6">
+<div class="flex items-center space-x-3 mb-2">
+<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-sm">id_card</span>
+</div>
+<h3 class="font-headline font-bold text-lg text-on-surface">Stammdaten</h3>
+</div>
+<div class="space-y-4">
+<div class="grid grid-cols-3 gap-4">
+<div class="col-span-1">
+<label class="block text-xs font-bold text-on-surface-variant uppercase mb-1.5 ml-1">Anrede</label>
+<select class="w-full bg-surface-container-low border-transparent rounded-md py-3 px-4 text-sm appearance-none cursor-pointer focus:bg-white focus:ring-2 focus:ring-primary/20 transition-all">
+<option>Herr</option>
+<option>Frau</option>
+<option>Divers</option>
+<option>Firma</option>
+</select>
+</div>
+<div class="col-span-2">
+<label class="block text-xs font-bold text-on-surface-variant uppercase mb-1.5 ml-1">Vorname</label>
+<input class="w-full bg-surface-container-low border-transparent rounded-md py-3 px-4 text-sm focus:bg-white transition-all" placeholder="Max" type="text"/>
+</div>
+</div>
+<div>
+<label class="block text-xs font-bold text-on-surface-variant uppercase mb-1.5 ml-1">Nachname</label>
+<input class="w-full bg-surface-container-low border-transparent rounded-md py-3 px-4 text-sm focus:bg-white transition-all" placeholder="Mustermann" type="text"/>
+</div>
+<div>
+<label class="block text-xs font-bold text-on-surface-variant uppercase mb-1.5 ml-1">E-Mail Adresse</label>
+<input class="w-full bg-surface-container-low border-transparent rounded-md py-3 px-4 text-sm focus:bg-white transition-all" placeholder="m.mustermann@beispiel.de" type="email"/>
+</div>
+<div>
+<label class="block text-xs font-bold text-on-surface-variant uppercase mb-1.5 ml-1">Telefon</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-3 text-on-surface-variant text-lg">call</span>
+<input class="w-full bg-surface-container-low border-transparent rounded-md py-3 pl-12 pr-4 text-sm focus:bg-white transition-all" placeholder="+49 123 4567890" type="tel"/>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Umzugstermin -->
+<div class="space-y-6">
+<div class="flex items-center space-x-3 mb-2">
+<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center">
+<span class="material-symbols-outlined text-sm">event</span>
+</div>
+<h3 class="font-headline font-bold text-lg text-on-surface">Umzugstermin</h3>
+</div>
+<div class="space-y-4">
+<div class="grid grid-cols-2 gap-4">
+<div>
+<label class="block text-xs font-bold text-on-surface-variant uppercase mb-1.5 ml-1">Datum Von</label>
+<input class="w-full bg-surface-container-low border-transparent rounded-md py-3 px-4 text-sm focus:bg-white transition-all" type="date"/>
+</div>
+<div>
+<label class="block text-xs font-bold text-on-surface-variant uppercase mb-1.5 ml-1">Datum Bis</label>
+<input class="w-full bg-surface-container-low border-transparent rounded-md py-3 px-4 text-sm focus:bg-white transition-all" type="date"/>
+</div>
+</div>
+<div>
+<label class="block text-xs font-bold text-on-surface-variant uppercase mb-1.5 ml-1">Besichtigungstermin</label>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-3 text-on-surface-variant text-lg">calendar_month</span>
+<input class="w-full bg-surface-container-low border-transparent rounded-md py-3 pl-12 pr-4 text-sm focus:bg-white transition-all" type="datetime-local"/>
+</div>
+</div><div>
+<label class="block text-xs font-bold text-on-surface-variant uppercase mb-1.5 ml-1">Sachbearbeiter</label>
+<select class="w-full bg-surface-container-low border-transparent rounded-md py-3 px-4 text-sm focus:bg-white transition-all">
+<option>Aktueller Benutzer (M. Schmidt)</option>
+<option>Janina Müller</option>
+<option>Thomas Weber</option>
+<option>Keine Zuweisung</option>
+</select>
+</div>
+<div class="p-6 bg-surface-container-low rounded-lg border-l-4 border-brand-red mt-8">
+<div class="flex items-start space-x-4">
+<span class="material-symbols-outlined text-brand-red">info</span>
+<div>
+<p class="text-xs font-bold text-on-surface mb-1">Hinweis zur Kapazität</p>
+<p class="text-[11px] text-on-surface-variant leading-relaxed">Für den gewählten Zeitraum sind aktuell noch 3 Teams verfügbar. Eine Reservierung wird nach Abschluss dieses Schrittes für 24h vorgemerkt.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Sticky Bottom Actions -->
+<div class="px-8 py-6 bg-surface-container-low/50 border-t border-outline-variant flex items-center justify-between">
+<button class="px-8 py-3 rounded-full font-bold text-on-surface-variant hover:bg-surface-container-high transition-colors active:scale-95 duration-200">
+                            Abbrechen
+                        </button>
+<div class="flex items-center space-x-4">
+<div class="hidden sm:block text-right pr-4">
+<p class="text-[10px] font-bold text-on-surface-variant uppercase">Schritt 1 von 5</p>
+<p class="text-xs font-medium text-on-surface">Weiter zu Logistikdetails</p>
+</div>
+<button class="bg-brand-red text-white px-10 py-3 rounded-full font-bold shadow-lg shadow-brand-red/20 hover:brightness-110 active:scale-95 transition-all duration-200 flex items-center space-x-2">
+<span class="">Weiter</span>
+<span class="material-symbols-outlined text-lg">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Footer Context -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 opacity-80">
+<div class="flex items-center space-x-4 p-4 rounded-lg bg-white border border-outline-variant">
+<span class="material-symbols-outlined text-tertiary">lock</span>
+<div class="text-[11px]">
+<p class="font-bold">Datensicherheit</p>
+<p class="text-on-surface-variant">DSGVO-konforme Speicherung.</p>
+</div>
+</div>
+<div class="flex items-center space-x-4 p-4 rounded-lg bg-white border border-outline-variant">
+<span class="material-symbols-outlined text-primary">sync</span>
+<div class="text-[11px]">
+<p class="font-bold">Auto-Speicherung</p>
+<p class="text-on-surface-variant">Zuletzt gespeichert vor 2 Min.</p>
+</div>
+</div>
+<div class="flex items-center space-x-4 p-4 rounded-lg bg-white border border-outline-variant">
+<span class="material-symbols-outlined text-secondary">support_agent</span>
+<div class="text-[11px]">
+<p class="font-bold">Hilfe benötigt?</p>
+<p class="text-on-surface-variant">Call Dispatch: +49 89 2341-0</p>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Mobile Navigation Overlay (Placeholder) -->
+<div class="fixed inset-0 bg-black/50 z-50 hidden md:hidden" id="mobile-nav">
+<div class="w-64 h-full bg-surface-container-low p-6 animate-slide-in">
+<!-- Mobile nav content would go here -->
+</div>
+</div>
+<script>
+        // Simple scale interactions on buttons
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('mousedown', () => btn.style.transform = 'scale(0.96)');
+            btn.addEventListener('mouseup', () => btn.style.transform = '');
+            btn.addEventListener('mouseleave', () => btn.style.transform = '');
+        });
+
+        // Toggle mobile menu logic (basic)
+        const menuBtn = document.querySelector('header button');
+        const mobileNav = document.getElementById('mobile-nav');
+        
+        if (menuBtn && mobileNav) {
+            menuBtn.addEventListener('click', () => {
+                mobileNav.classList.toggle('hidden');
+            });
+            mobileNav.addEventListener('click', (e) => {
+                if (e.target === mobileNav) mobileNav.classList.add('hidden');
+            });
+        }
+    </script>
+</body></html>

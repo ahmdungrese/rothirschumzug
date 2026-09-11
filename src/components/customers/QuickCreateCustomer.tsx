@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { toast } from 'react-hot-toast';
 import { useAuth } from "@/context/AuthContext";
 import { logActivity } from "@/lib/activityLogger";
-import { getCol } from '@/lib/demoMode';
 
 export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
   const [type, setType] = useState<"privat" | "firma">("privat");
@@ -19,6 +18,7 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
   const [city, setCity] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [source, setSource] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { profile } = useAuth();
@@ -34,7 +34,7 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
         setTimeout(() => reject(new Error("Firestore timeout")), 5000)
       );
 
-      const addPromise = addDoc(collection(db, getCol('customers')), {
+      const addPromise = addDoc(collection(db, 'customers'), {
         type,
         lastName: lastName.trim(),
         firstName: firstName.trim(),
@@ -45,9 +45,10 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
         city,
         phone,
         email,
+        source: source.trim(),
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-        createdBy: profile?.displayName || profile?.email || 'Unbekannt',
+        createdBy: profile?.displayName || profile?.email?.split('@')[0] || 'Team',
       });
 
       const docRef = await Promise.race([addPromise, timeoutPromise]) as any;
@@ -55,9 +56,10 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
       if (!docRef || !docRef.id) throw new Error("Document creation failed");
 
       // Log activity
+      const creatorName = profile?.displayName || profile?.email?.split('@')[0] || 'Team';
       await logActivity(
         profile?.uid || 'unknown',
-        profile?.displayName || profile?.email || 'Unbekannt',
+        creatorName,
         'CREATE_CUSTOMER',
         `Kunde ${firstName} ${lastName} angelegt`
       );
@@ -175,6 +177,26 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
               placeholder="Bochum"
             />
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-text-muted mb-1">Quelle (Woher kommt der Kunde?)</label>
+          <input 
+            type="text" 
+            list="sources"
+            value={source}
+            onChange={(e) => setSource(e.target.value)}
+            className="input-field w-full" 
+            placeholder="z.B. Google, Check24, Empfehlung..."
+          />
+          <datalist id="sources">
+            <option value="Google" />
+            <option value="Check24" />
+            <option value="MyHammer" />
+            <option value="Empfehlung" />
+            <option value="Kleinanzeigen" />
+            <option value="Stammkunde" />
+          </datalist>
         </div>
 
         <div>

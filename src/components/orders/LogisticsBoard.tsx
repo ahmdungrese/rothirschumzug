@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
-import { getCol } from '@/lib/demoMode';
 import { CheckCircleIcon, CubeIcon, TruckIcon, WrenchScrewdriverIcon, ExclamationTriangleIcon, BriefcaseIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 
@@ -43,7 +42,7 @@ export function LogisticsBoard({ order }: LogisticsBoardProps) {
         }
       }
 
-      await updateDoc(doc(db, getCol('orders'), order.id), updates);
+      await updateDoc(doc(db, 'orders', order.id), updates);
     } catch (error) {
       console.error("Error updating logistics state", error);
       toast.error("Fehler beim Speichern");

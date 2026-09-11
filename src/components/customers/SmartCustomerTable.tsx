@@ -1,9 +1,101 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { UserCircleIcon as UserCircleSolid, BuildingOfficeIcon as BuildingSolid } from '@heroicons/react/24/solid';
-import { DocumentTextIcon, CheckBadgeIcon, ArrowRightIcon, PlusIcon, EnvelopeIcon, PhoneIcon, ClipboardDocumentListIcon, FolderOpenIcon, PencilSquareIcon, DocumentArrowDownIcon } from '@heroicons/react/24/solid';
+import { DocumentTextIcon, CheckBadgeIcon, ArrowRightIcon, PlusIcon, EnvelopeIcon, PhoneIcon, ClipboardDocumentListIcon, FolderOpenIcon, PencilSquareIcon, DocumentArrowDownIcon, EllipsisVerticalIcon, CalendarDaysIcon } from '@heroicons/react/24/solid';
 import { PDFDownloadButton } from '@/components/pdf/PDFDownloadButton';
+
+function RowActions({ customer, latestOrder, btnUrl }: { customer: any; latestOrder: any; btnUrl: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  return (
+    <div className="relative inline-block text-left" ref={dropdownRef}>
+      <button 
+        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
+        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 text-text-muted hover:text-text-main transition-colors"
+      >
+        <EllipsisVerticalIcon className="w-6 h-6" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute right-0 mt-2 w-56 rounded-xl shadow-2xl bg-bg-panel ring-1 ring-black ring-opacity-5 z-50 border border-structure py-2 animate-in fade-in zoom-in-95 duration-100">
+          <Link 
+            href={`/dashboard/customers/${customer.id}`} 
+            className="group flex items-center px-4 py-2 text-sm text-text-main hover:bg-white/5"
+          >
+            <FolderOpenIcon className="mr-3 h-5 w-5 text-blue-400" aria-hidden="true" />
+            Akte öffnen
+          </Link>
+          
+          <Link 
+            href={btnUrl} 
+            className="group flex items-center px-4 py-2 text-sm text-text-main hover:bg-white/5"
+          >
+            <PencilSquareIcon className="mr-3 h-5 w-5 text-orange-400" aria-hidden="true" />
+            Bearbeiten / Neu
+          </Link>
+
+          {latestOrder ? (
+            <div className="group flex items-center px-4 py-2 text-sm text-text-main hover:bg-white/5 cursor-pointer">
+              <div className="mr-3 h-5 w-5 flex items-center justify-center text-red-400">
+                <PDFDownloadButton 
+                  order={latestOrder} 
+                  customer={customer} 
+                  type={latestOrder.invoiceNumber ? 'invoice' : (['confirmed', 'completed'].includes(latestOrder.status) ? 'contract' : 'order')}
+                  iconOnly={true}
+                  customIcon={<DocumentArrowDownIcon className="w-5 h-5 shrink-0" />}
+                  className=""
+                />
+              </div>
+              <span className="pointer-events-none">PDF Download</span>
+            </div>
+          ) : (
+            <div className="group flex items-center px-4 py-2 text-sm text-text-muted opacity-50 cursor-not-allowed">
+              <DocumentArrowDownIcon className="mr-3 h-5 w-5" aria-hidden="true" />
+              PDF Download
+            </div>
+          )}
+
+          {latestOrder ? (
+            <div className="group flex items-center px-4 py-2 text-sm text-text-main hover:bg-white/5 cursor-pointer">
+              <div className="mr-3 h-5 w-5 flex items-center justify-center text-emerald-400">
+                <PDFDownloadButton 
+                  order={latestOrder} 
+                  customer={customer} 
+                  type="protocol"
+                  iconOnly={true}
+                  customIcon={<ClipboardDocumentListIcon className="w-5 h-5 shrink-0" />}
+                  className=""
+                />
+              </div>
+              <span className="pointer-events-none">Protokoll</span>
+            </div>
+          ) : (
+            <div className="group flex items-center px-4 py-2 text-sm text-text-muted opacity-50 cursor-not-allowed">
+              <ClipboardDocumentListIcon className="mr-3 h-5 w-5" aria-hidden="true" />
+              Protokoll
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function getSourceBadgeStyle(source?: string) {
   if (!source) return "hidden";
@@ -39,8 +131,9 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
               <th className="px-6 py-4 font-semibold">Kunde</th>
               <th className="px-6 py-4 font-semibold">Kontakt</th>
               <th className="px-6 py-4 font-semibold">Letzter Auftrag</th>
+              <th className="px-6 py-4 font-semibold">Umzugsdatum</th>
               <th className="px-6 py-4 font-semibold">Status</th>
-              <th className="px-6 py-4 font-semibold text-right">Aktion</th>
+              <th className="px-6 py-4 font-semibold text-right">Aktionen</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-structure">
@@ -187,63 +280,30 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                   </td>
                   
                   <td className="px-6 py-4">
+                    {(() => {
+                      const movingDateRaw = latestOrder?.orderMeta?.movingDateFrom || latestOrder?.movingDate || latestOrder?.logistics?.movingDate;
+                      if (!movingDateRaw) return <span className="text-sm text-text-muted italic opacity-50">-</span>;
+                      try {
+                        return (
+                          <div className="flex items-center gap-1.5 text-sm font-semibold text-text-main">
+                            <CalendarDaysIcon className="w-4 h-4 text-primary" />
+                            {new Date(movingDateRaw).toLocaleDateString('de-DE')}
+                          </div>
+                        );
+                      } catch {
+                        return <span className="text-sm text-text-muted">{movingDateRaw}</span>;
+                      }
+                    })()}
+                  </td>
+                  
+                  <td className="px-6 py-4">
                     <span className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${statusBadge} inline-flex whitespace-nowrap`}>
                       {statusText}
                     </span>
                   </td>
                   
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-1.5 min-w-max ml-auto">
-                      <Link 
-                        href={`/dashboard/customers/${customer.id}`} 
-                        className="w-10 h-10 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 rounded-lg transition-colors flex items-center justify-center shrink-0"
-                        title="Kundenakte öffnen"
-                      >
-                        <FolderOpenIcon className="w-5 h-5 shrink-0" />
-                      </Link>
-
-                      <Link 
-                        href={btnUrl} 
-                        className="w-10 h-10 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 hover:text-orange-300 rounded-lg transition-colors flex items-center justify-center shrink-0"
-                        title="Bearbeiten / Neuer Auftrag"
-                      >
-                        <PencilSquareIcon className="w-5 h-5 shrink-0" />
-                      </Link>
-
-                      {latestOrder ? (
-                        <div onClick={e => e.stopPropagation()} className="w-10 h-10 shrink-0 [&>div]:w-full [&>div]:h-full [&_a]:w-full [&_a]:h-full [&_a]:flex" title="Auftrag/Rechnung als PDF herunterladen">
-                          <PDFDownloadButton 
-                            order={latestOrder} 
-                            customer={customer} 
-                            type={latestOrder.invoiceNumber ? 'invoice' : (['confirmed', 'completed'].includes(latestOrder.status) ? 'contract' : 'order')}
-                            iconOnly={true}
-                            customIcon={<DocumentArrowDownIcon className="w-5 h-5 shrink-0" />}
-                            className="w-full h-full bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 rounded-lg transition-colors flex items-center justify-center"
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-10 h-10 bg-white/5 text-white/20 rounded-lg flex items-center justify-center cursor-not-allowed shrink-0" title="Kein Auftrag vorhanden">
-                          <DocumentArrowDownIcon className="w-5 h-5 shrink-0" />
-                        </div>
-                      )}
-
-                      {latestOrder ? (
-                        <div onClick={e => e.stopPropagation()} className="w-10 h-10 shrink-0 [&>div]:w-full [&>div]:h-full [&_a]:w-full [&_a]:h-full [&_a]:flex" title="Protokoll als PDF herunterladen">
-                          <PDFDownloadButton 
-                            order={latestOrder} 
-                            customer={customer} 
-                            type="protocol"
-                            iconOnly={true}
-                            customIcon={<ClipboardDocumentListIcon className="w-5 h-5 shrink-0" />}
-                            className="w-full h-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 rounded-lg transition-colors flex items-center justify-center"
-                          />
-                        </div>
-                      ) : (
-                        <div className="w-10 h-10 bg-white/5 text-white/20 rounded-lg flex items-center justify-center cursor-not-allowed shrink-0" title="Kein Auftrag vorhanden">
-                          <ClipboardDocumentListIcon className="w-5 h-5 shrink-0" />
-                        </div>
-                      )}
-                    </div>
+                  <td className="px-6 py-4 text-right">
+                    <RowActions customer={customer} latestOrder={latestOrder} btnUrl={btnUrl} />
                   </td>
                 </tr>
               );

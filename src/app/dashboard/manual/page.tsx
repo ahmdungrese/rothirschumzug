@@ -33,7 +33,7 @@ interface ManualItem {
 const categories = [
   { id: 'all', name: 'Alle Tasten/Buttons', icon: QuestionMarkCircleIcon },
   { id: 'general', name: 'Header & Navigation', icon: Bars3Icon },
-  { id: 'dashboard', name: 'Zentrale Disposition', icon: HomeIcon },
+  { id: 'dashboard', name: 'Einsatzzentrale', icon: HomeIcon },
   { id: 'calendar', name: 'Einsatzplanung (Kalender)', icon: CalendarDaysIcon },
   { id: 'customers', name: 'Kunden-Center & Profil', icon: UsersIcon },
   { id: 'orders', name: 'Angebotserstellung (Wizard)', icon: DocumentTextIcon },
@@ -142,7 +142,7 @@ const manualItems: ManualItem[] = [
   {
     name: "Kalender Event: Orange (Umzug)",
     category: "calendar",
-    action: "Zeigt einen bestätigten Umzugstermin an. Ein Klick öffnet das Dispositions-Modal.",
+    action: "Zeigt einen bestätigten Umzugstermin an. Ein Klick öffnet das Planungs-Modal.",
     details: "Zur schnellen visuellen Erfassung aller operativen Haupttermine.",
     icon: TruckIcon
   },
@@ -164,7 +164,7 @@ const manualItems: ManualItem[] = [
     name: "Kalender Event: Lila (Möbellift)",
     category: "calendar",
     action: "Zeigt die Reservierung und den Einsatzzeitraum eines Möbellifts an.",
-    details: "Wichtig für die Fahrzeugdisposition.",
+    details: "Wichtig für die Fahrzeugplanung.",
     icon: TruckIcon
   },
   {
@@ -384,7 +384,7 @@ const manualItems: ManualItem[] = [
     name: "Schaltfläche „System zurücksetzen“ (Einstellungen)",
     category: "settings",
     action: "Öffnet das Sicherheits-Löschfeld der App (Sicherheitsbegriff: LÖSCHEN).",
-    details: "Löscht alle Datenbankinhalte (Kunden, Aufträge, Rechnungen) für Demozwecke.",
+    details: "Löscht alle Bewegungsdaten (Kunden, Aufträge, Rechnungen) unwiderruflich und setzt die Nummernkreise zurück.",
     icon: TrashIcon
   }
 ];
@@ -500,7 +500,7 @@ export default function ManualPage() {
           href="/dashboard"
           className="text-xs font-bold text-primary hover:text-primary-hover transition-colors flex items-center gap-1"
         >
-          Zurück zur Disposition &rarr;
+          Zurück zur Übersicht &rarr;
         </a>
       </div>
     </div>

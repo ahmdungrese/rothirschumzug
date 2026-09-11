@@ -1,15 +1,17 @@
 import type { Metadata } from "next";
-import { Inter, Geist_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Anybody } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const plusJakartaSans = Plus_Jakarta_Sans({
+  variable: "--font-plus-jakarta",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const anybody = Anybody({
+  variable: "--font-anybody",
   subsets: ["latin"],
+  weight: ["400", "600", "700", "800"],
 });
 
 import { Toaster } from 'react-hot-toast';
@@ -40,11 +42,15 @@ export default function RootLayout({
   return (
     <html
       lang="de"
-      className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${plusJakartaSans.variable} ${anybody.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>
-        <meta name="theme-color" content="#f97316" />
+        <meta name="theme-color" content="#D91E2A" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+        />
       </head>
       <body className="h-full flex flex-col bg-bg-dark text-text-main">
         <NetworkMonitor />

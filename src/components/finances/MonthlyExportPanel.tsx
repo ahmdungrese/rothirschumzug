@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, getDocs, doc, getDoc } from 'firebase/firestore';
-import { getCol } from '@/lib/demoMode';
 import { toast } from 'react-hot-toast';
 import { ArchiveBoxArrowDownIcon, DocumentArrowDownIcon } from '@heroicons/react/24/outline';
 import JSZip from 'jszip';
@@ -11,40 +10,39 @@ import { InvoicePDF } from '../pdf/InvoicePDF';
 import { useAuth } from '@/context/AuthContext';
 
 export function MonthlyExportPanel() {
-  const [selectedMonth, setSelectedMonth] = useState(() => {
+  const [startDate, setStartDate] = useState(() => {
     const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  });
+  const [endDate, setEndDate] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()).padStart(2, '0')}`;
   });
   const [isExporting, setIsExporting] = useState(false);
   const { profile } = useAuth();
+  const [isExpanded, setIsExpanded] = useState(false);
 
-  const fetchMonthData = async () => {
-    // 1. Hole Einstellungen (für PDF Generierung)
-    const settingsDoc = await getDoc(doc(db, getCol('system'), 'settings'));
+  const fetchRangeData = async () => {
+    const settingsDoc = await getDoc(doc(db, 'system', 'settings'));
     const settings = settingsDoc.exists() ? settingsDoc.data() : { companyName: 'Umzugsunternehmen' };
 
-    // 2. Hole Aufträge
-    const q = query(collection(db, getCol('orders')));
+    const q = query(collection(db, 'orders'));
     const snapshot = await getDocs(q);
     const allOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() as any }));
 
-    // 3. Filtere nach Monat & Rechnungs-Status
-    const [year, month] = selectedMonth.split('-');
-    
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
     const filteredOrders = allOrders.filter(order => {
-      // Nur echte Rechnungen (abgeschlossen oder Rechnung gestellt)
       if (!['completed', 'invoice_open', 'invoice_overdue', 'invoice_paid'].includes(order.status)) return false;
       if (!order.invoiceNumber) return false;
 
-      // Datum prüfen (bevorzuge Rechnungsdatum, ansonsten Erstelldatum)
       const dateVal = order.invoiceDate || order.createdAt;
       if (!dateVal) return false;
       
       const date = dateVal.toDate ? dateVal.toDate() : new Date(dateVal);
-      const orderYear = date.getFullYear();
-      const orderMonth = date.getMonth() + 1;
-
-      return orderYear === parseInt(year) && orderMonth === parseInt(month);
+      return date >= start && date <= end;
     });
 
     return { filteredOrders, settings };
@@ -77,22 +75,22 @@ export function MonthlyExportPanel() {
   };
 
   const handleExportCSV = async () => {
-    if (!selectedMonth) return toast.error("Bitte Monat auswählen.");
+    if (!startDate || !endDate) return toast.error("Bitte Zeitraum auswählen.");
     setIsExporting(true);
     const toastId = toast.loading('Sammle Rechnungsdaten...');
 
     try {
-      const { filteredOrders } = await fetchMonthData();
+      const { filteredOrders } = await fetchRangeData();
       
       if (filteredOrders.length === 0) {
-        toast.error(`Keine Rechnungen im ${selectedMonth} gefunden.`, { id: toastId });
+        toast.error(`Keine Rechnungen im Zeitraum gefunden.`, { id: toastId });
         setIsExporting(false);
         return;
       }
 
       const csvContent = generateCSV(filteredOrders);
-      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' }); // \ufeff for Excel UTF-8 BOM
-      saveAs(blob, `Rechnungen_${selectedMonth}.csv`);
+      const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      saveAs(blob, `Rechnungen_${startDate}_bis_${endDate}.csv`);
       
       toast.success(`${filteredOrders.length} Rechnungen exportiert!`, { id: toastId });
     } catch (error) {
@@ -104,26 +102,23 @@ export function MonthlyExportPanel() {
   };
 
   const handleExportZIP = async () => {
-    if (!selectedMonth) return toast.error("Bitte Monat auswählen.");
+    if (!startDate || !endDate) return toast.error("Bitte Zeitraum auswählen.");
     setIsExporting(true);
     const toastId = toast.loading('Sammle Daten und generiere PDFs (dies kann einen Moment dauern)...');
 
     try {
-      const { filteredOrders, settings } = await fetchMonthData();
+      const { filteredOrders, settings } = await fetchRangeData();
       
       if (filteredOrders.length === 0) {
-        toast.error(`Keine Rechnungen im ${selectedMonth} gefunden.`, { id: toastId });
+        toast.error(`Keine Rechnungen im Zeitraum gefunden.`, { id: toastId });
         setIsExporting(false);
         return;
       }
 
       const zip = new JSZip();
-
-      // 1. Füge CSV hinzu
       const csvContent = generateCSV(filteredOrders);
-      zip.file(`Rechnungsuebersicht_${selectedMonth}.csv`, '\ufeff' + csvContent);
+      zip.file(`Rechnungsuebersicht_${startDate}_bis_${endDate}.csv`, '\ufeff' + csvContent);
 
-      // 2. Generiere alle PDFs und füge sie hinzu
       const managerName = profile?.displayName || profile?.email || 'Mitarbeiter';
       
       let count = 0;
@@ -131,7 +126,6 @@ export function MonthlyExportPanel() {
         count++;
         toast.loading(`Generiere PDF ${count} von ${filteredOrders.length}...`, { id: toastId });
         
-        // Use either order.customer or construct from order if missing
         const customerData = order.customer || {
           firstName: order.customerName?.split(' ')[0] || '',
           lastName: order.customerName?.split(' ').slice(1).join(' ') || order.customerName,
@@ -143,7 +137,6 @@ export function MonthlyExportPanel() {
         const asPdf = pdf(pdfComponent);
         const blob = await asPdf.toBlob();
         
-        // Sanitize filename
         let company = settings.companyName || 'Rothirsch';
         company = company.replace(/[^a-z0-9]/gi, '_');
         const fileName = `Rechnung_${order.invoiceNumber}_${company}.pdf`;
@@ -153,9 +146,9 @@ export function MonthlyExportPanel() {
 
       toast.loading('Packe ZIP-Archiv...', { id: toastId });
       const zipBlob = await zip.generateAsync({ type: 'blob' });
-      saveAs(zipBlob, `Monatsabschluss_${selectedMonth}.zip`);
+      saveAs(zipBlob, `Rechnungen_Export_${startDate}_bis_${endDate}.zip`);
 
-      toast.success(`Abschluss komplett! (${filteredOrders.length} Rechnungen)`, { id: toastId });
+      toast.success(`Download komplett! (${filteredOrders.length} Rechnungen)`, { id: toastId });
 
     } catch (error) {
       console.error(error);
@@ -165,11 +158,8 @@ export function MonthlyExportPanel() {
     }
   };
 
-  const [isExpanded, setIsExpanded] = useState(false);
-
   return (
     <div className="bg-bg-panel border border-structure rounded-xl shadow-xl mb-6 mt-8 overflow-hidden">
-      {/* Header / Clickable Toggle */}
       <button 
         onClick={() => setIsExpanded(!isExpanded)}
         className="w-full flex items-center justify-between p-6 hover:bg-structure/20 transition-colors text-left"
@@ -177,10 +167,10 @@ export function MonthlyExportPanel() {
         <div className="flex-1">
           <h2 className="text-xl font-bold text-text-main flex items-center gap-2">
             <ArchiveBoxArrowDownIcon className="w-6 h-6 text-primary" />
-            Monatsabschluss / DATEV-Export
+            Rechnungen herunterladen
           </h2>
           <p className="text-sm text-text-muted mt-1">
-            Lade eine Übersicht aller Rechnungen eines Monats für den Steuerberater herunter.
+            Lade eine Übersicht und alle PDFs der Rechnungen in einem bestimmten Zeitraum herunter.
           </p>
         </div>
         <div className="flex-shrink-0 ml-4">
@@ -190,19 +180,31 @@ export function MonthlyExportPanel() {
         </div>
       </button>
 
-      {/* Expandable Content */}
       {isExpanded && (
         <div className="p-6 pt-0 border-t border-structure/50 bg-bg-panel/50 animate-in slide-in-from-top-2 duration-300">
           <div className="flex flex-col sm:flex-row gap-4 items-center w-full p-4 bg-bg-dark border border-structure rounded-lg mt-4">
-            <div className="flex flex-col flex-1">
-              <label className="text-xs font-bold text-text-muted uppercase tracking-wider mb-1">Abrechnungsmonat</label>
-              <input 
-                type="month" 
-                value={selectedMonth} 
-                onChange={e => setSelectedMonth(e.target.value)} 
-                className="input-field w-full max-w-[200px]"
-                disabled={isExporting}
-              />
+            
+            <div className="flex items-center gap-4 flex-1">
+              <div className="flex flex-col flex-1">
+                <label className="text-xs font-bold text-text-muted uppercase tracking-wider mb-1">Von</label>
+                <input 
+                  type="date" 
+                  value={startDate} 
+                  onChange={e => setStartDate(e.target.value)} 
+                  className="input-field w-full max-w-[200px]"
+                  disabled={isExporting}
+                />
+              </div>
+              <div className="flex flex-col flex-1">
+                <label className="text-xs font-bold text-text-muted uppercase tracking-wider mb-1">Bis</label>
+                <input 
+                  type="date" 
+                  value={endDate} 
+                  onChange={e => setEndDate(e.target.value)} 
+                  className="input-field w-full max-w-[200px]"
+                  disabled={isExporting}
+                />
+              </div>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">

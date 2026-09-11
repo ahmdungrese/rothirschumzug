@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+
+<html class="light" lang="de"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Rothirsch Umzüge - Leistungen &amp; Finanzen</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Anybody:wght@400;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {"inverse-surface": "#0c0f0f", "surface-variant": "#e0e3e4", "on-error": "#fff7f6", "primary-dim": "#4b5900", "on-primary-container": "#4a5800", surface: "#f9f9f9", "on-primary": "#f4ffbe", "secondary-fixed": "#adecff", "outline-variant": "#afb3b3", secondary: "#00687b", "inverse-on-surface": "#9c9d9d", "surface-container": "#eceeee", "surface-bright": "#f9f9f9", "surface-container-highest": "#e0e3e4", outline: "#777b7c", "primary-fixed-dim": "#c6e04b", "on-primary-fixed-variant": "#536200", "on-tertiary-fixed-variant": "#004473", "surface-container-lowest": "#ffffff", "on-secondary-fixed": "#004653", "secondary-dim": "#005b6c", "on-tertiary-container": "#003b65", "surface-container-high": "#e6e8e9", "on-surface": "#2f3334", "on-primary-fixed": "#394400", "secondary-fixed-dim": "#76e3ff", error: "#a83836", "error-dim": "#67040d", "tertiary-dim": "#1c5689", "tertiary-container": "#8ebff9", tertiary: "#2c6295", "on-background": "#2f3334", "inverse-primary": "#e2fe65", "on-secondary-container": "#005a6a", "on-tertiary-fixed": "#002442", "on-error-container": "#6e0a12", "tertiary-fixed-dim": "#80b2ea", "on-tertiary": "#f7f9ff", "surface-dim": "#d7dbdb", "on-surface-variant": "#5c6060", "surface-container-low": "#f3f4f4", "surface-tint": "#566600", "on-secondary": "#effbff", "on-secondary-fixed-variant": "#006577", "tertiary-fixed": "#8ebff9", primary: "#566600", "secondary-container": "#adecff", "error-container": "#fa746f", "primary-fixed": "#d3ef58", "primary-container": "#d3ef58", background: "#f9f9f9"}, borderRadius: {DEFAULT: "1rem", lg: "2rem", xl: "3rem", full: "9999px"}, fontFamily: {headline: ["Anybody"], display: ["Anybody"], body: ["Plus Jakarta Sans"], label: ["Plus Jakarta Sans"]}, fontSize: {}}}};</script>
+<style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .font-headline { font-family: 'Anybody', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .step-active { position: relative; }
+        .step-active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background-color: #566600;
+            border-radius: 2px;
+        }
+        .scale-98:active { transform: scale(0.98); }
+    </style>
+</head>
+<body class="bg-background text-on-surface flex min-h-screen">
+<aside class="h-screen w-64 fixed left-0 top-0 bg-surface border-r border-outline-variant flex flex-col p-4 z-50">
+<div class="mb-8 px-2">
+<h1 class="text-xl font-headline font-extrabold text-primary tracking-tighter">Rothirsch Umzüge</h1>
+<p class="text-xs font-body text-on-surface-variant opacity-70">Logistics Portal</p>
+</div>
+<nav class="flex flex-col gap-1 flex-grow">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-body">Kunde</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">local_shipping</span>
+<span class="font-body">Logistik</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-primary-container text-on-primary-container rounded-lg font-bold scale-98 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">inventory_2</span>
+<span class="font-body">Leistungen</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">format_list_bulleted</span>
+<span class="font-body">Inventar</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">check_circle</span>
+<span class="font-body">Abschluss</span>
+</a>
+</nav>
+<div class="mt-auto">
+<button class="w-full py-3 px-4 bg-primary text-on-primary rounded-lg font-bold flex items-center justify-center gap-2 scale-98 transition-transform">
+<span class="material-symbols-outlined">add</span>
+<span>New Move Request</span>
+</button>
+</div>
+</aside>
+<main class="ml-64 flex-grow flex flex-col min-h-screen">
+<header class="fixed top-0 right-0 left-64 h-16 bg-surface-bright border-b border-outline-variant flex items-center justify-between px-8 z-40">
+<div class="flex items-center gap-8">
+<span class="text-lg font-headline font-bold text-on-surface">Luminous Logistics</span>
+<nav class="hidden md:flex gap-6 items-center h-full">
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label font-semibold" href="#">Dashboard</a>
+<a class="text-primary border-b-2 border-primary pb-1 font-label font-semibold opacity-80" href="#">Move Archive</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label font-semibold" href="#">Settings</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative group">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant material-symbols-outlined text-sm">search</span>
+<input class="bg-surface-container-low border-none rounded-full pl-10 pr-4 py-1.5 text-sm focus:ring-2 focus:ring-primary w-64 transition-all" placeholder="Search moves..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:bg-surface-container rounded-full transition-colors">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-outline overflow-hidden border border-outline-variant">
+<img alt="Logistics Manager" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB4wx9j4T3RR1zgSabO45-AuotYB2Acc-36vdyCrTrVRPJ80hBHyC4ScM6F-shJaJUmr_ybSFNkTm43jCWUvJzm6xiwlPF1s3i7bxD7Dwy4aNDmz7ujfKWLT7VAxEZs-8LH7FFPttTrCtXUXzduu63vYaXGYUiLbqMOdaZnG96CG8UUxqFKga9dBTdckl1_FdNxrbDJQHfchKRMB4dk5FWATkpH96mgp7IRnqn2qwp6I-2hQjUispmm7j05oQHwgCZS7hmy50cqOpxw"/>
+</div>
+</div>
+</div>
+</header>
+<div class="mt-16 p-8 max-w-7xl mx-auto w-full">
+<div class="mb-10">
+<div class="flex items-center justify-between max-w-4xl mx-auto mb-4 px-4">
+<div class="flex flex-col items-center gap-2 group">
+<div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-lg">check</span>
+</div>
+<span class="text-xs font-label font-bold text-on-surface-variant uppercase tracking-wider">Kunde</span>
+</div>
+<div class="flex-grow h-0.5 bg-primary-container mx-4"></div>
+<div class="flex flex-col items-center gap-2 group">
+<div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-lg">check</span>
+</div>
+<span class="text-xs font-label font-bold text-on-surface-variant uppercase tracking-wider">Logistik</span>
+</div>
+<div class="flex-grow h-0.5 bg-primary-container mx-4"></div>
+<div class="flex flex-col items-center gap-2">
+<div class="w-12 h-12 rounded-full border-4 border-primary bg-primary-container flex items-center justify-center text-on-primary-container ring-4 ring-primary/10">
+<span class="material-symbols-outlined text-xl">payments</span>
+</div>
+<span class="text-xs font-label font-extrabold text-primary uppercase tracking-widest">Leistungen</span>
+</div>
+<div class="flex-grow h-0.5 bg-surface-variant mx-4"></div>
+<div class="flex flex-col items-center gap-2 opacity-40">
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">inventory_2</span>
+</div>
+<span class="text-xs font-label font-bold text-on-surface-variant uppercase tracking-wider">Inventar</span>
+</div>
+<div class="flex-grow h-0.5 bg-surface-variant mx-4"></div>
+<div class="flex flex-col items-center gap-2 opacity-40">
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined text-lg">fact_check</span>
+</div>
+<span class="text-xs font-label font-bold text-on-surface-variant uppercase tracking-wider">Abschluss</span>
+</div>
+</div>
+<div class="text-center">
+<h2 class="text-3xl font-headline font-bold text-on-surface">Leistungen &amp; Finanzen</h2>
+<p class="text-on-surface-variant mt-2">Dienstleistungsauswahl und Kostenkalkulation für Projekt #RH-2024-082</p>
+</div>
+</div>
+<div class="grid grid-cols-12 gap-8">
+<div class="col-span-12 lg:col-span-7 flex flex-col gap-6">
+<div class="bg-surface-container-lowest rounded-lg p-6 border border-outline-variant shadow-sm transition-all hover:shadow-md">
+<div class="flex items-center justify-between mb-6">
+<h3 class="text-lg font-headline font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">add_task</span>
+                            Leistungsauswahl
+                        </h3>
+<span class="bg-secondary-container text-on-secondary-container text-[10px] px-2 py-1 rounded-full font-bold uppercase tracking-wider">Neu</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- Left Column: Beladestelle (A) -->
+<div class="space-y-4">
+<div class="flex items-center gap-2 pb-2 border-b border-outline-variant/30">
+<span class="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">A</span>
+<h4 class="font-headline font-bold text-sm uppercase tracking-tight">Beladestelle</h4>
+</div>
+<div class="flex flex-col gap-2">
+<button class="flex items-center justify-between p-3 rounded-md border border-outline-variant bg-surface hover:bg-surface-container-high transition-all text-left">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant text-xl">tools_ladder</span>
+<span class="font-bold text-xs">Möbelabbau</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant text-sm">add_circle</span>
+</button>
+<button class="flex items-center justify-between p-3 rounded-md border border-outline-variant bg-surface hover:bg-surface-container-high transition-all text-left">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant text-xl">cleaning_services</span>
+<span class="font-bold text-xs">Endreinigung</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant text-sm">add_circle</span>
+</button>
+<button class="flex items-center justify-between p-3 rounded-md border border-primary bg-primary-container/10 transition-all text-left">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-xl">countertops</span>
+<span class="font-bold text-xs">Abbau von Küche</span>
+</div>
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</button>
+<button class="flex items-center justify-between p-3 rounded-md border border-primary bg-primary-container/10 transition-all text-left">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-xl">inventory_2</span>
+<span class="font-bold text-xs">Einpackservice</span>
+</div>
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</button>
+<button class="flex items-center justify-between p-3 rounded-md border border-outline-variant bg-surface hover:bg-surface-container-high transition-all text-left">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant text-xl">signpost</span>
+<span class="font-bold text-xs">Halteverbot A</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant text-sm">add_circle</span>
+</button>
+</div>
+</div>
+<!-- Right Column: Entladestelle (B) -->
+<div class="space-y-4">
+<div class="flex items-center gap-2 pb-2 border-b border-outline-variant/30">
+<span class="w-6 h-6 rounded-full bg-secondary/10 text-secondary flex items-center justify-center font-bold text-xs">B</span>
+<h4 class="font-headline font-bold text-sm uppercase tracking-tight">Entladestelle</h4>
+</div>
+<div class="flex flex-col gap-2">
+<button class="flex items-center justify-between p-3 rounded-md border border-outline-variant bg-surface hover:bg-surface-container-high transition-all text-left">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant text-xl">build</span>
+<span class="font-bold text-xs">Möbelaufbau</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant text-sm">add_circle</span>
+</button>
+<button class="flex items-center justify-between p-3 rounded-md border border-outline-variant bg-surface hover:bg-surface-container-high transition-all text-left">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant text-xl">kitchen</span>
+<span class="font-bold text-xs">Aufbau von Küche</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant text-sm">add_circle</span>
+</button>
+<button class="flex items-center justify-between p-3 rounded-md border border-outline-variant bg-surface hover:bg-surface-container-high transition-all text-left">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant text-xl">unarchive</span>
+<span class="font-bold text-xs">Auspackservice</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant text-sm">add_circle</span>
+</button>
+<button class="flex items-center justify-between p-3 rounded-md border border-outline-variant bg-surface hover:bg-surface-container-high transition-all text-left">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant text-xl">handyman</span>
+<span class="font-bold text-xs">Bohr- &amp; Dübelarb.</span>
+</div>
+<span class="material-symbols-outlined text-outline-variant text-sm">add_circle</span>
+</button>
+<button class="flex items-center justify-between p-3 rounded-md border border-primary bg-primary-container/10 transition-all text-left">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-xl">signpost</span>
+<span class="font-bold text-xs">Halteverbot B</span>
+</div>
+<span class="material-symbols-outlined text-primary text-sm" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<div class="bg-tertiary rounded-lg p-6 text-on-tertiary flex items-center gap-4 shadow-sm">
+<span class="material-symbols-outlined text-4xl opacity-50">info</span>
+<div>
+<p class="font-headline font-bold text-sm">Tipp vom System</p>
+<p class="text-xs opacity-90 leading-relaxed">Basierend auf der Wohnungsgröße von 85m² empfehlen wir zusätzlich den 'Küchenabbau-Service'.</p>
+</div>
+</div>
+</div>
+<div class="col-span-12 lg:col-span-5 flex flex-col gap-6">
+<div class="bg-white rounded-lg border border-outline-variant shadow-sm overflow-hidden flex flex-col h-fit">
+<div class="px-6 py-4 bg-surface-container flex items-center justify-between border-b border-outline-variant">
+<h3 class="text-lg font-headline font-bold flex items-center gap-2">
+<span class="material-symbols-outlined text-secondary">calculate</span>
+                            Preiskalkulation
+                        </h3>
+<button class="text-xs font-label font-bold text-primary flex items-center gap-1 hover:underline">
+<span class="material-symbols-outlined text-sm">refresh</span> LISTE
+                        </button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low">
+<th class="px-4 py-3 text-[10px] font-label font-extrabold text-on-surface-variant uppercase tracking-widest border-b border-outline-variant">Service</th>
+<th class="px-4 py-3 text-[10px] font-label font-extrabold text-on-surface-variant uppercase tracking-widest border-b border-outline-variant text-center">Menge</th>
+<th class="px-4 py-3 text-[10px] font-label font-extrabold text-on-surface-variant uppercase tracking-widest border-b border-outline-variant text-right">Summe</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/30">
+<tr class="hover:bg-surface-container-lowest transition-colors">
+<td class="px-4 py-4">
+<p class="font-bold text-sm">Basis-Transport</p>
+</td>
+<td class="px-4 py-4 text-center">
+<span class="bg-surface-container px-2 py-1 rounded-full text-xs font-semibold">1 Tag</span>
+</td>
+<td class="px-4 py-4 text-right font-bold text-sm">€ 850,00</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest transition-colors">
+<td class="px-4 py-4">
+<p class="font-bold text-sm">Packservice</p>
+</td>
+<td class="px-4 py-4 text-center">
+<span class="bg-surface-container px-2 py-1 rounded-full text-xs font-semibold">45 Stk.</span>
+</td>
+<td class="px-4 py-4 text-right font-bold text-sm">€ 202,50</td>
+</tr>
+<tr class="hover:bg-surface-container-lowest transition-colors">
+<td class="px-4 py-4">
+<p class="font-bold text-sm">Halteverbotszone</p>
+</td>
+<td class="px-4 py-4 text-center">
+<span class="bg-surface-container px-2 py-1 rounded-full text-xs font-semibold">2 Zonen</span>
+</td>
+<td class="px-4 py-4 text-right font-bold text-sm">€ 190,00</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="relative overflow-hidden bg-white border-4 border-error-container rounded-lg shadow-xl p-6">
+<div class="absolute -right-12 -top-12 w-48 h-48 bg-error-container/10 rounded-full blur-3xl"></div>
+<div class="flex flex-col gap-4 relative z-10">
+<div class="space-y-2">
+<div class="flex items-center justify-between border-b border-dashed border-outline-variant pb-1">
+<span class="text-on-surface-variant text-sm font-semibold">Netto Summe</span>
+<span class="text-on-surface font-bold text-sm">€ 1.242,50</span>
+</div>
+<div class="flex items-center justify-between border-b border-dashed border-outline-variant pb-1">
+<span class="text-on-surface-variant text-sm font-semibold">USt. (19%)</span>
+<span class="text-on-surface font-bold text-sm">€ 236,08</span>
+</div>
+</div>
+<div class="flex flex-col gap-0.5">
+<span class="text-[10px] font-label font-extrabold text-error uppercase tracking-[0.2em]">BRUTTO GESAMT</span>
+<span class="text-4xl font-headline font-extrabold text-error tracking-tighter">€ 1.478,58</span>
+</div>
+<div class="flex flex-col gap-2 pt-2">
+<button class="w-full py-3 bg-error text-on-error rounded-md font-extrabold text-xs uppercase tracking-widest shadow-lg shadow-error/20 hover:bg-error-dim transition-all flex items-center justify-center gap-2">
+<span>Angebot Erstellen</span>
+<span class="material-symbols-outlined text-sm">description</span>
+</button>
+<button class="w-full py-2 bg-surface-container-high text-on-surface rounded-md font-bold text-xs hover:bg-outline-variant/20 transition-all">
+                                Zwischenspeichern
+                            </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between mt-8">
+<button class="flex items-center gap-2 text-on-surface-variant hover:text-on-surface transition-all font-bold">
+<span class="material-symbols-outlined">arrow_back</span>
+<span>Zurück zu Logistik</span>
+</button>
+<div class="flex gap-4">
+<button class="px-8 py-3 rounded-full border-2 border-outline-variant text-on-surface font-bold hover:bg-surface-container transition-all">Abbrechen</button>
+<button class="px-8 py-3 rounded-full bg-primary text-on-primary font-bold shadow-lg shadow-primary/20 hover:bg-primary-dim transition-all flex items-center gap-2">
+<span>Schritt 4: Inventar</span>
+<span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+<script>
+    const serviceButtons = document.querySelectorAll('button.border');
+    serviceButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const icon = btn.querySelector('.material-symbols-outlined:last-child');
+            const isSelected = btn.classList.contains('border-primary');
+            
+            if (isSelected) {
+                btn.classList.remove('border-primary', 'bg-primary-container/10');
+                btn.classList.add('border-outline-variant', 'bg-surface');
+                icon.innerText = 'add_circle';
+                icon.style.fontVariationSettings = "'FILL' 0";
+                icon.classList.remove('text-primary');
+                icon.classList.add('text-outline-variant');
+                btn.querySelector('.material-symbols-outlined:first-child').classList.replace('text-primary', 'text-on-surface-variant');
+            } else {
+                btn.classList.add('border-primary', 'bg-primary-container/10');
+                btn.classList.remove('border-outline-variant', 'bg-surface');
+                icon.innerText = 'check_circle';
+                icon.style.fontVariationSettings = "'FILL' 1";
+                icon.classList.add('text-primary');
+                icon.classList.remove('text-outline-variant');
+                btn.querySelector('.material-symbols-outlined:first-child').classList.replace('text-on-surface-variant', 'text-primary');
+            }
+        });
+    });
+</script>
+</body></html>

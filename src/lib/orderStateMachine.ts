@@ -1,6 +1,5 @@
 import { db } from '@/lib/firebase';
 import { doc, getDoc, runTransaction, serverTimestamp, increment, deleteField } from 'firebase/firestore';
-import { getCol } from '@/lib/demoMode';
 import { generateTickets } from '@/lib/ticketEngine';
 
 export type AllowedStatus = 
@@ -45,7 +44,7 @@ export async function changeOrderStatus(
   targetStatus: AllowedStatus,
   context?: TransitionContext
 ) {
-  const orderRef = doc(db, getCol('orders'), orderId);
+  const orderRef = doc(db, 'orders', orderId);
 
   return await runTransaction(db, async (transaction) => {
     // 1. ALL READS
@@ -57,11 +56,11 @@ export async function changeOrderStatus(
     
     let customer = null;
     if (order.customerId) {
-      const custDoc = await transaction.get(doc(db, getCol('customers'), order.customerId));
+      const custDoc = await transaction.get(doc(db, 'customers', order.customerId));
       if (custDoc.exists()) customer = { id: custDoc.id, ...custDoc.data() };
     }
 
-    const settingsRef = doc(db, getCol('system'), 'settings');
+    const settingsRef = doc(db, 'system', 'settings');
     const settingsDoc = await transaction.get(settingsRef);
 
     // 2. STATE CHECKS & PREPARATION
@@ -166,7 +165,7 @@ export async function changeOrderStatus(
  */
 export async function generateContract(orderId: string, context?: TransitionContext) {
   return await runTransaction(db, async (transaction) => {
-    const orderRef = doc(db, getCol('orders'), orderId);
+    const orderRef = doc(db, 'orders', orderId);
     const orderDoc = await transaction.get(orderRef);
     if (!orderDoc.exists()) throw new Error("Auftrag nicht gefunden.");
     
@@ -179,7 +178,7 @@ export async function generateContract(orderId: string, context?: TransitionCont
     }
 
     // Generate contract number transactionally
-    const settingsRef = doc(db, getCol('system'), 'settings');
+    const settingsRef = doc(db, 'system', 'settings');
     const settingsDoc = await transaction.get(settingsRef);
     let nextContractNumber = 1000;
     if (settingsDoc.exists() && settingsDoc.data().nextOrderNumber) {

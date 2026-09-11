@@ -1,11 +1,10 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon, CalendarIcon, LinkIcon, EnvelopeIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon, CalendarIcon, LinkIcon, EnvelopeIcon, ExclamationTriangleIcon, CreditCardIcon, ListBulletIcon } from '@heroicons/react/24/outline';
 import { TeamAccessManager } from '@/components/settings/TeamAccessManager';
 import { ActivityLogViewer } from '@/components/settings/ActivityLogViewer';
-import { getCol } from '@/lib/demoMode';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
 import { ResetDatabaseModal } from '@/components/settings/ResetDatabaseModal';
@@ -15,12 +14,13 @@ const TABS = [
   { id: 'ressourcen', name: 'Team & Zugänge', icon: UsersIcon },
   { id: 'ansprechpartner', name: 'CRM & Kontakte', icon: UsersIcon },
   { id: 'immobilien', name: 'Immobilienarten', icon: BuildingOfficeIcon },
-  { id: 'leistungen', name: 'Leistungen & Zahlungen', icon: CurrencyEuroIcon },
+  { id: 'leistungen', name: 'Leistungskatalog', icon: ListBulletIcon },
+  { id: 'zahlungsarten', name: 'Zahlungsarten', icon: CreditCardIcon },
   { id: 'texte', name: 'Textbausteine & AGB', icon: DocumentTextIcon },
   { id: 'vorlagen', name: 'Nachrichten-Vorlagen', icon: DocumentTextIcon },
   { id: 'protokolle', name: 'Protokolle & Vorlagen', icon: DocumentTextIcon },
   { id: 'system', name: 'System & Finanzen', icon: ServerStackIcon },
-  { id: 'integration', name: 'Kalender & APIs', icon: CalendarIcon },
+  { id: 'integration', name: 'Kalender (Outlook)', icon: CalendarIcon },
 ];
 
 export default function SettingsPage() {
@@ -28,25 +28,25 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('basisdaten');
   const [showResetModal, setShowResetModal] = useState(false);
   const [settings, setSettings] = useState<any>({
-    companyName: 'Dein Unternehmen',
-    street: 'Musterstraße 1',
-    zip: '12345',
-    city: 'Musterstadt',
-    phone: '0123 456789',
-    email: 'info@dein-unternehmen.de',
-    website: 'www.dein-unternehmen.de',
-    manager: 'Max Mustermann',
-    taxId: 'DE1111111111',
-    register: 'Musterstraße 1',
-    bankName: 'Musterbank',
-    iban: 'DE11 0000 0000 0000 0000 00',
-    bic: 'MUSTERBIC',
+    companyName: 'Rothirsch Umzüge',
+    street: 'Grillostr. 70',
+    zip: '44799',
+    city: 'Bochum',
+    phone: '+49 1590 6603011',
+    email: 'info@rothirsch-umzug.de',
+    website: 'www.rothirsch-umzug.de',
+    manager: 'Geschäftsführung',
+    taxId: '',
+    register: 'Bochum',
+    bankName: '',
+    iban: '',
+    bic: '',
     contacts: ['Berater 1', 'Berater 2'],
     customerSources: ['Google Suche', 'Check24', 'Empfehlung', 'Eigene Website', 'Kleinanzeigen', 'Direkter Anruf'],
     propertyTypes: ['Haus', 'Wohnung', 'Einfamilienhaus', 'Reihenhaus', 'Büro / Gewerbe', 'Lager / Garage', 'Sonstiges'],
     taxRate: 19,
     dunningFee: 5,
-    nextInvoiceNumber: 2,
+    nextInvoiceNumber: 1,
     nextOrderNumber: 1,
     quoteValidDays: 14,
     employees: ['Ali', 'Thomas', 'Klaus', 'Mustafa'],
@@ -54,17 +54,17 @@ export default function SettingsPage() {
     texts: {
       quoteIntro: 'Sehr geehrte Damen und Herren,\nvielen Dank für Ihre Anfrage. Wir freuen uns, Ihnen folgendes Angebot unterbreiten zu dürfen:',
       quoteOutro: 'Alle angegebenen Preise verstehen sich als Bruttopreise und beinhalten die gesetzliche Mehrwertsteuer.\nWir danken Ihnen herzlich für Ihr Vertrauen und die angenehme Zusammenarbeit.',
-      quoteGreeting: '„Bei Fragen zögern Sie bitte nicht, uns zu kontaktieren. Wir sind jederzeit für Sie erreichbar.“\n\nMit freundlichen Grüßen\nDein Unternehmen',
+      quoteGreeting: '„Bei Fragen zögern Sie bitte nicht, uns zu kontaktieren. Wir sind jederzeit für Sie erreichbar.“\n\nMit freundlichen Grüßen\nRothirsch Umzüge',
       orderIntro: 'Sehr geehrte Damen und Herren,\nvielen Dank für Ihre Unterschrift. Hiermit bestätigen wir Ihren Auftrag verbindlich.',
       orderOutro: 'Wir freuen uns auf den gemeinsamen Umzug und garantieren Ihnen einen reibungslosen Ablauf.',
-      orderGreeting: 'Mit freundlichen Grüßen\nDein Unternehmen',
+      orderGreeting: 'Mit freundlichen Grüßen\nRothirsch Umzüge',
       insurance: 'Mit unserer Versicherung ist Ihr Umzugsgut abgesichert. Für diesen Transport deckt unser Unternehmen eine Transportgüterversicherung ein, ohne dass hierfür zusätzliche Kosten entstehen. Bei der Übernahme Ihres Umzugsgutes gilt eine gesetzliche Haftung gem. Paragraph 451g HGB - beschränkt auf einen Zeitwert von €620,00 / cbm.',
       invoiceIntro: 'Vielen Dank für Ihren Auftrag. Wir berechnen Ihnen für unsere erbrachten Leistungen:',
       invoiceOutro: 'Bitte überweisen Sie den Rechnungsbetrag innerhalb von 5 Tagen ohne Abzug auf unser Konto.',
-      invoiceGreeting: 'Für etwaige Fragen stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\nDein Unternehmen',
+      invoiceGreeting: 'Für etwaige Fragen stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\nRothirsch Umzüge',
       googleReview: 'Wir hoffen, dass alles zu Ihrer Zufriedenheit war, und würden uns über eine positive Bewertung auf Google freuen.',
       dunningIntro: 'Leider konnten wir bis zum heutigen Tag keinen Zahlungseingang für die unten aufgeführte Rechnung feststellen. Sicherlich ist dies nur ein Versehen Ihrerseits.\n\nWir bitten Sie daher, den ausstehenden Betrag innerhalb der nächsten 5 Tage auf unser unten genanntes Konto zu überweisen.',
-      agb: 'Allgemeine Geschäftsbedingungen (AGB) – Dein Unternehmen\n\n§1 Geltungsbereich\nDiese Allgemeinen Geschäftsbedingungen (AGB) gelten für alle Verträge zwischen uns und dem Kunden...'
+      agb: 'Allgemeine Geschäftsbedingungen (AGB) – Rothirsch Umzüge\n\n§1 Geltungsbereich\nDiese Allgemeinen Geschäftsbedingungen (AGB) gelten für alle Verträge zwischen uns und dem Kunden...'
     },
     paymentMethods: [
       { name: 'Überweisung', textQuote: 'Wir bitten Sie höflich, den Rechnungsbetrag innerhalb von 5 Tagen nach Abschluss des Umzugs per Überweisung zu begleichen.', textInvoice: 'Bitte überweisen Sie den Rechnungsbetrag innerhalb von 5 Tagen ohne Abzug auf unser Konto.', shortText: '5 Tagen', dueDays: 5 },
@@ -211,7 +211,7 @@ export default function SettingsPage() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
 
   const fetchSettings = async () => {
-    const docRef = doc(db, getCol('system'), 'settings');
+    const docRef = doc(db, 'system', 'settings');
     const docSnap = await getDoc(docRef);
     if (docSnap.exists()) {
       let data = docSnap.data();
@@ -276,7 +276,7 @@ export default function SettingsPage() {
     try {
       // 1. Zähler-Schutz: Höchste verwendete Nummern abfragen
       const { collection, getDocs } = await import('firebase/firestore');
-      const ordersSnap = await getDocs(collection(db, getCol('orders')));
+      const ordersSnap = await getDocs(collection(db, 'orders'));
       
       let maxQuote = 0;
       let maxInvoice = 0;
@@ -318,10 +318,10 @@ export default function SettingsPage() {
       const settingsToSave = { ...settings };
       delete settingsToSave.nextOfferNumber;
 
-      await setDoc(doc(db, getCol('system'), 'settings'), settingsToSave, { merge: true });
+      await setDoc(doc(db, 'system', 'settings'), settingsToSave, { merge: true });
       // Um es in der DB explizit zu löschen:
       const { deleteField } = await import('firebase/firestore');
-      await updateDoc(doc(db, getCol('system'), 'settings'), { nextOfferNumber: deleteField() }).catch(() => {});
+      await updateDoc(doc(db, 'system', 'settings'), { nextOfferNumber: deleteField() }).catch(() => {});
 
       setSaveStatus('success');
       setTimeout(() => setSaveStatus('idle'), 3000);
@@ -1009,9 +1009,9 @@ export default function SettingsPage() {
           {/* TAB: Integration (Kalender & APIs) */}
           {activeTab === 'integration' && (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">Kalender-Integration (Echtzeit-Sync)</h2>
+              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">Outlook Kalender-Integration</h2>
               <p className="text-sm text-text-muted mb-6">
-                Verknüpfe hier dein Microsoft Outlook oder Google Calendar Konto. Sobald ein Termin (Besichtigung/Umzug) in der App gespeichert wird, taucht er automatisch in Echtzeit in deinem Kalender auf.
+                Verknüpfe hier dein Microsoft Outlook Konto. Sobald ein Termin (Besichtigung/Umzug) in der App gespeichert wird, taucht er automatisch in Echtzeit in deinem Kalender auf.
               </p>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1027,113 +1027,15 @@ export default function SettingsPage() {
                   </p>
                   
                   <div className="space-y-4 relative z-10">
-                    <div>
-                      <label className="block text-xs font-bold text-text-muted uppercase mb-1">Azure Client-ID</label>
-                      <input type="text" placeholder="z.B. 8a2c...-..." className="input-field w-full bg-bg-panel" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-text-muted uppercase mb-1">Azure Client-Secret</label>
-                      <input type="password" placeholder="Dein geheimer Schlüssel" className="input-field w-full bg-bg-panel" />
-                    </div>
+                    <p className="text-sm font-semibold text-emerald-400">Status: Verbunden</p>
                     <button className="btn-secondary w-full flex items-center justify-center gap-2 border-blue-500/50 text-blue-400 hover:bg-blue-500/10">
-                      <LinkIcon className="w-5 h-5" /> Mit Outlook verknüpfen
+                      <LinkIcon className="w-5 h-5" /> Outlook Kalender neu synchronisieren
                     </button>
                   </div>
 
-                  <div className="mt-6 pt-4 border-t border-structure relative z-10">
-                    <details className="text-sm">
-                      <summary className="text-primary font-medium cursor-pointer hover:underline">Einrichtungshilfe (Azure)</summary>
-                      <ul className="list-disc list-inside mt-2 text-text-muted space-y-1 text-xs">
-                        <li>Gehe ins <a href="https://portal.azure.com" target="_blank" className="text-blue-400 hover:underline">Azure Portal</a> (App Registrations)</li>
-                        <li>Erstelle eine "Neue Registrierung"</li>
-                        <li>Wähle "Beliebige Kontotypen (inkl. privat)"</li>
-                        <li>Umleitungs-URI (Web): <code>http://localhost:3000/api/calendar/auth/microsoft/callback</code></li>
-                        <li>Füge unter "API-Berechtigungen" <code>Calendars.ReadWrite</code> und <code>offline_access</code> (Microsoft Graph) hinzu.</li>
-                        <li>Generiere ein Client-Secret unter "Zertifikate & Geheimnisse".</li>
-                      </ul>
-                    </details>
-                  </div>
-                </div>
-
-                {/* Google Box */}
-                <div className="bg-bg-dark border border-structure p-6 rounded-xl relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <CalendarIcon className="w-24 h-24 text-red-500" />
-                  </div>
-                  <h3 className="text-lg font-bold text-text-main mb-2">Google Calendar</h3>
-                  <p className="text-sm text-text-muted mb-6 relative z-10">
-                    Synchronisiert Termine direkt über die Google Calendar API in dein Google Workspace oder privates Google Konto.
-                  </p>
-                  
-                  <div className="space-y-4 relative z-10">
-                    <div>
-                      <label className="block text-xs font-bold text-text-muted uppercase mb-1">Google Client-ID</label>
-                      <input type="text" placeholder="z.B. 123...apps.googleusercontent.com" className="input-field w-full bg-bg-panel" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-text-muted uppercase mb-1">Google Client-Secret</label>
-                      <input type="password" placeholder="Dein geheimer Schlüssel" className="input-field w-full bg-bg-panel" />
-                    </div>
-                    <button className="btn-secondary w-full flex items-center justify-center gap-2 border-red-500/50 text-red-400 hover:bg-red-500/10">
-                      <LinkIcon className="w-5 h-5" /> Mit Google verknüpfen
-                    </button>
-                  </div>
-
-                  <div className="mt-6 pt-4 border-t border-structure relative z-10">
-                    <details className="text-sm">
-                      <summary className="text-primary font-medium cursor-pointer hover:underline">Einrichtungshilfe (Google)</summary>
-                      <ul className="list-disc list-inside mt-2 text-text-muted space-y-1 text-xs">
-                        <li>Gehe in die <a href="https://console.cloud.google.com" target="_blank" className="text-blue-400 hover:underline">Google Cloud Console</a></li>
-                        <li>Aktiviere die "Google Calendar API"</li>
-                        <li>Richte den "OAuth-Zustimmungsbildschirm" (Extern) ein</li>
-                        <li>Erstelle unter "Anmeldedaten" eine OAuth-Client-ID (Webanwendung)</li>
-                        <li>Autorisierte Weiterleitungs-URIs: <code>http://localhost:3000/api/calendar/auth/google/callback</code></li>
-                      </ul>
-                    </details>
-                  </div>
                 </div>
 
               </div>
-
-              {/* E-Mail / SMTP Box */}
-              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4 mt-8">E-Mail Versand (SMTP)</h2>
-              <p className="text-sm text-text-muted mb-6">
-                Damit die App in deinem Namen E-Mails (z.B. Angebote, Rechnungen) direkt an Kunden senden kann, benötigt sie Zugang zu deinem Postausgangsserver (z.B. Ionos).
-              </p>
-
-              <div className="bg-bg-dark border border-structure p-6 rounded-xl relative overflow-hidden group max-w-3xl">
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <EnvelopeIcon className="w-24 h-24 text-primary" />
-                </div>
-                <h3 className="text-lg font-bold text-text-main mb-6 relative z-10">Ionos / Webmail Zugangsdaten</h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
-                  <div className="md:col-span-2">
-                    <label className="block text-xs font-bold text-text-muted uppercase mb-1">Absender Name</label>
-                    <input type="text" value={settings.companyName || ''} onChange={e => handleChange('companyName', e.target.value)} placeholder="z.B. Rothirsch Umzüge" className="input-field w-full bg-bg-panel" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-text-muted uppercase mb-1">SMTP Server (Host)</label>
-                    <input type="text" value={settings.smtpHost || 'smtp.ionos.de'} onChange={e => handleChange('smtpHost', e.target.value)} placeholder="z.B. smtp.ionos.de" className="input-field w-full bg-bg-panel" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-text-muted uppercase mb-1">SMTP Port</label>
-                    <input type="number" value={settings.smtpPort || 465} onChange={e => handleChange('smtpPort', Number(e.target.value))} placeholder="465" className="input-field w-full bg-bg-panel" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-text-muted uppercase mb-1">E-Mail Adresse (Benutzername)</label>
-                    <input type="email" value={settings.smtpUser || ''} onChange={e => handleChange('smtpUser', e.target.value)} placeholder="info@rothirsch-umzug.de" className="input-field w-full bg-bg-panel" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-text-muted uppercase mb-1">E-Mail Passwort</label>
-                    <input type="password" value={settings.smtpPass || ''} onChange={e => handleChange('smtpPass', e.target.value)} placeholder="Dein E-Mail Passwort" className="input-field w-full bg-bg-panel" />
-                  </div>
-                </div>
-                <p className="text-xs text-text-muted mt-4 relative z-10 italic">
-                  Hinweis: Das Passwort wird verschlüsselt gespeichert. Bei Ionos ist der Standard-Port für SSL 465.
-                </p>
-              </div>
-
             </div>
           )}
 
@@ -1231,71 +1133,126 @@ export default function SettingsPage() {
             </div>
           )}
           
-          {/* TAB: Leistungen & Zahlungen */}
+          {/* TAB: Leistungskatalog */}
           {activeTab === 'leistungen' && (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">Leistungskatalog & Zahlungsarten</h2>
-              
-              <div className="space-y-6">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold text-primary">Leistungskatalog</h3>
-                  <button onClick={addCategory} className="text-xs btn-secondary py-1 px-3">Neue Kategorie</button>
+              <div className="flex justify-between items-center border-b border-structure pb-2 mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-text-main">Leistungskatalog</h2>
+                  <p className="text-sm text-text-muted">Verwalte Kategorien, Standard-Services und Preise für Angebote.</p>
                 </div>
-                <div className="space-y-6">
-                  {settings.catalog.map((cat: any, cIdx: number) => (
-                    <div key={cIdx} className="bg-bg-dark border border-structure p-4 rounded-xl">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-structure pb-2 mb-3 gap-2">
-                        <div className="flex-1 w-full sm:w-auto flex items-center gap-2">
-                          <span className="text-text-muted text-sm font-bold">Kategorie:</span>
-                          <input type="text" value={cat.category} onChange={e => updateCategoryName(cIdx, e.target.value)} className="bg-transparent border-none text-text-main text-lg font-bold focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 w-full sm:w-auto" />
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <button onClick={() => addCatalogItem(cIdx)} className="text-primary hover:underline text-xs">+ Element hinzufügen</button>
-                          <button onClick={() => removeCategory(cIdx)} className="text-red-400 hover:text-red-300 text-xs hover:underline">Kategorie löschen</button>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        {cat.items.map((item: any, iIdx: number) => (
-                          <div key={iIdx} className="flex flex-col md:flex-row justify-between items-start md:items-center bg-bg-panel p-2 rounded border border-structure/50 gap-2">
-                            <input type="text" value={item.name} onChange={e => updateCatalogItem(cIdx, iIdx, 'name', e.target.value)} className="input-field text-sm flex-1 w-full" placeholder="Bezeichnung" />
-                            <div className="flex items-center gap-2 w-full md:w-auto">
-                              <input type="number" value={item.price} onChange={e => updateCatalogItem(cIdx, iIdx, 'price', parseFloat(e.target.value)||0)} className="input-field text-sm w-24 text-right" placeholder="Preis €" />
-                              <span className="text-text-muted text-sm">€</span>
-                              <input type="text" value={item.unit} onChange={e => updateCatalogItem(cIdx, iIdx, 'unit', e.target.value)} className="input-field text-sm w-20 text-center" placeholder="Einheit" />
-                              <button onClick={() => removeCatalogItem(cIdx, iIdx)} className="text-red-400 hover:bg-red-400/20 p-2 rounded transition-colors">&times;</button>
-                            </div>
-                          </div>
-                        ))}
-                        {cat.items.length === 0 && <p className="text-xs text-text-muted italic py-2">Keine Leistungen in dieser Kategorie.</p>}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <button onClick={addCategory} className="btn-secondary text-xs py-2 px-3 flex items-center gap-1">
+                  + Neue Kategorie
+                </button>
               </div>
               
-              <div className="space-y-6 mt-8">
-                <h3 className="text-lg font-semibold text-primary border-t border-structure pt-6">Zahlungsarten</h3>
-                {settings.paymentMethods.map((pm: any, idx: number) => (
-                  <div key={idx} className="bg-bg-dark border border-structure p-4 rounded-xl space-y-3">
-                    <div className="font-bold text-text-main text-lg">{pm.name}</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs text-text-muted mb-1">Text für Angebot</label>
-                        <textarea value={pm.textQuote} readOnly className="input-field w-full h-20 text-xs bg-bg-panel opacity-80" />
+              <div className="space-y-6">
+                {settings.catalog.map((cat: any, cIdx: number) => (
+                  <div key={cIdx} className="bg-bg-dark border border-structure p-4 rounded-xl">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-structure pb-2 mb-3 gap-2">
+                      <div className="flex-1 w-full sm:w-auto flex items-center gap-2">
+                        <span className="text-text-muted text-sm font-bold">Kategorie:</span>
+                        <input type="text" value={cat.category} onChange={e => updateCategoryName(cIdx, e.target.value)} className="bg-transparent border-none text-text-main text-lg font-bold focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 w-full sm:w-auto" />
                       </div>
-                      <div>
-                        <label className="block text-xs text-text-muted mb-1">Text für Rechnung</label>
-                        <textarea value={pm.textInvoice} readOnly className="input-field w-full h-20 text-xs bg-bg-panel opacity-80" />
+                      <div className="flex items-center gap-4">
+                        <button onClick={() => addCatalogItem(cIdx)} className="text-primary hover:underline text-xs">+ Element hinzufügen</button>
+                        <button onClick={() => removeCategory(cIdx)} className="text-red-400 hover:text-red-300 text-xs hover:underline">Kategorie löschen</button>
                       </div>
                     </div>
-                    <div className="flex gap-4">
+                    <div className="space-y-2">
+                      {cat.items.map((item: any, iIdx: number) => (
+                        <div key={iIdx} className="flex flex-col md:flex-row justify-between items-start md:items-center bg-bg-panel p-2 rounded border border-structure/50 gap-2">
+                          <input type="text" value={item.name} onChange={e => updateCatalogItem(cIdx, iIdx, 'name', e.target.value)} className="input-field text-sm flex-1 w-full" placeholder="Bezeichnung" />
+                          <div className="flex items-center gap-2 w-full md:w-auto">
+                            <input type="number" value={item.price} onChange={e => updateCatalogItem(cIdx, iIdx, 'price', parseFloat(e.target.value)||0)} className="input-field text-sm w-24 text-right" placeholder="Preis €" />
+                            <span className="text-text-muted text-sm">€</span>
+                            <input type="text" value={item.unit} onChange={e => updateCatalogItem(cIdx, iIdx, 'unit', e.target.value)} className="input-field text-sm w-20 text-center" placeholder="Einheit" />
+                            <button onClick={() => removeCatalogItem(cIdx, iIdx)} className="text-red-400 hover:bg-red-400/20 p-2 rounded transition-colors">&times;</button>
+                          </div>
+                        </div>
+                      ))}
+                      {cat.items.length === 0 && <p className="text-xs text-text-muted italic py-2">Keine Leistungen in dieser Kategorie.</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: Zahlungsarten */}
+          {activeTab === 'zahlungsarten' && (
+            <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+              <div className="border-b border-structure pb-2 mb-4">
+                <h2 className="text-xl font-bold text-text-main">Zahlungsarten</h2>
+                <p className="text-sm text-text-muted">Texte und Zahlungsziele für Angebote und Rechnungen.</p>
+              </div>
+
+              <div className="space-y-6">
+                {settings.paymentMethods.map((pm: any, idx: number) => (
+                  <div key={idx} className="bg-bg-dark border border-structure p-4 md:p-6 rounded-xl space-y-4">
+                    <div className="flex items-center justify-between border-b border-structure/60 pb-3">
+                      <div className="font-bold text-text-main text-lg flex items-center gap-2">
+                        <CreditCardIcon className="w-5 h-5 text-primary" />
+                        {pm.name}
+                      </div>
+                      <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 font-medium">
+                        Standard
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-xs text-text-muted mb-1">Zahlungsziel (Kurztext)</label>
-                        <input type="text" value={pm.shortText} readOnly className="input-field text-sm bg-bg-panel opacity-80" />
+                        <label className="block text-xs font-medium text-text-muted mb-1.5">Text für Angebot (Quote)</label>
+                        <textarea 
+                          value={pm.textQuote} 
+                          onChange={e => {
+                            const newPms = [...settings.paymentMethods];
+                            newPms[idx] = { ...newPms[idx], textQuote: e.target.value };
+                            handleChange('paymentMethods', newPms);
+                          }}
+                          className="input-field w-full h-24 text-xs bg-bg-panel focus:bg-bg-dark transition-colors" 
+                        />
                       </div>
                       <div>
-                        <label className="block text-xs text-text-muted mb-1">Tage bis Fälligkeit</label>
-                        <input type="number" value={pm.dueDays} readOnly className="input-field text-sm bg-bg-panel opacity-80" />
+                        <label className="block text-xs font-medium text-text-muted mb-1.5">Text für Rechnung (Invoice)</label>
+                        <textarea 
+                          value={pm.textInvoice} 
+                          onChange={e => {
+                            const newPms = [...settings.paymentMethods];
+                            newPms[idx] = { ...newPms[idx], textInvoice: e.target.value };
+                            handleChange('paymentMethods', newPms);
+                          }}
+                          className="input-field w-full h-24 text-xs bg-bg-panel focus:bg-bg-dark transition-colors" 
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-structure/40">
+                      <div>
+                        <label className="block text-xs font-medium text-text-muted mb-1">Zahlungsziel (Kurztext)</label>
+                        <input 
+                          type="text" 
+                          value={pm.shortText} 
+                          onChange={e => {
+                            const newPms = [...settings.paymentMethods];
+                            newPms[idx] = { ...newPms[idx], shortText: e.target.value };
+                            handleChange('paymentMethods', newPms);
+                          }}
+                          className="input-field text-sm w-full bg-bg-panel" 
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-text-muted mb-1">Tage bis Fälligkeit</label>
+                        <input 
+                          type="number" 
+                          value={pm.dueDays} 
+                          onChange={e => {
+                            const newPms = [...settings.paymentMethods];
+                            newPms[idx] = { ...newPms[idx], dueDays: parseInt(e.target.value, 10) || 0 };
+                            handleChange('paymentMethods', newPms);
+                          }}
+                          className="input-field text-sm w-full bg-bg-panel" 
+                        />
                       </div>
                     </div>
                   </div>

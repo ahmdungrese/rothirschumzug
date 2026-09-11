@@ -4,10 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { getCol } from '@/lib/demoMode';
 import { OrderEditor } from './OrderEditor';
 import { InvoiceEditor } from './InvoiceEditor';
 import { MobileInspectionWizard } from './MobileInspectionWizard';
+import { OrderErrorBoundary } from './OrderErrorBoundary';
 
 export function ResponsiveOrderWrapper({ orderId }: { orderId?: string }) {
   const [isMobile, setIsMobile] = useState<boolean | null>(null);
@@ -30,13 +30,13 @@ export function ResponsiveOrderWrapper({ orderId }: { orderId?: string }) {
       if (orderId && orderId !== 'new') {
         try {
           // First check invoices collection
-          const invSnap = await getDoc(doc(db, getCol('invoices'), orderId));
+          const invSnap = await getDoc(doc(db, 'invoices', orderId));
           if (invSnap.exists()) {
             setIsInvoice(true);
             return;
           }
           // Fallback to orders collection (for legacy free invoices or storno docs)
-          const snap = await getDoc(doc(db, getCol('orders'), orderId));
+          const snap = await getDoc(doc(db, 'orders', orderId));
           if (snap.exists() && snap.data().type === 'invoice') {
             setIsInvoice(true);
             return;
@@ -55,14 +55,19 @@ export function ResponsiveOrderWrapper({ orderId }: { orderId?: string }) {
   const actualOrderId = orderId === 'new' ? undefined : orderId;
   const sourceOrderId = searchParams?.get('sourceOrder') || undefined;
 
+  let content = null;
   if (isInvoice) {
-    return <InvoiceEditor orderId={actualOrderId} sourceOrderId={sourceOrderId} />;
+    content = <InvoiceEditor orderId={actualOrderId} sourceOrderId={sourceOrderId} />;
+  } else if (isMobile) {
+    content = <MobileInspectionWizard orderId={actualOrderId} />;
+  } else {
+    content = <OrderEditor orderId={actualOrderId} />;
   }
 
-  if (isMobile) {
-    return <MobileInspectionWizard orderId={actualOrderId} />;
-  }
-
-  return <OrderEditor orderId={actualOrderId} />;
+  return (
+    <OrderErrorBoundary fallbackTitle={isInvoice ? "Hinweis zum Rechnungs-Editor" : "Hinweis zum Angebots-Editor"}>
+      {content}
+    </OrderErrorBoundary>
+  );
 }
 

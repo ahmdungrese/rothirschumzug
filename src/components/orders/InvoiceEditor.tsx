@@ -8,7 +8,6 @@ import { toast } from 'react-hot-toast';
 import { db } from '@/lib/firebase';
 import { collection, addDoc, doc, getDoc, updateDoc, deleteDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { useParams, useRouter } from 'next/navigation';
-import { getCol } from '@/lib/demoMode';
 import { calculateOrderTotals } from '@/lib/financeHelpers';
 
 const getCategoryIcon = (category: string) => {
@@ -81,7 +80,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
   useEffect(() => {
     const init = async () => {
       // 1. Load System Settings
-      const settingsSnap = await getDoc(doc(db, getCol('system'), 'settings'));
+      const settingsSnap = await getDoc(doc(db, 'system', 'settings'));
       if (settingsSnap.exists()) {
         const s = settingsSnap.data();
         setSettings(s);
@@ -96,7 +95,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
 
       // 2. Load Customer data (if new invoice and no source order)
       if (!orderId && !sourceOrderId && urlCustomerId) {
-        const custSnap = await getDoc(doc(db, getCol('customers'), urlCustomerId));
+        const custSnap = await getDoc(doc(db, 'customers', urlCustomerId));
         if (custSnap.exists()) {
           const c = custSnap.data();
           setCustomerData({
@@ -120,10 +119,10 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
         // If orderId is provided (because ResponsiveOrderWrapper passes the id of the draft order), use 'orders' collection
         // If it's a legacy free invoice, it might be in 'invoices'. We check both.
         let targetCol = sourceOrderId ? 'orders' : (orderId ? 'orders' : 'invoices');
-        let oSnap = await getDoc(doc(db, getCol(targetCol), idToLoad));
+        let oSnap = await getDoc(doc(db, targetCol, idToLoad));
         
         if (!oSnap.exists() && targetCol === 'orders') {
-          oSnap = await getDoc(doc(db, getCol('invoices'), idToLoad));
+          oSnap = await getDoc(doc(db, 'invoices', idToLoad));
         }
 
         if (oSnap.exists()) {
@@ -201,13 +200,13 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
       if (finalStatus === 'invoice_open' && !payload.invoiceNumber) {
         await runTransaction(db, async (t) => {
           // 1. ALL READS FIRST
-          const settingsRef = doc(db, getCol('system'), 'settings');
+          const settingsRef = doc(db, 'system', 'settings');
           const settingsSnap = await t.get(settingsRef);
           
           let parentOrderSnap = null;
           let parentOrderRef = null;
           if (activeSourceOrderId) {
-            parentOrderRef = doc(db, getCol('orders'), activeSourceOrderId);
+            parentOrderRef = doc(db, 'orders', activeSourceOrderId);
             parentOrderSnap = await t.get(parentOrderRef);
           }
 
@@ -218,7 +217,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
           payload.invoiceNumber = invoiceNum;
           payload.createdAt = payload.createdAt || serverTimestamp();
           
-          const invoiceRef = orderId ? doc(db, getCol('invoices'), orderId) : doc(collection(db, getCol('invoices')));
+          const invoiceRef = orderId ? doc(db, 'invoices', orderId) : doc(collection(db, 'invoices'));
 
           // 3. ALL WRITES AFTER READS
           t.set(invoiceRef, payload, { merge: true });
@@ -249,18 +248,20 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
           t.update(settingsRef, { nextInvoiceNumber: nextInvoiceNumber + 1 });
         });
 
-        await logActivity(user?.uid || '', profile?.displayName || 'Unbekannt', orderId ? 'UPDATE_ORDER' : 'CREATE_ORDER', `Rechnung ausgestellt: ${payload.invoiceNumber}`);
+        const editorActorName = profile?.displayName || profile?.email?.split('@')[0] || 'Team';
+        await logActivity(user?.uid || '', editorActorName, orderId ? 'UPDATE_ORDER' : 'CREATE_ORDER', `Rechnung ausgestellt: ${payload.invoiceNumber}`);
         toast.success('Rechnung erfolgreich ausgestellt!');
       } else {
+        const editorActorName = profile?.displayName || profile?.email?.split('@')[0] || 'Team';
         // Just save draft
         if (orderId) {
-          await updateDoc(doc(db, getCol('invoices'), orderId), payload);
-          await logActivity(user?.uid || '', profile?.displayName || 'Unbekannt', 'UPDATE_ORDER', `Rechnungsentwurf bearbeitet`);
+          await updateDoc(doc(db, 'invoices', orderId), payload);
+          await logActivity(user?.uid || '', editorActorName, 'UPDATE_ORDER', `Rechnungsentwurf bearbeitet`);
           toast.success('Rechnungsentwurf gespeichert!');
         } else {
           payload.createdAt = serverTimestamp();
-          await addDoc(collection(db, getCol('invoices')), payload);
-          await logActivity(user?.uid || '', profile?.displayName || 'Unbekannt', 'CREATE_ORDER', `Neuer Rechnungsentwurf für ${customerData.lastName}`);
+          await addDoc(collection(db, 'invoices'), payload);
+          await logActivity(user?.uid || '', editorActorName, 'CREATE_ORDER', `Neuer Rechnungsentwurf für ${customerData.lastName}`);
           toast.success('Rechnungsentwurf erstellt!');
         }
       }
@@ -296,10 +297,10 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
                   // Verify if we need to check the other collection just in case
                   let updateCol = targetCol;
                   if (!activeSourceOrderId) {
-                    const checkInv = await getDoc(doc(db, getCol('invoices'), orderId));
+                    const checkInv = await getDoc(doc(db, 'invoices', orderId));
                     if (!checkInv.exists()) updateCol = 'orders';
                   }
-                  await deleteDoc(doc(db, getCol(updateCol), orderId));
+                  await deleteDoc(doc(db, updateCol, orderId));
                   toast.success('Rechnungsentwurf gelöscht!');
                   router.push(`/dashboard/customers/${urlCustomerId}`);
                 } catch (error) {

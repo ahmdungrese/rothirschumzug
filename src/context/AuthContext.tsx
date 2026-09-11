@@ -5,7 +5,6 @@ import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
 import { logActivity } from "@/lib/activityLogger";
-import { getCol } from '@/lib/demoMode';
 
 interface UserProfile {
   uid: string;
@@ -43,7 +42,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (currentUser) {
         try {
-          const userDocRef = doc(db, getCol('users'), currentUser.uid);
+          const userDocRef = doc(db, 'users', currentUser.uid);
           
           // Use Promise.race to add a timeout to getDoc so it doesn't hang indefinitely if Firestore is not initialized
           const timeoutPromise = new Promise((resolve) => 
@@ -91,8 +90,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       // Log login activity once per session
       if (currentUser && typeof window !== "undefined" && !sessionStorage.getItem("hasLoggedLogin")) {
-        sessionStorage.setItem("hasLoggedLogin", "true");
-        logActivity(currentUser.uid, currentUser.displayName || currentUser.email || 'Unbekannt', 'LOGIN', 'Erfolgreich angemeldet');
+        const cleanLoginName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Team';
+        logActivity(currentUser.uid, cleanLoginName, 'LOGIN', 'Erfolgreich angemeldet');
       }
 
       setLoading(false);

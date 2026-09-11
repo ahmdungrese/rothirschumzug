@@ -8,7 +8,6 @@ import { InvoicePDF } from './InvoicePDF';
 import { ProtocolPDF } from './ProtocolPDF';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { getCol } from '@/lib/demoMode';
 import { useAuth } from '@/context/AuthContext';
 
 export default function PDFDownloadButtonWrapper({ order, customer, type = 'order', className = '', iconOnly = false, customIcon = null }: { order: any, customer: any, type?: 'order' | 'employee' | 'invoice' | 'contract' | 'protocol', className?: string, iconOnly?: boolean, customIcon?: React.ReactNode }) {
@@ -23,11 +22,11 @@ export default function PDFDownloadButtonWrapper({ order, customer, type = 'orde
   employeeName = employeeName || 'Rothirsch Team';
 
   useEffect(() => {
-    getDoc(doc(db, getCol('system'), 'settings')).then(docSnap => {
+    getDoc(doc(db, 'system', 'settings')).then(docSnap => {
       if(docSnap.exists()) {
         setSettings(docSnap.data());
       } else {
-        setSettings({ companyName: 'Dein Unternehmen', city: 'Musterstadt' });
+        setSettings({ companyName: 'Rothirsch Umzüge', city: 'Bochum', street: 'Grillostr. 70', zip: '44799', email: 'info@rothirsch-umzug.de' });
       }
     });
   }, []);

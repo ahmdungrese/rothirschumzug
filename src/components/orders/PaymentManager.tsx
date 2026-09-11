@@ -4,7 +4,6 @@ import { db } from '@/lib/firebase';
 import { doc, updateDoc, Timestamp, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { BanknotesIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { Modal } from '@/components/ui/Modal';
-import { getCol } from '@/lib/demoMode';
 import { changeOrderStatus } from '@/lib/orderStateMachine';
 import { calculateOrderTotals, calculateOpenAmount, calculateTotalPaid } from '@/lib/financeHelpers';
 
@@ -80,7 +79,7 @@ export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpd
       const batch = writeBatch(db);
       
       // Update the main document
-      batch.update(doc(db, getCol(targetCol), order.id), { 
+      batch.update(doc(db, targetCol, order.id), { 
         payments: updatedPayments, 
         status: newStatus2,
         updatedAt: serverTimestamp()
@@ -88,7 +87,7 @@ export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpd
 
       // Update the parent order if it exists (only if targetCol is invoices)
       if (order.sourceOrderId && targetCol === 'invoices') {
-        batch.update(doc(db, getCol('orders'), order.sourceOrderId), {
+        batch.update(doc(db, 'orders', order.sourceOrderId), {
           status: newStatus2,
           updatedAt: serverTimestamp()
         });
@@ -123,7 +122,7 @@ export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpd
       const batch = writeBatch(db);
       
       // Update the main document
-      batch.update(doc(db, getCol(targetCol), order.id), { 
+      batch.update(doc(db, targetCol, order.id), { 
         payments: updatedPayments, 
         status: newStatus2,
         updatedAt: serverTimestamp()
@@ -131,7 +130,7 @@ export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpd
 
       // Update the parent order if it exists
       if (order.sourceOrderId && targetCol === 'invoices') {
-        batch.update(doc(db, getCol('orders'), order.sourceOrderId), {
+        batch.update(doc(db, 'orders', order.sourceOrderId), {
           status: newStatus2,
           updatedAt: serverTimestamp()
         });

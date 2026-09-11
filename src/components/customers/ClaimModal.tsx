@@ -4,7 +4,6 @@ import { db } from '@/lib/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { XMarkIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
-import { getCol } from '@/lib/demoMode';
 
 export function ClaimModal({ 
   customerId, 
@@ -29,7 +28,7 @@ export function ClaimModal({
     
     setIsSaving(true);
     try {
-      await addDoc(collection(db, getCol('claims')), {
+      await addDoc(collection(db, 'claims'), {
         customerId,
         customerName,
         orderId: orderId || null,

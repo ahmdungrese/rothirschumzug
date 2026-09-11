@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { XMarkIcon, EnvelopeIcon, DocumentDuplicateIcon, ChatBubbleLeftEllipsisIcon } from '@heroicons/react/24/outline';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { getCol } from '@/lib/demoMode';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
 import { pdf } from '@react-pdf/renderer';
@@ -33,7 +32,7 @@ export function MessageSenderModal({
     // Lade die Vorlagen aus den Settings
     const loadSettings = async () => {
       try {
-        const docSnap = await getDoc(doc(db, getCol('system'), 'settings'));
+        const docSnap = await getDoc(doc(db, 'system', 'settings'));
         if (docSnap.exists()) {
           const data = docSnap.data();
           setSettings(data);

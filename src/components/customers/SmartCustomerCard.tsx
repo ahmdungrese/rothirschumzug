@@ -132,10 +132,26 @@ export function SmartCustomerCard({ customer, latestOrder }: { customer: any, la
 
         <div className="space-y-1.5 mt-3">
           {latestOrder?.logistics?.a_city && latestOrder?.logistics?.b_city && (
-            <div className="flex items-center gap-2 text-sm text-primary bg-primary/10 px-2 py-1.5 rounded-md mb-2 border border-primary/20">
-              <span className="font-semibold truncate">{latestOrder.logistics.a_city}</span>
-              <ArrowRightIcon className="w-3.5 h-3.5 shrink-0" />
-              <span className="font-semibold truncate">{latestOrder.logistics.b_city}</span>
+            <div className="flex flex-col gap-1.5 mb-2">
+              <div className="flex items-center gap-2 text-sm text-primary bg-primary/10 px-2 py-1.5 rounded-md border border-primary/20">
+                <span className="font-semibold truncate">{latestOrder.logistics.a_city}</span>
+                <ArrowRightIcon className="w-3.5 h-3.5 shrink-0" />
+                <span className="font-semibold truncate">{latestOrder.logistics.b_city}</span>
+              </div>
+              {(() => {
+                const movingDateRaw = latestOrder?.orderMeta?.movingDateFrom || latestOrder?.movingDate || latestOrder?.logistics?.movingDate;
+                if (!movingDateRaw) return null;
+                try {
+                  return (
+                    <div className="flex items-center gap-2 text-sm text-text-main px-2 py-1 bg-white/5 rounded-md w-fit">
+                      <CalendarIcon className="w-4 h-4 text-primary" />
+                      <span className="font-semibold">{new Date(movingDateRaw).toLocaleDateString('de-DE')}</span>
+                    </div>
+                  );
+                } catch {
+                  return null;
+                }
+              })()}
             </div>
           )}
 

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+
+<html class="light" lang="de"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Rothirsch Umzüge - Zentrale Disposition</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Anybody:wght@300;400;500;600;700;800&amp;family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {"surface-container": "#eceeee", "on-background": "#2f3334", "tertiary-container": "#8ebff9", secondary: "#00687b", "inverse-primary": "#e2fe65", "on-secondary-fixed": "#004653", "on-primary": "#f4ffbe", "on-primary-fixed-variant": "#536200", tertiary: "#2c6295", "on-secondary-fixed-variant": "#006577", "primary-dim": "#4b5900", "on-surface": "#2f3334", "inverse-on-surface": "#9c9d9d", "primary-container": "#d3ef58", "outline-variant": "#afb3b3", "surface-tint": "#566600", "on-surface-variant": "#5c6060", surface: "#f9f9f9", "surface-container-highest": "#e0e3e4", "on-tertiary-fixed": "#002442", "surface-dim": "#d7dbdb", "primary-fixed-dim": "#c6e04b", "on-tertiary-fixed-variant": "#004473", "secondary-container": "#adecff", "primary-fixed": "#d3ef58", "inverse-surface": "#0c0f0f", "on-secondary-container": "#005a6a", "surface-bright": "#f9f9f9", "on-tertiary-container": "#003b65", "on-primary-container": "#4a5800", "secondary-fixed": "#adecff", outline: "#777b7c", "on-secondary": "#effbff", background: "#f9f9f9", "on-tertiary": "#f7f9ff", "on-error-container": "#6e0a12", "error-dim": "#67040d", "tertiary-fixed-dim": "#80b2ea", "surface-container-lowest": "#ffffff", "tertiary-fixed": "#8ebff9", "on-primary-fixed": "#394400", "surface-container-high": "#e6e8e9", "surface-container-low": "#f3f4f4", "on-error": "#fff7f6", error: "#a83836", primary: "#566600", "surface-variant": "#e0e3e4", "tertiary-dim": "#1c5689", "secondary-dim": "#005b6c", "secondary-fixed-dim": "#76e3ff", "error-container": "#fa746f", "brand-primary": "#D91E2A"}, borderRadius: {DEFAULT: "1rem", lg: "2rem", xl: "3rem", full: "9999px"}, fontFamily: {display: ["Anybody"], headline: ["Anybody"], body: ["Plus Jakarta Sans"], label: ["Plus Jakarta Sans"]}, fontSize: {}}}};</script>
+<style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            background-color: #f9f9f9;
+        }
+        .kanban-column {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(0,0,0,0.1) transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 6px;
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.02);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: rgba(217, 30, 42, 0.5);
+        }
+        .sidebar-active {
+            background: linear-gradient(90deg, rgba(217, 30, 42, 0.08) 0%, transparent 100%);
+            border-left: 4px solid #D91E2A;
+        }
+    </style>
+</head>
+<body class="text-on-surface min-h-screen flex overflow-hidden bg-background">
+<!-- Sidebar -->
+<aside class="w-64 border-r border-outline-variant flex-shrink-0 flex flex-col h-screen bg-surface-container-lowest z-30">
+<div class="p-6 flex items-center gap-3">
+<img alt="Rothirsch Logo" class="h-8 object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBIbgf3C25if5QoGZZRfC-uNwr8BzuVP43uEFjDdU0czMzpfHIARQDXYEI2feUNAzDX4lfCZ4vC86wJixJcFWNVklIf1Pt4bRkqMy-19-WhPGqEk_KRXVewpOSID6F_VZd5ei2SgIBKqPtSGcC3C6UIBuJvCz3SZyfNwkG95nW9FnCltm5cgc1Asx2PCB0gs1VTbmybw1Id6xSqbt9dwvzML5c-Iv4p_Ll2ZYE6C_I015Li9VO5-X0ZirsWWchneS0yviIZviDkLu19"/>
+</div>
+<nav class="flex-1 px-4 py-6 space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-brand-primary sidebar-active font-bold transition-all group" href="#">
+<span class="material-symbols-outlined text-xl">dashboard</span>
+<span class="font-display">Disposition</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low rounded-full font-medium transition-all" href="#">
+<span class="material-symbols-outlined text-xl">groups</span>
+<span class="font-display">Kunden</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low rounded-full font-medium transition-all" href="#">
+<span class="material-symbols-outlined text-xl">local_shipping</span>
+<span class="font-display">Flotte</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low rounded-full font-medium transition-all" href="#">
+<span class="material-symbols-outlined text-xl">calendar_month</span>
+<span class="font-display">Termine</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-low rounded-full font-medium transition-all" href="#">
+<span class="material-symbols-outlined text-xl">inventory_2</span>
+<span class="font-display">Lager</span>
+</a>
+</nav>
+<div class="p-6 mt-auto">
+<div class="p-5 rounded-xl bg-surface-container-high border border-outline-variant shadow-sm">
+<p class="text-[10px] font-bold text-brand-primary uppercase tracking-widest mb-1 font-display">Support-Modus</p>
+<p class="text-[11px] text-on-surface-variant leading-relaxed mb-4">Live-Hilfe für die Tourenplanung.</p>
+<button class="w-full py-2.5 bg-brand-primary text-white text-xs font-bold rounded-full hover:brightness-110 transition-all shadow-md shadow-brand-primary/10">Hilfe anfordern</button>
+</div>
+</div>
+</aside>
+<!-- Main Content -->
+<main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+<header class="h-20 border-b border-outline-variant flex items-center justify-between px-8 z-20 shrink-0 bg-surface-container-lowest/80 backdrop-blur-md">
+<div>
+<h2 class="text-xl font-bold tracking-tight text-on-background flex items-center gap-3 font-display">
+                    Zentrale Disposition
+                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-brand-primary/10 text-brand-primary uppercase border border-brand-primary/20">Obsidian v4.0</span>
+</h2>
+<p class="text-xs text-on-surface-variant">Guten Morgen, Herr Weber • Mittwoch, 24. Mai 2024</p>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative cursor-pointer group">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-brand-primary transition-colors">notifications</span>
+<span class="absolute top-0 right-0 w-2 h-2 bg-brand-primary rounded-full ring-2 ring-surface-container-lowest"></span>
+</div>
+<div class="h-8 w-px bg-outline-variant"></div>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<p class="text-sm font-bold text-on-background font-display">M. Weber</p>
+<p class="text-[10px] text-on-surface-variant font-medium uppercase tracking-tight">Head of Logistics</p>
+</div>
+<div class="h-10 w-10 rounded-full bg-surface-container-highest border border-outline-variant flex items-center justify-center overflow-hidden">
+<span class="text-xs font-bold text-brand-primary font-display">MW</span>
+</div>
+</div>
+</div>
+</header>
+<div class="flex-1 overflow-x-auto custom-scrollbar p-8">
+<div class="flex gap-6 h-full min-w-max">
+<!-- Column 1: Neu -->
+<div class="flex flex-col w-80 h-full bg-surface-container-low rounded-xl border border-outline-variant/30 p-4">
+<div class="flex items-center justify-between mb-6 px-2">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-brand-primary"></span>
+<h3 class="text-xs font-bold uppercase tracking-widest text-on-background font-display">Neu</h3>
+</div>
+<span class="text-[10px] font-bold bg-surface-container-highest px-2 py-1 rounded-full text-on-surface-variant">3 Leads</span>
+</div>
+<div class="flex-1 space-y-4 overflow-y-auto kanban-column pr-1">
+<div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/30 shadow-sm hover:shadow-md transition-all cursor-pointer">
+<h4 class="font-bold text-sm text-on-background mb-2 font-display">Stefan Müller</h4>
+<div class="flex items-center gap-2 text-[11px] text-on-surface-variant mb-4">
+<span class="material-symbols-outlined text-xs">near_me</span>
+<span class="">Berlin → Hamburg</span>
+</div>
+<div class="flex items-center justify-between mt-auto">
+<span class="px-2.5 py-1 rounded-full text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100">Google Search</span>
+<span class="text-[10px] text-on-surface-variant">vor 2 Std.</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/30 shadow-sm hover:shadow-md transition-all cursor-pointer">
+<h4 class="font-bold text-sm text-on-background mb-2 font-display">Julia Schmidt</h4>
+<div class="flex items-center gap-2 text-[11px] text-on-surface-variant mb-4">
+<span class="material-symbols-outlined text-xs">near_me</span>
+<span class="">München → Wien</span>
+</div>
+<div class="flex items-center justify-between mt-auto">
+<span class="px-2.5 py-1 rounded-full text-[9px] font-bold bg-purple-50 text-purple-600 border border-purple-100">Empfehlung</span>
+<span class="text-[10px] text-on-surface-variant">vor 5 Std.</span>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/30 shadow-sm hover:shadow-md transition-all cursor-pointer">
+<h4 class="font-bold text-sm text-on-background mb-2 font-display">Andreas Fischer</h4>
+<div class="flex items-center gap-2 text-[11px] text-on-surface-variant mb-4">
+<span class="material-symbols-outlined text-xs">near_me</span>
+<span class="">Köln → Bonn</span>
+</div>
+<div class="flex items-center justify-between mt-auto">
+<span class="px-2.5 py-1 rounded-full text-[9px] font-bold bg-orange-50 text-orange-600 border border-orange-100">Instagram</span>
+<span class="text-[10px] text-on-surface-variant">vor 8 Std.</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Column 2: In Verhandlung -->
+<div class="flex flex-col w-80 h-full bg-orange-50/50 rounded-xl border border-orange-100 p-4">
+<div class="flex items-center justify-between mb-6 px-2">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
+<h3 class="text-xs font-bold uppercase tracking-widest text-on-background font-display">In Verhandlung</h3>
+</div>
+<span class="text-[10px] font-bold bg-white px-2 py-1 rounded-full text-on-surface-variant">2 Aktiv</span>
+</div>
+<div class="flex-1 space-y-4 overflow-y-auto kanban-column pr-1">
+<div class="bg-surface-container-lowest p-5 rounded-xl border-l-4 border-l-orange-500 shadow-sm border-y border-r border-outline-variant/30">
+<h4 class="font-bold text-sm text-on-background mb-3 font-display">Markus Weber</h4>
+<div class="p-3 rounded-lg bg-orange-50/80 space-y-2">
+<p class="text-[10px] font-bold text-orange-700 uppercase tracking-wider font-display">Besichtigungstermin</p>
+<div class="flex items-center gap-2 text-xs text-on-background font-medium">
+<span class="material-symbols-outlined text-sm text-orange-600">calendar_today</span>
+                                    26.05.2024
+                                </div>
+<div class="flex items-center gap-2 text-xs text-on-background font-medium">
+<span class="material-symbols-outlined text-sm text-orange-600">schedule</span>
+                                    14:30 Uhr
+                                </div>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl border-l-4 border-l-orange-500 shadow-sm border-y border-r border-outline-variant/30">
+<h4 class="font-bold text-sm text-on-background mb-3 font-display">Dr. Sabine Meyer</h4>
+<div class="p-3 rounded-lg bg-orange-50/80 space-y-2">
+<p class="text-[10px] font-bold text-orange-700 uppercase tracking-wider font-display">Videobesichtigung</p>
+<div class="flex items-center gap-2 text-xs text-on-background font-medium">
+<span class="material-symbols-outlined text-sm text-orange-600">videocam</span>
+                                    Morgen, 09:00 Uhr
+                                </div>
+</div>
+</div>
+</div>
+</div>
+<!-- Column 3: Bestätigt -->
+<div class="flex flex-col w-80 h-full bg-emerald-50/50 rounded-xl border border-emerald-100 p-4">
+<div class="flex items-center justify-between mb-6 px-2">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+<h3 class="text-xs font-bold uppercase tracking-widest text-on-background font-display">Bestätigt</h3>
+</div>
+<span class="text-[10px] font-bold bg-white px-2 py-1 rounded-full text-on-surface-variant">2 Aufträge</span>
+</div>
+<div class="flex-1 space-y-4 overflow-y-auto kanban-column pr-1">
+<div class="bg-surface-container-lowest p-5 rounded-xl border-l-4 border-l-emerald-500 shadow-sm border-y border-r border-outline-variant/30">
+<div class="flex justify-between items-start mb-2">
+<h4 class="font-bold text-sm text-on-background font-display">Dr. Anna Frank</h4>
+<span class="text-[10px] font-bold text-brand-primary font-display">#RH-45928</span>
+</div>
+<div class="flex items-center gap-2 text-[11px] text-on-surface-variant mb-4">
+<span class="material-symbols-outlined text-xs">near_me</span>
+<span class="">Köln → Zürich</span>
+</div>
+<div class="mt-4 pt-4 border-t border-outline-variant/20 space-y-2">
+<p class="text-[10px] font-bold text-emerald-700 uppercase tracking-wider mb-2 font-display">Logistik-Checklist</p>
+<label class="flex items-center gap-3 cursor-pointer group">
+<input checked="" class="w-4 h-4 rounded border-outline-variant/30 bg-surface text-brand-primary focus:ring-brand-primary" type="checkbox"/>
+<span class="text-[11px] text-on-surface group-hover:text-on-background transition-colors">Kartons geliefert</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="w-4 h-4 rounded border-outline-variant/30 bg-surface text-brand-primary focus:ring-brand-primary" type="checkbox"/>
+<span class="text-[11px] text-on-surface group-hover:text-on-background transition-colors">HVZ beantragt</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer group">
+<input checked="" class="w-4 h-4 rounded border-outline-variant/30 bg-surface text-brand-primary focus:ring-brand-primary" type="checkbox"/>
+<span class="text-[11px] text-on-surface group-hover:text-on-background transition-colors">Möbellift reserviert</span>
+</label>
+</div>
+</div>
+<div class="bg-surface-container-lowest p-5 rounded-xl border-l-4 border-l-orange-500 shadow-sm border-y border-r border-outline-variant/30">
+<div class="flex justify-between items-start mb-2">
+<h4 class="font-bold text-sm text-on-background font-display">Markus Weber</h4>
+<span class="text-[10px] font-bold text-brand-primary font-display">#RH-45929</span>
+</div>
+<div class="flex items-center gap-2 text-[11px] text-on-surface-variant mb-2">
+<span class="material-symbols-outlined text-xs">near_me</span>
+<span class="">Berlin → Hamburg</span>
+</div>
+<div class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-orange-50 border border-orange-100 mb-4">
+<span class="material-symbols-outlined text-[12px] text-orange-600">warning</span>
+<span class="text-[9px] font-bold text-orange-700 uppercase tracking-tight">Logistik unvollständig</span>
+</div>
+<div class="mt-2 pt-4 border-t border-outline-variant/20 space-y-2">
+<p class="text-[10px] font-bold text-orange-700 uppercase tracking-wider mb-2 font-display">Logistik-Checklist</p>
+<label class="flex items-center gap-3 cursor-pointer group">
+<input checked="" class="w-4 h-4 rounded border-outline-variant/30 bg-surface text-brand-primary focus:ring-brand-primary" type="checkbox"/>
+<span class="text-[11px] text-on-surface group-hover:text-on-background transition-colors">Kartons geliefert</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="w-4 h-4 rounded border-outline-variant/30 bg-surface text-brand-primary focus:ring-brand-primary" type="checkbox"/>
+<span class="text-[11px] text-on-surface group-hover:text-on-background transition-colors">HVZ beantragt</span>
+</label>
+<label class="flex items-center gap-3 cursor-pointer group">
+<input class="w-4 h-4 rounded border-outline-variant/30 bg-surface text-brand-primary focus:ring-brand-primary" type="checkbox"/>
+<span class="text-[11px] text-on-surface group-hover:text-on-background transition-colors">Möbellift reserviert</span>
+</label>
+</div>
+</div></div>
+</div>
+<!-- Column 4: Abgeschlossen -->
+<div class="flex flex-col w-80 h-full bg-surface-container-low rounded-xl border border-outline-variant/30 p-4">
+<div class="flex items-center justify-between mb-6 px-2">
+<div class="flex items-center gap-2">
+<span class="w-2.5 h-2.5 rounded-full bg-on-surface-variant"></span>
+<h3 class="text-xs font-bold uppercase tracking-widest text-on-background font-display">Abgeschlossen</h3>
+</div>
+<span class="text-[10px] font-bold bg-surface-container-highest px-2 py-1 rounded-full text-on-surface-variant">Archiv</span>
+</div>
+<div class="flex-1 space-y-4 overflow-y-auto kanban-column pr-1">
+<!-- Card 1: Petra Klein (Success) -->
+<div class="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/30 shadow-sm opacity-80 hover:opacity-100 transition-all"><div class="flex justify-between items-start mb-3"><h4 class="font-bold text-sm text-on-background font-display">Petra Klein</h4><span class="material-symbols-outlined text-emerald-500 text-lg">check_circle</span></div><div class="flex flex-col gap-2 mb-4"><div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-100 w-fit"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span><span class="text-[10px] font-bold text-emerald-600 font-display">Erfolgreich abgeschlossen</span></div><div class="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-blue-50 border border-blue-100 w-fit"><span class="material-symbols-outlined text-[12px] text-blue-600">mail</span><span class="text-[10px] font-bold text-blue-600 font-display">Rechnung verschickt</span></div></div><button class="w-full py-2.5 bg-surface-container-highest text-on-surface-variant text-xs font-bold rounded-full hover:bg-surface-container-high transition-all flex items-center justify-center gap-2"><span class="material-symbols-outlined text-sm">visibility</span>Rechnung ansehen</button></div>
+<!-- Card 2: Thomas Meyer (Incomplete) -->
+</div>
+</div></div>
+</div>
+</main>
+<div class="fixed bottom-0 left-0 w-full h-24 pointer-events-none bg-gradient-to-t from-black/5 to-transparent z-20"></div>
+<script>
+        console.log("Luminous Logistics Kanban Dashboard Initialized");
+    </script>
+</body></html>

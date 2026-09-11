@@ -4,7 +4,6 @@ import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { BellIcon, ExclamationCircleIcon, ShieldExclamationIcon, TruckIcon, UsersIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
-import { getCol } from '@/lib/demoMode';
 
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
@@ -24,7 +23,7 @@ export function NotificationBell() {
 
   useEffect(() => {
     // Wir holen Angebote, bestätigte und abgeschlossene Aufträge
-    const q = query(collection(db, getCol('orders')), where('status', 'in', ['quote', 'confirmed', 'completed']));
+    const q = query(collection(db, 'orders'), where('status', 'in', ['quote', 'confirmed', 'completed']));
     const unsub = onSnapshot(q, (snap) => {
       const orders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const newNotifications: any[] = [];
@@ -179,47 +178,59 @@ export function NotificationBell() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-bg-panel border border-structure shadow-2xl rounded-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="p-3 bg-bg-dark border-b border-structure flex justify-between items-center">
-            <h3 className="font-semibold text-text-main">Dispo-Warnungen (Anti-Vergess)</h3>
-            <span className="text-xs bg-structure text-text-muted px-2 py-1 rounded-md">{notifications.length}</span>
-          </div>
-          
-          <div className="max-h-96 overflow-y-auto custom-scrollbar">
-            {notifications.length === 0 ? (
-              <div className="p-6 text-center text-text-muted flex flex-col items-center">
-                <CheckCircleIcon className="w-10 h-10 text-green-500/50 mb-2" />
-                <p>Alles im grünen Bereich!</p>
-                <p className="text-xs mt-1">Die nächsten 7 Tage sind perfekt disponiert.</p>
+        <>
+          {/* Mobile Backdrop Overlay */}
+          <div 
+            onClick={() => setIsOpen(false)} 
+            className="fixed inset-0 bg-black/60 z-40 sm:hidden backdrop-blur-xs animate-in fade-in duration-200" 
+          />
+
+          {/* Notification Menu Container */}
+          <div className="fixed inset-x-3 top-16 sm:inset-auto sm:right-0 sm:mt-2 sm:absolute w-auto sm:w-96 max-w-[calc(100vw-24px)] bg-bg-panel border border-structure shadow-2xl rounded-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="p-3.5 bg-bg-panel border-b border-structure flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <BellIcon className="w-4 h-4 text-primary" />
+                <h3 className="font-bold text-xs sm:text-sm font-headline text-text-main">Dispo-Warnungen (Anti-Vergess)</h3>
               </div>
-            ) : (
-              <div className="divide-y divide-structure/50">
-                {notifications.map((notif) => (
+              <span className="text-[10px] font-bold bg-primary/10 text-primary px-2.5 py-0.5 rounded-full border border-primary/20 font-headline">
+                {notifications.length}
+              </span>
+            </div>
+            
+            <div className="max-h-[70vh] sm:max-h-96 overflow-y-auto custom-scrollbar divide-y divide-structure">
+              {notifications.length === 0 ? (
+                <div className="p-8 text-center text-text-muted flex flex-col items-center">
+                  <CheckCircleIcon className="w-10 h-10 text-emerald-500/60 mb-2" />
+                  <p className="font-semibold text-text-main text-sm">Alles im grünen Bereich!</p>
+                  <p className="text-xs text-text-muted mt-1">Die nächsten 7 Tage sind perfekt disponiert.</p>
+                </div>
+              ) : (
+                notifications.map((notif) => (
                   <Link 
                     key={notif.id}
                     href={notif.link}
                     onClick={() => setIsOpen(false)}
-                    className={`block p-4 hover:bg-structure/20 transition-colors ${notif.urgency === 'high' ? 'bg-red-900/10' : ''}`}
+                    className={`block p-3.5 sm:p-4 hover:bg-structure/20 transition-colors ${notif.urgency === 'high' ? 'bg-primary/5' : ''}`}
                   >
-                    <div className="flex gap-3">
-                      <div className="mt-0.5 shrink-0">
+                    <div className="flex gap-3 items-start">
+                      <div className="mt-0.5 shrink-0 p-1.5 rounded-xl bg-structure/40">
                         {getIcon(notif.type, notif.urgency)}
                       </div>
-                      <div>
-                        <h4 className={`text-sm font-semibold ${notif.urgency === 'high' ? 'text-red-400' : 'text-orange-400'}`}>
+                      <div className="min-w-0 flex-1">
+                        <h4 className={`text-xs sm:text-sm font-bold font-headline ${notif.urgency === 'high' ? 'text-primary' : 'text-amber-500'}`}>
                           {notif.title}
                         </h4>
-                        <p className="text-xs text-text-muted mt-1 leading-snug">
+                        <p className="text-xs text-text-muted mt-0.5 leading-snug break-words">
                           {notif.message}
                         </p>
                       </div>
                     </div>
                   </Link>
-                ))}
-              </div>
-            )}
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

@@ -1,11 +1,23 @@
 "use client";
-import { useEffect, useState } from 'react';
+
+import { useEffect, useState, useMemo } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, where, getDoc, doc } from 'firebase/firestore';
-import { CalendarDaysIcon, ChevronLeftIcon, ChevronRightIcon, PlusIcon, CheckIcon, MapPinIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { 
+  CalendarDaysIcon, 
+  ChevronLeftIcon, 
+  ChevronRightIcon, 
+  CheckIcon, 
+  MapPinIcon, 
+  XMarkIcon,
+  MagnifyingGlassIcon,
+  FunnelIcon,
+  TruckIcon
+} from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { DispoModal } from './DispoModal';
-import { getCol } from '@/lib/demoMode';
+
+type FilterType = 'all' | 'moves' | 'viewings' | 'logistics';
 
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -14,11 +26,13 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(true);
   const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
   const [viewingModalEvent, setViewingModalEvent] = useState<any>(null);
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    // Fetch all confirmed or completed orders that have a movingDate
+    // Fetch all orders with a moving or viewing date
     const q = query(
-      collection(db, getCol('orders')),
+      collection(db, 'orders'),
       where('status', 'in', ['draft', 'quote', 'confirmed', 'completed', 'invoice_open', 'invoice_overdue', 'invoice_paid'])
     );
     
@@ -26,10 +40,13 @@ export default function CalendarPage() {
       const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       setOrders(fetched);
       setLoading(false);
+    }, (err) => {
+      console.error("Error fetching orders for calendar:", err);
+      setLoading(false);
     });
 
     // Fetch Settings for vehicles and employees
-    getDoc(doc(db, getCol('system'), 'settings')).then(docSnap => {
+    getDoc(doc(db, 'system', 'settings')).then(docSnap => {
       if (docSnap.exists()) {
         setSettings(docSnap.data());
       }
@@ -56,95 +73,282 @@ export default function CalendarPage() {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
   };
 
-  const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+  const goToToday = () => {
+    setCurrentDate(new Date());
+  };
+
+  const monthNames = [
+    "Januar", "Februar", "März", "April", "Mai", "Juni", 
+    "Juli", "August", "September", "Oktober", "November", "Dezember"
+  ];
   
   const daysInMonth = getDaysInMonth(currentDate);
   const firstDay = getFirstDayOfMonth(currentDate);
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
   const blanksArray = Array.from({ length: firstDay }, (_, i) => i);
 
+  // Pre-calculate all events for this month to display badge counts on filter tabs
+  const monthStats = useMemo(() => {
+    let totalMoves = 0;
+    let totalViewings = 0;
+    let totalLogistics = 0;
+
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth() + 1;
+    const monthPrefix = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+
+    orders.forEach(o => {
+      const isConfirmed = !['draft', 'quote'].includes(o.status);
+      const moveDate = (o.orderMeta?.movingDateFrom || o.movingDate || o.disposition?.movingDate)?.split('T')[0];
+      const viewDate = (o.orderMeta?.viewingDate || o.viewingDate)?.split('T')[0];
+
+      if (moveDate && moveDate.startsWith(monthPrefix) && isConfirmed) {
+        totalMoves++;
+      }
+
+      if (viewDate && viewDate.startsWith(monthPrefix)) {
+        totalViewings++;
+      }
+
+      if (isConfirmed) {
+        if (o.logistics?.noParkingZone) totalLogistics++;
+        if (o.services?.some((s: any) => s.name?.toLowerCase().includes('karton'))) totalLogistics++;
+        if (o.services?.some((s: any) => ['lift', 'möbellift', 'aufzug'].some(kw => s.name?.toLowerCase().includes(kw)))) totalLogistics++;
+      }
+    });
+
+    return {
+      moves: totalMoves,
+      viewings: totalViewings,
+      logistics: totalLogistics,
+      all: totalMoves + totalViewings + totalLogistics
+    };
+  }, [orders, currentDate]);
+
   return (
-    <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500 pb-20 relative">
-      {/* Background Graphic */}
-      <div className="fixed inset-0 pointer-events-none opacity-[0.03] flex items-center justify-center z-[-1] overflow-hidden">
-        <img src="/login-logo.png" alt="" className="w-full max-w-[800px] object-contain blur-[2px]" />
+    <div className="space-y-6 pb-20">
+      {/* Top Action & Navigation Bar */}
+      <div className="bg-bg-panel border border-structure p-5 md:p-6 rounded-3xl shadow-sm flex flex-col gap-5">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl md:text-2xl font-bold font-headline text-text-main flex items-center gap-2.5">
+                <CalendarDaysIcon className="w-7 h-7 text-primary" />
+                Einsatzplanung & Kalender
+              </h1>
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 uppercase tracking-widest font-headline">
+                Rothirsch v4.0
+              </span>
+            </div>
+            <p className="text-xs text-text-muted mt-1">
+              Operative Planung, Besichtigungen und Materialfristen im Überblick
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Search Input */}
+            <div className="relative flex-1 sm:w-60">
+              <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Kunde, Ort, Auftrag..."
+                className="w-full pl-9 pr-4 py-2 text-xs rounded-full bg-bg-card border border-structure focus:outline-none focus:ring-2 focus:ring-primary text-text-main placeholder:text-text-muted transition-all"
+              />
+            </div>
+
+            {/* Month Stepper Pill */}
+            <div className="flex items-center bg-bg-card border border-structure rounded-full p-1 shadow-inner">
+              <button 
+                onClick={prevMonth} 
+                className="p-1.5 hover:bg-structure/60 rounded-full transition-colors text-text-main"
+                title="Vorheriger Monat"
+              >
+                <ChevronLeftIcon className="w-4 h-4" />
+              </button>
+              <span className="text-xs md:text-sm font-bold text-text-main px-3 min-w-[130px] text-center font-headline">
+                {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+              </span>
+              <button 
+                onClick={nextMonth} 
+                className="p-1.5 hover:bg-structure/60 rounded-full transition-colors text-text-main"
+                title="Nächster Monat"
+              >
+                <ChevronRightIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Quick Today Button */}
+            <button
+              onClick={goToToday}
+              className="px-3.5 py-2 rounded-full text-xs font-bold bg-bg-card hover:bg-structure/60 border border-structure text-text-main transition-colors font-headline"
+            >
+              Heute
+            </button>
+          </div>
+        </div>
+
+        {/* Functional Filter Tabs (Funktionen Trennen) */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-3 border-t border-structure">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold text-text-muted mr-1 hidden sm:flex items-center gap-1">
+              <FunnelIcon className="w-3.5 h-3.5" /> Filter:
+            </span>
+
+            {/* Filter 1: Alle */}
+            <button
+              onClick={() => setActiveFilter('all')}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 font-headline ${
+                activeFilter === 'all'
+                  ? 'bg-[#D91E2A] text-white shadow-sm shadow-[#D91E2A]/20'
+                  : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
+              }`}
+            >
+              <span>Alle Termine</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeFilter === 'all' ? 'bg-white/25 text-white' : 'bg-structure text-text-muted'}`}>
+                {monthStats.all}
+              </span>
+            </button>
+
+            {/* Filter 2: Umzüge */}
+            <button
+              onClick={() => setActiveFilter('moves')}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 font-headline ${
+                activeFilter === 'moves'
+                  ? 'bg-[#D91E2A] text-white shadow-sm shadow-[#D91E2A]/20'
+                  : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
+              }`}
+            >
+              <TruckIcon className="w-3.5 h-3.5" />
+              <span>Umzüge</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeFilter === 'moves' ? 'bg-white/25 text-white' : 'bg-structure text-text-muted'}`}>
+                {monthStats.moves}
+              </span>
+            </button>
+
+            {/* Filter 3: Besichtigungen */}
+            <button
+              onClick={() => setActiveFilter('viewings')}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 font-headline ${
+                activeFilter === 'viewings'
+                  ? 'bg-amber-600 text-white shadow-sm shadow-amber-600/20'
+                  : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[13px]">visibility</span>
+              <span>Besichtigungen</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeFilter === 'viewings' ? 'bg-white/25 text-white' : 'bg-structure text-text-muted'}`}>
+                {monthStats.viewings}
+              </span>
+            </button>
+
+            {/* Filter 4: Logistik & Fristen */}
+            <button
+              onClick={() => setActiveFilter('logistics')}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 font-headline ${
+                activeFilter === 'logistics'
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
+                  : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[13px]">inventory_2</span>
+              <span>Logistik & Material</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeFilter === 'logistics' ? 'bg-white/25 text-white' : 'bg-structure text-text-muted'}`}>
+                {monthStats.logistics}
+              </span>
+            </button>
+          </div>
+
+          {/* Color Legend */}
+          <div className="flex flex-wrap items-center gap-2 text-[10px] font-medium text-text-muted">
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-[#D91E2A]"></span> Umzug
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-amber-500"></span> Besichtigung
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-yellow-500"></span> HVZ
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-blue-500"></span> Kartons
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-teal-500"></span> Möbellift
+            </span>
+          </div>
+        </div>
       </div>
 
-      <div className="glass-panel flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 rounded-2xl">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-text-main flex items-center gap-3">
-            <CalendarDaysIcon className="w-8 h-8 text-primary" /> Einsatzplanung
-          </h1>
-          <p className="text-text-muted mt-1">Verwalten Sie hier alle operativen Umzüge und Termine.</p>
-        </div>
-        <div className="flex items-center gap-4 bg-white/5 border border-white/10 rounded-full px-2 py-1 shadow-inner">
-          <button onClick={prevMonth} className="p-2 hover:bg-white/10 rounded-full transition-colors text-text-main">
-            <ChevronLeftIcon className="w-5 h-5" />
-          </button>
-          <h2 className="text-lg font-bold text-text-main w-40 text-center tracking-wide">
-            {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-          </h2>
-          <button onClick={nextMonth} className="p-2 hover:bg-white/10 rounded-full transition-colors text-text-main">
-            <ChevronRightIcon className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-
-      <div className="glass-panel min-h-[600px] p-0 overflow-hidden mt-6">
+      {/* Calendar Grid Container */}
+      <div className="bg-bg-panel border border-structure rounded-3xl overflow-hidden shadow-sm">
         {loading ? (
-          <div className="flex justify-center p-12"><div className="animate-spin h-8 w-8 border-t-2 border-primary rounded-full"></div></div>
+          <div className="flex justify-center p-20">
+            <div className="animate-spin h-10 w-10 border-t-2 border-b-2 border-primary rounded-full"></div>
+          </div>
         ) : (
           <div className="w-full">
-            <div className="grid grid-cols-7 border-b border-white/10 bg-black/20">
+            {/* Weekday Header */}
+            <div className="grid grid-cols-7 border-b border-structure bg-bg-card/50">
               {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(day => (
-                <div key={day} className="p-4 text-center font-bold text-text-muted text-xs uppercase tracking-wider">
+                <div 
+                  key={day} 
+                  className="py-3 px-2 text-center font-bold text-text-muted text-xs uppercase tracking-wider font-headline"
+                >
                   {day}
                 </div>
               ))}
             </div>
             
+            {/* Days Grid */}
             <div className="grid grid-cols-7 auto-rows-fr">
+              {/* Blanks of previous month */}
               {blanksArray.map(b => (
-                <div key={`blank-${b}`} className="min-h-[120px] p-2 border-b border-r border-white/5 bg-black/10"></div>
+                <div 
+                  key={`blank-${b}`} 
+                  className="min-h-[120px] p-2 border-b border-r border-structure/40 bg-structure/10"
+                />
               ))}
               
+              {/* Month Days */}
               {daysArray.map(day => {
                 const dateStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 
-                // Find events for this day
+                // Collect events for this day
                 const dayEvents: any[] = [];
                 
                 orders.forEach(o => {
                   const effectiveMovingDate = o.orderMeta?.movingDateFrom || o.movingDate || o.disposition?.movingDate;
+                  const isConfirmed = !['draft', 'quote'].includes(o.status);
+
                   if (effectiveMovingDate) {
                     const movingDateStr = effectiveMovingDate.split('T')[0];
                     const movingDateObj = new Date(movingDateStr);
                     
-                    // Bestimme das Erstellungsdatum für kurzfristige Berechnungen
-                    let createdAtObj = new Date(); // Fallback auf heute
+                    let createdAtObj = new Date();
                     if (o.createdAt) {
                       createdAtObj = o.createdAt?.seconds ? new Date(o.createdAt.seconds * 1000) : new Date(o.createdAt);
                     }
                     
-                    // 1. Umzugstag (nur bei bestätigten Aufträgen)
-                    const isConfirmed = !['draft', 'quote'].includes(o.status);
-                    
+                    // 1. Umzugstag (nur bestätigte Aufträge)
                     if (movingDateStr === dateStr && isConfirmed) {
-                      const isDone = o.status === 'completed' || o.status === 'invoice_open' || o.status === 'invoice_paid';
+                      const isDone = ['completed', 'invoice_open', 'invoice_paid'].includes(o.status);
                       dayEvents.push({
                         id: o.id + '_move',
                         type: 'move',
-                        title: 'Umzug: ' + o.customerName,
-                        address: o.logistics?.a_city || o.logistics?.loadingAddress?.split(',')[0] || 'Keine Adresse',
-                        color: 'bg-orange-600 border-orange-500 text-white hover:bg-orange-500 shadow-md shadow-orange-500/20',
+                        category: 'moves',
+                        title: o.customerName || 'Kunde',
+                        address: o.logistics?.b_city || o.logistics?.a_city || o.logistics?.loadingAddress?.split(',')[0] || 'Kein Zielort',
                         orderId: o.id,
                         customerId: o.customerId,
                         isDone,
-                        disposition: o.disposition || null
+                        disposition: o.disposition || null,
+                        colorClass: 'bg-red-50 text-[#D91E2A] border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/50'
                       });
                     }
 
-                    // 2. Halteverbot (Soll: 7 Tage vorher, oder am Tag der Angebot-Annahme wenn kurzfristig) - nur bestätigte
+                    // 2. Halteverbot (Soll: 7 Tage vorher oder Tag der Annahme)
                     if (o.logistics?.noParkingZone && isConfirmed) {
                       let hvDateStr = o.orderMeta?.halteverbotDate || '';
                       if (!hvDateStr) {
@@ -159,19 +363,20 @@ export default function CalendarPage() {
                           id: o.id + '_hv',
                           ticketId: 'halteverbot',
                           type: 'parking',
-                          title: 'Halteverbot',
-                          address: o.customerName,
-                          color: 'bg-yellow-500 border-yellow-400 text-black font-medium hover:bg-yellow-400 shadow-md shadow-yellow-500/20',
+                          category: 'logistics',
+                          title: 'Halteverbot: ' + (o.customerName || 'Kunde'),
+                          address: o.logistics?.a_city || 'HVZ einrichten',
                           orderId: o.id,
                           customerId: o.customerId,
                           isDone: !!o.ticketStates?.halteverbot,
-                          timeStr: o.orderMeta?.halteverbotTime
+                          timeStr: o.orderMeta?.halteverbotTime,
+                          colorClass: 'bg-yellow-50 text-yellow-800 border-yellow-200 dark:bg-yellow-950/40 dark:text-yellow-300 dark:border-yellow-900/50'
                         });
                       }
                     }
 
-                    // 3. Karton-Lieferung (Soll: 28 Tage vorher, oder am Tag der Angebot-Annahme wenn kurzfristig) - nur bestätigte
-                    if (o.services?.some((s: any) => s.name.toLowerCase().includes('karton')) && isConfirmed) {
+                    // 3. Karton-Lieferung (Soll: 28 Tage vorher)
+                    if (o.services?.some((s: any) => s.name?.toLowerCase().includes('karton')) && isConfirmed) {
                       let boxDateStr = o.orderMeta?.kartonDeliveryDate || '';
                       if (!boxDateStr) {
                         let boxDate = new Date(movingDateObj);
@@ -185,22 +390,22 @@ export default function CalendarPage() {
                           id: o.id + '_box',
                           ticketId: 'kartons_liefern',
                           type: 'boxes',
-                          title: 'Kartons liefern',
-                          address: o.customerName,
-                          color: 'bg-blue-600 border-blue-500 text-white hover:bg-blue-500 shadow-md shadow-blue-500/20',
+                          category: 'logistics',
+                          title: 'Kartons: ' + (o.customerName || 'Kunde'),
+                          address: o.logistics?.a_city || 'Kartonlieferung',
                           orderId: o.id,
                           customerId: o.customerId,
                           isDone: !!o.ticketStates?.kartons_liefern,
-                          timeStr: o.orderMeta?.kartonDeliveryTime
+                          timeStr: o.orderMeta?.kartonDeliveryTime,
+                          colorClass: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/50'
                         });
                       }
                     }
 
-                    // 4. Möbellift buchen/reservieren - nur bestätigte
-                    if (o.services?.some((s: any) => ['lift', 'möbellift', 'aufzug'].some(kw => s.name.toLowerCase().includes(kw))) && isConfirmed) {
+                    // 4. Möbellift buchen
+                    if (o.services?.some((s: any) => ['lift', 'möbellift', 'aufzug'].some(kw => s.name?.toLowerCase().includes(kw))) && isConfirmed) {
                       let liftDateStr = o.orderMeta?.moebelliftDate || '';
                       if (!liftDateStr) {
-                        // Standard: 3 Tage vor dem Umzug
                         let liftDate = new Date(movingDateObj);
                         liftDate.setDate(liftDate.getDate() - 3);
                         if (liftDate < createdAtObj) liftDate = new Date(createdAtObj);
@@ -212,95 +417,152 @@ export default function CalendarPage() {
                           id: o.id + '_lift',
                           ticketId: 'moebellift_buchen',
                           type: 'lift',
-                          title: 'Möbellift buchen',
-                          address: o.customerName,
-                          color: 'bg-teal-600 border-teal-500 text-white hover:bg-teal-500 shadow-md shadow-teal-500/20',
+                          category: 'logistics',
+                          title: 'Möbellift: ' + (o.customerName || 'Kunde'),
+                          address: o.logistics?.a_city || 'Lift reservieren',
                           orderId: o.id,
                           customerId: o.customerId,
                           isDone: !!o.ticketStates?.moebellift_buchen,
-                          timeStr: o.orderMeta?.moebelliftTime
+                          timeStr: o.orderMeta?.moebelliftTime,
+                          colorClass: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-900/50'
                         });
                       }
                     }
                   }
 
-                  // 5. Besichtigungstermine
+                  // 5. Besichtigungstermine (Phase 2)
                   const effectiveViewingDate = o.orderMeta?.viewingDate || o.viewingDate;
                   if (effectiveViewingDate && effectiveViewingDate.split('T')[0] === dateStr) {
+                    const isVideo = (o.orderMeta?.viewingType || '').toLowerCase().includes('video');
                     dayEvents.push({
                       id: o.id + '_view',
                       ticketId: 'viewing_requested',
                       type: 'viewing',
-                      title: 'Besichtigung',
-                      address: o.customerName,
-                      fullAddress: (o.logistics?.a_city || o.logistics?.a_street) ? `${o.logistics.a_street || ''} ${o.logistics.a_houseNr || ''}, ${o.logistics.a_zip || ''} ${o.logistics.a_city || ''}` : '',
-                      color: 'bg-primary border-primary-hover text-white hover:bg-primary-hover shadow-md shadow-primary/20',
+                      category: 'viewings',
+                      isVideo,
+                      title: (isVideo ? 'Video: ' : 'Besichtigung: ') + (o.customerName || 'Kunde'),
+                      address: o.logistics?.a_city || (isVideo ? 'Online Video-Call' : 'Vor Ort'),
+                      fullAddress: (o.logistics?.a_city || o.logistics?.a_street) 
+                        ? `${o.logistics.a_street || ''} ${o.logistics.a_houseNr || ''}, ${o.logistics.a_zip || ''} ${o.logistics.a_city || ''}` 
+                        : '',
                       orderId: o.id,
                       customerId: o.customerId,
                       isDone: !!o.ticketStates?.viewing_requested,
-                      timeStr: effectiveViewingDate.split('T')[1] ? effectiveViewingDate.split('T')[1].substring(0,5) : ''
+                      timeStr: effectiveViewingDate.split('T')[1] ? effectiveViewingDate.split('T')[1].substring(0, 5) : '',
+                      colorClass: 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50'
                     });
                   }
                 });
 
-                const isToday = new Date().toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toDateString();
+                // Apply Active Category Filter
+                const filteredEvents = dayEvents.filter(e => {
+                  if (activeFilter !== 'all' && e.category !== activeFilter) {
+                    return false;
+                  }
+                  if (searchQuery.trim()) {
+                    const q = searchQuery.toLowerCase();
+                    return (
+                      e.title.toLowerCase().includes(q) || 
+                      e.address.toLowerCase().includes(q) ||
+                      (e.fullAddress && e.fullAddress.toLowerCase().includes(q))
+                    );
+                  }
+                  return true;
+                });
+
+                const todayObj = new Date();
+                const isToday = todayObj.toDateString() === new Date(currentDate.getFullYear(), currentDate.getMonth(), day).toDateString();
                 
                 return (
                   <div 
                     key={`day-${day}`} 
                     onClick={() => setSelectedDateStr(dateStr)}
-                    className={`min-h-[120px] p-2 border-b border-r border-white/5 relative group hover:bg-white/[0.04] transition-colors cursor-pointer ${isToday ? 'bg-primary/10' : 'bg-transparent'}`}
+                    className={`min-h-[135px] p-2 border-b border-r border-structure/70 relative group transition-colors cursor-pointer flex flex-col justify-between ${
+                      isToday 
+                        ? 'bg-primary/5 ring-1 ring-primary/40 ring-inset' 
+                        : 'hover:bg-structure/20 bg-bg-panel'
+                    }`}
                   >
-                    <div className={`text-right font-bold text-sm mb-2 ${isToday ? 'text-primary' : 'text-text-muted'}`}>
-                      {isToday && <span className="bg-primary text-white text-[10px] px-1.5 py-0.5 rounded mr-2 uppercase tracking-wider">Heute</span>}
-                      {day}
+                    <div className="flex items-center justify-between mb-1.5">
+                      {isToday ? (
+                        <span className="bg-[#D91E2A] text-white text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider font-headline shadow-sm">
+                          Heute
+                        </span>
+                      ) : (
+                        <span></span>
+                      )}
+                      <span className={`font-headline font-bold text-xs ${isToday ? 'text-primary' : 'text-text-muted group-hover:text-text-main'}`}>
+                        {day}
+                      </span>
                     </div>
                     
-                    <div className="space-y-1.5">
-                      {dayEvents.map((event: any) => {
-                        const eventContent = (
-                          <>
-                            <div className="font-bold truncate flex items-center gap-1">
-                              {event.isDone && <CheckIcon className="w-3 h-3 shrink-0" />}
-                              <span className={event.isDone ? 'line-through' : ''}>
-                                {event.disposition?.movingTimeStr && <span className="mr-1 opacity-80">{event.disposition.movingTimeStr}</span>}
-                                {event.timeStr && <span className="mr-1 opacity-80">{event.timeStr}</span>}
-                                {event.title}
-                              </span>
+                    {/* Events list */}
+                    <div className="space-y-1.5 flex-1">
+                      {filteredEvents.slice(0, 4).map((event: any) => {
+                        const isMove = event.type === 'move';
+                        const isViewing = event.type === 'viewing';
+                        
+                        return (
+                          <div
+                            key={event.id}
+                            onClick={(e) => {
+                              if (isViewing) {
+                                e.stopPropagation();
+                                setViewingModalEvent(event);
+                              }
+                            }}
+                            className={`p-1.5 rounded-xl border text-[11px] transition-all shadow-xs leading-tight font-medium ${event.colorClass} ${
+                              event.isDone ? 'line-through opacity-45' : 'hover:scale-[1.01]'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-1">
+                              <div className="truncate flex items-center gap-1 font-bold">
+                                {event.isDone && <CheckIcon className="w-3 h-3 shrink-0" />}
+                                {isMove && <span className="material-symbols-outlined text-xs shrink-0">local_shipping</span>}
+                                {isViewing && (
+                                  <span className="material-symbols-outlined text-xs shrink-0">
+                                    {event.isVideo ? 'videocam' : 'location_on'}
+                                  </span>
+                                )}
+                                {event.type === 'parking' && <span className="material-symbols-outlined text-xs shrink-0">block</span>}
+                                {event.type === 'boxes' && <span className="material-symbols-outlined text-xs shrink-0">package_2</span>}
+                                {event.type === 'lift' && <span className="material-symbols-outlined text-xs shrink-0">elevator</span>}
+                                
+                                <span className="truncate">{event.title}</span>
+                              </div>
+
+                              {event.timeStr && (
+                                <span className="text-[10px] font-bold shrink-0 opacity-90">
+                                  {event.timeStr}
+                                </span>
+                              )}
                             </div>
-                            <div className="opacity-80 truncate mt-0.5">{event.address}</div>
-                            {event.type === 'move' && event.disposition && (
-                              <div className="mt-1 pt-1 border-t border-current/20 text-[10px] leading-tight flex flex-wrap gap-x-2 gap-y-0.5 opacity-90">
-                                {event.disposition.helpers > 0 && <span>{event.disposition.helpers} Helfer</span>}
+
+                            <div className="text-[10px] opacity-80 truncate mt-0.5">
+                              {event.address}
+                            </div>
+
+                            {/* Mini resources preview for move */}
+                            {isMove && event.disposition && (event.disposition.helpers > 0 || event.disposition.koffer35t > 0 || event.disposition.lkw7t > 0) && (
+                              <div className="mt-1 pt-1 border-t border-current/15 text-[9px] flex flex-wrap gap-x-2 opacity-90 font-semibold">
+                                {event.disposition.helpers > 0 && <span>{event.disposition.helpers}H</span>}
                                 {event.disposition.koffer35t > 0 && <span>{event.disposition.koffer35t}x 3,5t</span>}
                                 {event.disposition.lkw7t > 0 && <span>{event.disposition.lkw7t}x 7,5t</span>}
                               </div>
                             )}
-                          </>
-                        );
-
-                        if (event.type === 'viewing') {
-                          return (
-                            <button
-                              key={event.id}
-                              onClick={(e) => { e.stopPropagation(); setViewingModalEvent(event); }}
-                              className={`block w-full text-left border p-1.5 rounded-lg text-xs transition-all shadow-sm ${event.color} ${event.isDone ? 'opacity-30 grayscale' : ''}`}
-                            >
-                              {eventContent}
-                            </button>
-                          );
-                        }
-
-                        return (
-                          <Link 
-                            key={event.id} 
-                            href={event.type === 'move' ? `/dashboard/orders` : `/dashboard/customers/${event.customerId}`}
-                            className={`block border p-1.5 rounded-lg text-xs transition-all shadow-sm ${event.color} ${event.isDone ? 'opacity-30 grayscale' : ''}`}
-                          >
-                            {eventContent}
-                          </Link>
+                          </div>
                         );
                       })}
+
+                      {filteredEvents.length > 4 && (
+                        <div className="text-[10px] font-bold text-center text-text-muted hover:text-primary py-0.5">
+                          +{filteredEvents.length - 4} weitere
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="text-[9px] text-right text-text-muted mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      Planen →
                     </div>
                   </div>
                 );
@@ -310,6 +572,7 @@ export default function CalendarPage() {
         )}
       </div>
 
+      {/* Dispositions-Modal (Tages-Detailansicht mit 3 getrennten Sektionen) */}
       {selectedDateStr && (
         <DispoModal 
           dateStr={selectedDateStr} 
@@ -319,44 +582,77 @@ export default function CalendarPage() {
         />
       )}
 
+      {/* Viewing Quick Info Modal */}
       {viewingModalEvent && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setViewingModalEvent(null)}>
-          <div className="relative glass-panel bg-[#131D26]/90 w-full max-w-md p-6 flex flex-col gap-4 shadow-[0_0_50px_rgba(143,22,39,0.15)]" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-start border-b border-white/10 pb-4">
-              <h2 className="text-xl font-bold text-text-main flex items-center gap-2">Besichtigung</h2>
-              <button type="button" onClick={() => setViewingModalEvent(null)} className="p-1.5 bg-white/5 hover:bg-white/10 rounded-full transition-colors border border-white/10">
-                <XMarkIcon className="w-5 h-5 text-text-main" />
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200" 
+          onClick={() => setViewingModalEvent(null)}
+        >
+          <div 
+            className="relative bg-bg-panel border border-structure w-full max-w-md p-6 rounded-3xl flex flex-col gap-4 shadow-xl shadow-black/20" 
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start border-b border-structure pb-4">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-amber-500 text-2xl">
+                  {viewingModalEvent.isVideo ? 'videocam' : 'calendar_month'}
+                </span>
+                <h2 className="text-xl font-bold text-text-main font-headline">
+                  {viewingModalEvent.isVideo ? 'Videobesichtigung' : 'Vor-Ort-Besichtigung'}
+                </h2>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setViewingModalEvent(null)} 
+                className="p-1.5 hover:bg-structure rounded-full transition-colors text-text-muted hover:text-text-main"
+              >
+                <XMarkIcon className="w-5 h-5" />
               </button>
             </div>
             
-            <div className="space-y-3">
+            <div className="space-y-3.5">
               <div>
-                <div className="text-xs text-text-muted uppercase tracking-wider mb-1">Kunde</div>
-                <div className="font-bold text-text-main text-lg">{viewingModalEvent.address}</div>
+                <div className="text-xs text-text-muted uppercase tracking-wider font-headline font-bold mb-1">Kunde</div>
+                <div className="font-bold text-text-main text-base">{viewingModalEvent.title}</div>
               </div>
 
+              {viewingModalEvent.timeStr && (
+                <div>
+                  <div className="text-xs text-text-muted uppercase tracking-wider font-headline font-bold mb-1">Uhrzeit</div>
+                  <div className="text-sm font-semibold text-text-main flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-sm text-primary">schedule</span>
+                    {viewingModalEvent.timeStr} Uhr
+                  </div>
+                </div>
+              )}
+
               {viewingModalEvent.fullAddress && (
-                 <div>
-                   <div className="text-xs text-text-muted uppercase tracking-wider mb-1">Adresse</div>
-                   <div className="text-text-main">{viewingModalEvent.fullAddress}</div>
-                 </div>
+                <div>
+                  <div className="text-xs text-text-muted uppercase tracking-wider font-headline font-bold mb-1">Besichtigungsadresse</div>
+                  <div className="text-sm text-text-main">{viewingModalEvent.fullAddress}</div>
+                </div>
               )}
             </div>
 
-            <div className="mt-4 pt-4 border-t border-white/10 flex flex-col gap-2">
+            <div className="mt-4 pt-4 border-t border-structure flex flex-col gap-2">
               {viewingModalEvent.fullAddress && (
                 <a 
                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(viewingModalEvent.fullAddress)}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn-secondary w-full py-2 flex justify-center items-center gap-2 text-sm"
+                  className="btn-secondary w-full py-2.5 flex justify-center items-center gap-2 text-xs font-bold rounded-xl"
                 >
-                  <MapPinIcon className="w-5 h-5 text-primary" /> Auf Google Maps öffnen
+                  <MapPinIcon className="w-4 h-4 text-primary" /> Auf Google Maps öffnen
                 </a>
               )}
-              <Link href={`/dashboard/customers/${viewingModalEvent.customerId}`} className="btn-primary w-full py-2 flex justify-center items-center gap-2 text-sm shadow-sm">
-                Zum Kundenprofil
-              </Link>
+              {viewingModalEvent.customerId && (
+                <Link 
+                  href={`/dashboard/customers/${viewingModalEvent.customerId}`} 
+                  className="btn-primary w-full py-2.5 flex justify-center items-center gap-2 text-xs font-bold rounded-xl shadow-sm"
+                >
+                  Zum Kundenprofil
+                </Link>
+              )}
             </div>
           </div>
         </div>

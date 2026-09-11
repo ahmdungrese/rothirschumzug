@@ -5,7 +5,6 @@ import { useAuth } from '@/context/AuthContext';
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { getCol } from '@/lib/demoMode';
 
 interface PdfModalProps {
   order: any;
@@ -19,7 +18,7 @@ export function PdfModal({ order, customer, type, onClose, forceLiveQuote = fals
   const [settings, setSettings] = useState<any>(null);
 
   useEffect(() => {
-    getDoc(doc(db, getCol('system'), 'settings')).then(docSnap => {
+    getDoc(doc(db, 'system', 'settings')).then(docSnap => {
       if(docSnap.exists()) {
         setSettings(docSnap.data());
       } else {

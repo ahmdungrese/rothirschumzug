@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminStorage, adminFieldValue } from '@/lib/firebaseAdmin';
 
 const COLLECTIONS_TO_DELETE = [
-  'orders', 'invoices', 'customers', 'activity_logs',
-  'orders_demo', 'invoices_demo', 'customers_demo', 'activity_logs_demo'
+  'orders', 'invoices', 'customers', 'activity_logs'
 ];
 
 // Hilfsfunktion: Überprüft das Auth-Token und die Admin-Rolle
@@ -95,8 +94,7 @@ export async function POST(req: NextRequest) {
 
       // 2. Storage Dateien löschen
       const prefixes = [
-        'orders/', 'invoices/', 'customers/', 
-        'orders_demo/', 'invoices_demo/', 'customers_demo/'
+        'orders/', 'invoices/', 'customers/'
       ];
       let totalFiles = 0;
       for (const prefix of prefixes) {
@@ -106,12 +104,6 @@ export async function POST(req: NextRequest) {
 
       // 3. Settings Zähler zurücksetzen
       await adminDb.doc('system/settings').set({
-        nextQuoteNumber: 1,
-        nextOrderNumber: 1,
-        nextInvoiceNumber: 1
-      }, { merge: true });
-
-      await adminDb.doc('system_demo/settings').set({
         nextQuoteNumber: 1,
         nextOrderNumber: 1,
         nextInvoiceNumber: 1

@@ -5,7 +5,6 @@ import { updateDoc, doc } from 'firebase/firestore';
 import { XMarkIcon, TruckIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import { CounterInput } from '@/components/ui/CounterInput';
-import { getCol } from '@/lib/demoMode';
 import { changeOrderStatus } from '@/lib/orderStateMachine';
 
 export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose: () => void, onSuccess?: () => void }) {

@@ -1,68 +1,103 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ============================================
    DESIGN TOKENS — Dark Mode (Default)
    ============================================ */
-:root {
+:root,
+:root.dark,
+:root.dark-mode {
   color-scheme: dark;
-  --color-primary:            #8F1627;
-  --color-primary-hover:      #a11a2d;
-  --color-background-dark:    #0f161e;
-  --color-background-panel:   rgba(255, 255, 255, 0.04);
+  --color-primary:            #D91E2A;
+  --color-primary-hover:      #b81520;
+  --color-brand-primary:      #D91E2A;
+  
+  --color-background-dark:    #0B0F15;
+  --color-background-panel:   #111720;
+  --color-background-card:    #161F2C;
   --color-structure:          rgba(255, 255, 255, 0.08);
   --color-inactive:           #273B4B;
-  --color-text-main:          #FFFFFF;
-  --color-text-muted:         #94a3b8;
-  --color-doc-bg:             #F1F1F1;
+  --color-text-main:          #F8FAFC;
+  --color-text-muted:         #94A3B8;
+  --color-doc-bg:             #161F2C;
 
-  /* Surfaces used by hard-coded dark Tailwind classes */
-  --lm-card:                  rgba(255,255,255,0.04);
-  --lm-inset:                 rgba(0,0,0,0.20);
-  --lm-hover:                 rgba(255,255,255,0.05);
-  --lm-border-subtle:         rgba(255,255,255,0.06);
-  --lm-border-medium:         rgba(255,255,255,0.10);
-  --lm-scrollbar:             rgba(255,255,255,0.12);
-  --lm-scrollbar-hover:       rgba(255,255,255,0.25);
-  --lm-sidebar-header:        #0A0F13;
+  /* Google Studio Mockup Tokens (Dark) */
+  --surface-container-lowest: #10161F;
+  --surface-container-low:    #141C27;
+  --surface-container:        #1A2432;
+  --surface-container-high:   #202D3E;
+  --surface-container-highest:#29384D;
+  --on-background:            #F8FAFC;
+  --on-surface:               #E2E8F0;
+  --on-surface-variant:       #94A3B8;
+  --outline-variant:          rgba(255, 255, 255, 0.12);
+  --outline:                  rgba(255, 255, 255, 0.25);
+
+  --lm-card:                  #161F2C;
+  --lm-inset:                 rgba(0,0,0,0.30);
+  --lm-hover:                 rgba(255,255,255,0.06);
+  --lm-border-subtle:         rgba(255,255,255,0.08);
+  --lm-border-medium:         rgba(255,255,255,0.14);
+  --lm-scrollbar:             rgba(255,255,255,0.15);
+  --lm-scrollbar-hover:       rgba(255,255,255,0.30);
+  --lm-sidebar-header:        #070A0E;
   --lm-text-on-dark:          #FFFFFF;
-  --lm-kanban-col:            rgba(0,0,0,0.25);
-  --lm-kanban-col-border:     rgba(255,255,255,0.04);
-  --lm-kanban-card-from:      #1a1b24;
-  --lm-kanban-card-to:        #11121a;
+  --lm-kanban-col:            #10161F;
+  --lm-kanban-col-border:     rgba(255,255,255,0.08);
+  --lm-kanban-card-from:      #161F2C;
+  --lm-kanban-card-to:        #111720;
 }
 
 /* ============================================
    DESIGN TOKENS — Light Mode
    ============================================ */
+:root.light,
 :root.light-mode {
   color-scheme: light;
-  --color-background-dark:    #EEF2F7;
+  --color-primary:            #D91E2A;
+  --color-primary-hover:      #b81520;
+  --color-brand-primary:      #D91E2A;
+
+  --color-background-dark:    #F8FAFC;
   --color-background-panel:   #FFFFFF;
-  --color-structure:          #D0D7E2;
-  --color-inactive:           #B8C4D0;
-  --color-text-main:          #111827;
-  --color-text-muted:         #4B5563;
+  --color-background-card:    #FFFFFF;
+  --color-structure:          #E2E8F0;
+  --color-inactive:           #CBD5E1;
+  --color-text-main:          #0F172A;
+  --color-text-muted:         #64748B;
   --color-doc-bg:             #F8FAFC;
 
-  /* Light surfaces */
+  /* Google Studio Mockup Tokens (Light) */
+  --surface-container-lowest: #FFFFFF;
+  --surface-container-low:    #F1F5F9;
+  --surface-container:        #ECEEEE;
+  --surface-container-high:   #E2E8F0;
+  --surface-container-highest:#CBD5E1;
+  --on-background:            #0F172A;
+  --on-surface:               #1E293B;
+  --on-surface-variant:       #64748B;
+  --outline-variant:          #CBD5E1;
+  --outline:                  #94A3B8;
+
   --lm-card:                  #FFFFFF;
-  --lm-inset:                 #E4EAF2;
-  --lm-hover:                 #DDE4EF;
-  --lm-border-subtle:         #C8D1DC;
-  --lm-border-medium:         #B8C4D0;
+  --lm-inset:                 #F1F5F9;
+  --lm-hover:                 #F8FAFC;
+  --lm-border-subtle:         #E2E8F0;
+  --lm-border-medium:         #CBD5E1;
   --lm-scrollbar:             rgba(0,0,0,0.18);
   --lm-scrollbar-hover:       rgba(0,0,0,0.35);
-  --lm-sidebar-header:        #1E293B;
-  --lm-text-on-dark:          #FFFFFF;
-  --lm-kanban-col:            #DDE4EF;
-  --lm-kanban-col-border:     #B8C4D0;
+  --lm-sidebar-header:        #FFFFFF;
+  --lm-text-on-dark:          #0F172A;
+  --lm-kanban-col:            #F1F5F9;
+  --lm-kanban-col-border:     #E2E8F0;
   --lm-kanban-card-from:      #FFFFFF;
-  --lm-kanban-card-to:        #F1F5FB;
+  --lm-kanban-card-to:        #F8FAFC;
 }
 
 /* Globale Fixes für Select-Optionen */
 option {
-  background-color: var(--color-background-dark);
+  background-color: var(--color-background-panel);
   color: var(--color-text-main);
 }
 
@@ -70,17 +105,32 @@ option {
    TAILWIND THEME MAPPING
    ============================================ */
 @theme inline {
-  --color-primary:       var(--color-primary);
-  --color-primary-hover: var(--color-primary-hover);
-  --color-bg-dark:       var(--color-background-dark);
-  --color-bg-panel:      var(--color-background-panel);
-  --color-structure:     var(--color-structure);
-  --color-inactive:      var(--color-inactive);
-  --color-text-main:     var(--color-text-main);
-  --color-text-muted:    var(--color-text-muted);
-  --color-doc-bg:        var(--color-doc-bg);
-  --font-sans:           var(--font-inter), Arial, sans-serif;
-  --font-mono:           var(--font-geist-mono);
+  --color-primary:                   var(--color-primary);
+  --color-primary-hover:             var(--color-primary-hover);
+  --color-brand-primary:             var(--color-brand-primary);
+  --color-bg-dark:                   var(--color-background-dark);
+  --color-bg-panel:                  var(--color-background-panel);
+  --color-bg-card:                   var(--color-background-card);
+  --color-structure:                 var(--color-structure);
+  --color-inactive:                  var(--color-inactive);
+  --color-text-main:                 var(--color-text-main);
+  --color-text-muted:                var(--color-text-muted);
+  --color-doc-bg:                    var(--color-doc-bg);
+
+  --color-surface-container-lowest:  var(--surface-container-lowest);
+  --color-surface-container-low:     var(--surface-container-low);
+  --color-surface-container:         var(--surface-container);
+  --color-surface-container-high:    var(--surface-container-high);
+  --color-surface-container-highest: var(--surface-container-highest);
+  --color-on-background:             var(--on-background);
+  --color-on-surface:                var(--on-surface);
+  --color-on-surface-variant:        var(--on-surface-variant);
+  --color-outline-variant:           var(--outline-variant);
+  --color-outline:                   var(--outline);
+
+  --font-sans:     var(--font-plus-jakarta), "Plus Jakarta Sans", sans-serif;
+  --font-headline: var(--font-anybody), "Anybody", sans-serif;
+  --font-display:  var(--font-anybody), "Anybody", sans-serif;
 }
 
 /* ============================================
@@ -93,6 +143,21 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+.font-headline {
+  font-family: var(--font-headline);
+}
+
+.font-display {
+  font-family: var(--font-headline);
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  display: inline-block;
+  vertical-align: middle;
+  line-height: 1;
+}
+
 /* ============================================
    REUSABLE COMPONENT CLASSES
    ============================================ */
@@ -100,7 +165,7 @@ body {
   @apply bg-primary text-white font-semibold py-2 px-4 md:py-3 md:px-6 rounded-lg transition-all duration-200 hover:bg-primary-hover flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:shadow-primary/40;
 }
 .btn-secondary {
-  @apply bg-bg-dark border border-structure text-text-main font-semibold py-2 px-4 md:py-3 md:px-6 rounded-lg transition-all duration-200 hover:bg-bg-panel flex items-center justify-center gap-2 shadow-sm;
+  @apply bg-bg-panel border border-structure text-text-main font-semibold py-2 px-4 md:py-3 md:px-6 rounded-lg transition-all duration-200 hover:bg-bg-dark flex items-center justify-center gap-2 shadow-sm;
 }
 .panel {
   @apply bg-bg-panel border border-structure rounded-xl p-4 md:p-6 shadow-lg;
@@ -114,119 +179,40 @@ body {
   @apply flex flex-col gap-3.5 p-4 rounded-2xl h-full shadow-inner;
 }
 .kanban-card {
-  background: linear-gradient(135deg, var(--lm-kanban-card-from), var(--lm-kanban-card-to));
-  border: 1px solid var(--lm-border-subtle);
-  @apply transition-all duration-300 rounded-2xl p-4 shadow-lg hover:shadow-xl hover:-translate-y-0.5 flex flex-col;
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-structure);
+  @apply transition-all duration-300 rounded-2xl p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 flex flex-col;
 }
 .kanban-card:hover {
   border-color: var(--color-primary);
 }
 .input-field {
-  background-color: var(--lm-card);
-  border: 1px solid var(--lm-border-medium);
+  background-color: var(--color-bg-panel);
+  border: 1px solid var(--color-structure);
   color: var(--color-text-main);
   @apply rounded-lg px-4 py-3 focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all duration-200 w-full;
 }
 .input-field::placeholder {
   color: var(--color-text-muted);
-  opacity: 0.6;
+  opacity: 0.7;
 }
 .input-field:focus {
   border-color: var(--color-primary);
 }
 
+.sidebar-active {
+  background: linear-gradient(90deg, rgba(217, 30, 42, 0.12) 0%, transparent 100%);
+  border-left: 4px solid #D91E2A !important;
+}
+
 /* ============================================
-   LIGHT MODE OVERRIDES
-   Override every dark-hardcoded Tailwind class
+   SCROLLBARS
    ============================================ */
-
-/* --- Backgrounds --- */
-.light-mode .bg-\[\#0A0F13\],
-.light-mode .bg-\[\#0f161e\],
-.light-mode .bg-\[\#11121a\],
-.light-mode .bg-\[\#1a1b24\],
-.light-mode .bg-\[\#21232f\],
-.light-mode .bg-\[\#161722\] {
-  background-color: var(--lm-sidebar-header) !important;
-}
-
-.light-mode .bg-black\/10,
-.light-mode .bg-black\/20,
-.light-mode .bg-black\/25,
-.light-mode .bg-black\/30,
-.light-mode .bg-black\/40 {
-  background-color: var(--lm-inset) !important;
-}
-
-.light-mode .bg-white\/\[0\.01\],
-.light-mode .bg-white\/\[0\.02\],
-.light-mode .bg-white\/\[0\.03\],
-.light-mode .bg-white\/\[0\.04\],
-.light-mode .bg-white\/5,
-.light-mode .bg-white\/10 {
-  background-color: var(--lm-card) !important;
-}
-
-/* --- Borders --- */
-.light-mode .border-white\/\[0\.04\],
-.light-mode .border-white\/\[0\.05\],
-.light-mode .border-white\/\[0\.06\],
-.light-mode .border-white\/5 {
-  border-color: var(--lm-border-subtle) !important;
-}
-.light-mode .border-white\/10,
-.light-mode .border-white\/\[0\.08\],
-.light-mode .border-white\/\[0\.09\] {
-  border-color: var(--lm-border-medium) !important;
-}
-
-/* --- Text on hardcoded dark bg --- */
-.light-mode .text-white\/40,
-.light-mode .text-white\/50,
-.light-mode .text-white\/60,
-.light-mode .text-white\/70,
-.light-mode .text-white\/80 {
-  color: var(--color-text-muted) !important;
-}
-
-/* --- Hover states --- */
-.light-mode .hover\:bg-white\/10:hover,
-.light-mode .hover\:bg-white\/\[0\.02\]:hover,
-.light-mode .hover\:bg-white\/5:hover {
-  background-color: var(--lm-hover) !important;
-}
-.light-mode .hover\:bg-black\/20:hover {
-  background-color: var(--lm-inset) !important;
-}
-
-/* --- Gradient cards (kanban, stat cards, etc.) --- */
-.light-mode .from-\[\#1a1b24\],
-.light-mode .from-\[\#21232f\] {
-  --tw-gradient-from: #FFFFFF !important;
-  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
-}
-.light-mode .to-\[\#11121a\],
-.light-mode .to-\[\#161722\] {
-  --tw-gradient-to: #EEF2F7 !important;
-}
-
-/* --- Sidebar header logo bar --- */
-.light-mode aside div.bg-\[\#0A0F13\] {
-  background-color: #1E293B !important;
-}
-
-/* --- Stat/badge pills --- */
-.light-mode .bg-structure\/50 {
-  background-color: #DDE4EF !important;
-}
-
-/* --- Scrollbars --- */
 .custom-scrollbar::-webkit-scrollbar        { width: 6px; height: 6px; }
 .custom-scrollbar::-webkit-scrollbar-track  { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb  { background: var(--lm-scrollbar); border-radius: 99px; }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--lm-scrollbar-hover); }
 .custom-scrollbar { scrollbar-width: thin; scrollbar-color: var(--lm-scrollbar) transparent; }
-
 
 @keyframes target-pulse {
   0% { box-shadow: 0 0 0 0 rgba(143, 22, 39, 0.7); border-color: var(--color-primary); }

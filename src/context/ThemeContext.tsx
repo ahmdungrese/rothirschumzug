@@ -34,13 +34,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Update local storage
     localStorage.setItem("rothirsch-theme", theme);
     
-    // Apply classes to HTML element
+    // Apply classes to HTML element (both 'dark'/'light' for Tailwind and 'dark-mode'/'light-mode' for legacy CSS)
     if (theme === "light") {
-      document.documentElement.classList.add("light-mode");
-      document.documentElement.classList.remove("dark-mode");
+      document.documentElement.classList.add("light", "light-mode");
+      document.documentElement.classList.remove("dark", "dark-mode");
+      document.documentElement.setAttribute("data-theme", "light");
+      document.documentElement.style.colorScheme = "light";
     } else {
-      document.documentElement.classList.add("dark-mode");
-      document.documentElement.classList.remove("light-mode");
+      document.documentElement.classList.add("dark", "dark-mode");
+      document.documentElement.classList.remove("light", "light-mode");
+      document.documentElement.setAttribute("data-theme", "dark");
+      document.documentElement.style.colorScheme = "dark";
     }
   }, [theme, mounted]);
 

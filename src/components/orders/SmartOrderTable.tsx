@@ -218,7 +218,7 @@ export function SmartOrderTable({
                       
                       {/* Optional 5th action (Contextual) - shown below if applicable */}
                       {order.status === 'quote' && onDispo && (
-                        <button onClick={(e) => { e.stopPropagation(); onDispo(order); }} className="p-2.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded-lg transition-colors flex justify-center items-center col-span-2" title="Disponieren">
+                        <button onClick={(e) => { e.stopPropagation(); onDispo(order); }} className="p-2.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 rounded-lg transition-colors flex justify-center items-center col-span-2" title="Planen">
                           <TruckIcon className="w-5 h-5" />
                         </button>
                       )}

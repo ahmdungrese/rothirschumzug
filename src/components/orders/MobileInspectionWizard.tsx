@@ -6,7 +6,6 @@ import { doc, getDoc, addDoc, updateDoc, collection, serverTimestamp } from 'fir
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
-import { getCol } from '@/lib/demoMode';
 import SignatureCanvas from 'react-signature-canvas';
 import { 
   ChevronRightIcon, 
@@ -33,7 +32,7 @@ import {
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
 const getPropertyIcon = (type: string) => {
-  const t = type.toLowerCase();
+  const t = (type || '').toLowerCase();
   if (t.includes('wohnung')) return <BuildingOffice2Icon className="w-6 h-6 mb-1" />;
   if (t.includes('haus')) return <HomeIcon className="w-6 h-6 mb-1" />;
   if (t.includes('büro') || t.includes('buero')) return <BriefcaseIcon className="w-6 h-6 mb-1" />;
@@ -72,6 +71,8 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
   const [orderMeta, setOrderMeta] = useState({
     movingDateFrom: '', movingDateTo: '', validUntil: '', manager: '', paymentMethod: '', viewingDate: ''
   });
+  const [showBisDate, setShowBisDate] = useState(false);
+  useEffect(() => { if (orderMeta.movingDateTo) setShowBisDate(true); }, [orderMeta.movingDateTo]);
 
   // 3. Logistik
   const [logistics, setLogistics] = useState({
@@ -95,7 +96,7 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
 
   // LOAD DATA
   useEffect(() => {
-    getDoc(doc(db, getCol('system'), 'settings')).then(snap => {
+    getDoc(doc(db, 'system', 'settings')).then(snap => {
       if(snap.exists()) {
         const s = snap.data();
         setSettings(s);
@@ -112,7 +113,7 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
     });
 
     if (orderId) {
-      getDoc(doc(db, getCol('orders'), orderId)).then(docSnap => {
+      getDoc(doc(db, 'orders', orderId)).then(docSnap => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           if (data.billingAddress) {
@@ -131,7 +132,7 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
         }
       });
     } else if (urlCustomerId) {
-      getDoc(doc(db, getCol('customers'), urlCustomerId)).then(docSnap => {
+      getDoc(doc(db, 'customers', urlCustomerId)).then(docSnap => {
         if (docSnap.exists()) {
           const c = docSnap.data();
           setCustomer(prev => ({
@@ -193,10 +194,24 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
 
       let finalCustomerId = urlCustomerId;
       if (!finalCustomerId) {
-        const cRef = await addDoc(collection(db, getCol('customers')), { 
+        const cRef = await addDoc(collection(db, 'customers'), { 
           ...customer, createdAt: serverTimestamp(), createdBy: profile?.displayName || 'Außendienst' 
         });
         finalCustomerId = cRef.id;
+      } else {
+        await updateDoc(doc(db, 'customers', finalCustomerId), {
+          type: customer.type || 'privat',
+          salutation: customer.salutation || '',
+          firstName: customer.firstName || '',
+          lastName: customer.lastName || '',
+          email: customer.email || '',
+          phone: customer.phone || '',
+          source: customer.source || '',
+          street: customer.street || '',
+          houseNr: customer.houseNr || '',
+          zip: customer.zip || '',
+          city: customer.city || ''
+        });
       }
 
       const payload: any = {
@@ -225,7 +240,7 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
       }
 
       if (orderId) {
-        await updateDoc(doc(db, getCol('orders'), orderId), payload);
+        await updateDoc(doc(db, 'orders', orderId), payload);
         toast.success("Besichtigung erfolgreich und sicher aktualisiert!", { id: toastId });
       } else {
         payload.status = 'draft';
@@ -233,9 +248,9 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
         payload.createdAt = serverTimestamp();
         payload.createdBy = profile?.displayName || 'Außendienst';
         
-        await addDoc(collection(db, getCol('orders')), payload);
+        await addDoc(collection(db, 'orders'), payload);
         if (settings?.nextQuoteNumber) {
-          await updateDoc(doc(db, getCol('system'), 'settings'), { nextQuoteNumber: settings.nextQuoteNumber + 1 });
+          await updateDoc(doc(db, 'system', 'settings'), { nextQuoteNumber: settings.nextQuoteNumber + 1 });
         }
         toast.success("Besichtigung erfolgreich und sicher gespeichert!", { id: toastId });
       }
@@ -304,6 +319,7 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
                 )}
                 <div><label className="block text-sm text-text-muted mb-2">Telefon</label><input type="tel" value={customer.phone} onChange={e => setCustomer({...customer, phone: e.target.value})} className="input-field w-full text-lg py-3" /></div>
                 <div><label className="block text-sm text-text-muted mb-2">E-Mail</label><input type="email" value={customer.email} onChange={e => setCustomer({...customer, email: e.target.value})} className="input-field w-full text-lg py-3" /></div>
+                <div className="md:col-span-2"><label className="block text-sm text-text-muted mb-2">Quelle (Woher kommt der Kunde?)</label><input type="text" list="sources" value={customer.source} onChange={e => setCustomer({...customer, source: e.target.value})} className="input-field w-full text-lg py-3" placeholder="z.B. Google, Check24, Empfehlung..." /></div>
               </div>
 
               <div className="mt-8 border-t border-structure pt-6">
@@ -311,7 +327,22 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
                 <div className="grid grid-cols-4 gap-4">
                   <div className="col-span-3"><label className="block text-sm text-text-muted mb-2">Straße</label><input type="text" value={customer.street} onChange={e => setCustomer({...customer, street: e.target.value})} className="input-field w-full text-lg py-3" /></div>
                   <div className="col-span-1"><label className="block text-sm text-text-muted mb-2">Nr.</label><input type="text" value={customer.houseNr} onChange={e => setCustomer({...customer, houseNr: e.target.value})} className="input-field w-full text-lg py-3" /></div>
-                  <div className="col-span-1"><label className="block text-sm text-text-muted mb-2">PLZ</label><input type="text" value={customer.zip} onChange={e => setCustomer({...customer, zip: e.target.value})} className="input-field w-full text-lg py-3" /></div>
+                  <div className="col-span-1"><label className="block text-sm text-text-muted mb-2">PLZ</label><input type="text" inputMode="numeric" value={customer.zip} onChange={async e => {
+                    const val = e.target.value;
+                    setCustomer({...customer, zip: val});
+                    const cleanVal = val.trim();
+                    if (cleanVal.length === 5) {
+                      try {
+                        const res = await fetch(`https://api.zippopotam.us/de/${cleanVal}`);
+                        if (res.ok) {
+                          const data = await res.json();
+                          if (data.places && data.places.length > 0) {
+                            setCustomer(prev => ({...prev, zip: cleanVal, city: data.places[0]['place name']}));
+                          }
+                        }
+                      } catch(err) {}
+                    }
+                  }} className="input-field w-full text-lg py-3" /></div>
                   <div className="col-span-3"><label className="block text-sm text-text-muted mb-2">Ort</label><input type="text" value={customer.city} onChange={e => setCustomer({...customer, city: e.target.value})} className="input-field w-full text-lg py-3" /></div>
                 </div>
               </div>
@@ -337,8 +368,31 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
                     {orderMeta.viewingDate === 'requested' && <p className="text-xs font-bold text-orange-400 mt-1">Kunde hat Besichtigung angefragt!</p>}
                   </div>
                   <div><label className="block text-sm text-text-muted mb-2">Angebot gültig bis</label><input type="date" value={orderMeta.validUntil} onChange={e => setOrderMeta({...orderMeta, validUntil: e.target.value})} className="input-field w-full text-lg py-3" /></div>
-                  <div><label className="block text-sm text-text-muted mb-2">Umzugstermin (Wunsch) von</label><input type="date" value={orderMeta.movingDateFrom} onChange={e => setOrderMeta({...orderMeta, movingDateFrom: e.target.value})} className="input-field w-full text-lg py-3" /></div>
-                  <div><label className="block text-sm text-text-muted mb-2">Umzugstermin (Wunsch) bis</label><input type="date" value={orderMeta.movingDateTo} onChange={e => setOrderMeta({...orderMeta, movingDateTo: e.target.value})} className="input-field w-full text-lg py-3" /></div>
+                  <div className="flex flex-col">
+                    <label className="flex justify-between items-center text-sm text-text-muted mb-2">
+                      <span>Umzugstermin (von)</span>
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          if (showBisDate) {
+                            setOrderMeta({ ...orderMeta, movingDateTo: '' });
+                          }
+                          setShowBisDate(!showBisDate);
+                        }} 
+                        className="text-primary hover:opacity-70 transition-opacity flex items-center gap-1 font-medium"
+                      >
+                        {showBisDate ? (
+                          <>Ohne "bis" <span className="text-[10px]">▲</span></>
+                        ) : (
+                          <>+ "bis" <span className="text-[10px]">▼</span></>
+                        )}
+                      </button>
+                    </label>
+                    <input type="date" value={orderMeta.movingDateFrom} onChange={e => setOrderMeta({...orderMeta, movingDateFrom: e.target.value})} className="input-field w-full text-lg py-3" />
+                  </div>
+                  {showBisDate && (
+                    <div className="animate-fade-in"><label className="block text-sm text-text-muted mb-2">Umzugstermin (bis)</label><input type="date" value={orderMeta.movingDateTo} onChange={e => setOrderMeta({...orderMeta, movingDateTo: e.target.value})} className="input-field w-full text-lg py-3" /></div>
+                  )}
                 </div>
               </div>
             </div>
@@ -355,10 +409,23 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
                   <div className="grid grid-cols-4 gap-4 mb-4">
                     <div className="col-span-3"><label className="block text-sm text-text-muted mb-2">Straße (A)</label><input type="text" value={logistics.a_street} onChange={e => setLogistics({...logistics, a_street: e.target.value})} className="input-field w-full text-lg py-3" /></div>
                     <div className="col-span-1"><label className="block text-sm text-text-muted mb-2">Nr.</label><input type="text" value={logistics.a_houseNr} onChange={e => setLogistics({...logistics, a_houseNr: e.target.value})} className="input-field w-full text-lg py-3" /></div>
-                    <div className="col-span-1"><label className="block text-sm text-text-muted mb-2">PLZ</label><input type="text" value={logistics.a_zip} onChange={e => setLogistics({...logistics, a_zip: e.target.value})} className="input-field w-full text-lg py-3" /></div>
+                    <div className="col-span-1"><label className="block text-sm text-text-muted mb-2">PLZ</label><input type="text" inputMode="numeric" value={logistics.a_zip} onChange={async e => {
+                      const val = e.target.value;
+                      setLogistics({...logistics, a_zip: val});
+                      const cleanVal = val.trim();
+                      if (cleanVal.length === 5) {
+                        try {
+                          const res = await fetch(`https://api.zippopotam.us/de/${cleanVal}`);
+                          if (res.ok) {
+                            const data = await res.json();
+                            if (data.places && data.places.length > 0) setLogistics(prev => ({...prev, a_zip: cleanVal, a_city: data.places[0]['place name']}));
+                          }
+                        } catch(err) {}
+                      }
+                    }} className="input-field w-full text-lg py-3" /></div>
                     <div className="col-span-3"><label className="block text-sm text-text-muted mb-2">Ort</label><input type="text" value={logistics.a_city} onChange={e => setLogistics({...logistics, a_city: e.target.value})} className="input-field w-full text-lg py-3" /></div>
                   </div>
-                  <div><label className="block text-sm text-text-muted mb-2">Etage (A)</label><select value={logistics.a_floor} onChange={e => setLogistics({...logistics, a_floor: e.target.value})} className="input-field w-full text-lg py-3"><option value="Erdgeschoss">Erdgeschoss</option><option value="1. OG">1. OG</option><option value="2. OG">2. OG</option><option value="3. OG">3. OG</option><option value="4. OG">4. OG</option><option value="5. OG +">5. OG oder höher</option></select></div>
+                  <div id="highlight-floorA"><label className="block text-sm text-text-muted mb-2">Etage (A)</label><input type="text" list="floors" value={logistics.a_floor} onChange={e => setLogistics({...logistics, a_floor: e.target.value})} className="input-field w-full text-lg py-3" placeholder="Auswählen oder tippen..." /></div>
                   
                   <div>
                     <label className="block text-sm text-text-muted mb-2">Immobilienart (A)</label>
@@ -386,10 +453,23 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
                   <div className="grid grid-cols-4 gap-4">
                      <div className="col-span-3"><label className="block text-sm text-text-muted mb-2">Straße (B)</label><input type="text" value={logistics.b_street} onChange={e => setLogistics({...logistics, b_street: e.target.value})} className="input-field w-full text-lg py-3" /></div>
                     <div className="col-span-1"><label className="block text-sm text-text-muted mb-2">Nr.</label><input type="text" value={logistics.b_houseNr} onChange={e => setLogistics({...logistics, b_houseNr: e.target.value})} className="input-field w-full text-lg py-3" /></div>
-                    <div className="col-span-1"><label className="block text-sm text-text-muted mb-2">PLZ</label><input type="text" value={logistics.b_zip} onChange={e => setLogistics({...logistics, b_zip: e.target.value})} className="input-field w-full text-lg py-3" /></div>
+                    <div className="col-span-1"><label className="block text-sm text-text-muted mb-2">PLZ</label><input type="text" inputMode="numeric" value={logistics.b_zip} onChange={async e => {
+                      const val = e.target.value;
+                      setLogistics({...logistics, b_zip: val});
+                      const cleanVal = val.trim();
+                      if (cleanVal.length === 5) {
+                        try {
+                          const res = await fetch(`https://api.zippopotam.us/de/${cleanVal}`);
+                          if (res.ok) {
+                            const data = await res.json();
+                            if (data.places && data.places.length > 0) setLogistics(prev => ({...prev, b_zip: cleanVal, b_city: data.places[0]['place name']}));
+                          }
+                        } catch(err) {}
+                      }
+                    }} className="input-field w-full text-lg py-3" /></div>
                     <div className="col-span-3"><label className="block text-sm text-text-muted mb-2">Ort</label><input type="text" value={logistics.b_city} onChange={e => setLogistics({...logistics, b_city: e.target.value})} className="input-field w-full text-lg py-3" /></div>
                   </div>
-                  <div><label className="block text-sm text-text-muted mb-2">Etage (B)</label><select value={logistics.b_floor} onChange={e => setLogistics({...logistics, b_floor: e.target.value})} className="input-field w-full text-lg py-3"><option value="Erdgeschoss">Erdgeschoss</option><option value="1. OG">1. OG</option><option value="2. OG">2. OG</option><option value="3. OG">3. OG</option><option value="4. OG">4. OG</option></select></div>
+                  <div id="highlight-floorB"><label className="block text-sm text-text-muted mb-2">Etage (B)</label><input type="text" list="floors" value={logistics.b_floor} onChange={e => setLogistics({...logistics, b_floor: e.target.value})} className="input-field w-full text-lg py-3" placeholder="Auswählen oder tippen..." /></div>
                   
                   <div>
                     <label className="block text-sm text-text-muted mb-2">Immobilienart (B)</label>
@@ -606,6 +686,22 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
 
         {/* Spacer to allow scrolling past the sticky bar and BottomNav */}
         <div className="md:hidden w-full shrink-0" style={{ height: 'calc(10rem + env(safe-area-inset-bottom, 0px))' }}></div>
+        <datalist id="floors">
+          <option value="Erdgeschoss" />
+          <option value="1. OG" />
+          <option value="2. OG" />
+          <option value="3. OG" />
+          <option value="4. OG" />
+          <option value="5. OG" />
+        </datalist>
+        <datalist id="sources">
+          <option value="Google" />
+          <option value="Check24" />
+          <option value="MyHammer" />
+          <option value="Empfehlung" />
+          <option value="Kleinanzeigen" />
+          <option value="Stammkunde" />
+        </datalist>
       </div>
     </div>
   );

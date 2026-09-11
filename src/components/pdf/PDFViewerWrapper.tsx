@@ -8,7 +8,6 @@ import { InvoicePDF } from './InvoicePDF';
 import { ProtocolPDF } from './ProtocolPDF';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { getCol } from '@/lib/demoMode';
 import { useAuth } from '@/context/AuthContext';
 
 export default function PDFViewerWrapper({ order, customer, type = 'order' }: { order: any, customer: any, type?: 'order' | 'employee' | 'invoice' | 'contract' | 'protocol' }) {
@@ -22,12 +21,12 @@ export default function PDFViewerWrapper({ order, customer, type = 'order' }: { 
   employeeName = employeeName || 'Rothirsch Team';
 
   useEffect(() => {
-    getDoc(doc(db, getCol('system'), 'settings')).then(docSnap => {
+    getDoc(doc(db, 'system', 'settings')).then(docSnap => {
       if(docSnap.exists()) {
         setSettings(docSnap.data());
       } else {
         // Fallback
-        setSettings({ companyName: 'Dein Unternehmen', city: 'Musterstadt' });
+        setSettings({ companyName: 'Rothirsch Umzüge', city: 'Bochum', street: 'Grillostr. 70', zip: '44799', email: 'info@rothirsch-umzug.de' });
       }
     });
   }, []);

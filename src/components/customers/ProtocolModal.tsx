@@ -5,7 +5,6 @@ import { db } from '@/lib/firebase';
 import { updateDoc, doc, arrayUnion, getDoc } from 'firebase/firestore';
 import { XMarkIcon, PlusCircleIcon, ClipboardDocumentIcon, PencilIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
-import { getCol } from '@/lib/demoMode';
 
 export function ProtocolModal({ order, onClose }: { order: any, onClose: () => void }) {
   const [type, setType] = useState('Gefahrenübergang (Haftungsausschluss)');
@@ -15,7 +14,7 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
   const [settings, setSettings] = useState<any>(null);
 
   React.useEffect(() => {
-    getDoc(doc(db, getCol('system'), 'settings')).then((docSnap) => {
+    getDoc(doc(db, 'system', 'settings')).then((docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setSettings(data);
@@ -66,7 +65,7 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
         createdAt: new Date().toISOString()
       };
 
-      await updateDoc(doc(db, getCol('orders'), order.id), {
+      await updateDoc(doc(db, 'orders', order.id), {
         protocols: arrayUnion(newProtocol)
       });
       

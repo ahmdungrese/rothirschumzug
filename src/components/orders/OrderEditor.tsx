@@ -11,13 +11,12 @@ import { db } from '@/lib/firebase';
 import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { calculateRoute } from '@/lib/routeCalculator';
-import { getCol } from '@/lib/demoMode';
 import { changeOrderStatus } from '@/lib/orderStateMachine';
 import { calculateOrderTotals } from '@/lib/financeHelpers';
 import { InventoryWizardModal, ROOM_TYPES } from './InventoryWizardModal';
 
 const getPropertyIcon = (type: string) => {
-  const t = type.toLowerCase();
+  const t = (type || '').toLowerCase();
   if (t.includes('wohnung')) return <BuildingOffice2Icon className="w-6 h-6 mb-1" />;
   if (t.includes('haus')) return <HomeIcon className="w-6 h-6 mb-1" />;
   if (t.includes('büro') || t.includes('buero')) return <BriefcaseIcon className="w-6 h-6 mb-1" />;
@@ -25,7 +24,7 @@ const getPropertyIcon = (type: string) => {
 };
 
 const getCategoryIcon = (category: string) => {
-  const c = category.toLowerCase();
+  const c = (category || '').toLowerCase();
   if (c.includes('transport') || c.includes('grundlagen')) return <TruckIcon className="w-5 h-5" />;
   if (c.includes('verpack') || c.includes('karton') || c.includes('material')) return <ArchiveBoxIcon className="w-5 h-5" />;
   if (c.includes('montage') || c.includes('aufbau') || c.includes('abbau')) return <WrenchIcon className="w-5 h-5" />;
@@ -34,6 +33,41 @@ const getCategoryIcon = (category: string) => {
   if (c.includes('zuschlag') || c.includes('sonstig')) return <PlusCircleIcon className="w-5 h-5" />;
   return <TagIcon className="w-5 h-5" />;
 };
+
+const STANDARD_SERVICES_A = [
+  { id: 'moebelabbau', name: 'Möbelabbau', price: 150, unit: 'pauschal', icon: 'tools_ladder', defaultDesc: 'Fachgerechter Abbau von Schränken, Betten und Regalen.' },
+  { id: 'kueche_abbau', name: 'Abbau von Küche', price: 280, unit: 'pauschal', icon: 'countertops', defaultDesc: 'Abbau der Einbauküche inkl. Elektrogeräte und fachgerechte Trennung der Wasseranschlüsse.' },
+  { id: 'packservice_ein', name: 'Einpackservice', price: 190, unit: 'pauschal', icon: 'inventory_2', defaultDesc: 'Einpacken des gesamten Hausrats in bereitgestellte Kartons inkl. Polstermaterial.' },
+  { id: 'hvz_a', name: 'Halteverbot A', price: 95, unit: 'Zone', icon: 'signpost', defaultDesc: 'Einrichtung einer temporären Halteverbotszone (ca. 15m) an der Beladestelle inkl. behördlicher Genehmigung.' },
+  { id: 'endreinigung', name: 'Endreinigung', price: 220, unit: 'pauschal', icon: 'cleaning_services', defaultDesc: 'Besenreine Endreinigung der Auszugsimmobilie.' }
+];
+
+const STANDARD_SERVICES_B = [
+  { id: 'moebelaufbau', name: 'Möbelaufbau', price: 180, unit: 'pauschal', icon: 'build', defaultDesc: 'Fachgerechter Aufbau aller Möbel in den Zielräumen.' },
+  { id: 'kueche_aufbau', name: 'Aufbau von Küche', price: 320, unit: 'pauschal', icon: 'kitchen', defaultDesc: 'Aufbau der Küchenzeile, Hängeschränke und Montage der Arbeitsplatte.' },
+  { id: 'packservice_aus', name: 'Auspackservice', price: 160, unit: 'pauschal', icon: 'unarchive', defaultDesc: 'Auspacken aller Kartons und Platzieren des Inhalts nach Kundenwunsch.' },
+  { id: 'bohren', name: 'Bohr- & Dübelarb.', price: 90, unit: 'pauschal', icon: 'handyman', defaultDesc: 'Fachgerechte Montage und Befestigung von Lampen, Spiegeln und Gardinenstangen.' },
+  { id: 'hvz_b', name: 'Halteverbot B', price: 95, unit: 'Zone', icon: 'signpost', defaultDesc: 'Einrichtung einer temporären Halteverbotszone (ca. 15m) an der Entladestelle inkl. behördlicher Genehmigung.' }
+];
+
+const QUICK_FURNITURE = [
+  { id: 'doppelbett', name: 'Doppelbett', cbm: 2.5, icon: 'single_bed', category: 'Betten', room: 'Schlafzimmer' },
+  { id: 'schrank_2', name: 'Schrank (2türig)', cbm: 1.8, icon: 'door_sliding', category: 'Schränke', room: 'Schlafzimmer' },
+  { id: 'esstisch', name: 'Esstisch', cbm: 0.9, icon: 'table_restaurant', category: 'Tische', room: 'Küche' },
+  { id: 'karton', name: 'Umzugskarton', cbm: 0.15, icon: 'inventory_2', category: 'Kartons', room: 'Allgemein' },
+  { id: 'sofa_3', name: '3er Sofa', cbm: 2.2, icon: 'chair', category: 'Sitzmöbel', room: 'Wohnzimmer' },
+  { id: 'stuhl', name: 'Stuhl', cbm: 0.2, icon: 'chair_alt', category: 'Sitzmöbel', room: 'Wohnzimmer' },
+  { id: 'regal', name: 'Bücherregal', cbm: 0.6, icon: 'shelves', category: 'Regale', room: 'Wohnzimmer' }
+];
+
+const QUICK_ROOMS = [
+  { id: 'alle', name: 'Alle', icon: 'apps' },
+  { id: 'wohnzimmer', name: 'Wohnzimmer', icon: 'chair' },
+  { id: 'schlafzimmer', name: 'Schlafzimmer', icon: 'bed' },
+  { id: 'kueche', name: 'Küche', icon: 'countertops' },
+  { id: 'kinderzimmer', name: 'Kinderzimmer', icon: 'toys' },
+  { id: 'buero', name: 'Büro', icon: 'desk' }
+];
 
 export function OrderEditor({ orderId }: { orderId?: string }) {
   const params = useParams();
@@ -57,7 +91,6 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     salutation: '',
     email: '',
     phone: '',
-    customerContact: '', // Name der Person vor Ort
     source: '',
     street: '',
     houseNr: '',
@@ -112,6 +145,87 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const [checklist, setChecklist] = useState<{ id: string, text: string, done: boolean }[]>([]);
   const [newChecklistItem, setNewChecklistItem] = useState('');
 
+  // 9. Fuhrpark & Volumen (Schnell-Auswahl) & Externe Signatur
+  const [truckChoice, setTruckChoice] = useState<'1_transporter' | '1_lkw' | '2_lkw' | 'custom'>('1_lkw');
+  const [estimatedCbm, setEstimatedCbm] = useState<number>(30);
+  const [isManuallySigned, setIsManuallySigned] = useState<boolean>(false);
+  const [selectedRoomTab, setSelectedRoomTab] = useState('Alle');
+  const [showFullCatalog, setShowFullCatalog] = useState(false);
+  const [showBisDate, setShowBisDate] = useState(false);
+
+  useEffect(() => {
+    if (orderMeta.movingDateTo) {
+      setShowBisDate(true);
+    }
+  }, [orderMeta.movingDateTo]);
+  // Helper to toggle standard service in Step 3
+  const toggleStandardService = (srv: typeof STANDARD_SERVICES_A[0]) => {
+    const existing = services.find(s => s.id === srv.id || (s.name||'').toLowerCase() === (srv.name||'').toLowerCase());
+    if (existing) {
+      setServices(prev => prev.filter(s => s.id !== existing.id));
+      if (srv.id === 'hvz_a') setLogistics(l => ({ ...l, a_parking: false }));
+      if (srv.id === 'hvz_b') setLogistics(l => ({ ...l, b_parking: false }));
+    } else {
+      setServices(prev => [...prev, {
+        id: srv.id,
+        name: srv.name,
+        quantity: 1,
+        unitPrice: srv.price,
+        unit: srv.unit
+      }]);
+      if (srv.id === 'hvz_a') setLogistics(l => ({ ...l, a_parking: true }));
+      if (srv.id === 'hvz_b') setLogistics(l => ({ ...l, b_parking: true }));
+    }
+  };
+
+  const isStandardServiceSelected = (srvId: string, srvName: string) => {
+    return services.some(s => s.id === srvId || (s.name||'').toLowerCase() === (srvName||'').toLowerCase());
+  };
+
+  // Helper for quick furniture items in Step 4
+  const getFurnitureCount = (name: string, room?: string) => {
+    const item = inventory.find(i => 
+      (i.name||'').toLowerCase() === (name||'').toLowerCase() && 
+      (!room || room === 'Alle' || (i.room || 'Wohnzimmer').toLowerCase() === (room||'').toLowerCase())
+    );
+    return item ? item.quantity : 0;
+  };
+
+  const updateFurnitureCount = (fItem: typeof QUICK_FURNITURE[0], room: string, delta: number) => {
+    const targetRoom = room === 'Alle' ? (fItem.room || 'Wohnzimmer') : room;
+    const existingIdx = inventory.findIndex(i => 
+      (i.name||'').toLowerCase() === (fItem.name||'').toLowerCase() && 
+      (i.room || 'Wohnzimmer').toLowerCase() === (targetRoom||'').toLowerCase()
+    );
+    if (existingIdx >= 0) {
+      const newQty = inventory[existingIdx].quantity + delta;
+      if (newQty <= 0) {
+        setInventory(prev => prev.filter((_, idx) => idx !== existingIdx));
+      } else {
+        setInventory(prev => prev.map((item, idx) => idx === existingIdx ? { ...item, quantity: newQty } : item));
+      }
+    } else if (delta > 0) {
+      setInventory(prev => [...prev, {
+        id: Date.now().toString() + Math.random(),
+        name: fItem.name,
+        quantity: delta,
+        note: '',
+        room: targetRoom
+      }]);
+    }
+  };
+
+  const totalFurniturePieces = inventory.reduce((sum, item) => sum + (item.quantity || 0), 0);
+
+  const calculateQuickCbm = () => {
+    let sum = 0;
+    inventory.forEach(item => {
+      const found = QUICK_FURNITURE.find(q => (q.name||'').toLowerCase() === (item.name||'').toLowerCase());
+      sum += (item.quantity || 0) * (found ? found.cbm : 0.25);
+    });
+    return sum > 0 ? Number(sum.toFixed(2)) : estimatedCbm;
+  };
+
   const handleCalculateRoute = async () => {
     const addressA = `${logistics.a_street || ''} ${logistics.a_houseNr || ''}, ${logistics.a_zip || ''} ${logistics.a_city || ''}`.trim();
     const addressB = `${logistics.b_street || ''} ${logistics.b_houseNr || ''}, ${logistics.b_zip || ''} ${logistics.b_city || ''}`.trim();
@@ -143,7 +257,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
   useEffect(() => {
     // Lade globale Settings
-    getDoc(doc(db, getCol('system'), 'settings')).then((docSnap) => {
+    getDoc(doc(db, 'system', 'settings')).then((docSnap) => {
       if(docSnap.exists()) {
         const s = docSnap.data();
         setSettings(s);
@@ -180,7 +294,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     });
 
     if (orderId) {
-      getDoc(doc(db, getCol('orders'), orderId)).then(docSnap => {
+      getDoc(doc(db, 'orders', orderId)).then(docSnap => {
         if (docSnap.exists()) {
           const data = docSnap.data();
           setOrderStatus(data.status || 'draft');
@@ -203,6 +317,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           setAppendInventoryToPDF(data.appendInventoryToPDF || false);
           setChecklist(data.checklist || []);
           setTexts(data.texts || {});
+          if (data.truckChoice) setTruckChoice(data.truckChoice);
+          if (data.estimatedCbm) setEstimatedCbm(data.estimatedCbm);
+          if (data.isManuallySigned) setIsManuallySigned(data.isManuallySigned);
           
           if (data.billingAddress) {
             setCustomerData(prev => ({
@@ -217,8 +334,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               city: data.billingAddress.city || '',
               email: data.billingAddress.email || '',
               phone: data.billingAddress.phone || '',
-              source: data.billingAddress.source || '',
-              customerContact: data.billingAddress.customerContact || ''
+              source: data.billingAddress.source || ''
             }));
           }
         }
@@ -226,7 +342,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     }
 
     if (urlCustomerId) {
-      getDoc(doc(db, getCol('customers'), urlCustomerId)).then(docSnap => {
+      getDoc(doc(db, 'customers', urlCustomerId)).then(docSnap => {
         if (docSnap.exists()) {
           const c = docSnap.data();
           setCustomerData(prev => ({
@@ -239,7 +355,6 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             email: c.email || prev.email || '',
             phone: c.phone || prev.phone || '',
             source: c.source || prev.source || '',
-            customerContact: '',
             street: c.street || prev.street || '',
             houseNr: c.houseNr || prev.houseNr || '',
             zip: c.zip || prev.zip || '',
@@ -325,10 +440,13 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       isFlatRate,
       flatRateNet,
       services,
-      calcInput: calcInput.gross > 0 ? calcInput : null
+      calcInput: null // Force recalculation from services/flatRate
     });
   };
   const totals = calculateTotal();
+  const customerName = customerData.type === 'firma' ? customerData.lastName : `${customerData.firstName} ${customerData.lastName}`.trim();
+  const customerEmail = customerData.email;
+  const customerPhone = customerData.phone;
 
   const handleCalcInput = (field: 'gross' | 'net', val: string) => {
     const num = parseFloat(val) || 0;
@@ -383,19 +501,20 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     setSaveStatus('saving');
     try {
       let finalCustomerId = urlCustomerId;
+      const cleanCreatorName = profile?.displayName || profile?.email?.split('@')[0] || 'Team';
       if (!finalCustomerId) {
-        const cRef = await addDoc(collection(db, getCol('customers')), { 
+        const cRef = await addDoc(collection(db, 'customers'), { 
           ...customerData, 
           createdAt: serverTimestamp(),
-          createdBy: profile?.displayName || profile?.email || 'Unbekannt' 
+          createdBy: cleanCreatorName 
         });
         finalCustomerId = cRef.id;
-        await logActivity(profile?.uid || 'unknown', profile?.displayName || profile?.email || 'Unbekannt', 'CREATE_CUSTOMER', `Kunde ${customerData.lastName} im Angebots-Editor angelegt`);
+        await logActivity(profile?.uid || 'unknown', cleanCreatorName, 'CREATE_CUSTOMER', `Kunde ${customerData.lastName} im Angebots-Editor angelegt`);
       }
       
       // Update the main customer profile so that salutation and other details are persisted for future orders
       if (finalCustomerId) {
-        await updateDoc(doc(db, getCol('customers'), finalCustomerId), {
+        await updateDoc(doc(db, 'customers', finalCustomerId), {
           salutation: customerData.salutation || '',
           firstName: customerData.firstName || '',
           lastName: customerData.lastName || '',
@@ -405,7 +524,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           houseNr: customerData.houseNr || '',
           zip: customerData.zip || '',
           city: customerData.city || '',
-          type: customerData.type || 'privat'
+          type: customerData.type || 'privat',
+          source: customerData.source || ''
         });
       }
 
@@ -432,7 +552,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           phone: customerData.phone || '',
           type: customerData.type || 'privat'
         },
-        customerSource: customerData.source || 'Unbekannt',
+        customerSource: customerData.source || 'Direktanfrage',
         status: finalStatus,
         orderMeta,
         logistics,
@@ -445,13 +565,16 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         checklist,
         texts,
         totals,
+        truckChoice,
+        estimatedCbm,
+        isManuallySigned,
         updatedAt: serverTimestamp(),
-        updatedBy: profile?.displayName || profile?.email || 'Unbekannt'
+        updatedBy: cleanCreatorName
       };
 
       if (orderId) {
-        await updateDoc(doc(db, getCol('orders'), orderId), payload);
-        await logActivity(profile?.uid || 'unknown', profile?.displayName || profile?.email || 'Unbekannt', 'UPDATE_ORDER', `Angebot/Auftrag aktualisiert für Kunde ${payload.customerName}`);
+        await updateDoc(doc(db, 'orders', orderId), payload);
+        await logActivity(profile?.uid || 'unknown', cleanCreatorName, 'UPDATE_ORDER', `Angebot/Auftrag aktualisiert für Kunde ${payload.customerName}`);
         
         if (generateQuote) {
           try {
@@ -461,12 +584,12 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           }
         }
       } else {
-        const docRef = await addDoc(collection(db, getCol('orders')), { 
+        const docRef = await addDoc(collection(db, 'orders'), { 
           ...payload, 
           createdAt: serverTimestamp(),
-          createdBy: profile?.displayName || profile?.email || 'Unbekannt' 
+          createdBy: cleanCreatorName 
         });
-        await logActivity(profile?.uid || 'unknown', profile?.displayName || profile?.email || 'Unbekannt', 'CREATE_ORDER', `Angebot erstellt für Kunde ${payload.customerName}`);
+        await logActivity(profile?.uid || 'unknown', cleanCreatorName, 'CREATE_ORDER', `Angebot erstellt für Kunde ${payload.customerName}`);
         
         if (generateQuote) {
           try {
@@ -502,16 +625,51 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     setTouchEnd(e.targetTouches[0].clientX);
   };
 
+  const validateAndSetStep = (targetStep: number) => {
+    // If going backwards, always allow
+    if (targetStep < currentStep) {
+      setCurrentStep(targetStep);
+      return;
+    }
+
+    // Step 1 Validation: Customer Data
+    if (currentStep === 1 || targetStep > 1) {
+      if (!urlCustomerId && !customerData.lastName?.trim()) {
+        const errorMsg = customerData.type === 'firma' 
+          ? "Bitte Firmenname im Schritt '1. Kunde' ausfüllen!" 
+          : "Bitte Nachname im Schritt '1. Kunde' ausfüllen!";
+        toast.error(errorMsg);
+        setErrorMessage(errorMsg);
+        setTimeout(() => setErrorMessage(''), 4000);
+        setCurrentStep(1);
+        return;
+      }
+    }
+
+    // Step 2 Validation: Moving Addresses
+    if (currentStep === 2 && targetStep > 2) {
+      if (!logistics.a_city?.trim() && !logistics.a_street?.trim()) {
+        const errorMsg = "Hinweis: Bitte mindestens Ort oder Straße der Beladestelle (A) angeben!";
+        toast.error(errorMsg);
+        setErrorMessage(errorMsg);
+        setTimeout(() => setErrorMessage(''), 4000);
+        return;
+      }
+    }
+
+    setCurrentStep(targetStep);
+  };
+
   const onTouchEndHandler = () => {
     if (!touchStart || !touchEnd) return;
     const distance = touchStart - touchEnd;
     const minSwipeDistance = 50;
     
     if (distance > minSwipeDistance && currentStep < 5) {
-      setCurrentStep(prev => prev + 1);
+      validateAndSetStep(currentStep + 1);
     }
     if (distance < -minSwipeDistance && currentStep > 1) {
-      setCurrentStep(prev => prev - 1);
+      validateAndSetStep(currentStep - 1);
     }
   };
 
@@ -534,23 +692,50 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           </p>
         </div>
       </div>
-      {/* Stepper Navigation */}
-      <div className="glass-panel p-4 rounded-xl shadow-lg flex items-center justify-between overflow-x-auto custom-scrollbar gap-4">
-        {[
-          { step: 1, label: 'Kunde & Termine', icon: '1️⃣' },
-          { step: 2, label: 'Logistik & Route', icon: '2️⃣' },
-          { step: 3, label: 'Leistungen & Finanzen', icon: '3️⃣' },
-          { step: 4, label: 'Inventar & Checkliste', icon: '4️⃣' },
-          { step: 5, label: 'Abschluss & Dokumente', icon: '5️⃣' }
-        ].map(s => (
-          <button
-            key={s.step}
-            onClick={() => setCurrentStep(s.step)}
-            className={`flex items-center gap-2 whitespace-nowrap px-4 py-2 rounded-lg transition-all ${currentStep === s.step ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'text-text-muted hover:bg-white/5 hover:text-text-main'}`}
-          >
-            <span>{s.label}</span>
-          </button>
-        ))}
+      {/* Stepper Navigation matching Mockups */}
+      <div className="mb-10 py-2">
+        <div className="flex items-center justify-between w-full max-w-4xl mx-auto px-4">
+          {[
+            { step: 1, label: '1. Kunde', icon: 'person' },
+            { step: 2, label: '2. Logistik', icon: 'local_shipping' },
+            { step: 3, label: '3. Leistungen', icon: 'construction' },
+            { step: 4, label: '4. Inventar', icon: 'inventory_2' },
+            { step: 5, label: '5. Abschluss', icon: 'task_alt' },
+          ].map((s, idx) => (
+            <React.Fragment key={s.step}>
+              <div 
+                onClick={() => validateAndSetStep(s.step)}
+                className="flex flex-col items-center cursor-pointer group select-none"
+              >
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                  currentStep === s.step
+                    ? 'bg-[#D91E2A] text-white shadow-lg shadow-[#D91E2A]/30 ring-4 ring-white dark:ring-slate-800 z-10 scale-105'
+                    : currentStep > s.step
+                      ? 'bg-emerald-600 text-white z-10 ring-4 ring-white dark:ring-slate-800 shadow-sm'
+                      : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 z-10 ring-4 ring-white dark:ring-slate-800'
+                }`}>
+                  <span className="material-symbols-outlined text-xl">
+                    {currentStep > s.step ? 'check' : s.icon}
+                  </span>
+                </div>
+                <span className={`mt-2 text-xs font-bold font-display uppercase tracking-tight transition-colors ${
+                  currentStep === s.step 
+                    ? 'text-[#D91E2A] dark:text-red-400' 
+                    : currentStep > s.step
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-slate-400 dark:text-slate-500'
+                }`}>
+                  {s.label}
+                </span>
+              </div>
+              {idx < 4 && (
+                <div className={`flex-1 h-0.5 -mt-6 -mx-2 transition-all ${
+                  currentStep > s.step ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-800'
+                }`}></div>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
       </div>
 
 
@@ -655,14 +840,39 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           </div>
 
           <div id="highlight-movingDate" className="rounded-xl transition-all">
-            <label className="block text-xs text-text-muted mb-1">Umzugsdatum (von)</label>
+            <label className="flex justify-between items-center text-xs text-text-muted mb-1">
+              <span>Umzugsdatum (von)</span>
+              <button 
+                type="button" 
+                onClick={() => {
+                  if (showBisDate) {
+                    setOrderMeta({ ...orderMeta, movingDateTo: '' });
+                  }
+                  setShowBisDate(!showBisDate);
+                }} 
+                className="text-primary hover:opacity-70 transition-opacity flex items-center gap-1"
+              >
+                {showBisDate ? (
+                  <>Ohne "bis" <span className="text-[10px]">▲</span></>
+                ) : (
+                  <>+ "bis" <span className="text-[10px]">▼</span></>
+                )}
+              </button>
+            </label>
             <input id="input-movingDateFrom" type="date" value={orderMeta.movingDateFrom} onChange={e => setOrderMeta({...orderMeta, movingDateFrom: e.target.value})} className="input-field w-full" />
+            
+            {showBisDate && (
+              <div className="mt-3 animate-fade-in">
+                <label className="block text-xs text-text-muted mb-1">Umzugsdatum (bis)</label>
+                <input type="date" value={orderMeta.movingDateTo} onChange={e => setOrderMeta({...orderMeta, movingDateTo: e.target.value})} className="input-field w-full" />
+              </div>
+            )}
           </div>
           <div id="highlight-viewingDate" className="rounded-xl transition-all">
             <label className="flex items-center justify-between text-xs text-text-muted mb-1">
               <span>Besichtigungstermin</span>
               {(orderMeta.viewingDate === 'requested' || orderMeta.viewingDate === '') && (
-                <button type="button" onClick={() => setOrderMeta({...orderMeta, viewingDate: 'erledigt_fotos'})} className="text-primary hover:text-white underline">
+                <button type="button" onClick={() => setOrderMeta({...orderMeta, viewingDate: 'erledigt_fotos'})} className="text-primary hover:opacity-70 transition-opacity underline">
                   Durch Fotos erledigt
                 </button>
               )}
@@ -675,10 +885,6 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               <p className="text-xs font-bold text-orange-400 mt-1">Kunde hat Besichtigung angefragt!</p>
             )}
             <p className="text-[10px] text-text-muted mt-1">Erscheint automatisch im Kalender.</p>
-          </div>
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Umzugsdatum (bis - optional)</label>
-            <input type="date" value={orderMeta.movingDateTo} onChange={e => setOrderMeta({...orderMeta, movingDateTo: e.target.value})} className="input-field w-full" />
           </div>
           <div>
             <label className="block text-xs text-text-muted mb-1">Gültig bis</label>
@@ -701,10 +907,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               {settings.paymentMethods?.map((pm:any) => <option key={pm.name} value={pm.name}>{pm.name}</option>)}
             </select>
           </div>
-          <div className="col-span-1 md:col-span-3">
-            <label className="block text-xs text-text-muted mb-1">Ansprechpartner vor Ort (Kunde)</label>
-            <input type="text" value={customerData.customerContact} onChange={e => setCustomerData({...customerData, customerContact: e.target.value})} className="input-field w-full" placeholder="Name der Person vor Ort..." />
-          </div>
+
         </div>
       </section>
 
@@ -943,6 +1146,59 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             </div>
           </div>
         </div>
+
+        {/* Section 3: Routen-Details (from Mockups) */}
+        <section className="col-span-1 lg:col-span-2 glass-panel p-6 md:p-8 rounded-2xl shadow-xl border border-structure">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center text-primary">
+                <span className="material-symbols-outlined text-2xl">map</span>
+              </div>
+              <div>
+                <h3 className="text-xl font-headline font-bold text-text-main">Routen-Details</h3>
+                <p className="text-xs text-text-muted font-display uppercase tracking-widest font-bold">Distanz &amp; Logistik-Check</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-8">
+              <div className="text-right">
+                <span className="block text-[10px] font-bold text-text-muted uppercase tracking-widest">Distanz</span>
+                <span className="text-2xl font-headline font-extrabold text-[#D91E2A] dark:text-red-400">
+                  {routeInfo ? `${routeInfo.distanceKm} km` : '— km'}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="block text-[10px] font-bold text-text-muted uppercase tracking-widest">Dauer (LKW)</span>
+                <span className="text-2xl font-headline font-extrabold text-sky-600 dark:text-sky-400">
+                  {routeInfo ? `~${Math.floor(routeInfo.durationMinutes / 60)}:${(routeInfo.durationMinutes % 60).toString().padStart(2, '0')} h` : '— h'}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-structure">
+            <button 
+              type="button"
+              onClick={handleCalculateRoute}
+              disabled={isCalculatingRoute}
+              className="py-2.5 px-6 bg-primary text-white text-xs font-bold rounded-full hover:brightness-110 transition-all flex items-center gap-2 shadow-md shadow-primary/20"
+            >
+              <span className="material-symbols-outlined text-base">directions_car</span>
+              {isCalculatingRoute ? "Berechne Route..." : "Strecke & Fahrzeit berechnen"}
+            </button>
+            <a 
+              href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(`${logistics.a_street || ''} ${logistics.a_houseNr || ''}, ${logistics.a_zip || ''} ${logistics.a_city || ''}`)}&destination=${encodeURIComponent(`${logistics.b_street || ''} ${logistics.b_houseNr || ''}, ${logistics.b_zip || ''} ${logistics.b_city || ''}`)}`}
+              target="_blank" 
+              rel="noreferrer" 
+              className="py-2.5 px-6 bg-slate-100 dark:bg-slate-800 text-text-main text-xs font-bold rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center gap-2 border border-structure"
+            >
+              <span className="material-symbols-outlined text-base">open_in_new</span>
+              Auf Google Maps öffnen
+            </a>
+            {routeError && (
+              <span className="text-xs text-red-500 font-medium pl-2">{routeError}</span>
+            )}
+          </div>
+        </section>
       </section>
 
       
@@ -951,419 +1207,1165 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
       {currentStep === 3 && (
         <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
-          {/* 3. Leistungen & Preise */}
-      <section className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-blue-500 shadow-lg">
-        <div className="flex justify-between items-center mb-6 border-b border-structure pb-4">
-          <div>
-             <h2 className="text-xl font-bold text-text-main">Leistungen & Preise</h2>
-             <p className="text-sm text-text-muted mt-1">Klicken Sie auf Leistungen im Katalog, um sie hinzuzufügen.</p>
-          </div>
-          <label className={`flex items-center gap-2 bg-white/[0.02] px-3 py-1.5 rounded-lg border border-structure ${!canEditPrices ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-            <input type="checkbox" checked={isFlatRate} onChange={e => setIsFlatRate(e.target.checked)} disabled={!canEditPrices} className="accent-primary w-4 h-4" />
-            <span className="text-sm font-medium text-text-main">Pauschalangebot (Nur Netto-Gesamtpreis)</span>
-          </label>
-        </div>
-
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* LEFT: POS-Style Catalog Grid */}
-          <div className="w-full lg:w-1/2 flex flex-col gap-4 border-b lg:border-b-0 lg:border-r border-structure pb-8 lg:pb-0 pr-0 lg:pr-8">
-            <div className="sticky top-4 space-y-4">
-               {/* Search */}
-               <div className="relative">
-                  <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-                  <input type="text" placeholder="Leistungen suchen (z.B. Karton)..." value={catalogSearch} onChange={e => setCatalogSearch(e.target.value)} className="input-field w-full pl-10 py-3 rounded-xl bg-black/20 shadow-inner" />
-               </div>
-               
-               {/* Categories */}
-               <div className="flex flex-wrap gap-2">
-                 <button onClick={() => setActiveCategoryTab('Alle')} className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${activeCategoryTab === 'Alle' ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-structure/50 text-text-muted hover:bg-structure'}`}>Alle</button>
-                 {settings.catalog?.map((cat:any) => (
-                   <button key={cat.category} onClick={() => setActiveCategoryTab(cat.category)} className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${activeCategoryTab === cat.category ? 'bg-primary text-white shadow-md shadow-primary/20' : 'bg-structure/50 text-text-muted hover:bg-structure'}`}>{cat.category}</button>
-                 ))}
-               </div>
-
-               {/* Grid */}
-               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto custom-scrollbar pb-4 pr-2">
-                 {settings.catalog?.flatMap((cat:any) => cat.items.map((item:any) => ({ ...item, category: cat.category }))).filter((item:any) => {
-                    const matchesSearch = item.name.toLowerCase().includes(catalogSearch.toLowerCase());
-                    const matchesCat = activeCategoryTab === 'Alle' || item.category === activeCategoryTab;
-                    return matchesSearch && matchesCat;
-                 }).map((item:any, idx:number) => {
-                    const isTicketTrigger = ['karton', 'box', 'kartons', 'küche', 'kueche', 'einbau', 'montage', 'einpack', 'auspack', 'packservice', 'einräum', 'ausräum'].some(kw => item.name.toLowerCase().includes(kw));
-                    return (
-                     <button key={idx} onClick={() => addServiceFromCatalog(item)} className="bg-bg-dark border border-white/10 hover:border-primary hover:bg-primary/10 rounded-xl p-3 flex flex-col items-center text-center gap-2 transition-all active:scale-95 shadow-sm group relative">
-                        {isTicketTrigger && <StarIconSolid className="w-3 h-3 text-orange-400 absolute top-2 right-2 drop-shadow-[0_0_5px_rgba(251,146,60,0.5)]" title="Erzeugt System-Ticket" />}
-                        <div className="w-10 h-10 rounded-full bg-structure/50 text-primary flex items-center justify-center">
-                          {getCategoryIcon(item.category)}
-                        </div>
-                        <span className="text-xs font-bold text-text-main line-clamp-2 leading-tight">{item.name}</span>
-                        <div className="mt-auto w-full pt-2 border-t border-white/5 flex justify-between items-center">
-                           <span className="text-[10px] text-text-muted">
-                             {!isFlatRate && (item.price || item.defaultPrice || 0) > 0 ? `${(item.price || item.defaultPrice).toFixed(2)} €` : ''}
-                           </span>
-                           <PlusCircleIcon className="w-5 h-5 text-text-muted group-hover:text-primary transition-colors" />
-                        </div>
-                     </button>
-                   )
-                 })}
-               </div>
-            </div>
-          </div>
-
-          {/* RIGHT: Selected Items */}
-          <div className="w-full lg:w-1/2 flex flex-col">
-            <h3 className="font-semibold text-text-main mb-3 flex justify-between items-center">
-              <span>Ausgewählte Leistungen</span>
-              <span className="text-xs text-text-muted bg-structure/50 px-2 py-1 rounded-full">{services.length} Positionen</span>
-            </h3>
-            
-            <div className="space-y-3 max-h-[60vh] overflow-y-auto custom-scrollbar pr-2 flex-1">
-               {services.length === 0 ? (
-                 <div className="p-8 text-center text-text-muted border-2 border-dashed border-structure rounded-xl bg-white/[0.01]">
-                   <div className="w-12 h-12 rounded-full bg-structure/50 mx-auto flex items-center justify-center mb-3">
-                     <ShoppingCartIcon className="w-6 h-6" />
-                   </div>
-                   Keine Leistungen ausgewählt.<br/>Klicken Sie links auf Kacheln, um sie hinzuzufügen.
-                 </div>
-               ) : (
-                 services.map((svc, idx) => (
-                   <div key={svc.id} className="bg-bg-dark border border-white/5 rounded-xl p-3 flex flex-col gap-2 relative group hover:border-primary/30 transition-colors shadow-sm">
-                     <button onClick={() => setServices(services.filter(s => s.id !== svc.id))} className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-md hover:bg-red-600 z-10">
-                       <XMarkIcon className="w-4 h-4" />
-                     </button>
-                     
-                     <div className="flex justify-between gap-2">
-                       <textarea 
-                         value={svc.name} 
-                         onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s))} 
-                         className="bg-transparent border border-transparent hover:border-structure focus:border-primary/50 focus:bg-black/20 rounded font-semibold text-sm w-full text-text-main focus:outline-none p-1 resize-none" 
-                         rows={1}
-                       />
-                     </div>
-                     
-                     <div className="flex items-center justify-between gap-4 mt-1 border-t border-structure/50 pt-2">
-                        {/* Quantity Controls */}
-                        <div className="flex items-center gap-1 bg-structure/50 rounded-lg p-1 border border-white/5 shrink-0">
-                           <button onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: Math.max(0, s.quantity - 1) } : s))} className="w-6 h-6 flex items-center justify-center text-text-main hover:bg-white/10 rounded font-bold">-</button>
-                           <input type="number" value={svc.quantity} onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: parseFloat(e.target.value) || 0 } : s))} className="w-10 text-center bg-transparent font-bold text-sm focus:outline-none" />
-                           <button onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: s.quantity + 1 } : s))} className="w-6 h-6 flex items-center justify-center text-text-main hover:bg-white/10 rounded font-bold">+</button>
-                        </div>
-                        
-                        <div className="w-16 shrink-0">
-                           <input type="text" value={svc.unit} onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, unit: e.target.value } : s))} className="input-field py-1 px-2 w-full text-center text-xs text-text-muted" placeholder="Einheit" />
-                        </div>
-                        
-                        {!isFlatRate && (
-                          <div className="flex-1 flex justify-end items-center gap-1">
-                            <input type="number" value={svc.unitPrice} onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, unitPrice: parseFloat(e.target.value) || 0 } : s))} disabled={!canEditPrices} className="input-field py-1 px-2 w-20 text-right text-xs" placeholder="0.00" />
-                            <span className="text-text-muted text-xs">€/{svc.unit}</span>
-                          </div>
-                        )}
-                        {!isFlatRate && (
-                           <div className="text-right w-20 font-bold text-primary text-sm shrink-0">
-                             {canViewPrices ? (svc.quantity * svc.unitPrice).toFixed(2) : '***'} €
-                           </div>
-                        )}
-                     </div>
-                   </div>
-                 ))
-               )}
-               <button onClick={() => setServices([...services, { id: Date.now().toString(), name: 'Manuelle Leistung', quantity: 1, unitPrice: 0, unit: 'Pauschal' }])} className="w-full py-3 border-2 border-dashed border-structure rounded-xl text-primary hover:bg-primary/5 hover:border-primary/30 transition-colors flex items-center justify-center gap-2 text-sm font-semibold mt-2">
-                 <PlusIcon className="w-4 h-4" /> Manuelle Leistung hinzufügen
-               </button>
-            </div>
-            
-            {/* Totals Section */}
-            <div className="mt-auto pt-6 lg:border-t border-structure">
-               <div className="flex justify-end">
-                 <div className="w-full max-w-xs space-y-2 bg-bg-dark p-4 rounded-xl border border-white/5 shadow-inner">
-                   {isFlatRate ? (
-                     <div className="mb-2">
-                       <label className="text-xs text-text-muted font-bold uppercase tracking-wider mb-1 block">Pauschalabrechnung (Netto)</label>
-                       <div className="relative">
-                          <input type="number" value={flatRateNet} onChange={e => setFlatRateNet(parseFloat(e.target.value)||0)} disabled={!canEditPrices} className={`input-field w-full text-right font-bold text-lg pr-8 ${!canEditPrices ? 'opacity-50 cursor-not-allowed' : ''}`} placeholder="0.00" />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 font-bold text-text-muted">€</span>
-                       </div>
-                     </div>
-                   ) : null}
-                   
-                   {canViewPrices ? (
-                     <>
-                       <div className="flex justify-between text-text-muted text-sm">
-                         <span>Summe Netto:</span><span>{totals.net.toFixed(2)} €</span>
-                       </div>
-                       <div className="flex justify-between text-text-muted text-sm">
-                         <span>MwSt. 19%:</span><span>{totals.tax.toFixed(2)} €</span>
-                       </div>
-                       <div className="flex justify-between text-text-main font-bold text-lg border-t border-white/10 pt-2 mt-2">
-                         <span>Gesamtbetrag:</span><span className="text-primary">{totals.gross.toFixed(2)} €</span>
-                       </div>
-                     </>
-                   ) : (
-                     <div className="text-center text-text-muted text-sm italic py-2">
-                       Preise ausgeblendet
-                     </div>
-                   )}
-                 </div>
-               </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. MwSt.-Schnellrechner */}
-      {canViewPrices && (
-        <section className="bg-white/[0.02] border border-structure p-4 rounded-xl flex items-center justify-between shadow-inner">
-          <div className="flex items-center gap-3">
-            <CalculatorIcon className="w-8 h-8 text-text-muted" />
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-structure pb-4">
             <div>
-              <h3 className="font-semibold text-text-main">MwSt.-Schnellrechner</h3>
-              <p className="text-xs text-text-muted">Hilfe zum Umrechnen (speichert nicht ins Angebot)</p>
+              <h2 className="text-2xl font-headline font-bold text-text-main flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">add_task</span>
+                Leistungen &amp; Finanzen
+              </h2>
+              <p className="text-xs text-text-muted mt-1">
+                Dienstleistungsauswahl nach Belade- und Entladestelle sowie Kostenkalkulation.
+              </p>
             </div>
+            <label className={`flex items-center gap-2 bg-white/[0.03] px-3.5 py-2 rounded-xl border border-structure shadow-sm ${!canEditPrices ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+              <input 
+                type="checkbox" 
+                checked={isFlatRate} 
+                onChange={e => setIsFlatRate(e.target.checked)} 
+                disabled={!canEditPrices} 
+                className="accent-primary w-4 h-4 rounded" 
+              />
+              <span className="text-xs font-bold text-text-main">Pauschalangebot (Festpreis)</span>
+            </label>
           </div>
-          <div className="flex gap-4">
-            <div>
-              <label className="block text-xs text-text-muted mb-1">Brutto eingeben</label>
-              <input type="number" value={calcInput.gross === 0 ? '' : calcInput.gross.toFixed(2)} onChange={e => handleCalcInput('gross', e.target.value)} className="input-field w-32" placeholder="z.B. 1190" />
-            </div>
-            <div className="pt-6 text-text-muted">=</div>
-            <div>
-              <label className="block text-xs text-text-muted mb-1">Netto Ergebnis</label>
-              <div className="input-field w-32 bg-structure/30 text-text-main font-mono">{calcInput.net.toFixed(2)}</div>
-            </div>
-          </div>
-        </section>
-      )}
 
-      
+          <div className="grid grid-cols-12 gap-8">
+            {/* Left: Quick Service Selection A vs B */}
+            <div className="col-span-12 lg:col-span-7 flex flex-col gap-6">
+              <div className="bg-bg-card rounded-2xl p-6 border border-structure shadow-md">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-base font-headline font-bold flex items-center gap-2 text-text-main">
+                    <span className="material-symbols-outlined text-primary">touch_app</span>
+                    Leistungsauswahl (Schnell-Auswahl)
+                  </h3>
+                  <span className="bg-primary/10 text-primary text-[10px] px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
+                    Belade- vs. Entladestelle
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Beladestelle (A) */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 pb-2 border-b border-structure/50">
+                      <span className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-xs">
+                        A
+                      </span>
+                      <h4 className="font-headline font-bold text-xs uppercase tracking-wider text-text-main">
+                        Beladestelle
+                      </h4>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {STANDARD_SERVICES_A.map((svc) => {
+                        const isSelected = isStandardServiceSelected(svc.name);
+                        return (
+                          <button
+                            key={svc.id}
+                            type="button"
+                            onClick={() => toggleStandardService(svc)}
+                            className={`flex items-center justify-between p-3 rounded-xl border transition-all text-left ${
+                              isSelected
+                                ? 'border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary/30 font-bold'
+                                : 'border-structure/80 bg-white/[0.02] text-text-main hover:bg-white/[0.05] hover:border-structure'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className={`material-symbols-outlined text-xl ${isSelected ? 'text-primary' : 'text-text-muted'}`}>
+                                {svc.icon}
+                              </span>
+                              <span className="text-xs font-semibold">{svc.name}</span>
+                            </div>
+                            <span className={`material-symbols-outlined text-base ${isSelected ? 'text-primary' : 'text-text-muted/60'}`}>
+                              {isSelected ? 'check_circle' : 'add_circle'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Entladestelle (B) */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 pb-2 border-b border-structure/50">
+                      <span className="w-6 h-6 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-xs">
+                        B
+                      </span>
+                      <h4 className="font-headline font-bold text-xs uppercase tracking-wider text-text-main">
+                        Entladestelle
+                      </h4>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {STANDARD_SERVICES_B.map((svc) => {
+                        const isSelected = isStandardServiceSelected(svc.name);
+                        return (
+                          <button
+                            key={svc.id}
+                            type="button"
+                            onClick={() => toggleStandardService(svc)}
+                            className={`flex items-center justify-between p-3 rounded-xl border transition-all text-left ${
+                              isSelected
+                                ? 'border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary/30 font-bold'
+                                : 'border-structure/80 bg-white/[0.02] text-text-main hover:bg-white/[0.05] hover:border-structure'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className={`material-symbols-outlined text-xl ${isSelected ? 'text-primary' : 'text-text-muted'}`}>
+                                {svc.icon}
+                              </span>
+                              <span className="text-xs font-semibold">{svc.name}</span>
+                            </div>
+                            <span className={`material-symbols-outlined text-base ${isSelected ? 'text-primary' : 'text-text-muted/60'}`}>
+                              {isSelected ? 'check_circle' : 'add_circle'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* System Tip */}
+                <div className="mt-6 bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-amber-300 flex items-start gap-3">
+                  <span className="material-symbols-outlined text-xl shrink-0 mt-0.5">info</span>
+                  <div className="text-xs leading-relaxed">
+                    <p className="font-headline font-bold">Tipp vom System</p>
+                    <p className="opacity-90">
+                      Halteverbotszonen für A und B werden bei Auswahl automatisch auf die Mitarbeiter-Laufzettel und die Fristen-Erinnerung gesetzt.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Full Catalog Toggle */}
+                <div className="mt-4 pt-4 border-t border-structure/60 flex items-center justify-between">
+                  <span className="text-xs text-text-muted">
+                    Spezielle Materialien, Packmittel oder individuelle Sonderleistungen?
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowFullCatalog(!showFullCatalog)}
+                    className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-sm">
+                      {showFullCatalog ? 'expand_less' : 'expand_more'}
+                    </span>
+                    {showFullCatalog ? 'Katalog einklappen' : 'Vollständigen Katalog öffnen'}
+                  </button>
+                </div>
+
+                {/* Expandable Full POS Catalog */}
+                {showFullCatalog && (
+                  <div className="mt-4 pt-4 border-t border-structure/40 space-y-4 animate-in fade-in duration-200">
+                    <div className="relative">
+                      <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+                      <input 
+                        type="text" 
+                        placeholder="Leistungen suchen (z.B. Karton, Klavier)..." 
+                        value={catalogSearch} 
+                        onChange={e => setCatalogSearch(e.target.value)} 
+                        className="input-field w-full pl-10 py-2.5 rounded-xl bg-black/20 text-xs shadow-inner" 
+                      />
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-1.5">
+                      <button 
+                        onClick={() => setActiveCategoryTab('Alle')} 
+                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${activeCategoryTab === 'Alle' ? 'bg-primary text-white' : 'bg-structure/50 text-text-muted hover:bg-structure'}`}
+                      >
+                        Alle
+                      </button>
+                      {settings.catalog?.map((cat:any) => (
+                        <button 
+                          key={cat.category} 
+                          onClick={() => setActiveCategoryTab(cat.category)} 
+                          className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${activeCategoryTab === cat.category ? 'bg-primary text-white' : 'bg-structure/50 text-text-muted hover:bg-structure'}`}
+                        >
+                          {cat.category}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto custom-scrollbar pr-1">
+                      {settings.catalog?.flatMap((cat:any) => cat.items.map((item:any) => ({ ...item, category: cat.category }))).filter((item:any) => {
+                        const matchesSearch = (item.name||'').toLowerCase().includes((catalogSearch||'').toLowerCase());
+                        const matchesCat = activeCategoryTab === 'Alle' || item.category === activeCategoryTab;
+                        return matchesSearch && matchesCat;
+                      }).map((item:any, idx:number) => (
+                        <button 
+                          key={idx} 
+                          type="button"
+                          onClick={() => addServiceFromCatalog(item)} 
+                          className="bg-bg-dark/80 border border-white/10 hover:border-primary hover:bg-primary/10 rounded-xl p-2.5 flex flex-col items-center text-center gap-1.5 transition-all text-xs"
+                        >
+                          <span className="font-semibold text-text-main line-clamp-1">{item.name}</span>
+                          <span className="text-[10px] text-text-muted">
+                            {!isFlatRate && (item.price || item.defaultPrice || 0) > 0 ? `${(item.price || item.defaultPrice).toFixed(2)} €` : 'Katalog'}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right: Preiskalkulation & Total Summary Card */}
+            <div className="col-span-12 lg:col-span-5 flex flex-col gap-6">
+              {/* Preiskalkulation Table */}
+              <div className="bg-bg-card rounded-2xl border border-structure shadow-md overflow-hidden flex flex-col">
+                <div className="px-5 py-3.5 bg-white/[0.03] flex items-center justify-between border-b border-structure">
+                  <h3 className="text-sm font-headline font-bold flex items-center gap-2 text-text-main">
+                    <span className="material-symbols-outlined text-blue-400 text-lg">calculate</span>
+                    Preiskalkulation
+                  </h3>
+                  <span className="text-[11px] font-bold text-text-muted bg-structure/50 px-2 py-0.5 rounded-full">
+                    {services.length} Positionen
+                  </span>
+                </div>
+
+                <div className="max-h-72 overflow-y-auto custom-scrollbar divide-y divide-structure/40">
+                  {services.length === 0 ? (
+                    <div className="p-8 text-center text-text-muted text-xs">
+                      Keine Leistungen gewählt. Klicken Sie links auf Leistungen zum Hinzufügen.
+                    </div>
+                  ) : (
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-white/[0.01] text-[10px] font-bold uppercase tracking-wider text-text-muted border-b border-structure/40">
+                          <th className="p-2.5 pl-4">Service</th>
+                          <th className="p-2.5 text-center w-24">Menge</th>
+                          <th className="p-2.5 pr-4 text-right w-24">Summe</th>
+                          <th className="w-8"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-structure/30">
+                        {services.map((svc, idx) => (
+                          <tr key={svc.id} className="hover:bg-white/[0.02] transition-colors group">
+                            <td className="p-2.5 pl-4">
+                              <input
+                                type="text"
+                                value={svc.name}
+                                onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s))}
+                                className="bg-transparent font-medium text-text-main w-full focus:outline-none focus:bg-black/20 rounded px-1"
+                              />
+                            </td>
+                            <td className="p-2.5 text-center">
+                              <div className="inline-flex items-center gap-1 bg-structure/40 rounded-lg px-1.5 py-0.5">
+                                <button 
+                                  type="button"
+                                  onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: Math.max(0, s.quantity - 1) } : s))} 
+                                  className="w-5 h-5 flex items-center justify-center text-text-muted hover:text-white font-bold"
+                                >
+                                  -
+                                </button>
+                                <span className="font-bold w-6 text-center text-text-main">{svc.quantity}</span>
+                                <button 
+                                  type="button"
+                                  onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: s.quantity + 1 } : s))} 
+                                  className="w-5 h-5 flex items-center justify-center text-text-muted hover:text-white font-bold"
+                                >
+                                  +
+                                </button>
+                              </div>
+                            </td>
+                            <td className="p-2.5 pr-4 text-right font-bold text-text-main">
+                              {!isFlatRate && canViewPrices ? `${(svc.quantity * svc.unitPrice).toFixed(2)} €` : '—'}
+                            </td>
+                            <td className="pr-2 text-right">
+                              <button
+                                type="button"
+                                onClick={() => setServices(services.filter(s => s.id !== svc.id))}
+                                className="text-text-muted hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                <XMarkIcon className="w-4 h-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                <div className="p-3 border-t border-structure/50 bg-white/[0.01]">
+                  <button
+                    type="button"
+                    onClick={() => setServices([...services, { id: Date.now().toString(), name: 'Individuelle Leistung', quantity: 1, unitPrice: 0, unit: 'Pauschal' }])}
+                    className="w-full py-2 border border-dashed border-structure rounded-xl text-primary hover:bg-primary/5 transition-colors flex items-center justify-center gap-1.5 text-xs font-semibold"
+                  >
+                    <PlusIcon className="w-4 h-4" /> Eigene Leistung hinzufügen
+                  </button>
+                </div>
+              </div>
+
+              {/* Red-Bordered BRUTTO GESAMT Summary Card */}
+              <div className="relative overflow-hidden bg-bg-card border-2 border-primary/60 rounded-2xl shadow-xl p-6">
+                <div className="absolute -right-12 -top-12 w-48 h-48 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="flex flex-col gap-4 relative z-10">
+                  {isFlatRate && (
+                    <div className="mb-2">
+                      <label className="text-[10px] text-text-muted font-bold uppercase tracking-wider mb-1 block">
+                        Pauschalabrechnung (Netto)
+                      </label>
+                      <div className="relative">
+                        <input 
+                          type="number" 
+                          value={flatRateNet} 
+                          onChange={e => setFlatRateNet(parseFloat(e.target.value)||0)} 
+                          disabled={!canEditPrices} 
+                          className="input-field w-full text-right font-bold text-base pr-8 py-2" 
+                          placeholder="0.00" 
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 font-bold text-text-muted text-sm">€</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {canViewPrices ? (
+                    <div className="space-y-2 text-xs">
+                      <div className="flex items-center justify-between border-b border-dashed border-structure/60 pb-1.5">
+                        <span className="text-text-muted font-medium">Netto Summe</span>
+                        <span className="text-text-main font-bold">{totals.net.toFixed(2)} €</span>
+                      </div>
+                      <div className="flex items-center justify-between border-b border-dashed border-structure/60 pb-1.5">
+                        <span className="text-text-muted font-medium">USt. (19%)</span>
+                        <span className="text-text-main font-bold">{totals.tax.toFixed(2)} €</span>
+                      </div>
+                      <div className="flex flex-col gap-0.5 pt-2">
+                        <span className="text-[10px] font-extrabold text-primary uppercase tracking-[0.2em]">
+                          BRUTTO GESAMT
+                        </span>
+                        <span className="text-4xl font-headline font-black text-primary tracking-tight">
+                          {totals.gross.toFixed(2)} €
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center text-text-muted text-xs italic py-2">
+                      Preise ausgeblendet
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => saveOrder('draft', true)}
+                      disabled={isSaving}
+                      className="w-full py-3 bg-primary text-white rounded-xl font-headline font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2"
+                    >
+                      <span className="material-symbols-outlined text-sm">description</span>
+                      <span>Angebot Erstellen</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => saveOrder('draft', false)}
+                      disabled={isSaving}
+                      className="w-full py-2 bg-white/[0.04] text-text-main border border-structure/60 rounded-xl font-bold text-xs hover:bg-white/[0.08] transition-all"
+                    >
+                      Zwischenspeichern
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
       {currentStep === 4 && (
         <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
-          {/* 5. Umzugsgut / Inventarliste */}
-      <section className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-structure shadow-lg">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b border-structure pb-2 gap-4">
-          <h2 className="text-xl font-bold text-text-main">Umzugsgut / Inventarliste</h2>
-          <label className="flex items-center gap-2 bg-white/[0.02] px-3 py-1.5 rounded-lg border border-structure cursor-pointer">
-            <input type="checkbox" checked={appendInventoryToPDF} onChange={e => setAppendInventoryToPDF(e.target.checked)} className="accent-primary" />
-            <span className="text-sm font-medium text-text-main">Als Anhang (letzte Seite) an Angebot hängen</span>
-          </label>
-        </div>
-        <div className="flex flex-col gap-8">
-          <div className="w-full bg-white/[0.02] border border-structure p-6 rounded-xl shadow-inner">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-              <div>
-                <h3 className="font-bold text-text-main flex items-center gap-2 text-lg">
-                  <ArchiveBoxIcon className="w-6 h-6 text-primary" /> Inventar-Assistent
-                </h3>
-                <p className="text-sm text-text-muted mt-1">
-                  Klicken Sie auf einen Raum, um direkt mit der Erfassung zu beginnen.
-                </p>
+          {/* Header */}
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-structure pb-4">
+            <div>
+              <h2 className="text-2xl font-headline font-bold text-text-main flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">inventory_2</span>
+                Inventar &amp; Ladevolumen
+              </h2>
+              <p className="text-xs text-text-muted mt-1">
+                Raumbasierte Schnell-Erfassung von Möbeln &amp; Kartons mit automatischer $m^3$- und LKW-Kalkulation.
+              </p>
+            </div>
+            <label className="flex items-center gap-2 bg-white/[0.03] px-3.5 py-2 rounded-xl border border-structure shadow-sm cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={appendInventoryToPDF} 
+                onChange={e => setAppendInventoryToPDF(e.target.checked)} 
+                className="accent-primary w-4 h-4 rounded" 
+              />
+              <span className="text-xs font-bold text-text-main">Inventarliste an PDF-Angebot anhängen</span>
+            </label>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Left Column: Room Tabs & Furniture Catalog */}
+            <div className="lg:col-span-8 space-y-6">
+              {/* Section 1: Zimmer-Auswahl Tabs */}
+              <div className="bg-bg-card rounded-2xl p-5 border border-structure shadow-md">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-headline font-bold text-text-main flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary">meeting_room</span>
+                    1. Raum-Auswahl
+                  </h3>
+                  <span className="text-xs text-text-muted">
+                    Ausgewählt: <strong className="text-primary">{selectedRoomTab}</strong>
+                  </span>
+                </div>
+                <div className="flex gap-2.5 overflow-x-auto pb-2 custom-scrollbar">
+                  {QUICK_ROOMS.map(room => {
+                    const isSelected = selectedRoomTab === room.name;
+                    const itemsInRoom = inventory.filter(i => (i.room || 'Wohnzimmer') === room.name).reduce((sum, i) => sum + i.quantity, 0);
+                    return (
+                      <button
+                        key={room.id}
+                        type="button"
+                        onClick={() => setSelectedRoomTab(room.name)}
+                        className={`flex-shrink-0 px-4 py-3 rounded-xl border transition-all flex flex-col items-center gap-1.5 min-w-[95px] ${
+                          isSelected
+                            ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25 scale-[1.02]'
+                            : 'bg-white/[0.02] border-structure/80 text-text-main hover:border-structure hover:bg-white/[0.05]'
+                        }`}
+                      >
+                        <span className={`material-symbols-outlined text-xl ${isSelected ? 'text-white' : 'text-text-muted'}`}>
+                          {room.icon}
+                        </span>
+                        <span className="text-xs font-bold">{room.name}</span>
+                        {itemsInRoom > 0 && (
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${isSelected ? 'bg-white/20 text-white' : 'bg-primary/20 text-primary'}`}>
+                            {itemsInRoom} Stk.
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <button 
-                onClick={() => { setInitialWizardRoom(null); setIsInventoryWizardOpen(true); }} 
-                className="bg-primary hover:bg-primary-hover text-white font-semibold px-6 py-3 rounded-lg transition-all shadow-lg flex items-center gap-2 shadow-primary/20 shrink-0"
-              >
-                <PlusIcon className="w-5 h-5 font-bold" /> Assistent starten
-              </button>
+
+              {/* Section 2: Möbel-Katalog mit Zählern */}
+              <div className="bg-bg-card rounded-2xl p-5 border border-structure shadow-md space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-headline font-bold text-text-main flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary">chair</span>
+                    2. Möbel &amp; Umzugsgut für {selectedRoomTab}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => { setInitialWizardRoom(null); setIsInventoryWizardOpen(true); }}
+                    className="text-primary text-xs font-bold flex items-center gap-1 hover:underline"
+                  >
+                    <span className="material-symbols-outlined text-sm">open_in_new</span>
+                    Detaillierter Assistent
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
+                  {QUICK_FURNITURE.map(item => {
+                    const count = getFurnitureCount(item.name, selectedRoomTab);
+                    const isPicked = count > 0;
+                    return (
+                      <div
+                        key={item.id}
+                        className={`p-3.5 rounded-xl border transition-all flex flex-col items-center text-center relative ${
+                          isPicked
+                            ? 'border-primary bg-primary/10 shadow-sm ring-1 ring-primary/40'
+                            : 'border-structure/80 bg-white/[0.02] hover:border-structure hover:bg-white/[0.04]'
+                        }`}
+                      >
+                        <div className={`w-12 h-12 rounded-full mb-2 flex items-center justify-center transition-colors ${
+                          isPicked ? 'bg-primary/20 text-primary' : 'bg-structure/50 text-text-muted'
+                        }`}>
+                          <span className="material-symbols-outlined text-2xl">{item.icon}</span>
+                        </div>
+                        <p className="font-bold text-xs text-text-main mb-0.5 line-clamp-1">{item.name}</p>
+                        <p className="text-[10px] text-text-muted mb-3 font-medium">~{item.cbm} m³</p>
+
+                        <div className="flex items-center gap-2 w-full justify-between px-2 bg-structure/40 rounded-lg py-1 border border-white/5 mt-auto">
+                          <button
+                            type="button"
+                            onClick={() => updateFurnitureCount(item, selectedRoomTab, -1)}
+                            disabled={count === 0}
+                            className="w-6 h-6 rounded-md bg-white/[0.05] hover:bg-white/10 text-text-main flex items-center justify-center font-bold text-xs disabled:opacity-30 transition-colors"
+                          >
+                            -
+                          </button>
+                          <span className={`font-black text-xs ${isPicked ? 'text-primary' : 'text-text-muted'}`}>
+                            {count}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => updateFurnitureCount(item, selectedRoomTab, 1)}
+                            className="w-6 h-6 rounded-md bg-primary text-white flex items-center justify-center font-bold text-xs hover:brightness-110 active:scale-95 transition-all shadow-sm"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Custom / Add More Card */}
+                  <div
+                    onClick={() => { setInitialWizardRoom(null); setIsInventoryWizardOpen(true); }}
+                    className="p-3.5 rounded-xl border-2 border-dashed border-structure/80 bg-white/[0.01] hover:bg-white/[0.04] hover:border-primary/50 transition-all flex flex-col items-center justify-center cursor-pointer text-center group min-h-[140px]"
+                  >
+                    <span className="material-symbols-outlined text-3xl text-text-muted group-hover:text-primary group-hover:scale-110 transition-all mb-1">
+                      add_box
+                    </span>
+                    <p className="font-bold text-xs text-text-main">Eigener Gegenstand</p>
+                    <p className="text-[10px] text-text-muted mt-0.5">Assistent öffnen</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 3: Erfasste Gegenstände Übersicht */}
+              {inventory.length > 0 && (
+                <div className="bg-bg-card rounded-2xl p-5 border border-structure shadow-md">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-headline font-bold text-text-main flex items-center gap-2">
+                      <span className="material-symbols-outlined text-primary">checklist</span>
+                      Erfasstes Umzugsgut ({inventory.reduce((sum, i) => sum + i.quantity, 0)} Teile)
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setInventory([])}
+                      className="text-[11px] text-red-400 hover:underline"
+                    >
+                      Alle leeren
+                    </button>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto custom-scrollbar divide-y divide-structure/40 text-xs">
+                    {inventory.map(item => (
+                      <div key={item.id} className="py-2 px-1 flex items-center justify-between hover:bg-white/[0.02]">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-text-muted bg-structure/50 px-2 py-0.5 rounded">
+                            {item.room || 'Allgemein'}
+                          </span>
+                          <span className="font-semibold text-text-main">{item.name}</span>
+                          {(item.disassembly || item.assembly) && (
+                            <span className="text-[10px] text-amber-400">
+                              {[item.disassembly && 'Abbau', item.assembly && 'Aufbau'].filter(Boolean).join(' & ')}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-primary">{item.quantity}x</span>
+                          <button
+                            type="button"
+                            onClick={() => setInventory(inventory.filter(i => i.id !== item.id))}
+                            className="text-text-muted hover:text-red-400 p-1"
+                          >
+                            <TrashIcon className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Section 4: Mitarbeiter-Checkliste */}
+              <div className="bg-bg-card rounded-2xl p-5 border border-structure shadow-md">
+                <div className="flex items-center justify-between mb-3 border-b border-structure pb-2">
+                  <div>
+                    <h3 className="text-sm font-headline font-bold text-text-main flex items-center gap-2">
+                      <span className="material-symbols-outlined text-orange-400">assignment</span>
+                      Mitarbeiter-Laufzettel &amp; Checkliste
+                    </h3>
+                    <p className="text-[11px] text-text-muted mt-0.5">
+                      Wird automatisch auf dem Einsatzplan für die Umzugshelfer gedruckt.
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-2 mb-3">
+                  {checklist.map(item => (
+                    <div key={item.id} className="flex items-center justify-between p-2.5 rounded-xl border bg-white/[0.02] border-structure/80 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => setChecklist(checklist.map(c => c.id === item.id ? { ...c, done: !c.done } : c))}
+                        className="flex items-center gap-2.5 flex-1 text-left"
+                      >
+                        {item.done ? (
+                          <CheckCircleIconSolid className="w-4 h-4 text-emerald-400 shrink-0" />
+                        ) : (
+                          <CheckCircleIcon className="w-4 h-4 text-text-muted shrink-0" />
+                        )}
+                        <span className={`font-medium transition-all ${item.done ? 'text-text-muted line-through' : 'text-text-main'}`}>
+                          {item.text}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setChecklist(checklist.filter(c => c.id !== item.id))}
+                        className="text-text-muted hover:text-red-400 p-1"
+                      >
+                        <TrashIcon className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-2 relative">
+                  <input
+                    type="text"
+                    value={newChecklistItem}
+                    onChange={e => setNewChecklistItem(e.target.value)}
+                    placeholder="Neuer Punkt (z.B. Klaviertragegurt bereitlegen)..."
+                    className="input-field w-full pr-10 text-xs py-2"
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (newChecklistItem.trim()) {
+                          setChecklist([...checklist, { id: Date.now().toString(), text: newChecklistItem.trim(), done: false }]);
+                          setNewChecklistItem('');
+                        }
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (newChecklistItem.trim()) {
+                        setChecklist([...checklist, { id: Date.now().toString(), text: newChecklistItem.trim(), done: false }]);
+                        setNewChecklistItem('');
+                      }
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-primary hover:text-primary-hover"
+                  >
+                    <PlusIcon className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
             </div>
-            
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-8 gap-3">
-              {ROOM_TYPES.slice(0, 8).map(room => (
-                <button
-                  key={room.id}
-                  onClick={() => { setInitialWizardRoom(room.id); setIsInventoryWizardOpen(true); }}
-                  className="flex flex-col items-center justify-center p-4 rounded-xl border border-structure bg-bg-dark hover:border-primary/50 hover:bg-primary/5 transition-colors group"
-                >
-                  <room.icon className="w-6 h-6 text-text-muted group-hover:text-primary mb-2 transition-colors" />
-                  <span className="text-xs font-medium text-text-main text-center">{room.name}</span>
-                </button>
-              ))}
+
+            {/* Right Column: Live Summary, Loading Bar & Vehicle Selector */}
+            <div className="lg:col-span-4 space-y-6">
+              <div className="bg-bg-card p-6 rounded-2xl border border-structure shadow-xl sticky top-24 space-y-6">
+                <h3 className="text-base font-headline font-bold flex items-center gap-2 text-text-main border-b border-structure pb-3">
+                  <span className="material-symbols-outlined text-primary">analytics</span>
+                  Volumen &amp; LKW-Kalkulation
+                </h3>
+
+                {/* Key Metrics */}
+                <div className="space-y-3 text-xs">
+                  <div className="flex justify-between items-center border-b border-structure/40 pb-2">
+                    <span className="text-text-muted">Erfasste Gegenstände</span>
+                    <span className="font-bold text-text-main">{totalFurniturePieces} Stück</span>
+                  </div>
+                  <div className="flex justify-between items-center border-b border-structure/40 pb-2">
+                    <span className="text-text-muted">Empfohlene Fahrzeugklasse</span>
+                    <span className="font-bold text-primary">
+                      {calculateQuickCbm() <= 18 ? '1x Sprinter 3.5t' : calculateQuickCbm() <= 38 ? '1x LKW 7.5t' : '2x Fahrzeuge (LKW + Sprinter)'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Visual Loading Bar */}
+                <div>
+                  {(() => {
+                    const activeCbm = calculateQuickCbm() > 0 ? calculateQuickCbm() : estimatedCbm || 0;
+                    const maxCap = truckChoice === '1_transporter' ? 20 : truckChoice === '1_lkw' ? 35 : 65;
+                    const pct = Math.min(100, Math.round((activeCbm / maxCap) * 100));
+                    return (
+                      <div>
+                        <div className="flex justify-between items-end mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
+                            Ladekapazität ({truckChoice === '1_transporter' ? 'Sprinter' : '7.5t LKW'})
+                          </span>
+                          <span className="text-xs font-bold text-primary">{pct}%</span>
+                        </div>
+                        <div className="h-3.5 bg-structure/50 rounded-full overflow-hidden flex border border-white/5">
+                          <div
+                            className="bg-primary h-full transition-all duration-300"
+                            style={{ width: `${pct}%` }}
+                          />
+                          <div
+                            className="bg-blue-400/30 h-full border-l border-white/20 transition-all duration-300"
+                            style={{ width: `${Math.min(100 - pct, 15)}%` }}
+                          />
+                        </div>
+                        <div className="flex gap-4 mt-2 text-[10px] text-text-muted">
+                          <div className="flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-primary" /> Inventar ({activeCbm.toFixed(1)} m³)
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="w-2 h-2 rounded-full bg-blue-400/50" /> Puffer (+15%)
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Total Volumen Highlight Box */}
+                <div className="p-5 bg-primary/10 rounded-2xl border border-primary/30 text-center shadow-inner">
+                  <p className="text-[10px] font-extrabold uppercase tracking-wider text-primary mb-1">
+                    Total Ladevolumen (m³)
+                  </p>
+                  <p className="text-5xl font-headline font-black text-primary tracking-tight">
+                    {(calculateQuickCbm() > 0 ? calculateQuickCbm() : estimatedCbm || 0).toFixed(2)}
+                  </p>
+                  <p className="text-[11px] font-medium text-text-muted mt-1">
+                    + {(((calculateQuickCbm() > 0 ? calculateQuickCbm() : estimatedCbm || 0) * 0.15)).toFixed(2)} m³ Sicherheitspuffer
+                  </p>
+                </div>
+
+                {/* Schnell-Auswahl Fuhrpark */}
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted block mb-2">
+                    Fahrzeugkategorie wählen
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { id: '1_transporter', label: 'Sprinter 3.5t', desc: '~15-20 m³' },
+                      { id: '1_lkw', label: 'LKW 7.5t', desc: '~35 m³' },
+                      { id: '2_lkw', label: '2x Fahrzeuge', desc: '~60 m³' },
+                      { id: 'custom', label: 'Manuell', desc: 'Individuell' },
+                    ].map(truck => (
+                      <button
+                        key={truck.id}
+                        type="button"
+                        onClick={() => setTruckChoice(truck.id as any)}
+                        className={`p-2.5 rounded-xl border text-left transition-all ${
+                          truckChoice === truck.id
+                            ? 'border-primary bg-primary/15 text-primary font-bold shadow-sm'
+                            : 'border-structure/80 bg-white/[0.02] text-text-muted hover:border-structure'
+                        }`}
+                      >
+                        <div className="text-xs font-bold leading-tight">{truck.label}</div>
+                        <div className="text-[10px] text-text-muted mt-0.5">{truck.desc}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Next Step Controls */}
+                <div className="flex flex-col gap-2.5 pt-2 border-t border-structure/60">
+                  <button
+                    type="button"
+                    onClick={() => validateAndSetStep(5)}
+                    className="w-full py-3.5 bg-primary text-white font-headline font-bold rounded-xl shadow-lg shadow-primary/20 flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all text-xs uppercase tracking-wider"
+                  >
+                    <span>Weiter zu Schritt 5: Abschluss</span>
+                    <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => saveOrder('draft', false)}
+                    disabled={isSaving}
+                    className="w-full py-2.5 bg-white/[0.03] text-text-muted hover:text-text-main border border-structure/60 rounded-xl font-bold text-xs hover:bg-white/[0.06] transition-all"
+                  >
+                    Entwurf speichern
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-          
-          <div className="w-full">
-            <h3 className="font-semibold text-text-main mb-3">Erfasstes Umzugsgut</h3>
-            <div className="glass-panel rounded-xl border border-white/5 overflow-x-auto shadow-inner bg-black/10">
-              <table className="w-full text-left text-sm whitespace-nowrap min-w-[600px]">
-                <thead>
-                  <tr className="text-text-muted border-b border-structure bg-white/[0.02] text-xs uppercase tracking-wider">
-                    <th className="p-3 pl-4">Möbelliste</th>
-                    <th className="p-3 w-1/3">Service</th>
-                    <th className="p-3 w-24 text-center">Stück</th>
-                    <th className="p-3 w-12 text-center"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {inventory.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="p-8 text-center text-text-muted">
-                        Keine Gegenstände erfasst. Nutzen Sie den Assistenten.
-                      </td>
-                    </tr>
-                  ) : (
-                    Object.entries(
-                      inventory.reduce((acc, item) => {
-                        const room = item.room || 'Allgemein';
-                        if (!acc[room]) acc[room] = [];
-                        acc[room].push(item);
-                        return acc;
-                      }, {} as Record<string, typeof inventory>)
-                    ).map(([room, items], rIdx) => (
-                      <React.Fragment key={room}>
-                        <tr className="bg-white/[0.02] border-b border-structure">
-                          <td colSpan={4} className="p-2 pl-4">
-                            <div className="flex items-center gap-2">
-                              <HomeIcon className="w-4 h-4 text-primary" />
-                              <span className="font-bold text-text-main text-xs uppercase">{room}</span>
-                            </div>
-                          </td>
-                        </tr>
-                        {items.map(item => (
-                          <tr key={item.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
-                            <td className="p-3 pl-4">
-                              <div className="font-medium text-text-main">{item.name}</div>
-                              {item.note && <div className="text-xs text-text-muted mt-1">{item.note}</div>}
-                            </td>
-                            <td className="p-3 text-text-muted">
-                              {[
-                                item.disassembly ? `${item.disassembly}x Abbau` : null,
-                                item.assembly ? `${item.assembly}x Aufbau` : null,
-                                item.disconnection ? `${item.disconnection}x Abklemmen` : null,
-                                item.connection ? `${item.connection}x Anschluss` : null
-                              ].filter(Boolean).join(' | ')}
-                            </td>
-                            <td className="p-3 text-center">
-                              <span className="font-semibold text-text-main">{item.quantity}</span>
-                            </td>
-                            <td className="p-3 text-center">
-                              <button onClick={() => setInventory(inventory.filter(i => i.id !== item.id))} className="w-8 h-8 rounded-full bg-transparent hover:bg-red-500/10 text-text-muted hover:text-red-400 flex items-center justify-center transition-colors mx-auto opacity-0 group-hover:opacity-100 focus:opacity-100">
-                                <TrashIcon className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </React.Fragment>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 8. Mitarbeiter-Checkliste */}
-      <section className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-orange-500 shadow-lg">
-        <h2 className="text-xl font-bold mb-4 text-text-main border-b border-structure pb-2">Mitarbeiter-Checkliste</h2>
-        <p className="text-sm text-text-muted mb-4">
-          Diese Liste taucht automatisch auf dem Mitarbeiter-Laufzettel auf. Logistik-Auswahlen wie "Halteverbot" oder "Möbellift" werden dort ebenfalls automatisch angezeigt und müssen hier nicht doppelt eingetragen werden.
-        </p>
-        <div className="space-y-2 mb-4">
-          {checklist.map(item => (
-            <div key={item.id} className="flex items-center justify-between p-3 rounded-xl border bg-white/[0.02] border-structure hover:border-primary/50 transition-colors">
-              <button onClick={() => setChecklist(checklist.map(c => c.id === item.id ? { ...c, done: !c.done } : c))} className="flex items-center gap-3 flex-1 text-left">
-                {item.done ? <CheckCircleIconSolid className="w-5 h-5 text-primary shrink-0" /> : <CheckCircleIcon className="w-5 h-5 text-text-muted shrink-0" />}
-                <span className={`text-sm font-medium transition-all ${item.done ? 'text-text-muted line-through' : 'text-text-main'}`}>{item.text}</span>
-              </button>
-              <button onClick={() => setChecklist(checklist.filter(c => c.id !== item.id))} className="text-text-muted hover:text-red-400 p-1"><TrashIcon className="w-4 h-4" /></button>
-            </div>
-          ))}
-        </div>
-        <div className="flex gap-2 relative">
-          <input type="text" value={newChecklistItem} onChange={e => setNewChecklistItem(e.target.value)} placeholder="Neuer Punkt (z.B. Schlüsselübergabe)" className="input-field w-full pr-10" onKeyDown={e => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              if (newChecklistItem.trim()) {
-                setChecklist([...checklist, { id: Date.now().toString(), text: newChecklistItem.trim(), done: false }]);
-                setNewChecklistItem('');
-              }
-            }
-          }} />
-          <button type="button" onClick={() => {
-            if (newChecklistItem.trim()) {
-              setChecklist([...checklist, { id: Date.now().toString(), text: newChecklistItem.trim(), done: false }]);
-              setNewChecklistItem('');
-            }
-          }} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-primary hover:text-primary-hover disabled:opacity-50 transition-colors">
-            <PlusIcon className="w-5 h-5" />
-          </button>
-        </div>
-      </section>
-
-      
         </div>
       )}
 
       {currentStep === 5 && (
         <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
-          {/* 6. Dokumententexte & Bedingungen */}
-      <section className="glass-panel p-6 rounded-2xl shadow-xl border-t-4 border-t-structure shadow-lg">
-        <div className="flex justify-between items-center mb-4 border-b border-structure pb-2">
-          <h2 className="text-xl font-bold text-text-main flex items-center gap-2"><DocumentTextIcon className="w-6 h-6 text-text-muted"/> Dokumententexte & Bedingungen</h2>
-          <button onClick={loadStandardTexts} className="btn-secondary text-xs">Standard laden</button>
-        </div>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-text-muted uppercase mb-1">Einleitungstext (Angebot)</label>
-            <textarea value={texts.quoteIntro} onChange={e => setTexts({...texts, quoteIntro: e.target.value})} className="input-field w-full h-20 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-text-muted uppercase mb-1">Zahlungsbedingungen (Kurz)</label>
-            <textarea value={texts.paymentTerms} onChange={e => setTexts({...texts, paymentTerms: e.target.value})} className="input-field w-full h-16 text-sm" />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-text-muted uppercase mb-1">Schlusstext / Hinweise</label>
-            <textarea value={texts.quoteOutro} onChange={e => setTexts({...texts, quoteOutro: e.target.value})} className="input-field w-full h-24 text-sm" />
-          </div>
-        </div>
-      </section>
+          {/* Bento Grid Content */}
+          <div className="grid grid-cols-12 gap-8">
+            {/* Left Column: Kerndaten Bento Card */}
+            <div className="col-span-12 lg:col-span-7 space-y-6">
+              <div className="bg-bg-card rounded-2xl p-6 md:p-8 border border-structure shadow-md relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-1.5 h-full bg-primary" />
+                <h3 className="text-lg font-headline font-bold text-text-main mb-6 flex items-center gap-2">
+                  <span className="material-symbols-outlined text-primary">analytics</span>
+                  Zusammenfassung der Kerndaten
+                </h3>
 
-      
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6">
+                  {/* Kunde */}
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-text-muted tracking-wider mb-1">Kunde</p>
+                    <p className="text-base font-bold text-text-main">{customerName || 'Neukunde'}</p>
+                    <p className="text-xs text-text-muted">{customerEmail || 'Keine E-Mail angegeben'}</p>
+                    <p className="text-xs text-text-muted">{customerPhone || 'Keine Telefonnummer'}</p>
+                  </div>
+
+                  {/* Termin */}
+                  <div>
+                    <p className="text-[10px] uppercase font-bold text-text-muted tracking-wider mb-1">Umzugstermin</p>
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-primary text-lg">calendar_today</span>
+                      <p className="text-base font-bold text-text-main">
+                        {date ? new Date(date).toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' }) : 'Datum offen'}
+                      </p>
+                    </div>
+                    <p className="text-xs text-text-muted mt-0.5">
+                      Beginn: {time || '08:00'} Uhr | Geschätzte Dauer: ~{calculatedDuration || 6}h
+                    </p>
+                  </div>
+
+                  {/* Route & Logistik */}
+                  <div className="col-span-1 sm:col-span-2 pt-4 border-t border-structure/60">
+                    <p className="text-[10px] uppercase font-bold text-text-muted tracking-wider mb-3">Route &amp; Logistik</p>
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className="flex flex-col items-center pt-1">
+                          <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+                          <div className="w-0.5 h-8 bg-structure" />
+                          <div className="w-2.5 h-2.5 rounded-full border-2 border-primary" />
+                        </div>
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-xs font-bold text-text-main">{fromAddress || 'Beladestelle nicht erfasst'}</p>
+                            <p className="text-[11px] text-text-muted">
+                              Auszug: {fromFloor || 'EG'}, {hasElevatorA ? 'mit Fahrstuhl' : 'kein Fahrstuhl'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-text-main">{toAddress || 'Entladestelle nicht erfasst'}</p>
+                            <p className="text-[11px] text-text-muted">
+                              Einzug: {toFloor || 'EG'}, {hasElevatorB ? 'mit Fahrstuhl' : 'kein Fahrstuhl'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {distanceKm ? (
+                        <div className="bg-white/[0.03] border border-structure rounded-xl p-3 text-center sm:min-w-[110px] shrink-0 self-start">
+                          <p className="text-[10px] font-bold text-text-muted uppercase">Distanz</p>
+                          <p className="text-base font-headline font-bold text-primary">{distanceKm} km</p>
+                          {distanceDuration && (
+                            <p className="text-[10px] text-text-muted mt-0.5">~{distanceDuration}</p>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {/* Gesamtpreis Box */}
+                  <div className="col-span-1 sm:col-span-2 pt-5 border-t border-structure/60 bg-primary/10 -mx-6 md:-mx-8 -mb-6 md:-mb-8 px-6 md:px-8 py-5 rounded-b-2xl">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] font-bold text-primary uppercase tracking-widest">
+                          Voraussichtlicher Gesamtpreis (Brutto)
+                        </p>
+                        <p className="text-xs text-text-muted">
+                          Inkl. 19% MwSt. ({totals.tax.toFixed(2)} €), Haftung &amp; Transportversicherung
+                        </p>
+                      </div>
+                      <div className="text-left sm:text-right">
+                        <p className="text-3xl sm:text-4xl font-headline font-black text-primary tracking-tight">
+                          {totals.gross.toFixed(2)} €
+                        </p>
+                        <p className="text-[10px] font-bold text-text-muted uppercase">
+                          Netto: {totals.net.toFixed(2)} €
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Plausibilität Bestätigung Banner */}
+              <div className="bg-white/[0.02] rounded-2xl p-5 border border-structure shadow-sm flex items-center justify-between gap-4">
+                <div className="flex gap-3.5 items-center">
+                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                    <span className="material-symbols-outlined text-2xl">verified</span>
+                  </div>
+                  <div>
+                    <h4 className="text-text-main font-headline font-bold text-sm">Angebot ist abschlussbereit</h4>
+                    <p className="text-text-muted text-xs">Alle Logistik- und Tarifangaben sind vollständig hinterlegt.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => saveOrder('draft', false)}
+                  disabled={isSaving}
+                  className="bg-primary/15 text-primary hover:bg-primary hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0"
+                >
+                  Entwurf sichern
+                </button>
+              </div>
+
+              {/* Manuelle / Externe Vertragsbestätigung Toggle */}
+              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <CheckCircleIconSolid className="w-6 h-6 text-emerald-400 shrink-0" />
+                  <div>
+                    <span className="text-xs font-bold text-emerald-400 block">
+                      Bereits unterschrieben / bestätigt (WhatsApp oder Ausdruck)
+                    </span>
+                    <span className="text-[11px] text-text-muted">
+                      Setzt den Status sofort auf "Bestätigt" ohne digitalen Signatur-Link.
+                    </span>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={isManuallySigned}
+                    onChange={(e) => setIsManuallySigned(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                </label>
+              </div>
+            </div>
+
+            {/* Right Column: Dokumenten-Vorschau & Texte */}
+            <div className="col-span-12 lg:col-span-5 space-y-6">
+              <div className="bg-bg-card rounded-2xl p-6 border border-structure shadow-md flex flex-col h-full">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base font-headline font-bold text-text-main flex items-center gap-2">
+                    <span className="material-symbols-outlined text-primary">preview</span>
+                    Dokumenten-Vorschau
+                  </h3>
+                  <div className="flex gap-1.5">
+                    <button 
+                      type="button" 
+                      onClick={() => window.print()} 
+                      className="p-1.5 bg-white/[0.04] hover:bg-white/10 rounded-lg border border-structure text-text-muted hover:text-white transition-colors"
+                      title="Drucken / PDF erzeugen"
+                    >
+                      <span className="material-symbols-outlined text-base">print</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Simulated PDF Preview Paper */}
+                <div 
+                  onClick={() => window.print()}
+                  className="flex-grow bg-white/[0.03] rounded-xl border border-dashed border-structure/80 p-6 flex flex-col justify-between cursor-pointer group hover:border-primary/50 transition-colors min-h-[260px] relative overflow-hidden"
+                >
+                  <div className="flex justify-between items-start border-b border-structure/40 pb-4">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Rothirsch Logistics</span>
+                      <p className="text-xs font-bold text-text-main mt-0.5">Umzugsangebot</p>
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                      <span className="material-symbols-outlined text-base">local_shipping</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 py-4 text-[11px] text-text-muted">
+                    <div className="flex justify-between">
+                      <span>Kunde:</span>
+                      <span className="font-semibold text-text-main">{customerName || 'Herr/Frau Kunde'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Umzugsdatum:</span>
+                      <span className="font-semibold text-text-main">{date || 'Termin offen'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Positionen:</span>
+                      <span className="font-semibold text-text-main">{services.length} Einzelleistungen</span>
+                    </div>
+                    <div className="flex justify-between border-t border-structure/30 pt-2 font-bold text-text-main">
+                      <span>Gesamt:</span>
+                      <span className="text-primary">{totals.gross.toFixed(2)} €</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-structure/40 flex items-center justify-between text-[10px] text-text-muted">
+                    <span>Rechtsgültiges Firmenangebot</span>
+                    <span className="text-primary font-bold group-hover:underline flex items-center gap-1">
+                      Klicken zum Drucken
+                      <span className="material-symbols-outlined text-xs">north_east</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center gap-3 text-xs">
+                  <span className="material-symbols-outlined text-primary text-xl">description</span>
+                  <div className="flex-grow min-w-0">
+                    <p className="font-bold text-text-main truncate">
+                      Angebot_{customerName ? customerName.replace(/\s+/g, '_') : 'Rothirsch'}_{new Date().getFullYear()}.pdf
+                    </p>
+                    <p className="text-[10px] text-text-muted">
+                      Generiert &amp; druckbereit • Automatische Signaturzeile enthalten
+                    </p>
+                  </div>
+                </div>
+
+                {/* Collapsible Document Texts & Conditions */}
+                <details className="mt-4 pt-4 border-t border-structure/50 group">
+                  <summary className="text-xs font-bold text-text-muted hover:text-text-main cursor-pointer flex items-center justify-between">
+                    <span>Dokumententexte &amp; Zahlungsbedingungen anpassen</span>
+                    <span className="material-symbols-outlined text-sm group-open:rotate-180 transition-transform">expand_more</span>
+                  </summary>
+                  <div className="space-y-3 pt-3">
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-[10px] font-bold text-text-muted uppercase">Einleitungstext</label>
+                        <button type="button" onClick={loadStandardTexts} className="text-[10px] text-primary hover:underline">Standard laden</button>
+                      </div>
+                      <textarea
+                        value={texts.quoteIntro}
+                        onChange={e => setTexts({...texts, quoteIntro: e.target.value})}
+                        className="input-field w-full h-16 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-text-muted uppercase mb-1 block">Zahlungsbedingungen</label>
+                      <textarea
+                        value={texts.paymentTerms}
+                        onChange={e => setTexts({...texts, paymentTerms: e.target.value})}
+                        className="input-field w-full h-14 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-text-muted uppercase mb-1 block">Schlusshinweise</label>
+                      <textarea
+                        value={texts.quoteOutro}
+                        onChange={e => setTexts({...texts, quoteOutro: e.target.value})}
+                        className="input-field w-full h-16 text-xs"
+                      />
+                    </div>
+                  </div>
+                </details>
+              </div>
+            </div>
+
+            {/* Section 3: 3 Large Action Cards */}
+            <div className="col-span-12">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                {/* Action 1: Save */}
+                <button
+                  type="button"
+                  onClick={() => saveOrder(isInvoice ? 'invoice_open' : 'draft', false)}
+                  disabled={isSaving}
+                  className="group flex flex-col items-center justify-center gap-3 p-6 bg-bg-card rounded-2xl border border-structure hover:border-primary transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 text-center"
+                >
+                  <div className="w-14 h-14 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:bg-primary group-hover:text-white transition-colors">
+                    <span className="material-symbols-outlined text-2xl">save</span>
+                  </div>
+                  <div>
+                    <p className="font-headline font-bold text-sm text-text-main">Angebot speichern</p>
+                    <p className="text-xs text-text-muted mt-0.5">In der Datenbank archivieren</p>
+                  </div>
+                </button>
+
+                {/* Action 2: Download / Print */}
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="group flex flex-col items-center justify-center gap-3 p-6 bg-bg-card rounded-2xl border border-structure hover:border-primary transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 text-center"
+                >
+                  <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-400 group-hover:bg-primary group-hover:text-white transition-colors">
+                    <span className="material-symbols-outlined text-2xl">download</span>
+                  </div>
+                  <div>
+                    <p className="font-headline font-bold text-sm text-text-main">PDF herunterladen</p>
+                    <p className="text-xs text-text-muted mt-0.5">Lokal drucken oder als PDF sichern</p>
+                  </div>
+                </button>
+
+                {/* Action 3: Email */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const subject = encodeURIComponent(`Ihr Umzugsangebot von Rothirsch - ${customerName || ''}`);
+                    const body = encodeURIComponent(`Guten Tag ${customerName || ''},\n\nanbei erhalten Sie das Angebot für Ihren bevorstehenden Umzug.\nGesamtbetrag: ${totals.gross.toFixed(2)} €.\n\nMit freundlichen Grüßen\nIhr Rothirsch Team`);
+                    window.location.href = `mailto:${customerEmail || ''}?subject=${subject}&body=${body}`;
+                  }}
+                  className="group flex flex-col items-center justify-center gap-3 p-6 bg-primary/10 rounded-2xl border border-primary/30 hover:border-primary transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 text-center"
+                >
+                  <div className="w-14 h-14 rounded-full bg-primary text-white flex items-center justify-center group-hover:scale-110 transition-transform shadow-md">
+                    <span className="material-symbols-outlined text-2xl">alternate_email</span>
+                  </div>
+                  <div>
+                    <p className="font-headline font-bold text-sm text-primary">E-Mail an Kunden</p>
+                    <p className="text-xs text-text-muted mt-0.5">Angebot direkt versenden</p>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
-{/* Floating Save Button */}
-      <div className="sticky bottom-20 md:bottom-0 z-[60] -mx-4 md:mx-0 mt-8 p-4 bg-bg-panel/95 backdrop-blur-md border-y md:border-y-0 md:border-t border-structure shadow-[0_-10px_30px_rgba(0,0,0,0.3)] flex flex-col sm:flex-row justify-between items-center gap-4 rounded-xl md:rounded-none">
-        <div className="w-full sm:w-auto">
-          {errorMessage && <span className="text-red-400 text-sm font-semibold animate-in fade-in bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 block">{errorMessage}</span>}
-        </div>
-        <div className="flex justify-end gap-2 sm:gap-4 flex-wrap w-full sm:w-auto">
-          <button onClick={() => {
-            if (urlCustomerId) router.push(`/dashboard/customers/${urlCustomerId}`);
-            else router.push('/dashboard/orders');
-          }} disabled={isSaving} className="btn-secondary hidden sm:flex text-xs sm:text-sm px-2 sm:px-4">
-            Abbrechen
-          </button>
-          
-          <button onClick={() => saveOrder(isInvoice ? 'invoice_open' : 'draft', false)} disabled={isSaving} className={`btn-secondary flex-1 sm:flex-none flex justify-center items-center gap-2 text-xs sm:text-sm px-3 sm:px-4`}>
-            {isSaving && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-            {isSaving ? 'Speichert...' : (isInvoice ? 'Rechnung speichern' : 'Speichern')}
-          </button>
-          
-          {currentStep === 5 && !isInvoice && orderStatus === 'draft' && (
-            <button 
-              onClick={() => {
-                if (services.length === 0 && !confirm("Es sind keine Leistungen erfasst — trotzdem erstellen?")) return;
-                saveOrder('draft', true);
-              }} 
-              disabled={isSaving} 
-              className="btn-primary flex-1 sm:flex-none shadow-lg shadow-primary/30 flex justify-center items-center gap-2 text-xs sm:text-sm px-3 sm:px-4"
-            >
-              Angebot erstellen
-            </button>
-          )}
 
-          {currentStep > 1 && (
-            <button onClick={() => setCurrentStep(prev => prev - 1)} disabled={isSaving} className="btn-secondary hidden sm:flex text-xs sm:text-sm px-3 sm:px-4">
-              Zurück
+      {/* Docked Material Action Bar (Mobile & Desktop Ergonomic) */}
+      <div className="fixed bottom-0 left-0 right-0 md:left-64 z-[70] bg-bg-panel/98 backdrop-blur-xl border-t border-structure shadow-[0_-8px_30px_rgba(0,0,0,0.35)] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-all">
+        {errorMessage && (
+          <div className="max-w-7xl mx-auto mb-2">
+            <span className="text-red-400 text-xs font-semibold bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 block text-center">
+              {errorMessage}
+            </span>
+          </div>
+        )}
+
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+          {/* LEFT: Zurück or Abbrechen */}
+          <div className="flex items-center gap-2 shrink-0">
+            {currentStep > 1 ? (
+              <button
+                type="button"
+                onClick={() => setCurrentStep(prev => prev - 1)}
+                disabled={isSaving}
+                className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline bg-structure/50 hover:bg-structure text-text-main transition-all flex items-center gap-1.5 border border-structure active:scale-95 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-sm">arrow_back</span>
+                <span>Zurück</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  if (urlCustomerId) router.push(`/dashboard/customers/${urlCustomerId}`);
+                  else router.push('/dashboard/orders');
+                }}
+                disabled={isSaving}
+                className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline text-text-muted hover:text-text-main transition-colors flex items-center gap-1 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-sm">close</span>
+                <span className="hidden xs:inline">Abbrechen</span>
+              </button>
+            )}
+          </div>
+
+          {/* CENTER: Step Indicator & Quick Save */}
+          <div className="flex items-center gap-2 sm:gap-4">
+            <span className="text-[11px] font-bold font-headline uppercase tracking-wider text-text-muted px-2.5 py-1 rounded-full bg-structure/40 border border-structure hidden xs:inline-block">
+              Schritt {currentStep}/5
+            </span>
+
+            <button
+              type="button"
+              onClick={() => saveOrder(isInvoice ? 'invoice_open' : 'draft', false)}
+              disabled={isSaving}
+              className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline bg-structure/40 hover:bg-structure text-text-main transition-all flex items-center gap-1.5 border border-structure cursor-pointer active:scale-95"
+              title="Als Entwurf zwischenspeichern"
+            >
+              {isSaving ? (
+                <span className="w-3.5 h-3.5 border-2 border-primary/40 border-t-primary rounded-full animate-spin" />
+              ) : (
+                <span className="material-symbols-outlined text-sm text-primary">save</span>
+              )}
+              <span className="hidden sm:inline">{isSaving ? 'Speichert...' : 'Entwurf speichern'}</span>
+              <span className="sm:hidden">{isSaving ? '...' : 'Speichern'}</span>
             </button>
-          )}
-          {currentStep < 5 && (
-            <button onClick={() => setCurrentStep(prev => prev + 1)} disabled={isSaving} className="btn-primary flex-1 sm:flex-none flex justify-center items-center gap-2 shadow-lg shadow-primary/30 text-xs sm:text-sm px-3 sm:px-4">
-              Weiter
-            </button>
-          )}
+          </div>
+
+          {/* RIGHT: Weiter or Buchen (Primary Action) */}
+          <div className="flex items-center gap-2 shrink-0">
+            {currentStep < 5 ? (
+              <button
+                type="button"
+                onClick={() => validateAndSetStep(currentStep + 1)}
+                disabled={isSaving}
+                className="btn-primary px-4 sm:px-6 py-2 rounded-xl text-xs font-bold font-headline flex items-center gap-1.5 shadow-md shadow-primary/30 active:scale-95 transition-all cursor-pointer"
+              >
+                <span>Weiter</span>
+                <span className="material-symbols-outlined text-sm">arrow_forward</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => saveOrder('confirmed', true)}
+                disabled={isSaving}
+                className="bg-primary hover:brightness-110 text-white px-5 sm:px-7 py-2.5 rounded-xl font-headline font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2 shadow-xl shadow-primary/40 active:scale-95 transition-all cursor-pointer"
+              >
+                {isSaving ? (
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                ) : (
+                  <span className="material-symbols-outlined text-base">check_circle</span>
+                )}
+                <span>Umzug buchen 🚀</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
       <InventoryWizardModal 

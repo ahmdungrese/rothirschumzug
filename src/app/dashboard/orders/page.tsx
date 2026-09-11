@@ -8,7 +8,6 @@ import { toast } from 'react-hot-toast';
 import { PaymentManager } from '@/components/orders/PaymentManager';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { DispoModal } from '@/components/orders/DispoModal';
-import { getCol } from '@/lib/demoMode';
 import { calculateOrderTotals, calculateTotalPaid } from '@/lib/financeHelpers';
 
 export default function OrdersPage() {
@@ -22,7 +21,7 @@ export default function OrdersPage() {
   useEffect(() => {
     // Fetch only non-invoice statuses. We remove the 30-day limit so long-term orders don't disappear.
     const q = query(
-      collection(db, getCol('orders')),
+      collection(db, 'orders'),
       where('status', 'in', ['draft', 'clarification', 'quote', 'confirmed', 'completed', 'canceled', 'rejected'])
     );
     
@@ -47,7 +46,7 @@ export default function OrdersPage() {
 
   const updateStatus = async (orderId: string, newStatus: string) => {
     try {
-      await updateDoc(doc(db, getCol('orders'), orderId), { status: newStatus });
+      await updateDoc(doc(db, 'orders', orderId), { status: newStatus });
     } catch (error) {
       console.error("Fehler beim Status-Update", error);
     }
@@ -87,7 +86,7 @@ export default function OrdersPage() {
     <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-text-main">Aufträge & Disposition</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-text-main">Aufträge & Planung</h1>
           <p className="text-text-muted mt-1">Verwalten Sie Angebote, teilen Sie Fahrzeuge/Mitarbeiter ein und erstellen Sie Rechnungen.</p>
         </div>
         <Link 
@@ -179,7 +178,7 @@ export default function OrdersPage() {
                             className="btn-primary py-2 px-3 text-xs w-full sm:w-auto flex justify-center"
                           >
                             <TruckIcon className="w-4 h-4 mr-1" />
-                            Bestätigen & Disponieren
+                            Terminieren & Bestätigen
                           </button>
                         )}
                         

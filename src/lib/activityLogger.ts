@@ -1,6 +1,5 @@
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { getCol } from '@/lib/demoMode';
 
 export type ActivityAction = 'LOGIN' | 'CREATE_CUSTOMER' | 'UPDATE_CUSTOMER' | 'ARCHIVE_CUSTOMER' | 'CREATE_ORDER' | 'UPDATE_ORDER' | 'ARCHIVE_ORDER';
 
@@ -11,9 +10,10 @@ export const logActivity = async (
   details: string
 ) => {
   try {
-    await addDoc(collection(db, getCol('activity_logs')), {
+    const cleanName = (userName && userName !== 'Unbekannt') ? userName : 'Mitarbeiter';
+    await addDoc(collection(db, 'activity_logs'), {
       userId,
-      userName: userName || 'Unbekannt',
+      userName: cleanName,
       action,
       details,
       timestamp: serverTimestamp()

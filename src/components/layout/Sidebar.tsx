@@ -67,7 +67,7 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
           </button>
         </div>
 
-        <nav className="p-4 space-y-2">
+        <nav className="p-4 space-y-1.5 flex-1 overflow-y-auto custom-scrollbar">
           {filteredNavItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
             return (
@@ -75,20 +75,19 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
                 key={item.name}
                 id={item.id}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-colors ${
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
                   isActive 
-                    ? 'bg-primary/10 text-primary border border-primary/20 shadow-sm' 
-                    : 'text-text-muted hover:bg-structure hover:text-text-main'
+                    ? 'sidebar-active text-[#D91E2A] dark:text-red-400 font-bold shadow-sm' 
+                    : 'text-text-muted hover:bg-structure/60 hover:text-text-main font-medium'
                 }`}
                 onClick={() => setIsOpen(false)}
               >
-                <item.icon className={`w-5 h-5 ${isActive ? 'text-primary' : ''}`} />
-                <span className="font-medium">{item.name}</span>
+                <item.icon className={`w-5 h-5 ${isActive ? 'text-[#D91E2A] dark:text-red-400' : ''}`} />
+                <span className="font-display text-sm">{item.name}</span>
               </Link>
             );
           })}
         </nav>
-
       </aside>
     </>
   );

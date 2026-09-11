@@ -3,7 +3,6 @@ import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, where } from 'firebase/firestore';
-import { getCol } from '@/lib/demoMode';
 import { SmartCustomerCard } from '@/components/customers/SmartCustomerCard';
 import { SmartCustomerTable } from '@/components/customers/SmartCustomerTable';
 import { QuickCreateCustomer } from '@/components/customers/QuickCreateCustomer';
@@ -18,7 +17,7 @@ export default function CustomersPage() {
 
   useEffect(() => {
     // 1. Fetch Customers
-    const qCustomers = query(collection(db, getCol('customers')));
+    const qCustomers = query(collection(db, 'customers'));
     const unsubCustomers = onSnapshot(qCustomers, (snapshot) => {
       const fetched = snapshot.docs
         .map((doc: any) => ({ id: doc.id, ...doc.data() }))
@@ -29,7 +28,7 @@ export default function CustomersPage() {
     });
 
     // 2. Fetch Orders (active orders only, skipping archived and cancelled)
-    const qOrders = query(collection(db, getCol('orders')));
+    const qOrders = query(collection(db, 'orders'));
     const unsubOrders = onSnapshot(qOrders, (snapshot) => {
       const fetched = snapshot.docs
         .map((doc: any) => ({ id: doc.id, ...doc.data() }))

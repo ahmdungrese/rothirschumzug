@@ -2,13 +2,12 @@
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
-import { getCol } from '@/lib/demoMode';
 
 export function ActivityLogViewer() {
   const [logs, setLogs] = useState<any[]>([]);
 
   useEffect(() => {
-    const q = query(collection(db, getCol('activity_logs')), orderBy("timestamp", "desc"), limit(100));
+    const q = query(collection(db, 'activity_logs'), orderBy("timestamp", "desc"), limit(100));
     const unsub = onSnapshot(q, (snap) => {
       setLogs(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });

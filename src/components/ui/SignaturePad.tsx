@@ -5,7 +5,6 @@ import { db } from '@/lib/firebase';
 import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { PencilIcon, CalendarIcon, MapPinIcon } from '@heroicons/react/24/outline';
-import { getCol } from '@/lib/demoMode';
 
 interface SignaturePadProps {
   orderId: string;
@@ -60,7 +59,7 @@ export function SignaturePad({
     try {
       const signatureDataUrl = sigPad.current?.getTrimmedCanvas().toDataURL('image/png');
       
-      await updateDoc(doc(db, getCol('orders'), orderId), {
+      await updateDoc(doc(db, 'orders', orderId), {
         [signatureKey]: signatureDataUrl,
         [`${signatureKey}Date`]: serverTimestamp(),
         [`${signatureKey}Place`]: place.trim(),

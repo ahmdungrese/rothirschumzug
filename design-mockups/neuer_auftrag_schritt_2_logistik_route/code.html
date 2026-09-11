@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+
+<html class="light" lang="de"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Luminous Logistics - Logistik &amp; Route</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Anybody:wght@400;600;700;800&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">tailwind.config = {darkMode: "class", theme: {extend: {colors: {"inverse-surface": "#0c0f0f", "surface-variant": "#e0e3e4", "on-error": "#fff7f6", "primary-dim": "#4b5900", "on-primary-container": "#4a5800", surface: "#f9f9f9", "on-primary": "#f4ffbe", "secondary-fixed": "#adecff", "outline-variant": "#afb3b3", secondary: "#00687b", "inverse-on-surface": "#9c9d9d", "surface-container": "#eceeee", "surface-bright": "#f9f9f9", "surface-container-highest": "#e0e3e4", outline: "#777b7c", "primary-fixed-dim": "#c6e04b", "on-primary-fixed-variant": "#536200", "on-tertiary-fixed-variant": "#004473", "surface-container-lowest": "#ffffff", "on-secondary-fixed": "#004653", "secondary-dim": "#005b6c", "on-tertiary-container": "#003b65", "surface-container-high": "#e6e8e9", "on-surface": "#2f3334", "on-primary-fixed": "#394400", "secondary-fixed-dim": "#76e3ff", error: "#a83836", "error-dim": "#67040d", "tertiary-dim": "#1c5689", "tertiary-container": "#8ebff9", tertiary: "#2c6295", "on-background": "#2f3334", "inverse-primary": "#e2fe65", "on-secondary-container": "#005a6a", "on-tertiary-fixed": "#002442", "on-error-container": "#6e0a12", "tertiary-fixed-dim": "#80b2ea", "on-tertiary": "#f7f9ff", "surface-dim": "#d7dbdb", "on-surface-variant": "#5c6060", "surface-container-low": "#f3f4f4", "surface-tint": "#566600", "on-secondary": "#effbff", "on-secondary-fixed-variant": "#006577", "tertiary-fixed": "#8ebff9", primary: "#566600", "secondary-container": "#adecff", "error-container": "#fa746f", "primary-fixed": "#d3ef58", "primary-container": "#d3ef58", background: "#f9f9f9"}, borderRadius: {DEFAULT: "1rem", lg: "2rem", xl: "3rem", full: "9999px"}, fontFamily: {headline: ["Anybody"], display: ["Anybody"], body: ["Plus Jakarta Sans"], label: ["Plus Jakarta Sans"]}, fontSize: {}}}};</script>
+<style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .font-headline { font-family: 'Anybody', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .active-dot {
+            box-shadow: 0 0 0 4px rgba(201, 234, 41, 0.3);
+        }
+    </style>
+</head>
+<body class="bg-surface text-on-surface antialiased overflow-x-hidden">
+<!-- SideNavBar (JSON Derived) -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-surface dark:bg-inverse-surface border-r border-outline-variant dark:border-outline flex flex-col p-4 z-50">
+<div class="mb-10 px-4">
+<h1 class="text-xl font-headline font-extrabold text-primary dark:text-inverse-primary tracking-tighter">Rothirsch Umzüge</h1>
+<p class="text-xs font-body opacity-60">Logistics Portal</p>
+</div>
+<nav class="flex-1 flex flex-col gap-2">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="font-body font-medium">Kunde</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 bg-primary-container text-on-primary-container rounded-lg font-bold transition-transform active:scale-95" href="#">
+<span class="material-symbols-outlined">local_shipping</span>
+<span class="font-body">Logistik</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-body font-medium">Leistungen</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">format_list_bulleted</span>
+<span class="font-body font-medium">Inventar</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high transition-colors rounded-lg" href="#">
+<span class="material-symbols-outlined">check_circle</span>
+<span class="font-body font-medium">Abschluss</span>
+</a>
+</nav>
+<div class="mt-auto p-4">
+<button class="w-full bg-primary text-on-primary font-bold py-3 px-4 rounded-md transition-transform active:scale-95 shadow-lg">New Move Request</button>
+</div>
+</aside>
+<!-- TopAppBar (JSON Derived) -->
+<header class="fixed top-0 right-0 left-64 h-16 bg-surface-bright dark:bg-surface-dim border-b border-outline-variant flex items-center justify-between px-8 z-40">
+<div class="flex items-center gap-6">
+<span class="text-lg font-headline font-bold text-on-surface">Luminous Logistics</span>
+<nav class="hidden md:flex items-center gap-6">
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label font-semibold" href="#">Dashboard</a>
+<a class="text-primary border-b-2 border-primary pb-1 font-label font-semibold opacity-80" href="#">Move Archive</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label font-semibold" href="#">Settings</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative">
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer p-2 rounded-full hover:bg-surface-container transition-colors">notifications</span>
+<span class="absolute top-2 right-2 w-2 h-2 bg-error rounded-full border-2 border-surface"></span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer p-2 rounded-full hover:bg-surface-container transition-colors">help_outline</span>
+<div class="w-10 h-10 rounded-full bg-surface-container-high border border-outline-variant overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Professional headshot of a German logistics manager with a friendly expression, wearing a minimalist modern polo shirt, set against a blurred office background with industrial grey and electric lime accents, sharp focus, clean lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC5YYnBVLlJp12XxScO3QHzLOC_lrpTljktkvQie8CAYPDeYVVYQ960CACXvmsnqq8uwaCb5PO3D2jMUFa8oiUaZVnQnlxsXaqiVrpo1a9LFSlZ_pJBcs4pDwzu9gi9cVG_3PpuV6jdDbuF37bvdUZkTdfzbyZ4FGdxnwffLzfwas2krwrP2ZcTo6QfsgMzi6ujMBqEr7mwSdsXvCfuUJVbjIsfy1J6Gym8hay__crKpRldkO8J3m0kxOTUh9Xi_gJhpOL1ztuPxWx3"/>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="ml-64 pt-24 px-8 pb-12 min-h-screen">
+<!-- Wizard Header / Stepper -->
+<div class="max-w-6xl mx-auto mb-10">
+<div class="flex items-center justify-between mb-8">
+<div>
+<h2 class="text-3xl font-headline font-bold text-on-surface tracking-tight">Umzugsplanung</h2>
+<p class="text-on-surface-variant font-body">Schritt 2 von 5: Logistik &amp; Route festlegen</p>
+</div>
+</div>
+<!-- Custom Stepper -->
+<div class="flex items-center w-full gap-2 px-2">
+<div class="flex items-center gap-3 flex-1 group">
+<div class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold text-sm">
+<span class="material-symbols-outlined text-sm" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<div class="h-1 flex-1 bg-primary rounded-full"></div>
+</div>
+<div class="flex items-center gap-3 flex-1">
+<div class="w-10 h-10 rounded-full bg-primary text-on-primary flex items-center justify-center font-bold active-dot border-4 border-surface shadow-md">2</div>
+<div class="h-1 flex-1 bg-surface-container-highest rounded-full"></div>
+</div>
+<div class="flex items-center gap-3 flex-1 opacity-40">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest text-on-surface flex items-center justify-center font-bold text-sm">3</div>
+<div class="h-1 flex-1 bg-surface-container-highest rounded-full"></div>
+</div>
+<div class="flex items-center gap-3 opacity-40">
+<div class="w-8 h-8 rounded-full bg-surface-container-highest text-on-surface flex items-center justify-center font-bold text-sm">4</div>
+</div>
+</div>
+</div>
+<!-- Bento Grid Layout for Sections -->
+<div class="max-w-6xl mx-auto grid grid-cols-12 gap-6">
+<!-- Section 1: Auszugsort (A) -->
+<section class="col-span-12 lg:col-span-6 bg-surface-container-lowest rounded-lg border border-outline-variant p-8 shadow-sm transition-all hover:shadow-md">
+<div class="flex items-center gap-4 mb-8">
+<div class="w-12 h-12 bg-primary-container rounded-full flex items-center justify-center text-on-primary-container">
+<span class="material-symbols-outlined">start</span>
+</div>
+<div>
+<h3 class="text-xl font-headline font-bold">Auszugsort (A)</h3>
+<p class="text-xs font-label text-outline uppercase tracking-widest font-bold">Ladeadresse</p>
+</div>
+</div>
+<div class="grid grid-cols-6 gap-4">
+<div class="col-span-4">
+<label class="block text-xs font-bold text-on-surface-variant mb-1 ml-1">Straße</label>
+<input class="w-full bg-surface border-outline-variant rounded-md px-4 py-3 focus:ring-primary focus:border-primary transition-all" placeholder="Beispielstraße" type="text"/>
+</div>
+<div class="col-span-2">
+<label class="block text-xs font-bold text-on-surface-variant mb-1 ml-1">Hausnr.</label>
+<input class="w-full bg-surface border-outline-variant rounded-md px-4 py-3 focus:ring-primary focus:border-primary transition-all" placeholder="12a" type="text"/>
+</div>
+<div class="col-span-2">
+<label class="block text-xs font-bold text-on-surface-variant mb-1 ml-1">PLZ</label>
+<input class="w-full bg-surface border-outline-variant rounded-md px-4 py-3 focus:ring-primary focus:border-primary transition-all" placeholder="10115" type="text"/>
+</div>
+<div class="col-span-4">
+<label class="block text-xs font-bold text-on-surface-variant mb-1 ml-1">Stadt</label>
+<input class="w-full bg-surface border-outline-variant rounded-md px-4 py-3 focus:ring-primary focus:border-primary transition-all" placeholder="Berlin" type="text"/>
+</div>
+<div class="col-span-3">
+<label class="block text-xs font-bold text-on-surface-variant mb-1 ml-1">Etage</label>
+<select class="w-full bg-surface border-outline-variant rounded-md px-4 py-3 focus:ring-primary focus:border-primary transition-all">
+<option>Erdgeschoss</option>
+<option>1. OG</option>
+<option>2. OG</option>
+<option>3. OG</option>
+<option>4. OG+</option>
+<option>Dachgeschoss</option>
+</select>
+</div>
+<div class="col-span-3">
+<label class="block text-xs font-bold text-on-surface-variant mb-1 ml-1">Trageweg zum LKW (m)</label>
+<input class="w-full bg-surface border-outline-variant rounded-md px-4 py-3 focus:ring-primary focus:border-primary transition-all" placeholder="15" type="number"/>
+</div>
+<div class="col-span-6 flex items-center justify-between p-4 bg-surface-container rounded-md mt-2">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">elevator</span>
+<span class="font-body text-sm font-semibold">Aufzug vorhanden?</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-outline-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+</div>
+</section>
+<!-- Section 2: Einzugsort (B) -->
+<section class="col-span-12 lg:col-span-6 bg-surface-container-lowest rounded-lg border border-outline-variant p-8 shadow-sm transition-all hover:shadow-md">
+<div class="flex items-center gap-4 mb-8">
+<div class="w-12 h-12 bg-secondary-container rounded-full flex items-center justify-center text-on-secondary-container">
+<span class="material-symbols-outlined">qr_code_2</span>
+</div>
+<div>
+<h3 class="text-xl font-headline font-bold">Einzugsort (B)</h3>
+<p class="text-xs font-label text-outline uppercase tracking-widest font-bold">Zieladresse</p>
+</div>
+</div>
+<div class="grid grid-cols-6 gap-4">
+<div class="col-span-4">
+<label class="block text-xs font-bold text-on-surface-variant mb-1 ml-1">Straße</label>
+<input class="w-full bg-surface border-outline-variant rounded-md px-4 py-3 focus:ring-primary focus:border-primary transition-all" placeholder="Zielallee" type="text"/>
+</div>
+<div class="col-span-2">
+<label class="block text-xs font-bold text-on-surface-variant mb-1 ml-1">Hausnr.</label>
+<input class="w-full bg-surface border-outline-variant rounded-md px-4 py-3 focus:ring-primary focus:border-primary transition-all" placeholder="45" type="text"/>
+</div>
+<div class="col-span-2">
+<label class="block text-xs font-bold text-on-surface-variant mb-1 ml-1">PLZ</label>
+<input class="w-full bg-surface border-outline-variant rounded-md px-4 py-3 focus:ring-primary focus:border-primary transition-all" placeholder="20095" type="text"/>
+</div>
+<div class="col-span-4">
+<label class="block text-xs font-bold text-on-surface-variant mb-1 ml-1">Stadt</label>
+<input class="w-full bg-surface border-outline-variant rounded-md px-4 py-3 focus:ring-primary focus:border-primary transition-all" placeholder="Hamburg" type="text"/>
+</div>
+<div class="col-span-3">
+<label class="block text-xs font-bold text-on-surface-variant mb-1 ml-1">Etage</label>
+<select class="w-full bg-surface border-outline-variant rounded-md px-4 py-3 focus:ring-primary focus:border-primary transition-all">
+<option>Erdgeschoss</option>
+<option>1. OG</option>
+<option>2. OG</option>
+<option>3. OG</option>
+<option>4. OG+</option>
+<option>Dachgeschoss</option>
+</select>
+</div>
+<div class="col-span-3">
+<label class="block text-xs font-bold text-on-surface-variant mb-1 ml-1">Trageweg zum LKW (m)</label>
+<input class="w-full bg-surface border-outline-variant rounded-md px-4 py-3 focus:ring-primary focus:border-primary transition-all" placeholder="10" type="number"/>
+</div>
+<div class="col-span-6 flex items-center justify-between p-4 bg-surface-container rounded-md mt-2">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-secondary">elevator</span>
+<span class="font-body text-sm font-semibold">Aufzug vorhanden?</span>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-outline-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-secondary"></div>
+</label>
+</div>
+</div>
+</section>
+<!-- Section 3: Routen-Details -->
+<section class="col-span-12 bg-surface-container-lowest rounded-lg border border-outline-variant p-8 shadow-sm">
+<div class="flex items-center justify-between mb-8">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 bg-surface-container flex items-center justify-center rounded-full text-on-surface">
+<span class="material-symbols-outlined">map</span>
+</div>
+<div>
+<h3 class="text-xl font-headline font-bold">Routen-Details</h3>
+<p class="text-xs font-label text-outline uppercase tracking-widest font-bold">Distanz &amp; Logistik-Check</p>
+</div>
+</div>
+<div class="flex gap-8">
+<div class="text-right">
+<span class="block text-[10px] font-bold text-outline uppercase tracking-widest">Distanz</span>
+<span class="text-2xl font-headline font-extrabold text-primary">288 km</span>
+</div>
+<div class="text-right">
+<span class="block text-[10px] font-bold text-outline uppercase tracking-widest">Dauer (LKW)</span>
+<span class="text-2xl font-headline font-extrabold text-secondary">~3:45 h</span>
+</div>
+</div>
+</div>
+<div class="relative w-full h-[320px] rounded-lg overflow-hidden border border-outline-variant">
+<div class="absolute inset-0 bg-surface-container" data-alt="A clean, minimalist vector-style map showing a logistics route between Berlin and Hamburg. The map uses a neutral grey and white color scheme with a bold electric lime line indicating the highway path. Tech cyan markers designate point A and point B. Modern flat design aesthetic for professional dashboard usage." data-location="Berlin, Germany" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuDGNMLpRyhlX32tU6A7LIgRiDwtatOm9fZgSfbBYZSwerSEQSuYq_VBQhZXFX4JDlKjyxigU3Le_gi8Zq_sS6svvKxHL0BVNH9Y1VpvpMf5W3Ce4NW0PPmTr87XFiHUC4BWacVEtEguRuEN6Ay7H3-5_USlq6cLvmAy7HuIc_NJLv_xEBfsffxHR0cl5AN8W7B7D-9FIEicXRsZClLSLww1bPPF8IqZKGK66uxNk5mNiSA8EiJ0RFLz2WBit4VCnBQDk3k8etWu1-Uh')">
+<!-- Simulated Map Interface -->
+<div class="absolute top-4 left-4 bg-white/90 backdrop-blur-md p-3 rounded-md shadow-sm border border-outline-variant max-w-[240px]">
+<div class="flex items-center gap-2 mb-1">
+<span class="w-3 h-3 rounded-full bg-primary"></span>
+<span class="text-xs font-bold truncate">Start: 10115 Berlin</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="w-3 h-3 rounded-full bg-secondary"></span>
+<span class="text-xs font-bold truncate">Ziel: 20095 Hamburg</span>
+</div>
+</div>
+<div class="absolute bottom-4 right-4 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-sm border border-outline-variant flex items-center gap-2">
+<span class="material-symbols-outlined text-xs text-primary">traffic</span>
+<span class="text-[11px] font-bold">Aktuelle Verkehrslage: Geringes Aufkommen</span>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Sticky Footer Navigation -->
+<div class="max-w-6xl mx-auto mt-10 flex items-center justify-between py-6 border-t border-outline-variant">
+<button class="flex items-center gap-2 text-on-surface-variant font-bold hover:text-on-surface transition-all px-6 py-3 rounded-md border border-outline-variant hover:bg-surface-container-low active:scale-95">
+<span class="material-symbols-outlined">arrow_back</span>
+                Zurück
+            </button>
+<div class="flex items-center gap-4">
+<button class="text-on-surface-variant font-bold px-4 py-3 hover:underline">Entwurf speichern</button>
+<button class="flex items-center gap-2 bg-primary text-on-primary font-bold px-10 py-4 rounded-md shadow-xl transition-all hover:brightness-110 active:scale-98">
+                    Weiter
+                    <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</div>
+</main>
+<script>
+        // Simple interaction for the form inputs
+        const inputs = document.querySelectorAll('input, select');
+        inputs.forEach(input => {
+            input.addEventListener('focus', () => {
+                input.parentElement.classList.add('scale-[1.01]');
+            });
+            input.addEventListener('blur', () => {
+                input.parentElement.classList.remove('scale-[1.01]');
+            });
+        });
+    </script>
+</body></html>

@@ -34,9 +34,9 @@ export function ResetDatabaseModal({ onClose, onResetSuccess }: ResetDatabaseMod
         if (data.success) {
           const c = data.counts || {};
           setCounts({
-            customers: (c.customers || 0) + (c.customers_demo || 0),
-            orders: (c.orders || 0) + (c.orders_demo || 0),
-            invoices: (c.invoices || 0) + (c.invoices_demo || 0)
+            customers: c.customers || 0,
+            orders: c.orders || 0,
+            invoices: c.invoices || 0
           });
         } else {
           toast.error("Fehler beim Abrufen der Zähler.");

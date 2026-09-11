@@ -5,7 +5,6 @@ import { collection, query, onSnapshot, doc, setDoc, serverTimestamp } from "fir
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { toast } from "react-hot-toast";
-import { getCol } from '@/lib/demoMode';
 
 // Create secondary app to prevent logging out the admin
 const createSecondaryApp = () => {
@@ -33,7 +32,7 @@ export function TeamAccessManager() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    const q = query(collection(db, getCol('users')));
+    const q = query(collection(db, 'users'));
     const unsub = onSnapshot(q, (snap) => {
       setTeamMembers(snap.docs.map(d => ({ uid: d.id, ...d.data() })));
     });
@@ -54,7 +53,7 @@ export function TeamAccessManager() {
       const newUid = userCredential.user.uid;
 
       // Save to Firestore
-      await setDoc(doc(db, getCol('users'), newUid), {
+      await setDoc(doc(db, 'users', newUid), {
         uid: newUid,
         displayName: name,
         email: finalEmail,
