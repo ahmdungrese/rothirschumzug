@@ -51,6 +51,23 @@ export function LogisticsBoard({ order }: LogisticsBoardProps) {
     }
   };
 
+  const updateOrderMetaDate = async (field: 'halteverbotDate' | 'kartonDeliveryDate' | 'moebelliftDate', value: string) => {
+    if (isUpdating) return;
+    setIsUpdating(true);
+    try {
+      const updates = {
+        [`orderMeta.${field}`]: value
+      };
+      await updateDoc(doc(db, 'orders', order.id), updates);
+      toast.success("Termin im Kalender aktualisiert");
+    } catch (error) {
+      console.error("Error updating date", error);
+      toast.error("Fehler beim Speichern");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   return (
     <div className="mt-6 pt-6 border-t border-structure/50 animate-in fade-in slide-in-from-top-4">
       <h4 className="text-sm font-semibold text-primary uppercase tracking-wider mb-4 flex items-center gap-2">
@@ -80,23 +97,36 @@ export function LogisticsBoard({ order }: LogisticsBoardProps) {
         {/* HALTEVERBOT */}
         {hasHalteverbot && (
           <div className="bg-bg-dark border border-structure rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-3 text-text-main font-medium">
-              <ExclamationTriangleIcon className="w-5 h-5 text-yellow-400" /> Halteverbotszone
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-text-main font-medium">
+                <ExclamationTriangleIcon className="w-5 h-5 text-yellow-400" /> Halteverbotszone
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <input type="checkbox" checked={state.hv_beantragt || false} onChange={() => toggleState('hv_beantragt')} className="w-5 h-5 rounded border-structure bg-bg-panel text-yellow-500 focus:ring-yellow-500/50 cursor-pointer" />
-                <span className={`text-sm ${state.hv_beantragt ? 'text-text-muted line-through' : 'text-text-main group-hover:text-text-main'}`}>Beim Amt beantragt</span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer group">
-                <input type="checkbox" checked={state.hv_bestaetigt || false} onChange={() => toggleState('hv_bestaetigt')} className="w-5 h-5 rounded border-structure bg-bg-panel text-yellow-500 focus:ring-yellow-500/50 cursor-pointer" />
-                <span className={`text-sm ${state.hv_bestaetigt ? 'text-text-muted line-through' : 'text-text-main group-hover:text-text-main'}`}>Genehmigung erhalten</span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer group">
-                {/* Wenn aufgestellt -> Ticket erledigt! */}
-                <input type="checkbox" checked={state.hv_aufgestellt || false} onChange={() => toggleState('hv_aufgestellt', 'halteverbot', true)} className="w-5 h-5 rounded border-structure bg-bg-panel text-yellow-500 focus:ring-yellow-500/50 cursor-pointer" />
-                <span className={`text-sm ${state.hv_aufgestellt ? 'text-text-muted line-through' : 'text-text-main group-hover:text-text-main'}`}>Schilder auf der Straße aufgestellt</span>
-              </label>
+            <div className="space-y-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-text-muted">Datum / Uhrzeit für Aufstellung:</label>
+                <input 
+                  type="datetime-local" 
+                  value={order?.orderMeta?.halteverbotDate || ''}
+                  onChange={(e) => updateOrderMetaDate('halteverbotDate', e.target.value)}
+                  className="input-field text-sm w-full bg-white/5 border border-structure/50 rounded-lg p-2 text-text-main"
+                />
+              </div>
+              <div className="space-y-2 pt-2 border-t border-structure/30">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <input type="checkbox" checked={state.hv_beantragt || false} onChange={() => toggleState('hv_beantragt')} className="w-5 h-5 rounded border-structure bg-bg-panel text-yellow-500 focus:ring-yellow-500/50 cursor-pointer" />
+                  <span className={`text-sm ${state.hv_beantragt ? 'text-text-muted line-through' : 'text-text-main group-hover:text-text-main'}`}>Beim Amt beantragt</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <input type="checkbox" checked={state.hv_bestaetigt || false} onChange={() => toggleState('hv_bestaetigt')} className="w-5 h-5 rounded border-structure bg-bg-panel text-yellow-500 focus:ring-yellow-500/50 cursor-pointer" />
+                  <span className={`text-sm ${state.hv_bestaetigt ? 'text-text-muted line-through' : 'text-text-main group-hover:text-text-main'}`}>Genehmigung erhalten</span>
+                </label>
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  {/* Wenn aufgestellt -> Ticket erledigt! */}
+                  <input type="checkbox" checked={state.hv_aufgestellt || false} onChange={() => toggleState('hv_aufgestellt', 'halteverbot', true)} className="w-5 h-5 rounded border-structure bg-bg-panel text-yellow-500 focus:ring-yellow-500/50 cursor-pointer" />
+                  <span className={`text-sm ${state.hv_aufgestellt ? 'text-text-muted line-through' : 'text-text-main group-hover:text-text-main'}`}>Schilder auf der Straße aufgestellt</span>
+                </label>
+              </div>
             </div>
           </div>
         )}
@@ -104,15 +134,56 @@ export function LogisticsBoard({ order }: LogisticsBoardProps) {
         {/* KARTONS */}
         {hasKartons && (
           <div className="bg-bg-dark border border-structure rounded-xl p-4">
-            <div className="flex items-center gap-2 mb-3 text-text-main font-medium">
-              <CubeIcon className="w-5 h-5 text-orange-400" /> Umzugskartons
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-text-main font-medium">
+                <CubeIcon className="w-5 h-5 text-orange-400" /> Umzugskartons
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="flex items-center gap-3 cursor-pointer group">
-                {/* Wenn geliefert -> Ticket erledigt! */}
-                <input type="checkbox" checked={state.kartons_geliefert || false} onChange={() => toggleState('kartons_geliefert', 'kartons_liefern', true)} className="w-5 h-5 rounded border-structure bg-bg-panel text-orange-500 focus:ring-orange-500/50 cursor-pointer" />
-                <span className={`text-sm ${state.kartons_geliefert ? 'text-text-muted line-through' : 'text-text-main group-hover:text-text-main'}`}>Kartons an Kunden geliefert</span>
-              </label>
+            <div className="space-y-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-text-muted">Datum / Uhrzeit für Lieferung:</label>
+                <input 
+                  type="datetime-local" 
+                  value={order?.orderMeta?.kartonDeliveryDate || ''}
+                  onChange={(e) => updateOrderMetaDate('kartonDeliveryDate', e.target.value)}
+                  className="input-field text-sm w-full bg-white/5 border border-structure/50 rounded-lg p-2 text-text-main"
+                />
+              </div>
+              <div className="space-y-2 pt-2 border-t border-structure/30">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  {/* Wenn geliefert -> Ticket erledigt! */}
+                  <input type="checkbox" checked={state.kartons_geliefert || false} onChange={() => toggleState('kartons_geliefert', 'kartons_liefern', true)} className="w-5 h-5 rounded border-structure bg-bg-panel text-orange-500 focus:ring-orange-500/50 cursor-pointer" />
+                  <span className={`text-sm ${state.kartons_geliefert ? 'text-text-muted line-through' : 'text-text-main group-hover:text-text-main'}`}>Kartons an Kunden geliefert</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MÖBELLIFT */}
+        {order?.services?.some((s: any) => s.name?.toLowerCase().includes('lift') || s.name?.toLowerCase().includes('aufzug') || s.name?.toLowerCase().includes('möbellift')) && (
+          <div className="bg-bg-dark border border-structure rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 text-text-main font-medium">
+                <BriefcaseIcon className="w-5 h-5 text-blue-400" /> Möbellift
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs text-text-muted">Datum / Uhrzeit für Liftgestellung:</label>
+                <input 
+                  type="datetime-local" 
+                  value={order?.orderMeta?.moebelliftDate || ''}
+                  onChange={(e) => updateOrderMetaDate('moebelliftDate', e.target.value)}
+                  className="input-field text-sm w-full bg-white/5 border border-structure/50 rounded-lg p-2 text-text-main"
+                />
+              </div>
+              <div className="space-y-2 pt-2 border-t border-structure/30">
+                <label className="flex items-center gap-3 cursor-pointer group">
+                  <input type="checkbox" checked={state.lift_reserviert || false} onChange={() => toggleState('lift_reserviert', 'moebellift_buchen', true)} className="w-5 h-5 rounded border-structure bg-bg-panel text-blue-500 focus:ring-blue-500/50 cursor-pointer" />
+                  <span className={`text-sm ${state.lift_reserviert ? 'text-text-muted line-through' : 'text-text-main group-hover:text-text-main'}`}>Möbellift reserviert</span>
+                </label>
+              </div>
             </div>
           </div>
         )}

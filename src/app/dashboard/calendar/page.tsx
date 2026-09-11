@@ -358,7 +358,7 @@ export default function CalendarPage() {
                         hvDateStr = `${hvDate.getFullYear()}-${String(hvDate.getMonth() + 1).padStart(2, '0')}-${String(hvDate.getDate()).padStart(2, '0')}`;
                       }
 
-                      if (hvDateStr === dateStr) {
+                      if (hvDateStr.split("T")[0] === dateStr) {
                         dayEvents.push({
                           id: o.id + '_hv',
                           ticketId: 'halteverbot',
@@ -385,7 +385,7 @@ export default function CalendarPage() {
                         boxDateStr = `${boxDate.getFullYear()}-${String(boxDate.getMonth() + 1).padStart(2, '0')}-${String(boxDate.getDate()).padStart(2, '0')}`;
                       }
 
-                      if (boxDateStr === dateStr) {
+                      if (boxDateStr.split("T")[0] === dateStr) {
                         dayEvents.push({
                           id: o.id + '_box',
                           ticketId: 'kartons_liefern',
@@ -412,7 +412,7 @@ export default function CalendarPage() {
                         liftDateStr = `${liftDate.getFullYear()}-${String(liftDate.getMonth() + 1).padStart(2, '0')}-${String(liftDate.getDate()).padStart(2, '0')}`;
                       }
 
-                      if (liftDateStr === dateStr) {
+                      if (liftDateStr.split("T")[0] === dateStr) {
                         dayEvents.push({
                           id: o.id + '_lift',
                           ticketId: 'moebellift_buchen',

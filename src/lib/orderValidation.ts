@@ -88,7 +88,7 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
   const hasHVZService = Array.isArray(order?.services) && order.services.some((s: any) => 
     (s.name || '').toLowerCase().includes('halteverbot') || (s.name || '').toLowerCase().includes('hvz')
   );
-  const needsHVZ = Boolean(
+  const needsHVZ = isSigned && Boolean(
     logistics?.a_parking || 
     logistics?.b_parking || 
     logistics?.needHVZ || 
@@ -115,7 +115,7 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
     (s.name || '').toLowerCase().includes('karton') || (s.name || '').toLowerCase().includes('verpack') || (s.name || '').toLowerCase().includes('pack')
   );
   const hasMaterials = Array.isArray(order?.materials) && order.materials.length > 0;
-  const needsBoxes = Boolean(hasBoxService || hasMaterials || services?.kartons);
+  const needsBoxes = isSigned && Boolean(hasBoxService || hasMaterials || services?.kartons);
 
   if (needsBoxes) {
     const isBoxesDone = Boolean(logistics?.boxesDelivered || order?.checklistDone?.kartons || logistics?.boxDeliveryDate);
@@ -126,7 +126,7 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
       type: 'kartons',
       isAutomated: false,
       missingReason: !isBoxesDone ? 'Verpackungsmaterial ist gebucht, aber noch nicht ausgeliefert.' : undefined,
-      date: logistics?.boxDeliveryDate
+      date: logistics?.boxDeliveryDate || order?.orderMeta?.kartonDeliveryDate
     });
   }
 
@@ -140,7 +140,7 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
   const highFloorWithoutElevatorA = floorA > 3 && !logistics?.a_elevator && !logistics?.from?.hasElevator;
   const highFloorWithoutElevatorB = floorB > 3 && !logistics?.b_elevator && !logistics?.to?.hasElevator;
 
-  const needsLift = Boolean(
+  const needsLift = isSigned && Boolean(
     logistics?.a_furnitureLift || 
     logistics?.b_furnitureLift || 
     logistics?.needLift || 
