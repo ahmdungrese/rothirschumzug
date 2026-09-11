@@ -191,9 +191,9 @@ export function CustomerPremiumProfile({
     }
     if (activeOrder.status === 'draft') {
       return {
-        title: 'Angebot kalkulieren & versenden',
-        desc: 'Leistungen & Inventar festlegen, Angebot generieren und an den Kunden senden.',
-        btnText: 'Angebot bearbeiten (5 Schritte)',
+        title: 'Angebot fertigstellen & versenden',
+        desc: 'Dieser Auftrag ist als "Entwurf" gespeichert. Schließen Sie die Kalkulation ab und senden Sie das Angebot an den Kunden.',
+        btnText: 'Entwurf öffnen / Angebot versenden',
         action: () => router.push(`/dashboard/customers/${customer.id}/edit-order/${activeOrder.id}`)
       };
     }
