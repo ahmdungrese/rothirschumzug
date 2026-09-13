@@ -144,13 +144,33 @@ export function CustomerPremiumProfile({
       const updateData: any = {};
       let message = 'Status aktualisiert';
 
-      if (itemId === 'signature') {
+      if (itemId === 'signature' || itemId === 'angebot_confirmed') {
         const next = !currentVal;
         updateData['status'] = next ? 'confirmed' : 'quote';
         updateData['isManuallySigned'] = next;
         updateData['contractSigned'] = next;
         updateData['updatedAt'] = new Date();
         message = next ? 'Auftrag bestätigt (Status: Bestätigt)' : 'Auftrag zurück auf "In Verhandlung" gesetzt';
+      } else if (itemId === 'data_verified') {
+        const next = !currentVal;
+        updateData['checklistDone.dataVerified'] = next;
+        message = next ? 'Stammdaten als geprüft markiert' : 'Stammdaten-Prüfung ausstehend';
+      } else if (itemId === 'viewing_date') {
+        if (!currentVal) {
+          const dateStr = window.prompt('Wann soll der Besichtigungstermin stattfinden? (z.B. 2026-10-15 14:00)', '');
+          if (dateStr) {
+            updateData['orderMeta.viewingDate'] = dateStr;
+            updateData['viewingDate'] = dateStr;
+            message = 'Besichtigungstermin im Kalender eingetragen!';
+          } else {
+            setIsUpdatingChecklist(false);
+            return;
+          }
+        } else {
+          updateData['orderMeta.viewingDate'] = '';
+          updateData['viewingDate'] = '';
+          message = 'Besichtigungstermin entfernt';
+        }
       } else if (itemId === 'hvz') {
         const next = !currentVal;
         updateData['logistics.hvzConfirmed'] = next;

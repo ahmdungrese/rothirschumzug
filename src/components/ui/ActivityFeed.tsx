@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, orderBy, limit, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { ClipboardDocumentListIcon, UserPlusIcon, DocumentTextIcon, CheckBadgeIcon, ClockIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { getCol } from '@/lib/demoMode';
+
 
 export function ActivityFeed() {
   const [isOpen, setIsOpen] = useState(false);
