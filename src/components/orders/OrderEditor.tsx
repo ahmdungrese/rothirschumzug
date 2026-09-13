@@ -47,7 +47,14 @@ const STANDARD_SERVICES_B = [
   { id: 'kueche_aufbau', name: 'Aufbau von Küche', price: 320, unit: 'pauschal', icon: 'kitchen', defaultDesc: 'Aufbau der Küchenzeile, Hängeschränke und Montage der Arbeitsplatte.' },
   { id: 'packservice_aus', name: 'Auspackservice', price: 160, unit: 'pauschal', icon: 'unarchive', defaultDesc: 'Auspacken aller Kartons und Platzieren des Inhalts nach Kundenwunsch.' },
   { id: 'bohren', name: 'Bohr- & Dübelarb.', price: 90, unit: 'pauschal', icon: 'handyman', defaultDesc: 'Fachgerechte Montage und Befestigung von Lampen, Spiegeln und Gardinenstangen.' },
-  { id: 'hvz_b', name: 'Halteverbot B', price: 95, unit: 'Zone', icon: 'signpost', defaultDesc: 'Einrichtung einer temporären Halteverbotszone (ca. 15m) an der Entladestelle inkl. behördlicher Genehmigung.' }
+  { id: 'hvz_b', name: 'Halteverbot B', price: 95, unit: 'Zone', icon: 'signpost', defaultDesc: 'Einrichtung einer temporären Halteverbotszone (ca. 15m) an der Entladestelle inkl. behördlicher Genehmigung.' },
+  { id: 'entsorgung', name: 'Müllentsorgung', price: 120, unit: 'pauschal', icon: 'delete', defaultDesc: 'Fachgerechte Entsorgung von Verpackungsmaterial und Restmüll.' }
+];
+
+const STANDARD_SERVICES_FIXED = [
+  { id: 'transport_lkw', name: 'Transport & LKW', price: 0, unit: 'pauschal', icon: 'local_shipping', defaultDesc: 'Bereitstellung von LKW, Fachpersonal und Transport der Güter.' },
+  { id: 'basisschutz', name: 'Basisschutz & Versicherung', price: 0, unit: 'pauschal', icon: 'shield', defaultDesc: 'Gesetzliche Grundhaftung und Transportversicherung inklusive.' },
+  { id: 'anfahrt', name: 'An- & Abfahrt', price: 0, unit: 'pauschal', icon: 'route', defaultDesc: 'Anfahrt zum Beladeort und Abfahrt vom Entladeort.' }
 ];
 
 const QUICK_FURNITURE = [
@@ -1248,6 +1255,55 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   </span>
                 </div>
 
+                {/* Standard-Leistungen Picker */}
+                <div className="mb-6 bg-bg-dark/40 rounded-2xl border border-structure/60 shadow-sm p-4 sm:p-5 flex flex-col gap-6">
+                  <div className="flex items-center gap-2 border-b border-structure/60 pb-3">
+                    <span className="material-symbols-outlined text-primary text-xl">view_list</span>
+                    <span className="text-sm font-headline font-bold text-text-main">
+                      Typische Umzugsleistungen
+                    </span>
+                  </div>
+
+                  {/* Feste Leistungen (Transport, Basisschutz) */}
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 pb-2 border-b border-structure/50">
+                      <span className="w-6 h-6 rounded-full bg-slate-500/20 text-slate-400 flex items-center justify-center font-bold text-xs">
+                        *
+                      </span>
+                      <h4 className="font-headline font-bold text-xs uppercase tracking-wider text-text-main">
+                        Allgemeine & Feste Leistungen
+                      </h4>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                      {STANDARD_SERVICES_FIXED.map((svc) => {
+                        const isSelected = isStandardServiceSelected(svc.id, svc.name);
+                        return (
+                          <button
+                            key={svc.id}
+                            type="button"
+                            onClick={() => toggleStandardService(svc)}
+                            className={`flex items-center justify-between p-3 rounded-xl border transition-all text-left ${
+                              isSelected
+                                ? 'border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary/30 font-bold'
+                                : 'border-structure/80 bg-white/[0.02] text-text-main hover:bg-white/[0.05] hover:border-structure'
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className={`material-symbols-outlined text-xl ${isSelected ? 'text-primary' : 'text-text-muted'}`}>
+                                {svc.icon}
+                              </span>
+                              <span className="text-xs font-semibold truncate">{svc.name}</span>
+                            </div>
+                            <span className={`material-symbols-outlined text-base shrink-0 ${isSelected ? 'text-primary' : 'text-text-muted/60'}`}>
+                              {isSelected ? 'check_circle' : 'add_circle'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Beladestelle (A) */}
                   <div className="space-y-3">
@@ -1443,16 +1499,23 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       </thead>
                       <tbody className="divide-y divide-structure/30">
                         {services.map((svc, idx) => (
-                          <tr key={svc.id} className="hover:bg-white/[0.02] transition-colors group">
-                            <td className="p-2.5 pl-4">
+                          <tr key={svc.id} className="hover:bg-white/[0.02] transition-colors group align-top">
+                            <td className="p-2.5 pl-4 flex flex-col gap-1.5">
                               <input
                                 type="text"
                                 value={svc.name}
                                 onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s))}
                                 className="bg-transparent font-medium text-text-main w-full focus:outline-none focus:bg-black/20 rounded px-1"
                               />
+                              <textarea
+                                value={svc.note || ''}
+                                onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, note: e.target.value } : s))}
+                                placeholder="Optionale Beschreibung (erscheint im Angebot)..."
+                                className="text-[10px] text-text-muted bg-black/10 focus:bg-black/20 focus:outline-none rounded px-2 py-1 w-full resize-y min-h-[36px]"
+                                rows={1}
+                              />
                             </td>
-                            <td className="p-2.5 text-center">
+                            <td className="p-2.5 text-center pt-3">
                               <div className="inline-flex items-center gap-1 bg-structure/40 rounded-lg px-1.5 py-0.5">
                                 <button 
                                   type="button"
