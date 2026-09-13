@@ -3,8 +3,8 @@ import { COMPANY_DETAILS } from '@/lib/constants';
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
-  headerContainer: { alignItems: 'center', marginBottom: 20 },
-  logoWrapper: { backgroundColor: '#1a1a1a', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 6, alignSelf: 'center' },
+  headerContainer: { alignItems: 'flex-end', marginBottom: 20 },
+  logoWrapper: { backgroundColor: '#1a1a1a', width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-end' },
   logoTextPrimary: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#8F1627', textTransform: 'uppercase', letterSpacing: 2 },
   companyInfo: { textAlign: 'right', fontSize: 9, color: '#666' },
   title: { fontSize: 18, fontFamily: 'Helvetica-Bold', marginBottom: 10, color: '#8F1627' },
@@ -15,10 +15,10 @@ const styles = StyleSheet.create({
   protocolBox: { borderWidth: 1, borderColor: '#eee', padding: 15, marginBottom: 20, borderRadius: 4 },
   signatureBox: { marginTop: 10, padding: 10, backgroundColor: '#f9f9f9', borderLeftWidth: 3, borderLeftColor: '#8F1627' },
   signatureImage: { height: 60, marginTop: 10, objectFit: 'contain' },
-  footer: { position: 'absolute', bottom: 30, left: 40, right: 40, textAlign: 'center', fontSize: 8, color: '#999', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10 },
+  footer: { position: 'absolute', bottom: 30, left: 40, right: 40, fontSize: 8, color: '#999', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10, flexDirection: 'row', justifyContent: 'space-between' },
 });
 
-export const ProtocolPDF = ({ order, customer, employeeName }: { order: any, customer: any, employeeName: string }) => {
+export const ProtocolPDF = ({ order, customer, employeeName, settings }: { order: any, customer: any, employeeName: string, settings?: any }) => {
   const docTitle = `Protokoll - ${order?.orderNumber || 'Auftrag'}`;
   const protocols = order?.protocols || [];
 
@@ -27,7 +27,7 @@ export const ProtocolPDF = ({ order, customer, employeeName }: { order: any, cus
     <Page size="A4" style={styles.page}>
       <View style={styles.headerContainer}>
         <View style={styles.logoWrapper}>
-          <Image src="/Rothirsch.png" style={{ height: 35, objectFit: 'contain' }} />
+          <Image src="/Rothirsch.png" style={{ height: 80, width: 80, objectFit: 'contain' }} />
         </View>
       </View>
 
@@ -92,8 +92,27 @@ export const ProtocolPDF = ({ order, customer, employeeName }: { order: any, cus
         </View>
       )}
       
-      <View style={styles.footer}>
-        <Text>Dieses Protokoll ist Bestandteil der Auftragsdokumentation.</Text>
+      <View style={styles.footer} fixed>
+        <View>
+          <Text>{settings?.companyName}</Text>
+          <Text>{settings?.street}</Text>
+          <Text>{settings?.zip} {settings?.city}</Text>
+          <Text>{settings?.manager ? `Inhaber/-in: ${settings?.manager}` : ''}</Text>
+        </View>
+        <View>
+          <Text>Tel: {settings?.phone}</Text>
+          <Text>E-Mail: {settings?.email}</Text>
+          <Text>Web: {settings?.website}</Text>
+        </View>
+        <View>
+          <Text>Bank: {settings?.bankName}</Text>
+          <Text>IBAN: {settings?.iban}</Text>
+          <Text>BIC: {settings?.bic}</Text>
+        </View>
+        <View>
+          {settings?.taxId && <Text>USt-IdNr: {settings?.taxId}</Text>}
+          {settings?.taxNumber && <Text>Steuer-Nr: {settings?.taxNumber}</Text>}
+        </View>
       </View>
     </Page>
   </Document>

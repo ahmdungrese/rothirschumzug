@@ -3,8 +3,8 @@ import { COMPANY_DETAILS } from '@/lib/constants';
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
-  headerContainer: { alignItems: 'center', marginBottom: 20 },
-  logoWrapper: { backgroundColor: '#1a1a1a', paddingHorizontal: 15, paddingVertical: 10, borderRadius: 6, alignSelf: 'center' },
+  headerContainer: { alignItems: 'flex-end', marginBottom: 20 },
+  logoWrapper: { backgroundColor: '#1a1a1a', width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-end' },
   logoTextPrimary: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#8F1627', textTransform: 'uppercase', letterSpacing: 2 },
   companyInfo: { textAlign: 'right', fontSize: 9, color: '#666' },
   title: { fontSize: 18, fontFamily: 'Helvetica-Bold', marginBottom: 20, color: '#8F1627' },
@@ -14,17 +14,17 @@ const styles = StyleSheet.create({
   tableRow: { flexDirection: 'row', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#eee' },
   col1: { width: '20%' },
   col2: { width: '80%' },
-  footer: { position: 'absolute', bottom: 30, left: 40, right: 40, textAlign: 'center', fontSize: 8, color: '#999', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10 },
+  footer: { position: 'absolute', bottom: 30, left: 40, right: 40, fontSize: 8, color: '#999', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10, flexDirection: 'row', justifyContent: 'space-between' },
 });
 
-export const EmployeeSheetPDF = ({ order, customer, employeeName }: { order: any, customer: any, employeeName?: string }) => {
+export const EmployeeSheetPDF = ({ order, customer, employeeName, settings }: { order: any, customer: any, employeeName?: string, settings?: any }) => {
   const docTitle = `Laufzettel - ${customer?.lastName || 'Kunde'}`;
   return (
   <Document title={docTitle}>
     <Page size="A4" style={styles.page}>
       <View style={styles.headerContainer}>
         <View style={styles.logoWrapper}>
-          <Image src="/Rothirsch.png" style={{ height: 35, objectFit: 'contain' }} />
+          <Image src="/Rothirsch.png" style={{ height: 80, width: 80, objectFit: 'contain' }} />
         </View>
       </View>
 

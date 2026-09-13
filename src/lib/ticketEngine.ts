@@ -206,7 +206,7 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
       order.services.forEach((s: any, index: number) => {
         if (s.name && s.name.includes('*')) {
           const cleanName = s.name.replace(/\*/g, '').trim();
-          addTicket(`manual_star_${index}`, `Manuelle Aufgabe: ${cleanName}`, 4, 'action', 'general');
+          addTicket(`manual_star_${index}`, cleanName, 4, 'action', 'general');
         }
       });
     }
