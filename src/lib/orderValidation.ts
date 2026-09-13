@@ -61,7 +61,6 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
       ? 'Angebot erstellt' 
       : 'Entwurf (Offen)';
 
-  // 5. Checklist Items
   const checklist: LogisticsCheckItem[] = [];
 
   // Address Check: Check both OrderEditor standard fields (a_street/a_city, b_street/b_city) and mock/legacy fields
@@ -83,6 +82,56 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
 
   const hasLogisticsData = hasFrom || hasTo;
   const isDraft = order?.status === 'draft';
+  const isQuote = order?.status === 'quote' || order?.status === 'clarification';
+
+  // --- PRE-SIGNATURE TASKS ---
+  if (!isSigned) {
+    // 1. Data Verification
+    const isDataVerified = Boolean(order?.checklistDone?.dataVerified);
+    checklist.push({
+      id: 'data_verified',
+      label: isDataVerified ? 'Stammdaten & Termin mit Kunden abgeglichen' : 'Stammdaten & Termin abgleichen',
+      done: isDataVerified,
+      type: 'signature', // reuse signature type for general tasks
+      isAutomated: false,
+      missingReason: !isDataVerified ? 'Kundendaten wurden noch nicht final bestätigt.' : undefined
+    });
+
+    // 2. Besichtigungstermin
+    const hasViewing = Boolean(meta?.viewingDate || order?.viewingDate);
+    checklist.push({
+      id: 'viewing_date',
+      label: hasViewing ? 'Besichtigungstermin geplant/erledigt' : 'Besichtigungstermin vereinbaren (Optional)',
+      done: hasViewing,
+      type: 'signature',
+      isAutomated: false,
+      date: meta?.viewingDate || order?.viewingDate
+    });
+
+    // 3. Angebot versendet
+    checklist.push({
+      id: 'angebot_sent',
+      label: isErstellt ? 'Angebot an Kunden versendet' : 'Angebot kalkulieren und versenden',
+      done: isErstellt,
+      type: 'signature',
+      isAutomated: true,
+      missingReason: !isErstellt ? 'Der Auftrag ist noch ein Entwurf.' : undefined
+    });
+
+    // 4. Angebot bestätigt (Only show if Quote is sent)
+    if (isErstellt) {
+      checklist.push({
+        id: 'angebot_confirmed',
+        label: isSigned ? 'Auftrag vom Kunden bestätigt' : 'Warten auf Kundenbestätigung / Digitale Unterschrift',
+        done: isSigned,
+        type: 'signature',
+        isAutomated: true, // we listen to order.status or contractSigned
+        missingReason: !isSigned ? 'Kunde hat noch nicht unterschrieben.' : undefined
+      });
+    }
+  }
+
+  // --- POST-SIGNATURE TASKS (OPERATIVE LOGISTICS) ---
 
   // 1. HVZ Check (Halteverbotszone) - BEDARFSGESTEUERT: Nur anzeigen, wenn tatsächlich gebucht / benötigt
   const hasHVZService = Array.isArray(order?.services) && order.services.some((s: any) => 
