@@ -14,12 +14,14 @@ import {
   CalendarDaysIcon,
   ShieldExclamationIcon,
   ChartBarIcon,
-  QuestionMarkCircleIcon
+  QuestionMarkCircleIcon,
+  TruckIcon
 } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard', id: 'nav-dashboard', icon: HomeIcon, roles: ['admin', 'office'] },
+  { name: 'Logistik', href: '/dashboard/logistics', id: 'nav-logistics', icon: TruckIcon, roles: ['admin', 'office'] },
   { name: 'Kalender', href: '/dashboard/calendar', id: 'nav-calendar', icon: CalendarDaysIcon, roles: ['admin', 'office', 'teamlead'] },
   { name: 'Kunden', href: '/dashboard/customers', id: 'nav-customers', icon: UsersIcon, roles: ['admin', 'office'] },
   { name: 'Angebote', href: '/dashboard/orders', id: 'nav-orders', icon: DocumentTextIcon, roles: ['admin', 'office'] },

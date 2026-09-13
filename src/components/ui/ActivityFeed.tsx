@@ -21,7 +21,7 @@ export function ActivityFeed() {
   }, []);
 
   useEffect(() => {
-    const q = query(collection(db, getCol('activity_logs')), orderBy('timestamp', 'desc'), limit(50));
+    const q = query(collection(db, 'activity_logs'), orderBy('timestamp', 'desc'), limit(50));
     const unsub = onSnapshot(q, (snap) => {
       const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setActivities(logs);
@@ -33,7 +33,7 @@ export function ActivityFeed() {
   const handleDeleteAll = async () => {
     if (!confirm('Möchtest du wirklich alle Aktivitäten löschen?')) return;
     try {
-      const promises = activities.map(act => deleteDoc(doc(db, getCol('activity_logs'), act.id)));
+      const promises = activities.map(act => deleteDoc(doc(db, 'activity_logs', act.id)));
       await Promise.all(promises);
     } catch (e) {
       console.error("Fehler beim Löschen:", e);

@@ -94,7 +94,7 @@ export function TeamAccessManager() {
   const handleUpdateName = async (uid: string) => {
     if (!editName.trim()) return;
     try {
-      await updateDoc(doc(db, getCol('users'), uid), {
+      await updateDoc(doc(db, 'users', uid), {
         displayName: editName.trim()
       });
       toast.success("Name erfolgreich aktualisiert!");
