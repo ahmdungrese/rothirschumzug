@@ -21,6 +21,7 @@ import { useAuth } from '@/context/AuthContext';
 import { PDFDownloadLink } from '@react-pdf/renderer';
 import { EmployeeSheetPDF } from '@/components/pdf/EmployeeSheetPDF';
 import { generateTickets } from '@/lib/ticketEngine';
+import { toggleTaskCompletion, isTaskCompleted } from '@/lib/taskStateController';
 import Link from 'next/link';
 
 export function DispoModal({ 
@@ -64,14 +65,17 @@ export function DispoModal({
     const isConfirmed = !['draft', 'quote'].includes(o.status);
     
     // Halteverbot
-    if (o.logistics?.noParkingZone && isConfirmed) {
+    if ((o.logistics?.noParkingZone || o.services?.some((s: any) => s.name?.toLowerCase().includes('halteverbot'))) && isConfirmed) {
       const effectiveMovingDate = o.orderMeta?.movingDateFrom || o.movingDate || o.disposition?.movingDate;
       if (effectiveMovingDate) {
-        let hvDate = new Date(effectiveMovingDate.split('T')[0]);
-        hvDate.setDate(hvDate.getDate() - 4);
-        if (hvDate < createdAtObj) hvDate = new Date(createdAtObj);
-        const hvDateStr = `${hvDate.getFullYear()}-${String(hvDate.getMonth() + 1).padStart(2, '0')}-${String(hvDate.getDate()).padStart(2, '0')}`;
-        if (hvDateStr === dateStr) {
+        let hvDateStr = o.orderMeta?.halteverbotDate || '';
+        if (!hvDateStr) {
+          let hvDate = new Date(effectiveMovingDate.split('T')[0]);
+          hvDate.setDate(hvDate.getDate() - 4);
+          if (hvDate < createdAtObj) hvDate = new Date(createdAtObj);
+          hvDateStr = `${hvDate.getFullYear()}-${String(hvDate.getMonth() + 1).padStart(2, '0')}-${String(hvDate.getDate()).padStart(2, '0')}`;
+        }
+        if (hvDateStr.split('T')[0] === dateStr) {
           logisticsTasks.push({ 
             id: o.id, 
             type: 'halteverbot', 
@@ -79,7 +83,7 @@ export function DispoModal({
             title: 'Halteverbot aufstellen', 
             customer: o.customerName, 
             customerId: o.customerId,
-            isDone: !!o.ticketStates?.halteverbot 
+            isDone: isTaskCompleted(o, 'halteverbot')
           });
         }
       }
@@ -89,11 +93,14 @@ export function DispoModal({
     if (o.services?.some((s: any) => s.name?.toLowerCase().includes('karton')) && isConfirmed) {
       const effectiveMovingDate = o.orderMeta?.movingDateFrom || o.movingDate || o.disposition?.movingDate;
       if (effectiveMovingDate) {
-        let boxDate = new Date(effectiveMovingDate.split('T')[0]);
-        boxDate.setDate(boxDate.getDate() - 28);
-        if (boxDate < createdAtObj) boxDate = new Date(createdAtObj);
-        const boxDateStr = `${boxDate.getFullYear()}-${String(boxDate.getMonth() + 1).padStart(2, '0')}-${String(boxDate.getDate()).padStart(2, '0')}`;
-        if (boxDateStr === dateStr) {
+        let boxDateStr = o.orderMeta?.kartonDeliveryDate || '';
+        if (!boxDateStr) {
+          let boxDate = new Date(effectiveMovingDate.split('T')[0]);
+          boxDate.setDate(boxDate.getDate() - 28);
+          if (boxDate < createdAtObj) boxDate = new Date(createdAtObj);
+          boxDateStr = `${boxDate.getFullYear()}-${String(boxDate.getMonth() + 1).padStart(2, '0')}-${String(boxDate.getDate()).padStart(2, '0')}`;
+        }
+        if (boxDateStr.split('T')[0] === dateStr) {
           logisticsTasks.push({ 
             id: o.id, 
             type: 'kartons_liefern', 
@@ -101,7 +108,7 @@ export function DispoModal({
             title: 'Kartons liefern', 
             customer: o.customerName, 
             customerId: o.customerId,
-            isDone: !!o.ticketStates?.kartons_liefern 
+            isDone: isTaskCompleted(o, 'kartons_liefern')
           });
         }
       }
@@ -111,11 +118,14 @@ export function DispoModal({
     if (o.services?.some((s: any) => ['lift', 'möbellift', 'aufzug'].some(kw => s.name?.toLowerCase().includes(kw))) && isConfirmed) {
       const effectiveMovingDate = o.orderMeta?.movingDateFrom || o.movingDate || o.disposition?.movingDate;
       if (effectiveMovingDate) {
-        let liftDate = new Date(effectiveMovingDate.split('T')[0]);
-        liftDate.setDate(liftDate.getDate() - 3);
-        if (liftDate < createdAtObj) liftDate = new Date(createdAtObj);
-        const liftDateStr = `${liftDate.getFullYear()}-${String(liftDate.getMonth() + 1).padStart(2, '0')}-${String(liftDate.getDate()).padStart(2, '0')}`;
-        if (liftDateStr === dateStr) {
+        let liftDateStr = o.orderMeta?.moebelliftDate || '';
+        if (!liftDateStr) {
+          let liftDate = new Date(effectiveMovingDate.split('T')[0]);
+          liftDate.setDate(liftDate.getDate() - 3);
+          if (liftDate < createdAtObj) liftDate = new Date(createdAtObj);
+          liftDateStr = `${liftDate.getFullYear()}-${String(liftDate.getMonth() + 1).padStart(2, '0')}-${String(liftDate.getDate()).padStart(2, '0')}`;
+        }
+        if (liftDateStr.split('T')[0] === dateStr) {
           logisticsTasks.push({
             id: o.id,
             type: 'moebellift_buchen',
@@ -123,7 +133,7 @@ export function DispoModal({
             title: 'Möbellift reservieren/buchen',
             customer: o.customerName,
             customerId: o.customerId,
-            isDone: !!o.ticketStates?.moebellift_buchen
+            isDone: isTaskCompleted(o, 'moebellift_buchen')
           });
         }
       }
@@ -144,17 +154,16 @@ export function DispoModal({
           ? `${o.logistics.a_street || ''} ${o.logistics.a_houseNr || ''}, ${o.logistics.a_zip || ''} ${o.logistics.a_city || ''}` 
           : '',
         timeStr: effectiveViewingDate.split('T')[1] ? effectiveViewingDate.split('T')[1].substring(0, 5) : '',
-        isDone: !!o.ticketStates?.viewing_requested 
+        isDone: isTaskCompleted(o, 'viewing_requested')
       });
     }
   });
 
   const handleToggleTask = async (orderId: string, ticketId: string, currentState: boolean) => {
     try {
-      await updateDoc(doc(db, 'orders', orderId), {
-        [`ticketStates.${ticketId}`]: !currentState
-      });
-      toast.success(currentState ? 'Aufgabe wieder offen' : 'Aufgabe als erledigt markiert!');
+      const orderObj = orders.find(o => o.id === orderId) || { id: orderId };
+      const res = await toggleTaskCompletion(orderObj, ticketId);
+      toast.success(res.newState ? 'Aufgabe als erledigt markiert!' : 'Aufgabe wieder offen');
     } catch (error) {
       toast.error('Fehler beim Speichern der Aufgabe.');
     }

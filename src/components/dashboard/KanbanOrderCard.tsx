@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { evaluateOrderLogistics } from '@/lib/orderValidation';
+import { toggleTaskCompletion } from '@/lib/taskStateController';
 import { updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import toast from 'react-hot-toast';
@@ -42,33 +43,11 @@ export function KanbanOrderCard({ order, customer, columnId, onRefresh }: Kanban
     setIsUpdating(true);
 
     try {
-      const orderRef = doc(db, 'orders', order.id);
-      const updateData: any = {};
-      const itemId = item.id;
-      const currentVal = item.done;
-
-      if (itemId === 'signature') {
-        const next = !currentVal;
-        updateData['status'] = next ? 'confirmed' : 'quote';
-        updateData['isManuallySigned'] = next;
-        updateData['contractSigned'] = next;
-        updateData['updatedAt'] = new Date();
-      } else if (itemId === 'hvz') {
-        updateData['logistics.hvzConfirmed'] = !currentVal;
-        updateData['checklistDone.hvz'] = !currentVal;
-      } else if (itemId === 'kartons') {
-        updateData['logistics.boxesDelivered'] = !currentVal;
-        updateData['checklistDone.kartons'] = !currentVal;
-      } else if (itemId === 'moebellift') {
-        updateData['logistics.liftReserved'] = !currentVal;
-        updateData['checklistDone.moebellift'] = !currentVal;
-      }
-
-      await updateDoc(orderRef, updateData);
-      if (itemId === 'signature') {
-        toast.success(!currentVal ? 'Auftrag bestätigt' : 'Auftrag zurück auf "In Verhandlung" gesetzt');
+      const result = await toggleTaskCompletion(order, item.id);
+      if (item.id === 'signature') {
+        toast.success(result.newState ? 'Auftrag bestätigt' : 'Auftrag zurück auf "In Verhandlung" gesetzt');
       } else {
-        toast.success(!currentVal ? `${item.label} erledigt` : `${item.label} offen`);
+        toast.success(result.newState ? `${item.label} erledigt` : `${item.label} offen`);
       }
       if (onRefresh) onRefresh();
     } catch (error) {

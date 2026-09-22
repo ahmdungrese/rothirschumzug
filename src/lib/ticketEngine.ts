@@ -1,3 +1,5 @@
+import { isTaskCompleted } from './taskStateController';
+
 export type SystemTicket = {
   id: string;
   title: string;
@@ -66,12 +68,13 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
     systemDone?: boolean
   ) => {
     const isSystemEvaluated = systemDone !== undefined;
+    const isDone = isSystemEvaluated ? (systemDone || isTaskCompleted(order, id)) : isTaskCompleted(order, id);
     tickets.push({
       id,
       title,
       phase,
       type,
-      done: isSystemEvaluated ? (systemDone || !!states[id]) : !!states[id],
+      done: isDone,
       actionLink,
       kanbanCategory,
       dueDateStatus: dueStatus?.status || 'neutral',
@@ -133,7 +136,7 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
     const viewingDateStr = order.orderMeta?.viewingDate || order.viewingDate;
     if (viewingDateStr && !order.orderMeta?.viewingCanceled) {
        const isPhotos = viewingDateStr === 'erledigt_fotos';
-       const isViewingDone = isPhotos || !!states['viewing_requested'];
+       const isViewingDone = isPhotos || isTaskCompleted(order, 'viewing_requested');
        const customViewingStatus = isPhotos ? undefined : calculateTargetDateStatus(viewingDateStr === 'requested' ? null : viewingDateStr);
        const title = isPhotos ? 'Besichtigung (durch Fotos erledigt)' : 'Besichtigungstermin durchführen';
        addTicket('viewing_requested', title, 1, 'action', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}?highlight=viewingDate`, customViewingStatus || undefined, isViewingDone);

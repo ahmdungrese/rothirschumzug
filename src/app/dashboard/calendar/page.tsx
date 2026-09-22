@@ -16,6 +16,7 @@ import {
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { DispoModal } from './DispoModal';
+import { isTaskCompleted } from '@/lib/taskStateController';
 
 type FilterType = 'all' | 'moves' | 'viewings' | 'logistics';
 
@@ -368,7 +369,7 @@ export default function CalendarPage() {
                           address: o.logistics?.a_city || 'HVZ einrichten',
                           orderId: o.id,
                           customerId: o.customerId,
-                          isDone: !!o.ticketStates?.halteverbot,
+                          isDone: isTaskCompleted(o, 'halteverbot'),
                           timeStr: o.orderMeta?.halteverbotTime,
                           colorClass: 'bg-yellow-50 text-yellow-800 border-yellow-200 dark:bg-yellow-950/40 dark:text-yellow-300 dark:border-yellow-900/50'
                         });
@@ -395,7 +396,7 @@ export default function CalendarPage() {
                           address: o.logistics?.a_city || 'Kartonlieferung',
                           orderId: o.id,
                           customerId: o.customerId,
-                          isDone: !!o.ticketStates?.kartons_liefern,
+                          isDone: isTaskCompleted(o, 'kartons_liefern'),
                           timeStr: o.orderMeta?.kartonDeliveryTime,
                           colorClass: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/50'
                         });
@@ -422,7 +423,7 @@ export default function CalendarPage() {
                           address: o.logistics?.a_city || 'Lift reservieren',
                           orderId: o.id,
                           customerId: o.customerId,
-                          isDone: !!o.ticketStates?.moebellift_buchen,
+                          isDone: isTaskCompleted(o, 'moebellift_buchen'),
                           timeStr: o.orderMeta?.moebelliftTime,
                           colorClass: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-900/50'
                         });
@@ -447,7 +448,7 @@ export default function CalendarPage() {
                         : '',
                       orderId: o.id,
                       customerId: o.customerId,
-                      isDone: !!o.ticketStates?.viewing_requested,
+                      isDone: isTaskCompleted(o, 'viewing_requested'),
                       timeStr: effectiveViewingDate.split('T')[1] ? effectiveViewingDate.split('T')[1].substring(0, 5) : '',
                       colorClass: 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/50'
                     });

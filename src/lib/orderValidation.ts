@@ -1,3 +1,5 @@
+import { isTaskCompleted } from './taskStateController';
+
 export interface LogisticsCheckItem {
   id: string;
   label: string;
@@ -53,7 +55,7 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
   }
 
   // 4. Angebot & Signatur Status
-  const isSigned = order?.status === 'confirmed' || !!(order?.signatures?.customer || order?.isManuallySigned || order?.contractSigned);
+  const isSigned = isTaskCompleted(order, 'signature');
   const isErstellt = order?.status !== 'draft';
   const angebotLabel = isSigned 
     ? 'Vertrag bestätigt' 
@@ -87,7 +89,7 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
   // --- PRE-SIGNATURE TASKS ---
   if (!isSigned) {
     // 1. Data Verification
-    const isDataVerified = Boolean(order?.checklistDone?.dataVerified);
+    const isDataVerified = isTaskCompleted(order, 'data_verified');
     checklist.push({
       id: 'data_verified',
       label: isDataVerified ? 'Stammdaten & Termin mit Kunden abgeglichen' : 'Stammdaten & Termin abgleichen',
@@ -98,7 +100,7 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
     });
 
     // 2. Besichtigungstermin
-    const hasViewing = Boolean(meta?.viewingDate || order?.viewingDate);
+    const hasViewing = isTaskCompleted(order, 'viewing_date') || Boolean(meta?.viewingDate || order?.viewingDate);
     checklist.push({
       id: 'viewing_date',
       label: hasViewing ? 'Besichtigungstermin geplant/erledigt' : 'Besichtigungstermin vereinbaren (Optional)',
@@ -147,7 +149,7 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
   );
 
   if (needsHVZ) {
-    const isHVZDone = Boolean(logistics?.hvzConfirmed || logistics?.hvzStatus === 'confirmed' || logistics?.hvzDate || order?.checklistDone?.hvz);
+    const isHVZDone = isTaskCompleted(order, 'hvz');
     checklist.push({
       id: 'hvz',
       label: isHVZDone ? 'HVZ Halteverbot beantragt' : 'HVZ Halteverbot erforderlich (Ausstehend)',
@@ -155,7 +157,7 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
       type: 'hvz',
       isAutomated: false,
       missingReason: !isHVZDone ? 'Halteverbotszone wurde gebucht, ist aber noch nicht beantragt oder bestätigt.' : undefined,
-      date: logistics?.hvzDate
+      date: logistics?.hvzDate || order?.orderMeta?.halteverbotDate
     });
   }
 
@@ -167,7 +169,7 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
   const needsBoxes = isSigned && Boolean(hasBoxService || hasMaterials || services?.kartons);
 
   if (needsBoxes) {
-    const isBoxesDone = Boolean(logistics?.boxesDelivered || order?.checklistDone?.kartons || logistics?.boxDeliveryDate);
+    const isBoxesDone = isTaskCompleted(order, 'kartons');
     checklist.push({
       id: 'kartons',
       label: isBoxesDone ? 'Kartons ausgeliefert' : 'Kartons / Material gebucht (Ausstehend)',
@@ -199,14 +201,15 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
   );
 
   if (needsLift) {
-    const isLiftDone = Boolean(logistics?.liftReserved || order?.checklistDone?.moebellift);
+    const isLiftDone = isTaskCompleted(order, 'moebellift');
     checklist.push({
       id: 'moebellift',
       label: isLiftDone ? 'Möbellift reserviert' : 'Möbellift erforderlich (Nicht reserviert)',
       done: isLiftDone,
       type: 'moebellift',
       isAutomated: false,
-      missingReason: !isLiftDone ? 'Ein Möbellift wird benötigt (hohe Etage oder gebucht), ist aber noch nicht reserviert.' : undefined
+      missingReason: !isLiftDone ? 'Ein Möbellift wird benötigt (hohe Etage oder gebucht), ist aber noch nicht reserviert.' : undefined,
+      date: order?.orderMeta?.moebelliftDate
     });
   }
 

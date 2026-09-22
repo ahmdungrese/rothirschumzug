@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { calculateOrderTotals, calculateTotalPaid, calculateOpenAmount } from '@/lib/financeHelpers';
 import { evaluateOrderLogistics } from '@/lib/orderValidation';
+import { toggleTaskCompletion, updateTaskSchedule } from '@/lib/taskStateController';
 import { updateDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import toast from 'react-hot-toast';
@@ -137,58 +138,39 @@ export function CustomerPremiumProfile({
   // Toggle manual checklist item status in Firebase
   const toggleManualItem = async (itemId: string, currentVal: boolean) => {
     if (!activeOrder || isUpdatingChecklist) return;
+
+    if (itemId === 'viewing_date' && !currentVal) {
+      const dateStr = window.prompt('Wann soll der Besichtigungstermin stattfinden? (z.B. 2026-10-15 14:00)', '');
+      if (dateStr) {
+        setIsUpdatingChecklist(true);
+        try {
+          await updateTaskSchedule(activeOrder.id, 'viewing_date', dateStr);
+          toast.success('Besichtigungstermin im Kalender eingetragen!');
+          if (onRefresh) onRefresh();
+        } catch (error) {
+          toast.error('Fehler beim Speichern');
+        } finally {
+          setIsUpdatingChecklist(false);
+        }
+      }
+      return;
+    }
+
     setIsUpdatingChecklist(true);
 
     try {
-      const orderRef = doc(db, 'orders', activeOrder.id);
-      const updateData: any = {};
-      let message = 'Status aktualisiert';
-
+      const result = await toggleTaskCompletion(activeOrder, itemId);
+      let message = result.newState ? 'Als erledigt markiert' : 'Als offen markiert';
       if (itemId === 'signature' || itemId === 'angebot_confirmed') {
-        const next = !currentVal;
-        updateData['status'] = next ? 'confirmed' : 'quote';
-        updateData['isManuallySigned'] = next;
-        updateData['contractSigned'] = next;
-        updateData['updatedAt'] = new Date();
-        message = next ? 'Auftrag bestätigt (Status: Bestätigt)' : 'Auftrag zurück auf "In Verhandlung" gesetzt';
-      } else if (itemId === 'data_verified') {
-        const next = !currentVal;
-        updateData['checklistDone.dataVerified'] = next;
-        message = next ? 'Stammdaten als geprüft markiert' : 'Stammdaten-Prüfung ausstehend';
-      } else if (itemId === 'viewing_date') {
-        if (!currentVal) {
-          const dateStr = window.prompt('Wann soll der Besichtigungstermin stattfinden? (z.B. 2026-10-15 14:00)', '');
-          if (dateStr) {
-            updateData['orderMeta.viewingDate'] = dateStr;
-            updateData['viewingDate'] = dateStr;
-            message = 'Besichtigungstermin im Kalender eingetragen!';
-          } else {
-            setIsUpdatingChecklist(false);
-            return;
-          }
-        } else {
-          updateData['orderMeta.viewingDate'] = '';
-          updateData['viewingDate'] = '';
-          message = 'Besichtigungstermin entfernt';
-        }
+        message = result.newState ? 'Auftrag bestätigt (Status: Bestätigt)' : 'Auftrag zurück auf "In Verhandlung" gesetzt';
       } else if (itemId === 'hvz') {
-        const next = !currentVal;
-        updateData['logistics.hvzConfirmed'] = next;
-        updateData['checklistDone.hvz'] = next;
-        message = next ? 'Halteverbot (HVZ) als erledigt markiert' : 'Halteverbot (HVZ) als ausstehend markiert';
+        message = result.newState ? 'Halteverbot (HVZ) als erledigt markiert' : 'Halteverbot (HVZ) als ausstehend markiert';
       } else if (itemId === 'kartons') {
-        const next = !currentVal;
-        updateData['logistics.boxesDelivered'] = next;
-        updateData['checklistDone.kartons'] = next;
-        message = next ? 'Kartons als geliefert markiert' : 'Kartons als ausstehend markiert';
+        message = result.newState ? 'Kartons als geliefert markiert' : 'Kartons als ausstehend markiert';
       } else if (itemId === 'moebellift') {
-        const next = !currentVal;
-        updateData['logistics.liftReserved'] = next;
-        updateData['checklistDone.moebellift'] = next;
-        message = next ? 'Möbellift als reserviert markiert' : 'Möbellift als ausstehend markiert';
+        message = result.newState ? 'Möbellift als reserviert markiert' : 'Möbellift als ausstehend markiert';
       }
 
-      await updateDoc(orderRef, updateData);
       toast.success(message);
       if (onRefresh) onRefresh();
     } catch (error) {
