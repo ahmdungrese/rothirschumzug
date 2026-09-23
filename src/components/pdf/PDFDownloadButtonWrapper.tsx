@@ -34,10 +34,10 @@ export default function PDFDownloadButtonWrapper({ order, customer, type = 'orde
   if (!settings) return <button disabled className={`flex items-center justify-center gap-2 opacity-50 ${className}`} title="Lade...">{customIcon || <ArrowDownTrayIcon className="w-4 h-4" />}{!iconOnly && " Lade..."}</button>;
 
   const getDocument = () => {
-    if (type === 'employee') return <EmployeeSheetPDF order={order} customer={customer} employeeName={employeeName} />;
+    if (type === 'employee') return <EmployeeSheetPDF order={order} customer={customer} employeeName={employeeName} settings={settings} />;
     if (type === 'invoice') return <InvoicePDF order={order} customer={customer} settings={settings} employeeName={employeeName} />;
     if (type === 'contract') return <OrderPDF order={order} customer={customer} settings={settings} isContract={true} employeeName={employeeName} />;
-    if (type === 'protocol') return <ProtocolPDF order={order} customer={customer} employeeName={employeeName} />;
+    if (type === 'protocol') return <ProtocolPDF order={order} customer={customer} employeeName={employeeName} settings={settings} />;
     return <OrderPDF order={order} customer={customer} settings={settings} employeeName={employeeName} />;
   };
 

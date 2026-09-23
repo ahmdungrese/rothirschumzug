@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { doc, collection, query, where, onSnapshot, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { CustomerPremiumProfile } from '@/components/customers/CustomerPremiumProfile';
@@ -18,7 +18,10 @@ import Link from 'next/link';
 export default function CustomerProfilePage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const customerId = params.id as string;
+  const action = searchParams?.get('action');
+  const actionOrderId = searchParams?.get('orderId');
 
   const [customer, setCustomer] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
@@ -69,6 +72,20 @@ export default function CustomerProfilePage() {
       unsubInvoices();
     };
   }, [customerId]);
+
+  useEffect(() => {
+    if (action === 'view-protocol' && orders.length > 0) {
+      const target = (actionOrderId ? orders.find(o => o.id === actionOrderId) : null) || orders[0];
+      if (target) {
+        if (target.protocols && target.protocols.length > 0) {
+          setPdfType('protocol');
+          setPdfModalOrder(target);
+        } else {
+          setProtocolOrder(target);
+        }
+      }
+    }
+  }, [action, actionOrderId, orders]);
 
   const handleSaveCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,6 +152,7 @@ export default function CustomerProfilePage() {
       <CustomerPremiumProfile
         customer={customer}
         orders={orders}
+        invoices={freeInvoices}
         onEditCustomer={() => setIsEditingCustomer(true)}
         onOpenMessageModal={(ord) => setMessageOrder({ data: ord || orders[0], defaultTemplate: 'Allgemein' })}
         onOpenPaymentModal={(ord) => setPaymentOrder(ord || orders[0])}
@@ -142,6 +160,7 @@ export default function CustomerProfilePage() {
         onOpenDispoModal={(ord) => setDispoOrder(ord || orders[0])}
         onOpenSignatureModal={(ord) => setSignatureOrder(ord || orders[0])}
         onViewPdf={handleViewPdf}
+        onRefresh={() => router.refresh()}
       />
 
       {/* Edit Customer Details Modal */}
@@ -262,7 +281,9 @@ export default function CustomerProfilePage() {
           order={paymentOrder}
           allOrders={orders}
           freeInvoices={freeInvoices}
-          onUpdate={() => {}}
+          onUpdate={() => {
+            router.refresh();
+          }}
           onClose={() => setPaymentOrder(null)}
         />
       )}
@@ -271,6 +292,8 @@ export default function CustomerProfilePage() {
         <ProtocolModal
           order={protocolOrder}
           onClose={() => setProtocolOrder(null)}
+          onSuccess={() => router.refresh()}
+          onViewPdf={handleViewPdf}
         />
       )}
 
@@ -294,7 +317,10 @@ export default function CustomerProfilePage() {
         <SignatureModal
           order={signatureOrder}
           onClose={() => setSignatureOrder(null)}
-          onSigned={() => setSignatureOrder(null)}
+          onSigned={async () => {
+            setSignatureOrder(null);
+            router.refresh();
+          }}
         />
       )}
 

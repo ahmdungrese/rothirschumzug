@@ -172,6 +172,9 @@ export function KanbanDispositionBoard() {
           <h2 className="text-sm font-bold font-headline text-slate-900 dark:text-white">
             Disposition
           </h2>
+          <span className="text-[10px] font-extrabold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
+            v2.4.0
+          </span>
           <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200/60 dark:border-slate-700/60">
             {filteredOrders.length} Aufträge
           </span>

@@ -1,120 +1,221 @@
+import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
-import { COMPANY_DETAILS } from '@/lib/constants';
+import { PDF_COLORS, pdfCommonStyles } from './core/pdfTheme';
+import { PDFHeader } from './core/PDFHeader';
+import { PDFFooter } from './core/PDFFooter';
+import { PDFWatermark } from './core/PDFWatermark';
 
 const styles = StyleSheet.create({
-  page: { padding: 40, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
-  headerContainer: { alignItems: 'flex-end', marginBottom: 20 },
-  logoWrapper: { backgroundColor: '#1a1a1a', width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-end' },
-  logoTextPrimary: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#8F1627', textTransform: 'uppercase', letterSpacing: 2 },
-  companyInfo: { textAlign: 'right', fontSize: 9, color: '#666' },
-  title: { fontSize: 18, fontFamily: 'Helvetica-Bold', marginBottom: 10, color: '#8F1627' },
-  subtitle: { fontSize: 12, marginBottom: 20, color: '#666' },
-  section: { marginBottom: 20 },
-  label: { fontFamily: 'Helvetica-Bold', marginBottom: 4, color: '#555' },
-  value: { fontSize: 11, marginBottom: 10 },
-  protocolBox: { borderWidth: 1, borderColor: '#eee', padding: 15, marginBottom: 20, borderRadius: 4 },
-  signatureBox: { marginTop: 10, padding: 10, backgroundColor: '#f9f9f9', borderLeftWidth: 3, borderLeftColor: '#8F1627' },
-  signatureImage: { height: 60, marginTop: 10, objectFit: 'contain' },
-  footer: { position: 'absolute', bottom: 30, left: 40, right: 40, fontSize: 8, color: '#999', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10, flexDirection: 'row', justifyContent: 'space-between' },
+  ...pdfCommonStyles,
+
+  titleRow: {
+    marginTop: 6,
+    marginBottom: 14,
+  },
+  title: {
+    fontSize: 19,
+    fontFamily: 'Helvetica-Bold',
+    color: PDF_COLORS.primary,
+    marginBottom: 5,
+  },
+  subtitle: {
+    fontSize: 9.5,
+    color: PDF_COLORS.textMuted,
+    lineHeight: 1.3,
+  },
+
+  metaCard: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: PDF_COLORS.border,
+    borderLeftWidth: 3,
+    borderLeftColor: PDF_COLORS.primary,
+    borderRadius: 4,
+    padding: 10,
+    marginBottom: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  metaCol: {
+    width: '48%',
+  },
+  metaLabel: {
+    fontSize: 7.5,
+    fontFamily: 'Helvetica-Bold',
+    color: PDF_COLORS.textMuted,
+    marginBottom: 3,
+    textTransform: 'uppercase',
+  },
+  metaValue: {
+    fontSize: 9.5,
+    fontFamily: 'Helvetica-Bold',
+    color: PDF_COLORS.textMain,
+    marginBottom: 4,
+  },
+  metaSub: {
+    fontSize: 8.5,
+    color: PDF_COLORS.textMain,
+  },
+
+  protocolBox: {
+    borderWidth: 1,
+    borderColor: PDF_COLORS.border,
+    backgroundColor: '#ffffff',
+    borderRadius: 4,
+    padding: 12,
+    marginBottom: 14,
+  },
+  protocolHeader: {
+    fontSize: 11,
+    fontFamily: 'Helvetica-Bold',
+    color: PDF_COLORS.primary,
+    marginBottom: 6,
+    borderBottomWidth: 0.8,
+    borderBottomColor: PDF_COLORS.borderLight,
+    paddingBottom: 4,
+  },
+  protocolText: {
+    fontSize: 9,
+    lineHeight: 1.5,
+    color: PDF_COLORS.textMain,
+    marginTop: 6, // Proper spacing to prevent glueing to header
+    marginBottom: 12,
+  },
+
+  signatureBox: {
+    padding: 9,
+    backgroundColor: '#ffffff',
+    borderLeftWidth: 3,
+    borderLeftColor: PDF_COLORS.primary,
+    borderWidth: 1,
+    borderColor: PDF_COLORS.border,
+    borderRadius: 2,
+  },
+  sigHeader: {
+    fontSize: 8.5,
+    fontFamily: 'Helvetica-Bold',
+    color: PDF_COLORS.textMain,
+    marginBottom: 3,
+  },
+  sigDate: {
+    fontSize: 7.5,
+    color: PDF_COLORS.textMuted,
+    marginBottom: 5,
+  },
+  sigImage: {
+    height: 48,
+    objectFit: 'contain',
+    marginTop: 4,
+  }
 });
 
-export const ProtocolPDF = ({ order, customer, employeeName, settings }: { order: any, customer: any, employeeName: string, settings?: any }) => {
-  const docTitle = `Protokoll - ${order?.orderNumber || 'Auftrag'}`;
+export const ProtocolPDF = ({
+  order,
+  customer,
+  employeeName,
+  settings,
+}: {
+  order: any;
+  customer: any;
+  employeeName: string;
+  settings?: any;
+}) => {
+  const docTitle = `Protokoll - ${order?.orderNumber || order?.contractNumber || 'Auftrag'}`;
   const protocols = order?.protocols || [];
 
   return (
-  <Document title={docTitle}>
-    <Page size="A4" style={styles.page}>
-      <View style={styles.headerContainer}>
-        <View style={styles.logoWrapper}>
-          <Image src="/Rothirsch.png" style={{ height: 80, width: 80, objectFit: 'contain' }} />
-        </View>
-      </View>
+    <Document title={docTitle}>
+      <Page size="A4" style={styles.page}>
+        <PDFWatermark type="symbols" />
+        <PDFHeader settings={settings} docTitle="Arbeitsprotokoll & Dokumentation" />
 
-      <Text style={styles.title}>Arbeitsprotokoll / Haftungsausschluss</Text>
-      <Text style={styles.subtitle}>Referenz: {order?.orderNumber || order?.contractNumber || 'Auftrag'}</Text>
-
-      <View style={{ flexDirection: 'row', marginBottom: 20 }}>
-        <View style={{ width: '50%' }}>
-          <Text style={styles.label}>Kunde:</Text>
-          <Text style={styles.value}>{customer?.type === 'firma' ? customer?.lastName : `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim()}</Text>
-          <Text style={styles.value}>{customer?.street} {customer?.houseNr}, {customer?.zip} {customer?.city}</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>Arbeitsprotokoll & Haftungsausschluss</Text>
+          <Text style={styles.subtitle}>
+            Auftragsreferenz: {order?.orderNumber || order?.contractNumber || 'Auftrag'}
+          </Text>
         </View>
-        <View style={{ width: '50%' }}>
-          <Text style={styles.label}>Datum der Erstellung:</Text>
-          <Text style={styles.value}>{new Date().toLocaleDateString('de-DE')}</Text>
-          <Text style={styles.label}>Mitarbeiter:</Text>
-          <Text style={styles.value}>{employeeName}</Text>
-        </View>
-      </View>
 
-      {protocols.length === 0 ? (
-        <Text style={{ color: '#999', fontStyle: 'italic', marginTop: 20 }}>Keine Protokolle für diesen Auftrag vorhanden.</Text>
-      ) : (
-        protocols.map((protocol: any, index: number) => (
-          <View key={index} style={styles.protocolBox}>
-            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 12, marginBottom: 10, color: '#8F1627' }}>
-              {protocol.type || 'Protokoll'}
+        {/* Customer & Employee Meta Card */}
+        <View style={styles.metaCard}>
+          <View style={styles.metaCol}>
+            <Text style={styles.metaLabel}>Auftraggeber / Kunde:</Text>
+            <Text style={styles.metaValue}>
+              {customer?.type === 'firma'
+                ? customer?.lastName
+                : `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim()}
             </Text>
-            <Text style={{ fontSize: 11, lineHeight: 1.5, marginBottom: 15 }}>
-              {protocol.text || 'Keine Beschreibung angegeben.'}
+            <Text style={styles.metaSub}>
+              {customer?.street} {customer?.houseNr}, {customer?.zip} {customer?.city}
             </Text>
-            
-            <View style={styles.signatureBox}>
-              <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 10 }}>Kundenunterschrift</Text>
-              <Text style={{ fontSize: 9, color: '#666', marginBottom: 5 }}>
-                Gezeichnet am: {new Date(protocol.createdAt).toLocaleString('de-DE')}
+          </View>
+          <View style={styles.metaCol}>
+            <Text style={styles.metaLabel}>Protokolldatum:</Text>
+            <Text style={styles.metaValue}>{new Date().toLocaleDateString('de-DE')}</Text>
+            <Text style={{ ...styles.metaLabel, marginTop: 4 }}>Verantwortlicher Mitarbeiter:</Text>
+            <Text style={styles.metaSub}>{employeeName || settings?.manager || 'Rothirsch Team'}</Text>
+          </View>
+        </View>
+
+        {/* Protocols List */}
+        {protocols.length === 0 ? (
+          <View style={{ ...styles.protocolBox, padding: 18, alignItems: 'center' }}>
+            <Text style={{ fontSize: 9.5, color: PDF_COLORS.textMuted, fontStyle: 'italic' }}>
+              Keine spezifischen Zusatzprotokolle für diesen Auftrag erfasst.
+            </Text>
+          </View>
+        ) : (
+          protocols.map((protocol: any, index: number) => (
+            <View key={index} style={styles.protocolBox} wrap={false}>
+              <Text style={styles.protocolHeader}>
+                {index + 1}. {protocol.type || 'Schadens- / Arbeitsprotokoll'}
               </Text>
-              {protocol.signature ? (
-                <Image src={protocol.signature} style={styles.signatureImage} />
-              ) : (
-                <Text style={{ color: '#999', fontStyle: 'italic', marginTop: 10 }}>Keine Unterschrift erfasst.</Text>
-              )}
+              <Text style={styles.protocolText}>
+                {protocol.text || 'Keine Beschreibung angegeben.'}
+              </Text>
+
+              <View style={styles.signatureBox}>
+                <Text style={styles.sigHeader}>Bestätigung & Kundenunterschrift</Text>
+                <Text style={styles.sigDate}>
+                  Gezeichnet am: {protocol.createdAt ? new Date(protocol.createdAt).toLocaleString('de-DE') : new Date().toLocaleString('de-DE')}
+                </Text>
+                {protocol.signature ? (
+                  <Image src={protocol.signature} style={styles.sigImage} />
+                ) : (
+                  <Text style={{ fontSize: 8, color: PDF_COLORS.textLight, fontStyle: 'italic' }}>
+                    Keine digitale Unterschrift erfasst.
+                  </Text>
+                )}
+              </View>
+            </View>
+          ))
+        )}
+
+        {/* Overall Confirmation Box */}
+        {order?.signatureProtocol && (
+          <View style={styles.protocolBox} wrap={false}>
+            <Text style={styles.protocolHeader}>Gesamtbestätigung des Arbeitsprotokolls</Text>
+            <Text style={styles.protocolText}>
+              Der Auftraggeber bestätigt hiermit die Richtigkeit aller oben aufgeführten Protokolle, Leistungen und Vereinbarungen.
+            </Text>
+            <View style={styles.signatureBox}>
+              <Text style={styles.sigHeader}>Unterschrift Auftraggeber</Text>
+              <Text style={styles.sigDate}>
+                {order?.signatureProtocolPlace
+                  ? `${order.signatureProtocolPlace}, den ${order.signatureProtocolDateString}`
+                  : `Gezeichnet am: ${
+                      order?.signatureProtocolDate
+                        ? new Date(order.signatureProtocolDate.toMillis?.() || Date.now()).toLocaleString('de-DE')
+                        : new Date().toLocaleDateString('de-DE')
+                    }`}
+              </Text>
+              <Image src={order.signatureProtocol} style={styles.sigImage} />
             </View>
           </View>
-        ))
-      )}
-      {order?.signatureProtocol && (
-        <View style={{ marginTop: 30, ...styles.protocolBox }}>
-          <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 12, marginBottom: 10, color: '#8F1627' }}>
-            Gesamtbestätigung der Protokolle
-          </Text>
-          <Text style={{ fontSize: 11, lineHeight: 1.5, marginBottom: 15 }}>
-            Der Kunde bestätigt hiermit die Richtigkeit aller oben aufgeführten Protokolle und Leistungen.
-          </Text>
-          <View style={styles.signatureBox}>
-            <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 10 }}>Unterschrift Auftraggeber</Text>
-            <Text style={{ fontSize: 9, color: '#666', marginBottom: 5 }}>
-              {order?.signatureProtocolPlace ? `${order.signatureProtocolPlace}, den ${order.signatureProtocolDateString}` : `Gezeichnet am: ${order?.signatureProtocolDate ? new Date(order.signatureProtocolDate.toMillis?.() || Date.now()).toLocaleString('de-DE') : 'Gerade eben'}`}
-            </Text>
-            <Image src={order.signatureProtocol} style={styles.signatureImage} />
-          </View>
-        </View>
-      )}
-      
-      <View style={styles.footer} fixed>
-        <View>
-          <Text>{settings?.companyName}</Text>
-          <Text>{settings?.street}</Text>
-          <Text>{settings?.zip} {settings?.city}</Text>
-          <Text>{settings?.manager ? `Inhaber/-in: ${settings?.manager}` : ''}</Text>
-        </View>
-        <View>
-          <Text>Tel: {settings?.phone}</Text>
-          <Text>E-Mail: {settings?.email}</Text>
-          <Text>Web: {settings?.website}</Text>
-        </View>
-        <View>
-          <Text>Bank: {settings?.bankName}</Text>
-          <Text>IBAN: {settings?.iban}</Text>
-          <Text>BIC: {settings?.bic}</Text>
-        </View>
-        <View>
-          {settings?.taxId && <Text>USt-IdNr: {settings?.taxId}</Text>}
-          {settings?.taxNumber && <Text>Steuer-Nr: {settings?.taxNumber}</Text>}
-        </View>
-      </View>
-    </Page>
-  </Document>
-);
+        )}
+
+        <PDFFooter settings={settings} customNote="Offizielles Arbeitsprotokoll • Rothirsch Umzug" />
+      </Page>
+    </Document>
+  );
 };

@@ -1,5 +1,32 @@
-export async function calculateRoute(addressA: string, addressB: string): Promise<{ distanceKm: number, durationMinutes: number } | null> {
+export interface RouteSegment {
+  distanceKm: number;
+  durationMinutes: number;
+}
+
+export interface RouteCalculationResult {
+  distanceKm: number;
+  durationMinutes: number;
+  direct: RouteSegment;
+  roundTrip?: RouteSegment & {
+    depotAddress: string;
+    summary: string;
+  };
+}
+
+const BOCHUM_DEPOT = {
+  address: "Grillostr. 70, 44799 Bochum",
+  lat: 51.4641,
+  lon: 7.2289
+};
+
+export async function calculateRoute(
+  addressA: string, 
+  addressB: string,
+  options?: { includeRoundTrip?: boolean }
+): Promise<RouteCalculationResult | null> {
   try {
+    const includeRoundTrip = options?.includeRoundTrip ?? true;
+
     // 1. Geocode Address A
     const coordsA = await geocodeAddress(addressA);
     if (!coordsA) return null;
@@ -8,21 +35,55 @@ export async function calculateRoute(addressA: string, addressB: string): Promis
     const coordsB = await geocodeAddress(addressB);
     if (!coordsB) return null;
 
-    // 3. OSRM Routing
-    const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordsA.lon},${coordsA.lat};${coordsB.lon},${coordsB.lat}?overview=false`;
-    const routeRes = await fetch(osrmUrl);
-    
-    if (!routeRes.ok) return null;
-    const routeData = await routeRes.json();
+    // 3. Direct Route A -> B
+    const directUrl = `https://router.project-osrm.org/route/v1/driving/${coordsA.lon},${coordsA.lat};${coordsB.lon},${coordsB.lat}?overview=false`;
+    const directRes = await fetch(directUrl);
+    if (!directRes.ok) return null;
+    const directData = await directRes.json();
 
-    if (routeData.code === 'Ok' && routeData.routes && routeData.routes.length > 0) {
-      const route = routeData.routes[0];
-      const distanceKm = Math.round((route.distance / 1000) * 10) / 10;
-      const durationMinutes = Math.round(route.duration / 60);
-      return { distanceKm, durationMinutes };
+    if (directData.code !== 'Ok' || !directData.routes || directData.routes.length === 0) {
+      return null;
     }
-    
-    return null;
+
+    const directRoute = directData.routes[0];
+    const directDistanceKm = Math.round((directRoute.distance / 1000) * 10) / 10;
+    const directDurationMinutes = Math.round(directRoute.duration / 60);
+
+    const result: RouteCalculationResult = {
+      distanceKm: directDistanceKm,
+      durationMinutes: directDurationMinutes,
+      direct: {
+        distanceKm: directDistanceKm,
+        durationMinutes: directDurationMinutes
+      }
+    };
+
+    // 4. Multi-stop Roundtrip Route: Bochum Depot -> A -> B -> Bochum Depot
+    if (includeRoundTrip) {
+      try {
+        const roundTripUrl = `https://router.project-osrm.org/route/v1/driving/${BOCHUM_DEPOT.lon},${BOCHUM_DEPOT.lat};${coordsA.lon},${coordsA.lat};${coordsB.lon},${coordsB.lat};${BOCHUM_DEPOT.lon},${BOCHUM_DEPOT.lat}?overview=false`;
+        const rtRes = await fetch(roundTripUrl);
+        if (rtRes.ok) {
+          const rtData = await rtRes.json();
+          if (rtData.code === 'Ok' && rtData.routes && rtData.routes.length > 0) {
+            const rtRoute = rtData.routes[0];
+            const rtDistanceKm = Math.round((rtRoute.distance / 1000) * 10) / 10;
+            const rtDurationMinutes = Math.round(rtRoute.duration / 60);
+
+            result.roundTrip = {
+              distanceKm: rtDistanceKm,
+              durationMinutes: rtDurationMinutes,
+              depotAddress: BOCHUM_DEPOT.address,
+              summary: `Bochum Depot ➔ ${addressA} ➔ ${addressB} ➔ Bochum Depot`
+            };
+          }
+        }
+      } catch (rtErr) {
+        console.warn("Could not calculate Bochum depot roundtrip:", rtErr);
+      }
+    }
+
+    return result;
   } catch (error) {
     console.error("Error calculating route:", error);
     return null;

@@ -19,12 +19,14 @@ import {
   ArrowTopRightOnSquareIcon,
   CubeIcon,
   CurrencyEuroIcon,
-  CheckIcon
+  CheckIcon,
+  BuildingOfficeIcon,
+  HomeIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { evaluateOrderLogistics } from '@/lib/orderValidation';
 import { toggleTaskCompletion } from '@/lib/taskStateController';
 import { TaskScheduleModal } from '@/components/logistics/TaskScheduleModal';
-import { BaumarktShoppingModal } from '@/components/logistics/BaumarktShoppingModal';
 import { SignatureModal } from '@/components/orders/SignatureModal';
 import { ProtocolModal } from '@/components/customers/ProtocolModal';
 import { MessageSenderModal } from '@/components/customers/MessageSenderModal';
@@ -53,13 +55,27 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
 
   // Modals state
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
-  const [shoppingModalOpen, setShoppingModalOpen] = useState(false);
   const [currentTodoForSchedule, setCurrentTodoForSchedule] = useState<any>(null);
   const [signatureModalOpen, setSignatureModalOpen] = useState(false);
   const [protocolModalOpen, setProtocolModalOpen] = useState(false);
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [defaultTemplateName, setDefaultTemplateName] = useState<string>('');
   const [isUpdatingTask, setIsUpdatingTask] = useState(false);
+  const [internalCustomer, setInternalCustomer] = useState<any>(customer || null);
+
+  useEffect(() => {
+    if (customer) {
+      setInternalCustomer(customer);
+      return;
+    }
+    if (order?.customerId) {
+      getDoc(doc(db, 'customers', order.customerId)).then((snap) => {
+        if (snap.exists()) {
+          setInternalCustomer({ id: snap.id, ...snap.data() });
+        }
+      }).catch(console.error);
+    }
+  }, [order?.customerId, customer]);
 
   // Close on Escape key
   useEffect(() => {
@@ -72,14 +88,14 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
 
   if (!order) return null;
 
-  const evaluation = evaluateOrderLogistics(order, customer);
-  const custName = customer 
-    ? `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || customer.company || 'Kunde ohne Name'
+  const evaluation = evaluateOrderLogistics(order, internalCustomer);
+  const custName = internalCustomer 
+    ? `${internalCustomer.firstName || ''} ${internalCustomer.lastName || ''}`.trim() || internalCustomer.company || 'Kunde ohne Name'
     : order.customerName || order.clientName || 'Kunde ohne Name';
 
   const orderNum = order.orderNumber || order.orderIdShort || (order.id ? `#${order.id.slice(-5).toUpperCase()}` : '#RH-AUFTRAG');
-  const custPhone = customer?.phone || order.phone || order.customerPhone || '';
-  const custEmail = customer?.email || order.email || order.customerEmail || '';
+  const custPhone = internalCustomer?.phone || order.phone || order.customerPhone || '';
+  const custEmail = internalCustomer?.email || order.email || order.customerEmail || '';
 
   const addressA = [
     order.logistics?.a_street || order.logistics?.from?.street,
@@ -528,7 +544,10 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
 
                     {addressA && (
                       <div className="text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-amber-200/60 dark:border-amber-900/40 flex items-center justify-between gap-2">
-                        <span className="truncate">📍 {addressA}</span>
+                        <span className="truncate flex items-center gap-1">
+                          <MapPinIcon className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                          <span className="truncate">{addressA}</span>
+                        </span>
                         <a
                           href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressA)}`}
                           target="_blank"
@@ -707,8 +726,9 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
                           </span>
                           <span className="text-[11px] text-slate-500">
                             {matSummary.total > 0 ? (
-                              <span>
-                                📦 {matSummary.total} Kartons ({matSummary.standard > 0 ? `${matSummary.standard}x Standard` : ''}{matSummary.buecher > 0 ? `, ${matSummary.buecher}x Bücher` : ''}{matSummary.kleider > 0 ? `, ${matSummary.kleider}x Kleider` : ''})
+                              <span className="flex items-center gap-1 flex-wrap">
+                                <CubeIcon className="w-3.5 h-3.5 text-orange-600 inline shrink-0" />
+                                <span>{matSummary.total} Kartons ({matSummary.standard > 0 ? `${matSummary.standard}x Standard` : ''}{matSummary.buecher > 0 ? `, ${matSummary.buecher}x Bücher` : ''}{matSummary.kleider > 0 ? `, ${matSummary.kleider}x Kleider` : ''})</span>
                               </span>
                             ) : (
                               'Materialbedarf offen'
@@ -718,15 +738,6 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
                       </div>
 
                       <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => setShoppingModalOpen(true)}
-                          className="px-2.5 py-1 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20 text-xs font-bold hover:bg-orange-500 hover:text-white transition-all flex items-center gap-1"
-                          title="Baumarkt Einkaufszettel öffnen"
-                        >
-                          <span className="material-symbols-outlined text-sm">shopping_cart</span>
-                          <span>Baumarkt</span>
-                        </button>
                         <button
                           onClick={() => handleOpenSchedule({ id: 'kartons_liefern', kanbanCategory: 'kartons', name: 'Kartons' })}
                           className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
@@ -775,12 +786,36 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
                             Halteverbotszone (HVZ)
                           </span>
                           <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
-                              {order.orderMeta?.hvzMethod === 'extern' ? '🏢 Externe Firma' : '🚗 Selbst aufstellen'}
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                              {order.orderMeta?.hvzMethod === 'extern' ? (
+                                <>
+                                  <BuildingOfficeIcon className="w-3 h-3 text-slate-500" />
+                                  <span>Externe Firma</span>
+                                </>
+                              ) : (
+                                <>
+                                  <TruckIcon className="w-3 h-3 text-primary" />
+                                  <span>Selbst aufstellen</span>
+                                </>
+                              )}
                             </span>
-                            <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-primary/10 text-primary">
-                              {order.orderMeta?.hvzLocation === 'b' ? '🏠 Einzugsort (B)' : 
-                               order.orderMeta?.hvzLocation === 'both' ? '🔄 Beide Orte (A & B)' : '🏢 Auszugsort (A)'}
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary flex items-center gap-1">
+                              {order.orderMeta?.hvzLocation === 'b' ? (
+                                <>
+                                  <HomeIcon className="w-3 h-3" />
+                                  <span>Einzugsort (B)</span>
+                                </>
+                              ) : order.orderMeta?.hvzLocation === 'both' ? (
+                                <>
+                                  <ArrowPathIcon className="w-3 h-3" />
+                                  <span>Beide Orte (A & B)</span>
+                                </>
+                              ) : (
+                                <>
+                                  <BuildingOfficeIcon className="w-3 h-3" />
+                                  <span>Auszugsort (A)</span>
+                                </>
+                              )}
                             </span>
                           </div>
                         </div>
@@ -797,8 +832,9 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
 
                     {/* Address & Navigation */}
                     <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-xs flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-slate-600 dark:text-slate-300 truncate">
-                        📍 {order.orderMeta?.hvzLocation === 'b' ? (addressB || 'Einzugsadresse') : (addressA || 'Auszugsadresse')}
+                      <span className="text-[11px] text-slate-600 dark:text-slate-300 truncate flex items-center gap-1">
+                        <MapPinIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+                        <span className="truncate">{order.orderMeta?.hvzLocation === 'b' ? (addressB || 'Einzugsadresse') : (addressA || 'Auszugsadresse')}</span>
                       </span>
                       <a
                         href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.orderMeta?.hvzLocation === 'b' ? addressB : addressA)}`}
@@ -847,8 +883,18 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
                           <span className="text-xs font-bold text-slate-900 dark:text-white block">
                             Möbellift disponieren
                           </span>
-                          <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
-                            {order.orderMeta?.moebelliftLocation === 'b' ? '🏠 Einzugsort (B)' : '🏢 Auszugsort (A)'}
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                            {order.orderMeta?.moebelliftLocation === 'b' ? (
+                              <>
+                                <HomeIcon className="w-3 h-3" />
+                                <span>Einzugsort (B)</span>
+                              </>
+                            ) : (
+                              <>
+                                <BuildingOfficeIcon className="w-3 h-3" />
+                                <span>Auszugsort (A)</span>
+                              </>
+                            )}
                           </span>
                         </div>
                       </div>
@@ -937,14 +983,21 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
                   onClick={() => setProtocolModalOpen(true)}
-                  className="p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-emerald-500 flex flex-col items-center text-center gap-2 shadow-sm transition-all group"
+                  className="p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-emerald-500 flex flex-col items-center text-center gap-2 shadow-sm transition-all group relative cursor-pointer"
                 >
                   <DocumentCheckIcon className="w-8 h-8 text-emerald-600 group-hover:scale-110 transition-transform" />
-                  <span className="text-xs font-bold text-slate-900 dark:text-white">
-                    Abnahmeprotokoll öffnen
+                  <span className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                    <span>Abnahmeprotokoll</span>
+                    {order.protocols && order.protocols.length > 0 && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
+                        {order.protocols.length}
+                      </span>
+                    )}
                   </span>
                   <span className="text-[10px] text-slate-500">
-                    Schäden erfassen & digital unterschreiben
+                    {order.protocols && order.protocols.length > 0 
+                      ? `${order.protocols.length} Protokoll(e) hinterlegt - Klicken zum Verwalten` 
+                      : 'Schäden erfassen & digital unterschreiben'}
                   </span>
                 </button>
 
@@ -1024,14 +1077,6 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
         />
       )}
 
-      {shoppingModalOpen && (
-        <BaumarktShoppingModal
-          isOpen={shoppingModalOpen}
-          onClose={() => setShoppingModalOpen(false)}
-          order={order}
-        />
-      )}
-
       {signatureModalOpen && (
         <SignatureModal
           order={order}
@@ -1067,7 +1112,7 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
       {messageModalOpen && (
         <MessageSenderModal
           order={order}
-          customer={customer}
+          customer={internalCustomer}
           defaultTemplateName={defaultTemplateName}
           onClose={() => setMessageModalOpen(false)}
         />

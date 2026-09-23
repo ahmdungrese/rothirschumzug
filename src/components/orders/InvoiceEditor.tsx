@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, CheckCircleIcon, ArchiveBoxIcon, WrenchIcon, SparklesIcon, PlusCircleIcon, TagIcon, TruckIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, CheckCircleIcon, ArchiveBoxIcon, WrenchIcon, SparklesIcon, PlusCircleIcon, TagIcon, TruckIcon, MapPinIcon, CalendarDaysIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '@/context/AuthContext';
 import { logActivity } from '@/lib/activityLogger';
 import { toast } from 'react-hot-toast';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, doc, getDoc, updateDoc, deleteDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, setDoc, updateDoc, deleteDoc, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { useParams, useRouter } from 'next/navigation';
 import { calculateOrderTotals } from '@/lib/financeHelpers';
 
@@ -60,7 +60,15 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
   // 2. Leistungen
   const [isFlatRate, setIsFlatRate] = useState(false);
   const [flatRateNet, setFlatRateNet] = useState(0);
-  const [services, setServices] = useState<{ id: string, name: string, quantity: number, unitPrice: number, unit: string }[]>([]);
+  const [services, setServices] = useState<{
+    id: string;
+    name: string;
+    note?: string;
+    quantity: number;
+    unitPrice: number;
+    unit: string;
+    isIncluded?: boolean;
+  }[]>([]);
   
   // 3. MwSt Rechner
   const [calcInput, setCalcInput] = useState({ gross: 0, net: 0, tax: 0 });
@@ -139,7 +147,11 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
           if (o.services) setServices(o.services);
           if (o.calcInput) setCalcInput(o.calcInput);
           if (o.texts && orderId) setTexts(prev => ({...prev, ...o.texts}));
-          if (o.sourceOrderId) setActiveSourceOrderId(o.sourceOrderId);
+          if (o.sourceOrderId) {
+            setActiveSourceOrderId(o.sourceOrderId);
+          } else if (o.type !== 'invoice') {
+            setActiveSourceOrderId(idToLoad);
+          }
         }
       }
     };
@@ -147,23 +159,33 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
   }, [orderId, sourceOrderId, urlCustomerId]);
 
   const addService = (template: any) => {
-    setServices([...services, {
+    setServices(prev => [...prev, {
       id: Math.random().toString(36).substr(2, 9),
-      name: template.name,
-      quantity: 1,
-      unitPrice: template.unitPrice || 0,
-      unit: template.unit || 'Stk.'
+      name: template.name || '',
+      note: template.note || template.defaultDesc || '',
+      quantity: template.quantity || 1,
+      unitPrice: template.unitPrice ?? template.price ?? 0,
+      unit: template.unit || 'Stk.',
+      isIncluded: Boolean(template.isIncluded)
     }]);
   };
 
   const calculateTotals = () => {
-    const { net, tax, gross } = calculateOrderTotals({
-      isFlatRate,
-      flatRateNet,
-      services,
-      calcInput: null // Force recalculation from services/flatRate
-    });
-    setCalcInput({ net, tax, gross });
+    let net = 0;
+    if (isFlatRate) {
+      net = Number(flatRateNet) || 0;
+    } else {
+      net = (services || []).reduce((acc, curr) => {
+        if (curr?.isIncluded) return acc;
+        return acc + ((Number(curr?.quantity) || 0) * (Number(curr?.unitPrice) || 0));
+      }, 0);
+    }
+    const roundedNet = Math.round(net * 100) / 100;
+    const tax = Math.round(roundedNet * 0.19 * 100) / 100;
+    const gross = Math.round((roundedNet + tax) * 100) / 100;
+    const totalsObj = { net: roundedNet, tax, gross };
+    setCalcInput(totalsObj);
+    return totalsObj;
   };
 
   useEffect(() => { calculateTotals(); }, [services, isFlatRate, flatRateNet]);
@@ -179,19 +201,30 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
       // Wir aktualisieren das Haupt-Kundenprofil absichtlich NICHT mehr aus dem Rechnungs-Editor,
       // damit abweichende Rechnungsadressen niemals die Stammdaten des Kunden überschreiben!
 
+      const calculatedTotals = calculateTotals() || { net: 0, tax: 0, gross: 0 };
+
       const payload: any = {
         type: 'invoice',
         status: finalStatus,
         customerId: urlCustomerId || null,
         sourceOrderId: activeSourceOrderId || null,
-        customerName: customerData.type === 'firma' ? customerData.lastName : `${customerData.firstName} ${customerData.lastName}`.trim(),
+        customerName: customerData.type === 'firma' ? customerData.lastName : `${customerData.firstName || ''} ${customerData.lastName || ''}`.trim(),
         customerData,
         orderMeta,
         logistics, // Include logistics in the invoice
         isFlatRate,
         flatRateNet,
         services,
-        calcInput,
+        calcInput: {
+          net: calculatedTotals.net || 0,
+          tax: calculatedTotals.tax || 0,
+          gross: calculatedTotals.gross || 0
+        },
+        totals: {
+          net: calculatedTotals.net || 0,
+          tax: calculatedTotals.tax || 0,
+          gross: calculatedTotals.gross || 0
+        },
         texts,
         updatedAt: serverTimestamp()
       };
@@ -240,6 +273,9 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
               invoiceDate: payload.updatedAt,
               status: 'invoice_open',
               invoiceHistory: history,
+              totals: payload.totals,
+              calcInput: payload.calcInput,
+              services: payload.services || parentData.services || [],
               updatedAt: serverTimestamp()
             });
           }
@@ -255,7 +291,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
         const editorActorName = profile?.displayName || profile?.email?.split('@')[0] || 'Team';
         // Just save draft
         if (orderId) {
-          await updateDoc(doc(db, 'invoices', orderId), payload);
+          await setDoc(doc(db, 'invoices', orderId), payload, { merge: true });
           await logActivity(user?.uid || '', editorActorName, 'UPDATE_ORDER', `Rechnungsentwurf bearbeitet`);
           toast.success('Rechnungsentwurf gespeichert!');
         } else {
@@ -263,6 +299,20 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
           await addDoc(collection(db, 'invoices'), payload);
           await logActivity(user?.uid || '', editorActorName, 'CREATE_ORDER', `Neuer Rechnungsentwurf für ${customerData.lastName}`);
           toast.success('Rechnungsentwurf erstellt!');
+        }
+
+        // Also sync draft totals to parent order if available
+        if (activeSourceOrderId) {
+          try {
+            await updateDoc(doc(db, 'orders', activeSourceOrderId), {
+              totals: payload.totals,
+              calcInput: payload.calcInput,
+              services: payload.services || [],
+              updatedAt: serverTimestamp()
+            });
+          } catch (err) {
+            console.error('Error syncing draft invoice totals to parent order:', err);
+          }
         }
       }
 
@@ -475,69 +525,202 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
           </div>
 
           <div className="space-y-4 mb-6">
-            {services.map((service, index) => (
-              <div key={service.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end bg-bg-panel p-3 rounded-lg border border-structure shadow-sm">
-                <div className="col-span-1 md:col-span-1 hidden md:flex justify-center items-center h-full text-text-muted font-bold">{index + 1}.</div>
-                <div className="col-span-1 md:col-span-5">
-                  <label className="block text-[10px] text-text-muted mb-1 uppercase font-bold tracking-wider">Leistung</label>
-                  <input type="text" value={service.name} onChange={e => {
-                    const newS = [...services];
-                    newS[index].name = e.target.value;
-                    setServices(newS);
-                  }} className="input-field w-full" placeholder="Bezeichnung..." />
-                </div>
-                <div className="col-span-1 md:col-span-2">
-                  <label className="block text-[10px] text-text-muted mb-1 uppercase font-bold tracking-wider">Menge</label>
-                  <div className="flex gap-1">
-                    <input type="number" step="0.5" value={service.quantity || 0} onChange={e => {
-                      const newS = [...services];
-                      newS[index].quantity = parseFloat(e.target.value);
-                      setServices(newS);
-                    }} className="input-field w-full text-center" />
-                    <select value={service.unit} onChange={e => {
-                      const newS = [...services];
-                      newS[index].unit = e.target.value;
-                      setServices(newS);
-                    }} className="input-field px-1 min-w-[60px] text-xs">
-                      <option value="Stk.">Stk.</option>
-                      <option value="Std.">Std.</option>
-                      <option value="qm">qm</option>
-                      <option value="Pausch.">Pausch.</option>
-                      <option value="Lfm">Lfm</option>
-                      <option value="Kartons">Kartons</option>
-                      <option value="m³">m³</option>
-                    </select>
+            {services.map((service, index) => {
+              const lineTotal = service.isIncluded 
+                ? 0 
+                : ((service.quantity || 0) * (service.unitPrice || 0));
+
+              return (
+                <div key={service.id} className="bg-bg-panel p-4 rounded-xl border border-structure shadow-sm space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-start">
+                    <div className="col-span-1 md:col-span-1 hidden md:flex items-center justify-center pt-2.5 text-text-muted font-bold text-sm">
+                      {index + 1}.
+                    </div>
+                    
+                    <div className="col-span-1 md:col-span-5 space-y-2">
+                      <label className="block text-[10px] text-text-muted uppercase font-bold tracking-wider">Leistung & Bezeichnung</label>
+                      <input 
+                        type="text" 
+                        value={service.name} 
+                        onChange={e => {
+                          const newS = [...services];
+                          newS[index].name = e.target.value;
+                          setServices(newS);
+                        }} 
+                        className="input-field w-full font-medium" 
+                        placeholder="Leistungsbezeichnung..." 
+                      />
+                      <textarea
+                        value={service.note || ''}
+                        onChange={e => {
+                          const newS = [...services];
+                          newS[index].note = e.target.value;
+                          setServices(newS);
+                        }}
+                        placeholder="Optionale Beschreibung / Bemerkung (wird auf der Rechnung gedruckt)..."
+                        className="text-xs text-text-muted bg-black/10 dark:bg-black/20 focus:bg-black/30 focus:outline-none rounded-lg p-2 w-full resize-y min-h-[38px] border border-structure/30"
+                        rows={1}
+                      />
+                    </div>
+
+                    <div className="col-span-1 md:col-span-2 space-y-2">
+                      <label className="block text-[10px] text-text-muted uppercase font-bold tracking-wider">Menge & Einheit</label>
+                      <div className="flex gap-1 items-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newS = [...services];
+                            newS[index].quantity = Math.max(0, (newS[index].quantity || 0) - 1);
+                            setServices(newS);
+                          }}
+                          className="w-7 h-8 bg-structure/40 hover:bg-structure text-text-main rounded font-bold text-xs flex items-center justify-center cursor-pointer"
+                        >
+                          -
+                        </button>
+                        <input 
+                          type="number" 
+                          step="0.5" 
+                          value={service.quantity || 0} 
+                          onChange={e => {
+                            const newS = [...services];
+                            newS[index].quantity = parseFloat(e.target.value) || 0;
+                            setServices(newS);
+                          }} 
+                          className="input-field w-16 text-center font-bold text-xs py-1.5" 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newS = [...services];
+                            newS[index].quantity = (newS[index].quantity || 0) + 1;
+                            setServices(newS);
+                          }}
+                          className="w-7 h-8 bg-structure/40 hover:bg-structure text-text-main rounded font-bold text-xs flex items-center justify-center cursor-pointer"
+                        >
+                          +
+                        </button>
+                        <select 
+                          value={service.unit} 
+                          onChange={e => {
+                            const newS = [...services];
+                            newS[index].unit = e.target.value;
+                            setServices(newS);
+                          }} 
+                          className="input-field px-1 min-w-[55px] text-xs py-1.5 cursor-pointer"
+                        >
+                          <option value="Stk.">Stk.</option>
+                          <option value="Std.">Std.</option>
+                          <option value="qm">qm</option>
+                          <option value="Pausch.">Pausch.</option>
+                          <option value="Lfm">Lfm</option>
+                          <option value="Kartons">Kartons</option>
+                          <option value="m³">m³</option>
+                          <option value="Zone">Zone</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newS = [...services];
+                            newS[index].isIncluded = !newS[index].isIncluded;
+                            if (newS[index].isIncluded) newS[index].unitPrice = 0;
+                            setServices(newS);
+                          }}
+                          className={`w-full py-1 px-2 rounded-lg text-[11px] font-bold transition-all border flex items-center justify-center gap-1 cursor-pointer ${
+                            service.isIncluded
+                              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-xs'
+                              : 'bg-white/5 text-text-muted hover:text-white border-white/10'
+                          }`}
+                        >
+                          <CheckCircleIcon className="w-3.5 h-3.5" />
+                          <span>{service.isIncluded ? '✓ Inklusiv (0 €)' : 'Als Inklusiv setzen'}</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="col-span-1 md:col-span-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[10px] text-text-muted uppercase font-bold tracking-wider">Einzelpreis (Netto)</label>
+                        {!isFlatRate && (
+                          <span className="text-[10px] font-bold text-primary">
+                            Zeile: {service.isIncluded ? 'Inklusiv' : `${lineTotal.toFixed(2)} €`}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          disabled={!canEditPrices || service.isIncluded} 
+                          value={service.unitPrice || 0} 
+                          onChange={e => {
+                            const newS = [...services];
+                            newS[index].unitPrice = parseFloat(e.target.value) || 0;
+                            setServices(newS);
+                          }} 
+                          className={`input-field w-full text-right font-mono ${service.isIncluded ? 'opacity-40 cursor-not-allowed bg-black/20' : ''}`} 
+                        />
+                        <span className="text-text-muted font-bold">€</span>
+                      </div>
+                    </div>
+
+                    <div className="col-span-1 md:col-span-1 flex justify-end pt-5">
+                      <button 
+                        type="button"
+                        onClick={() => setServices(services.filter(s => s.id !== service.id))} 
+                        className="p-2.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-red-500/20 shadow-sm cursor-pointer" 
+                        title="Position löschen"
+                      >
+                        <TrashIcon className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div className="col-span-1 md:col-span-3">
-                  <label className="block text-[10px] text-text-muted mb-1 uppercase font-bold tracking-wider">Einzelpreis (Netto)</label>
-                  <div className="flex items-center gap-2">
-                    <input type="number" disabled={!canEditPrices} value={service.unitPrice || 0} onChange={e => {
-                      const newS = [...services];
-                      newS[index].unitPrice = parseFloat(e.target.value);
-                      setServices(newS);
-                    }} className="input-field w-full text-right font-mono" />
-                    <span className="text-text-muted">€</span>
-                  </div>
-                </div>
-                <div className="col-span-1 md:col-span-1 flex justify-end">
-                  <button onClick={() => setServices(services.filter(s => s.id !== service.id))} className="p-2.5 bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white rounded-lg transition-colors border border-red-500/20 shadow-sm" title="Position löschen">
-                    <TrashIcon className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          <div className="flex flex-wrap gap-2 mb-8">
-            <button onClick={() => addService({ name: '', unitPrice: 0 })} className="btn-secondary text-sm py-2 px-4 bg-bg-dark border border-structure shadow-sm flex items-center gap-2">
-              <PlusIcon className="w-4 h-4" /> Leere Position
+          <div className="flex flex-wrap items-center gap-2 mb-8">
+            <button 
+              type="button"
+              onClick={() => addService({ name: 'Neue Zusatzleistung', quantity: 1, unitPrice: 0, unit: 'Stk.' })} 
+              className="btn-primary text-xs py-2 px-4 shadow-sm flex items-center gap-2 cursor-pointer"
+            >
+              <PlusIcon className="w-4 h-4" /> Eigene Leistung hinzufügen
             </button>
-            <div className="h-8 w-px bg-structure mx-2 hidden sm:block"></div>
+            
+            <div className="h-6 w-px bg-structure mx-1 hidden sm:block"></div>
+
+            {/* Quick Fast Preset Buttons */}
+            <button
+              type="button"
+              onClick={() => addService({ name: 'Zusätzliche Umzugskartons', quantity: 10, unitPrice: 3.5, unit: 'Kartons', note: 'Am Umzugstag zusätzlich bereitgestellt' })}
+              className="px-3 py-1.5 text-xs bg-bg-panel border border-structure rounded-xl hover:border-primary/50 hover:text-primary transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer font-medium"
+            >
+              <ArchiveBoxIcon className="w-4 h-4 text-amber-500" /> + 10x Kartons (35 €)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => addService({ name: 'Zusätzliche Möbelmontage', quantity: 1, unitPrice: 120, unit: 'Pausch.', note: 'Spontaner Mehraufwand am Umzugstag' })}
+              className="px-3 py-1.5 text-xs bg-bg-panel border border-structure rounded-xl hover:border-primary/50 hover:text-primary transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer font-medium"
+            >
+              <WrenchIcon className="w-4 h-4 text-blue-500" /> + Montage (120 €)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => addService({ name: 'Halteverbotszone (HVZ)', quantity: 1, unitPrice: 95, unit: 'Zone', note: 'Amtlich genehmigte Halteverbotszone' })}
+              className="px-3 py-1.5 text-xs bg-bg-panel border border-structure rounded-xl hover:border-primary/50 hover:text-primary transition-colors flex items-center gap-1.5 shadow-2xs cursor-pointer font-medium"
+            >
+              <TruckIcon className="w-4 h-4 text-emerald-500" /> + Halteverbot (95 €)
+            </button>
+
             {settings.serviceTemplates?.map((cat: any) => (
               <div key={cat.category} className="flex gap-2">
                 {cat.items?.map((item: any) => (
-                  <button key={item.name} onClick={() => addService(item)} className="px-3 py-1.5 text-xs bg-bg-panel border border-structure rounded-lg hover:border-primary/50 hover:text-primary transition-colors flex items-center gap-1.5 shadow-sm">
+                  <button key={item.name} type="button" onClick={() => addService(item)} className="px-3 py-1.5 text-xs bg-bg-panel border border-structure rounded-lg hover:border-primary/50 hover:text-primary transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer">
                     {getCategoryIcon(cat.category)} {item.name}
                   </button>
                 ))}
@@ -609,9 +792,10 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
                     const textToAdd = `(Umzug von ${from || '?'} nach ${to || '?'})`;
                     setTexts({...texts, quoteIntro: texts.quoteIntro ? `${texts.quoteIntro} ${textToAdd}` : textToAdd});
                   }}
-                  className="text-xs px-3 py-1.5 bg-bg-panel border border-structure text-text-main hover:text-primary rounded-lg transition-colors shadow-sm"
+                  className="text-xs px-3 py-1.5 bg-bg-panel border border-structure text-text-main hover:text-primary rounded-lg transition-colors shadow-sm flex items-center gap-1.5"
                 >
-                  📍 Adressen einfügen
+                  <MapPinIcon className="w-3.5 h-3.5 text-primary" />
+                  <span>Adressen einfügen</span>
                 </button>
                 <button 
                   onClick={() => {
@@ -619,9 +803,10 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
                     const textToAdd = `am ${movingDate}`;
                     setTexts({...texts, quoteIntro: texts.quoteIntro ? `${texts.quoteIntro} ${textToAdd}` : textToAdd});
                   }}
-                  className="text-xs px-3 py-1.5 bg-bg-panel border border-structure text-text-main hover:text-primary rounded-lg transition-colors shadow-sm"
+                  className="text-xs px-3 py-1.5 bg-bg-panel border border-structure text-text-main hover:text-primary rounded-lg transition-colors shadow-sm flex items-center gap-1.5"
                 >
-                  📅 Umzugsdatum einfügen
+                  <CalendarDaysIcon className="w-3.5 h-3.5 text-primary" />
+                  <span>Umzugsdatum einfügen</span>
                 </button>
               </div>
             </div>

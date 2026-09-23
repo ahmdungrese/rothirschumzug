@@ -1,318 +1,457 @@
-import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
+import React from 'react';
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 import { calculateOrderTotals, calculateOpenAmount, calculateTotalPaid } from '@/lib/financeHelpers';
+import { PDF_COLORS, pdfCommonStyles } from './core/pdfTheme';
+import { PDFHeader } from './core/PDFHeader';
+import { PDFFooter } from './core/PDFFooter';
+import { PDFWatermark } from './core/PDFWatermark';
 
 const styles = StyleSheet.create({
-  page: { padding: 30, paddingBottom: 90, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
-  headerContainer: { alignItems: 'flex-end', marginBottom: 30 },
-  logoWrapper: { backgroundColor: '#1a1a1a', width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-end' },
-  logoTextPrimary: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#8F1627', textTransform: 'uppercase', letterSpacing: 2 },
+  ...pdfCommonStyles,
   
-  docInfoBox: { width: '40%', alignItems: 'flex-end', justifyContent: 'flex-start' },
-  mainDocumentTitle: { fontSize: 22, fontFamily: 'Helvetica-Bold', color: '#8F1627', marginBottom: 20, marginTop: 10 },
-  docNumLabel: { fontSize: 9, color: '#666' },
-  docNum: { fontSize: 11, fontFamily: 'Helvetica-Bold' },
+  customerDateBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  customerBox: {
+    width: '52%',
+    paddingRight: 10,
+  },
+  customerName: {
+    fontSize: 10.5,
+    fontFamily: 'Helvetica-Bold',
+    color: PDF_COLORS.textMain,
+    marginBottom: 3,
+  },
+  customerAddress: {
+    fontSize: 9,
+    color: PDF_COLORS.textMain,
+    lineHeight: 1.35,
+  },
   
-  line: { borderBottomWidth: 1, borderBottomColor: '#8F1627', marginBottom: 15 },
-  companyLine: { fontSize: 8, color: '#666', marginBottom: 10 },
+  docInfoBox: {
+    width: '44%',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: PDF_COLORS.border,
+    borderRadius: 4,
+    padding: 8,
+  },
+  docRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 2.5,
+  },
+  docLabel: {
+    fontSize: 8,
+    color: PDF_COLORS.textMuted,
+  },
+  docValue: {
+    fontSize: 8.5,
+    fontFamily: 'Helvetica-Bold',
+    color: PDF_COLORS.textMain,
+    textAlign: 'right',
+  },
   
-  customerDateBox: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 },
-  customerBox: { width: '50%' },
-  customerTitle: { fontSize: 9, color: '#666', marginBottom: 3 },
-  customerText: { fontSize: 10, fontFamily: 'Helvetica-Bold', marginBottom: 2 },
-  customerAddress: { fontSize: 10 },
+  stornoBadge: {
+    fontSize: 7.5,
+    fontFamily: 'Helvetica-Bold',
+    color: PDF_COLORS.primary,
+    marginTop: 3,
+    paddingTop: 3,
+    borderTopWidth: 0.5,
+    borderTopColor: PDF_COLORS.border,
+  },
   
-  dateBox: { width: '40%' },
-  dateRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 },
-  dateLabel: { color: '#666' },
-  dateValue: { fontFamily: 'Helvetica-Bold', textAlign: 'right' },
+  // Document Title & Salutation Spacing
+  mainTitle: {
+    fontSize: 20,
+    fontFamily: 'Helvetica-Bold',
+    color: PDF_COLORS.primary,
+    marginTop: 8,
+    marginBottom: 10,
+  },
+  introText: {
+    fontSize: 9.5,
+    lineHeight: 1.5,
+    marginBottom: 14,
+    color: PDF_COLORS.textMain,
+  },
   
-  introText: { marginBottom: 15, lineHeight: 1.4 },
+  routeCard: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: PDF_COLORS.border,
+    borderLeftWidth: 3,
+    borderLeftColor: PDF_COLORS.primary,
+    borderRadius: 4,
+    padding: 9,
+    marginBottom: 14,
+  },
+  routeHeader: {
+    fontSize: 8,
+    fontFamily: 'Helvetica-Bold',
+    color: PDF_COLORS.primary,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  routeRow: {
+    flexDirection: 'row',
+    fontSize: 8.5,
+    color: PDF_COLORS.textMain,
+    marginBottom: 2,
+  },
   
-  table: { width: '100%', marginBottom: 15 },
-  tableHeader: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#ccc', paddingBottom: 5, marginBottom: 5, fontFamily: 'Helvetica-Bold' },
-  tableRow: { flexDirection: 'row', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  col1: { width: '10%' },
-  col2: { width: '45%' },
-  col3: { width: '15%', textAlign: 'right' },
-  col4: { width: '15%', textAlign: 'right' },
-  col5: { width: '15%', textAlign: 'right' },
+  // Table Columns
+  colPos: { width: '8%', textAlign: 'center' },
+  colDesc: { width: '47%', paddingRight: 6 },
+  colDescFlat: { width: '70%', paddingRight: 6 },
+  colQty: { width: '15%', textAlign: 'center' },
+  colQtyFlat: { width: '22%', textAlign: 'center' },
+  colPrice: { width: '15%', textAlign: 'right' },
+  colTotal: { width: '15%', textAlign: 'right' },
   
-  totals: { alignItems: 'flex-end', marginBottom: 20 },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', width: '40%', marginBottom: 5 },
-  totalRowBold: { flexDirection: 'row', justifyContent: 'space-between', width: '40%', marginTop: 5, paddingTop: 5, borderTopWidth: 1, borderTopColor: '#333', fontFamily: 'Helvetica-Bold', fontSize: 11 },
+  itemName: {
+    fontSize: 9,
+    fontFamily: 'Helvetica-Bold',
+    color: PDF_COLORS.textMain,
+  },
+  itemNote: {
+    fontSize: 7.5,
+    color: PDF_COLORS.textMuted,
+    marginTop: 1.5,
+  },
   
-  textBlock: { marginBottom: 10, lineHeight: 1.4 },
-  
-  detailsHeader: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#8F1627', marginBottom: 10, marginTop: 15 },
-  
-  footerBlocks: { position: 'absolute', bottom: 30, left: 30, right: 30, flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10 },
-  footerCol: { width: '30%' },
-  footerTitle: { fontSize: 10, fontFamily: 'Helvetica-Bold', marginBottom: 5, color: '#8F1627' },
-  footerText: { fontSize: 9, marginBottom: 2, color: '#666' }
+  paymentSection: {
+    marginTop: 6,
+    marginBottom: 12,
+  },
+  paymentHeader: {
+    fontSize: 9.5,
+    fontFamily: 'Helvetica-Bold',
+    color: PDF_COLORS.primary,
+    marginBottom: 4,
+  },
+  paymentCard: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: PDF_COLORS.border,
+    borderRadius: 4,
+    padding: 8,
+    marginTop: 4,
+  },
+  bankRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    fontSize: 8,
+    marginBottom: 2,
+    color: PDF_COLORS.textMain,
+  },
+  textBlock: {
+    fontSize: 8.5,
+    lineHeight: 1.45,
+    color: PDF_COLORS.textMain,
+    marginBottom: 6,
+  }
 });
 
-export const InvoicePDF = ({ order, customer, settings, employeeName }: { order: any, customer: any, settings: any, employeeName?: string }) => {
+export const InvoicePDF = ({
+  order,
+  customer,
+  settings,
+  employeeName,
+}: {
+  order: any;
+  customer: any;
+  settings: any;
+  employeeName?: string;
+}) => {
   const isFlat = order?.isFlatRate;
   const isStorno = order?.isStorno;
   const billing = order?.customerData || order?.billingAddress || customer;
-  
-  // Fälligkeit berechnen
-  const pmSettings = settings?.paymentMethods?.find((p:any) => p.name === order?.orderMeta?.paymentMethod) || settings?.paymentMethods?.[0];
+
+  // Zahlungskonditionen & Fälligkeit
+  const pmSettings =
+    settings?.paymentMethods?.find((p: any) => p.name === order?.orderMeta?.paymentMethod) ||
+    settings?.paymentMethods?.[0];
   const dueDays = pmSettings?.dueDays || 0;
   const dueDate = new Date();
   dueDate.setDate(dueDate.getDate() + dueDays);
 
-  // Fallback Calculation if totals/calcInput are missing
   const { net: safeNet, tax: safeTax, gross: safeGross } = calculateOrderTotals(order);
 
-  const docTitle = isStorno ? `Stornorechnung ${order?.invoiceNumber || order?.orderNumber || 'Entwurf'} - ${billing?.lastName || 'Kunde'}` : `Rechnung ${order?.invoiceNumber || order?.orderNumber || 'Entwurf'} - ${billing?.lastName || 'Kunde'}`;
+  const docTitle = isStorno
+    ? `Stornorechnung ${order?.invoiceNumber || order?.orderNumber || 'Entwurf'} - ${billing?.lastName || 'Kunde'}`
+    : `Rechnung ${order?.invoiceNumber || order?.orderNumber || 'Entwurf'} - ${billing?.lastName || 'Kunde'}`;
 
   // Personalisierte Anrede
   const salutation = billing?.salutation || customer?.salutation;
-  let introGreeting = `Sehr geehrte(r) ${billing?.lastName || billing?.firstName},`;
+  let introGreeting = 'Sehr geehrte Damen und Herren,';
   if (salutation === 'Herr' && billing?.lastName) {
     introGreeting = `Sehr geehrter Herr ${billing.lastName},`;
   } else if (salutation === 'Frau' && billing?.lastName) {
     introGreeting = `Sehr geehrte Frau ${billing.lastName},`;
   }
 
-  // Für InvoicePDF wird normal kein Variablen-Replacement gemacht, aber falls es benötigt wird:
-  // (In Rechnungen wird oft 'introGreeting' separat vom Haupttext genutzt. 
-  // Falls die Variable in `invoiceIntro` steckt, tauschen wir sie hier vorsichtshalber mit aus).
-
   const invoiceOutro = settings?.texts?.invoiceOutro || '';
   const invoiceGreeting = settings?.texts?.invoiceGreeting || '';
+
+  const hasRouteInfo = order?.logistics?.a_city || order?.logistics?.b_city;
+
+  const totalPaid = calculateTotalPaid(order);
+  const remaining = calculateOpenAmount(order);
+  const isFullyPaid = totalPaid >= safeGross - 0.01;
 
   return (
     <Document title={docTitle}>
       <Page size="A4" style={styles.page}>
-        <View style={styles.headerContainer}>
-          <View style={styles.logoWrapper}>
-            <Image src="/Rothirsch.png" style={{ height: 80, width: 80, objectFit: 'contain' }} />
-          </View>
-        </View>
+        <PDFWatermark type="symbols" />
 
-        <View style={styles.line} />
+        <PDFHeader settings={settings} docTitle={isStorno ? 'Stornorechnung' : 'Rechnung'} />
 
-        <Text style={styles.companyLine}>
-          {settings?.companyName} • {settings?.street} • {settings?.zip} {settings?.city}
-        </Text>
-
+        {/* Recipient Window & Document Meta Box */}
         <View style={styles.customerDateBox}>
+          {/* Left: Clean Customer Address (NO "Rechnungsempfänger" label!) */}
           <View style={styles.customerBox}>
-            <Text style={styles.customerTitle}>Rechnungsempfänger</Text>
-            <Text style={styles.customerText}>{billing?.type === 'firma' ? billing?.lastName : `${billing?.firstName} ${billing?.lastName}`.trim()}</Text>
+            <Text style={styles.customerName}>
+              {billing?.type === 'firma'
+                ? billing?.lastName
+                : `${billing?.firstName || ''} ${billing?.lastName || ''}`.trim()}
+            </Text>
             {billing?.type === 'firma' && billing?.firstName && (
-              <Text style={{ fontSize: 9, color: '#444', marginBottom: 2 }}>z.Hd. {billing.firstName}</Text>
+              <Text style={{ fontSize: 8.5, color: PDF_COLORS.textMuted, marginBottom: 2 }}>
+                z.Hd. {billing.firstName}
+              </Text>
             )}
             <Text style={styles.customerAddress}>
-              {billing?.street ? `${billing.street} ${billing.houseNr || ''}`.trim() : (billing?.address?.split(',')[0] || '')}
+              {billing?.street ? `${billing.street} ${billing.houseNr || ''}`.trim() : billing?.address?.split(',')[0] || ''}
             </Text>
             <Text style={styles.customerAddress}>
-              {billing?.zip ? `${billing.zip} ${billing.city || ''}`.trim() : (billing?.address?.split(',')[1]?.trim() || '')}
+              {billing?.zip ? `${billing.zip} ${billing.city || ''}`.trim() : billing?.address?.split(',')[1]?.trim() || ''}
             </Text>
           </View>
-          
+
+          {/* Right: Document Meta Box */}
           <View style={styles.docInfoBox}>
-            <Text style={styles.docNumLabel}>Rechnungsnummer</Text>
-            <Text style={styles.docNum}>{order?.invoiceNumber || 'Entwurf'}</Text>
-            {isStorno && (
-              <Text style={{ fontSize: 9, color: '#8F1627', marginTop: 5, marginBottom: 15 }}>zu Rechnung {order?.stornoFor}</Text>
-            )}
-            {!isStorno && <View style={{ height: 15 }} />}
-            
-            <View style={[styles.dateRow, { width: '100%', marginTop: 10 }]}>
-              <Text style={styles.dateLabel}>Datum</Text>
-              <Text style={styles.dateValue}>{order?.invoiceDate ? new Date(order.invoiceDate).toLocaleDateString('de-DE') : new Date().toLocaleDateString('de-DE')}</Text>
+            <View style={styles.docRow}>
+              <Text style={styles.docLabel}>{isStorno ? 'Stornonummer' : 'Rechnungsnummer'}</Text>
+              <Text style={styles.docValue}>{order?.invoiceNumber || 'Entwurf'}</Text>
             </View>
-            <View style={[styles.dateRow, { width: '100%' }]}>
-              <Text style={styles.dateLabel}>Leistungsdatum</Text>
-              <Text style={styles.dateValue}>
-                {order?.orderMeta?.movingDateFrom ? new Date(order.orderMeta.movingDateFrom).toLocaleDateString('de-DE') : 'Nach Absprache'}
+            <View style={styles.docRow}>
+              <Text style={styles.docLabel}>Rechnungsdatum</Text>
+              <Text style={styles.docValue}>
+                {order?.invoiceDate
+                  ? new Date(order.invoiceDate).toLocaleDateString('de-DE')
+                  : new Date().toLocaleDateString('de-DE')}
               </Text>
             </View>
-            <View style={[styles.dateRow, { width: '100%' }]}>
-              <Text style={styles.dateLabel}>Sachbearbeiter</Text>
-              <Text style={styles.dateValue}>{employeeName || order?.orderMeta?.manager || '-'}</Text>
+            <View style={styles.docRow}>
+              <Text style={styles.docLabel}>Leistungsdatum</Text>
+              <Text style={styles.docValue}>
+                {order?.orderMeta?.movingDateFrom
+                  ? new Date(order.orderMeta.movingDateFrom).toLocaleDateString('de-DE')
+                  : 'Gemäß Absprache'}
+              </Text>
             </View>
+            <View style={styles.docRow}>
+              <Text style={styles.docLabel}>Sachbearbeiter</Text>
+              <Text style={styles.docValue}>{employeeName || order?.orderMeta?.manager || settings?.manager || '-'}</Text>
+            </View>
+            {isStorno && (
+              <Text style={styles.stornoBadge}>
+                Storno zu Rechnung: {order?.stornoFor || 'Ursprungsrechnung'}
+              </Text>
+            )}
           </View>
         </View>
 
-        <Text style={styles.mainDocumentTitle}>{isStorno ? 'STORNORECHNUNG' : 'RECHNUNG'}</Text>
-        <Text style={styles.introText}>{introGreeting}</Text>
-        <Text style={{ ...styles.introText, marginTop: -10 }}>
-          {isStorno 
-            ? `hiermit stornieren wir die Rechnung ${order?.stornoFor}. Der unten ausgewiesene Betrag wird Ihrem Konto gutgeschrieben bzw. gleicht unsere Forderung aus.` 
-            : (order?.texts?.invoiceIntro || settings?.texts?.invoiceIntro || 'Anbei erhalten Sie unsere Rechnung zu den erbrachten Leistungen.').replace(/\{\{Kunde_Anrede\}\}/g, introGreeting.replace(',', ''))}
+        {/* Document Title with generous spacing */}
+        <Text style={styles.mainTitle}>{isStorno ? 'STORNORECHNUNG' : 'RECHNUNG'}</Text>
+        
+        {/* Intro text */}
+        <Text style={styles.introText}>
+          {introGreeting}{'\n'}
+          {isStorno
+            ? `hiermit stornieren wir die Rechnung ${order?.stornoFor || ''}. Der unten ausgewiesene Betrag wird Ihrem Konto gutgeschrieben bzw. gleicht unsere Forderung aus.`
+            : (order?.texts?.invoiceIntro ||
+                settings?.texts?.invoiceIntro ||
+                'vielen Dank für Ihren Auftrag. Für unsere erbrachten Leistungen stellen wir Ihnen folgenden Betrag in Rechnung:')
+                .replace(/\{\{Kunde_Anrede\}\}/g, introGreeting.replace(',', ''))}
         </Text>
 
-        {order?.logistics?.a_city && order?.logistics?.b_city && (
-          <View style={{ marginTop: 10, marginBottom: 15, padding: 10, backgroundColor: '#f9f9f9', borderRadius: 4 }}>
-            <Text style={{ fontSize: 9, fontFamily: 'Helvetica-Bold', marginBottom: 4, color: '#333' }}>Leistungsort / Umzugswege:</Text>
-            <Text style={{ fontSize: 9, color: '#444' }}>
-              <Text style={{ fontFamily: 'Helvetica-Bold' }}>Von: </Text>
-              {order.logistics.a_street} {order.logistics.a_houseNr}, {order.logistics.a_zip} {order.logistics.a_city}
-            </Text>
-            <Text style={{ fontSize: 9, color: '#444', marginTop: 2 }}>
-              <Text style={{ fontFamily: 'Helvetica-Bold' }}>Nach: </Text>
-              {order.logistics.b_street} {order.logistics.b_houseNr}, {order.logistics.b_zip} {order.logistics.b_city}
-            </Text>
+        {/* Umzugswege / Leistungsort Card */}
+        {hasRouteInfo && (
+          <View style={styles.routeCard}>
+            <Text style={styles.routeHeader}>Leistungsort / Umzugswege</Text>
+            <View style={styles.routeRow}>
+              <Text style={{ fontFamily: 'Helvetica-Bold', width: '12%' }}>Von:</Text>
+              <Text style={{ width: '88%' }}>
+                {order.logistics.a_street} {order.logistics.a_houseNr}, {order.logistics.a_zip} {order.logistics.a_city}
+              </Text>
+            </View>
+            <View style={styles.routeRow}>
+              <Text style={{ fontFamily: 'Helvetica-Bold', width: '12%' }}>Nach:</Text>
+              <Text style={{ width: '88%' }}>
+                {order.logistics.b_street} {order.logistics.b_houseNr}, {order.logistics.b_zip} {order.logistics.b_city}
+              </Text>
+            </View>
           </View>
         )}
 
+        {/* ── LEISTUNGEN TABELLE ── */}
         <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <Text style={styles.col1}>Pos.</Text>
-            <Text style={[styles.col2, isFlat && { width: '70%' }]}>Leistungsbeschreibung</Text>
-            <Text style={[styles.col3, isFlat && { width: '20%' }]}>{isFlat ? 'Umfang' : 'Menge'}</Text>
+          <View style={styles.tableHeader} fixed>
+            <Text style={styles.colPos}>Pos.</Text>
+            <Text style={isFlat ? styles.colDescFlat : styles.colDesc}>Leistungsbeschreibung</Text>
+            <Text style={isFlat ? styles.colQtyFlat : styles.colQty}>{isFlat ? 'Umfang' : 'Menge'}</Text>
             {!isFlat && (
               <>
-                <Text style={styles.col4}>Einzelpreis</Text>
-                <Text style={styles.col5}>Gesamt</Text>
+                <Text style={styles.colPrice}>Einzelpreis</Text>
+                <Text style={styles.colTotal}>Gesamt</Text>
               </>
             )}
           </View>
-          {order?.services?.length ? order.services.map((item: any, i: number) => {
-            const itemNameLower = (item.name || '').toLowerCase();
-            const showExactAmount = isFlat && (itemNameLower.includes('karton') || itemNameLower.includes('einpack'));
-            
-            return (
-              <View key={i} style={styles.tableRow}>
-                <Text style={styles.col1}>{i + 1}</Text>
-                <Text style={[styles.col2, isFlat && { width: '70%' }]}>{item.name}</Text>
-                <Text style={[styles.col3, isFlat && { width: '20%' }]}>
-                  {isFlat 
-                    ? (showExactAmount ? `${item.quantity} ${item.unit}` : 'Inklusiv') 
-                    : `${item.quantity} ${item.unit}`}
-                </Text>
-                {!isFlat && (
-                  <>
-                    <Text style={styles.col4}>{item.unitPrice?.toFixed(2)} €</Text>
-                    <Text style={styles.col5}>{(item.quantity * item.unitPrice)?.toFixed(2)} €</Text>
-                  </>
-                )}
-              </View>
-            );
-          }) : isStorno ? (
-            <View style={styles.tableRow}>
-              <Text style={styles.col1}>1</Text>
-              <Text style={[styles.col2, { width: '70%' }]}>Stornierung der Rechnung {order?.stornoFor}</Text>
-              <Text style={[styles.col3, { width: '20%' }]}></Text>
+
+          {order?.services?.length ? (
+            order.services.map((item: any, i: number) => {
+              const itemNameLower = (item.name || '').toLowerCase();
+              const showExactAmount = isFlat && (itemNameLower.includes('karton') || itemNameLower.includes('einpack'));
+              const isItemIncluded = Boolean(item.isIncluded || item.unitPrice === 0);
+
+              return (
+                <View key={i} style={styles.tableRow} wrap={false}>
+                  <Text style={styles.colPos}>{i + 1}</Text>
+                  <View style={isFlat ? styles.colDescFlat : styles.colDesc}>
+                    <Text style={styles.itemName}>{item.name}</Text>
+                    {item.note ? <Text style={styles.itemNote}>{item.note}</Text> : null}
+                  </View>
+                  <Text style={isFlat ? styles.colQtyFlat : styles.colQty}>
+                    {isFlat
+                      ? showExactAmount
+                        ? `${item.quantity} ${item.unit}`
+                        : isItemIncluded
+                        ? 'Inklusiv'
+                        : `${item.quantity} ${item.unit}`
+                      : `${item.quantity} ${item.unit}`}
+                  </Text>
+                  {!isFlat && (
+                    <>
+                      <Text style={styles.colPrice}>
+                        {isItemIncluded ? '—' : `${item.unitPrice?.toFixed(2)} €`}
+                      </Text>
+                      <Text style={styles.colTotal}>
+                        {isItemIncluded ? 'Inklusiv' : `${(item.quantity * item.unitPrice)?.toFixed(2)} €`}
+                      </Text>
+                    </>
+                  )}
+                </View>
+              );
+            })
+          ) : isStorno ? (
+            <View style={styles.tableRow} wrap={false}>
+              <Text style={styles.colPos}>1</Text>
+              <Text style={[styles.colDesc, { width: '70%' }]}>
+                Stornierung der Rechnung {order?.stornoFor || ''}
+              </Text>
+              <Text style={[styles.colQty, { width: '22%' }]}>Pauschal</Text>
               {!isFlat && (
                 <>
-                  <Text style={styles.col4}></Text>
-                  <Text style={styles.col5}>{safeNet.toFixed(2)} €</Text>
+                  <Text style={styles.colPrice}></Text>
+                  <Text style={styles.colTotal}>-{safeNet.toFixed(2)} €</Text>
                 </>
               )}
             </View>
           ) : null}
         </View>
 
-        <View style={styles.totals}>
-          <View style={styles.totalRow}>
-            <Text>Summe Netto:</Text>
-            <Text>{safeNet.toFixed(2)} €</Text>
-          </View>
-          <View style={styles.totalRow}>
-            <Text>MwSt. 19%:</Text>
-            <Text>{safeTax.toFixed(2)} €</Text>
-          </View>
-          <View style={styles.totalRowBold}>
-            <Text>Gesamtbetrag (inkl. MwSt.)</Text>
-            <Text>{safeGross.toFixed(2)} €</Text>
+        {/* Totals Summary */}
+        <View style={styles.totalsContainer} wrap={false}>
+          <View style={styles.totalsBox}>
+            <View style={styles.totalRow}>
+              <Text>Nettobetrag:</Text>
+              <Text>{isStorno ? `-${safeNet.toFixed(2)}` : safeNet.toFixed(2)} €</Text>
+            </View>
+            <View style={styles.totalRow}>
+              <Text>zzgl. 19% MwSt.:</Text>
+              <Text>{isStorno ? `-${safeTax.toFixed(2)}` : safeTax.toFixed(2)} €</Text>
+            </View>
+            <View style={styles.totalRowGrand}>
+              <Text>{isStorno ? 'Gutschriftsbetrag:' : 'Gesamtbetrag (inkl. MwSt.):'}</Text>
+              <Text>{isStorno ? `-${safeGross.toFixed(2)}` : safeGross.toFixed(2)} €</Text>
+            </View>
           </View>
         </View>
 
-        <Text style={{ ...styles.detailsHeader, fontSize: 12, marginBottom: 5 }}>Zahlungsinformationen</Text>
-        {(() => {
-          const payments = order?.payments || [];
-          const totalPaid = calculateTotalPaid(order);
-          const remaining = calculateOpenAmount(order);
-          
-          if (totalPaid >= safeGross - 0.01) {
-            // Wenn es genau eine Zahlung gab, versuchen wir den Standardtext des Users zu verwenden
-            if (payments.length === 1) {
-              const paymentMethod = payments[0].method; // 'bar', 'ueberweisung', 'ec-karte', 'paypal'
-              const methodMapping: Record<string, string> = { 'bar': 'bar', 'ueberweisung': 'überweisung', 'ec-karte': 'ec-karte', 'paypal': 'paypal' };
-              const mapped = methodMapping[paymentMethod] || paymentMethod;
-              
-              const matchedSetting = settings?.paymentMethods?.find((p: any) => p.name.toLowerCase().includes(mapped));
-              if (matchedSetting?.textInvoice) {
-                return <Text style={styles.textBlock}>{matchedSetting.textInvoice}</Text>;
-              }
-            }
-            return <Text style={styles.textBlock}>Der Rechnungsbetrag wurde bereits vollständig bezahlt. Vielen Dank für Ihre Zahlung!</Text>;
-          }
-          
-          if (totalPaid > 0 && remaining > 0) {
-            return (
-              <>
-                <Text style={styles.textBlock}>
-                  Bereits bezahlt: {totalPaid.toFixed(2)} € 
-                  {payments.length > 0 ? ` (${payments.map((p: any) => {
-                    const m = p.method === 'bar' ? 'Bar' : p.method === 'ueberweisung' ? 'Überw.' : p.method === 'ec-karte' ? 'EC' : 'PayPal';
-                    return `${p.amount.toFixed(2)}€ ${m}`;
-                  }).join(' + ')})` : ''}
-                </Text>
-                <Text style={{ ...styles.textBlock, fontFamily: 'Helvetica-Bold' }}>Noch offener Betrag: {remaining.toFixed(2)} €</Text>
-                <Text style={styles.textBlock}>{invoiceOutro || 'Bitte überweisen Sie den noch offenen Betrag ohne Abzug auf unser Konto.'}</Text>
-              </>
-            );
-          }
+        {/* ── ZAHLUNGSINFORMATIONEN & BANK (Smart Payment Info) ── */}
+        <View style={styles.paymentSection} wrap={false}>
+          <Text style={styles.paymentHeader}>Zahlungsinformationen</Text>
 
-          // Not paid yet or partially paid: show the selected payment method text, or default outro
-          // Always append bank details for open invoices to ensure they have the transfer info
-          return (
+          {isStorno ? (
+            <Text style={styles.textBlock}>
+              Der Gutschriftsbetrag wird Ihrem Bankkonto erstattet bzw. mit noch offenen Forderungen verrechnet.
+            </Text>
+          ) : isFullyPaid ? (
+            <Text style={{ ...styles.textBlock, color: PDF_COLORS.success, fontFamily: 'Helvetica-Bold' }}>
+              ✓ Der Rechnungsbetrag wurde bereits vollständig bezahlt. Vielen Dank für Ihre Zahlung!
+            </Text>
+          ) : totalPaid > 0 && remaining > 0 ? (
             <View>
-              {pmSettings?.textInvoice ? (
-                <Text style={styles.textBlock}>{pmSettings.textInvoice}</Text>
-              ) : invoiceOutro ? (
-                <Text style={styles.textBlock}>{invoiceOutro}</Text>
-              ) : (
-                <Text style={styles.textBlock}>Bitte überweisen Sie den offenen Betrag auf folgendes Konto:</Text>
-              )}
-              
-              <View style={{ marginTop: 5, backgroundColor: '#f9f9f9', padding: 10, borderRadius: 4 }}>
-                <Text style={{ fontFamily: 'Helvetica-Bold', marginBottom: 3 }}>Bankverbindung für Ihre Zahlung:</Text>
-                <Text>Kontoinhaber: {settings?.companyName}</Text>
-                <Text>IBAN: {settings?.iban}</Text>
-                <Text>BIC: {settings?.bic}</Text>
-                <Text>Bank: {settings?.bankName}</Text>
-                <Text style={{ marginTop: 5, fontFamily: 'Helvetica-Bold' }}>
-                  Zahlungsziel: {dueDays > 0 ? `Innerhalb von ${dueDays} Tagen (bis zum ${dueDate.toLocaleDateString('de-DE')})` : 'Sofort nach Rechnungserhalt'}
-                </Text>
+              <Text style={styles.textBlock}>
+                Bereits angezahlt / bezahlt: {totalPaid.toFixed(2)} €
+              </Text>
+              <Text style={{ ...styles.textBlock, fontFamily: 'Helvetica-Bold', color: PDF_COLORS.primary }}>
+                Noch offener Restbetrag: {remaining.toFixed(2)} €
+              </Text>
+              <Text style={styles.textBlock}>
+                {invoiceOutro || 'Bitte überweisen Sie den noch offenen Betrag ohne Abzug auf unser unten aufgeführtes Konto.'}
+              </Text>
+            </View>
+          ) : (
+            <View>
+              <Text style={styles.textBlock}>
+                {pmSettings?.textInvoice ||
+                  invoiceOutro ||
+                  'Bitte überweisen Sie den fälligen Rechnungsbetrag auf unser Bankkonto:'}
+              </Text>
+              <View style={styles.paymentCard}>
+                <View style={styles.bankRow}>
+                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>Kontoinhaber:</Text>
+                  <Text>{settings?.companyName || 'Rothirsch Umzug'}</Text>
+                </View>
+                <View style={styles.bankRow}>
+                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>IBAN:</Text>
+                  <Text>{settings?.iban || 'DE51 4305 0001 0033 4371 12'}</Text>
+                </View>
+                <View style={styles.bankRow}>
+                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>BIC:</Text>
+                  <Text>{settings?.bic || 'WELADED1B0C'}</Text>
+                </View>
+                <View style={styles.bankRow}>
+                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>Kreditinstitut:</Text>
+                  <Text>{settings?.bankName || 'Sparkasse Bochum'}</Text>
+                </View>
+                <View style={{ ...styles.bankRow, marginTop: 4, paddingTop: 4, borderTopWidth: 0.5, borderTopColor: PDF_COLORS.border }}>
+                  <Text style={{ fontFamily: 'Helvetica-Bold', color: PDF_COLORS.primary }}>Zahlungsziel:</Text>
+                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>
+                    {dueDays > 0
+                      ? `Innerhalb von ${dueDays} Tagen (bis zum ${dueDate.toLocaleDateString('de-DE')})`
+                      : 'Sofort nach Rechnungserhalt'}
+                  </Text>
+                </View>
               </View>
             </View>
-          );
-        })()}
-
-        {invoiceGreeting && (
-          <Text style={styles.textBlock}>{invoiceGreeting}</Text>
-        )}
-
-        <View style={styles.footerBlocks} fixed>
-          <View style={styles.footerCol}>
-            <Text style={styles.footerTitle}>Unternehmen</Text>
-            <Text style={styles.footerText}>{settings?.companyName}</Text>
-            <Text style={styles.footerText}>{settings?.street}</Text>
-            <Text style={styles.footerText}>{settings?.zip} {settings?.city}</Text>
-            {settings?.manager && <Text style={styles.footerText}>Inhaber/-in: {settings?.manager}</Text>}
-          </View>
-          <View style={styles.footerCol}>
-            <Text style={styles.footerTitle}>Kontakt & Steuern</Text>
-            <Text style={styles.footerText}>Tel: {settings?.phone}</Text>
-            <Text style={styles.footerText}>E-Mail: {settings?.email}</Text>
-            <Text style={styles.footerText}>Web: {settings?.website}</Text>
-            {settings?.taxNumber && <Text style={styles.footerText}>Steuer-Nr: {settings?.taxNumber}</Text>}
-            {settings?.taxId && <Text style={styles.footerText}>USt-IdNr: {settings?.taxId}</Text>}
-          </View>
-          <View style={styles.footerCol}>
-            <Text style={styles.footerTitle}>Bankverbindung</Text>
-            <Text style={styles.footerText}>{settings?.bankName}</Text>
-            <Text style={styles.footerText}>IBAN: {settings?.iban}</Text>
-            <Text style={styles.footerText}>BIC: {settings?.bic}</Text>
-          </View>
+          )}
         </View>
+
+        {invoiceGreeting ? (
+          <Text style={{ ...styles.textBlock, marginTop: 8 }} wrap={false}>
+            {invoiceGreeting}
+          </Text>
+        ) : null}
+
+        <PDFFooter settings={settings} />
       </Page>
     </Document>
   );

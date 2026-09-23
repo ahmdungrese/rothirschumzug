@@ -21,16 +21,23 @@ export function StatusBadge({ status, payments, totals, calcInput }: {
   totals?: { gross: number };
   calcInput?: { gross: number };
 }) {
-  if (status === 'invoice_open' && payments?.length) {
-    const paid = payments.reduce((s, p) => s + p.amount, 0);
-    const gross = totals?.gross ?? calcInput?.gross ?? 0;
-    if (paid > 0 && paid < gross) {
-      return (
-        <span className="px-2 py-1 rounded text-xs font-semibold uppercase tracking-wider bg-yellow-500/20 text-yellow-500">
-          Teilweise bezahlt
-        </span>
-      );
-    }
+  const gross = totals?.gross ?? calcInput?.gross ?? 0;
+  const paid = payments && Array.isArray(payments) ? payments.reduce((s, p) => s + (p.amount || 0), 0) : 0;
+
+  if (gross > 0 && paid >= gross && status !== 'canceled' && status !== 'invoice_cancelled') {
+    return (
+      <span className="px-2 py-1 rounded text-xs font-semibold uppercase tracking-wider bg-green-500/20 text-green-400">
+        Bezahlt
+      </span>
+    );
+  }
+
+  if ((status === 'invoice_open' || status === 'confirmed') && paid > 0 && paid < gross) {
+    return (
+      <span className="px-2 py-1 rounded text-xs font-semibold uppercase tracking-wider bg-yellow-500/20 text-yellow-500">
+        Teilweise bezahlt
+      </span>
+    );
   }
 
   const [cls, label] = STATUS_MAP[status] ?? ['bg-structure text-text-muted', status];

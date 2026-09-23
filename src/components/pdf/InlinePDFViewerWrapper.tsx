@@ -33,10 +33,10 @@ export default function InlinePDFViewerWrapper({ order, customer, type = 'order'
   if (!settings) return <div className="animate-pulse p-8 flex justify-center text-gray-400">Lade PDF Vorschau...</div>;
 
   const getDocument = () => {
-    if (type === 'employee') return <EmployeeSheetPDF order={order} customer={customer} employeeName={employeeName} />;
+    if (type === 'employee') return <EmployeeSheetPDF order={order} customer={customer} employeeName={employeeName} settings={settings} />;
     if (type === 'invoice') return <InvoicePDF order={order} customer={customer} settings={settings} employeeName={employeeName} />;
     if (type === 'contract') return <OrderPDF order={order} customer={customer} settings={settings} isContract={true} employeeName={employeeName} />;
-    if (type === 'protocol') return <ProtocolPDF order={order} customer={customer} employeeName={employeeName} />;
+    if (type === 'protocol') return <ProtocolPDF order={order} customer={customer} employeeName={employeeName} settings={settings} />;
     
     // For 'order', use confirmedSnapshot if it exists and order is no longer in draft/quote, UNLESS forceLiveQuote is true
     const isPastQuote = ['confirmed', 'completed', 'invoice_open', 'invoice_paid', 'invoice_overdue', 'invoice_cancelled'].includes(order.status);

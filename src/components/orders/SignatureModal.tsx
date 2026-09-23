@@ -81,6 +81,16 @@ export function SignatureModal({
         updateData.signatureAGBDate = serverTimestamp();
         updateData.signatureAGBPlace = place.trim();
         updateData.signatureAGBDateString = dateStr.trim();
+
+        // Immediately promote order to confirmed and mark signature task completed
+        if (order.status !== 'completed' && !order.status?.startsWith('invoice_')) {
+          updateData.status = 'confirmed';
+        }
+        updateData.contractSigned = true;
+        updateData.isManuallySigned = true;
+        updateData.signedAt = serverTimestamp();
+        updateData['ticketStates.signature'] = true;
+        updateData['checklistDone.signature'] = true;
       }
       
       await updateDoc(doc(db, 'orders', order.id), updateData);

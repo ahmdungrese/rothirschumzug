@@ -18,12 +18,14 @@ import {
   ExclamationCircleIcon,
   ShoppingCartIcon,
   ChatBubbleLeftRightIcon,
-  PhoneIcon
+  PhoneIcon,
+  BuildingOfficeIcon,
+  TruckIcon,
+  HomeIcon
 } from '@heroicons/react/24/outline';
 import { generateTickets, SystemTicket } from '@/lib/ticketEngine';
 import { toggleTaskCompletion } from '@/lib/taskStateController';
 import { TaskScheduleModal } from '@/components/logistics/TaskScheduleModal';
-import { BaumarktShoppingModal } from '@/components/logistics/BaumarktShoppingModal';
 import toast from 'react-hot-toast';
 
 export default function LogisticsPage() {
@@ -47,10 +49,6 @@ export default function LogisticsPage() {
   const [modalTodo, setModalTodo] = useState<any>(null);
   const [modalOrder, setModalOrder] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-
-  // Modal state for Baumarkt Shopping List
-  const [shoppingModalOrder, setShoppingModalOrder] = useState<any>(null);
-  const [isShoppingModalOpen, setIsShoppingModalOpen] = useState(false);
 
   useEffect(() => {
     const qOrders = query(collection(db, 'orders'));
@@ -123,6 +121,19 @@ export default function LogisticsPage() {
   const openCount = logisticsTasks.filter(t => !t.done).length;
   const completedCount = logisticsTasks.filter(t => t.done).length;
 
+  // Realtime category counts for segmented pills
+  const categoryCounts = useMemo(() => {
+    const base = logisticsTasks.filter(t => statusTab === 'offen' ? !t.done : t.done);
+    return {
+      all: base.length,
+      viewing: base.filter(t => t.id === 'viewing_requested').length,
+      kartons: base.filter(t => t.kanbanCategory === 'kartons').length,
+      halteverbot: base.filter(t => t.kanbanCategory === 'halteverbot').length,
+      moebellift: base.filter(t => t.kanbanCategory === 'moebellift').length,
+      rechnung: base.filter(t => t.kanbanCategory === 'rechnung').length,
+    };
+  }, [logisticsTasks, statusTab]);
+
   // Filter based on statusTab, category, and search query
   const filteredTasks = useMemo(() => {
     return logisticsTasks.filter(t => {
@@ -190,13 +201,6 @@ export default function LogisticsPage() {
     setModalTodo(todo);
     setModalOrder(parentOrder);
     setIsModalOpen(true);
-  };
-
-  // Open modal for Baumarkt shopping list
-  const handleOpenShoppingModal = (parentOrder: any, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShoppingModalOrder(parentOrder);
-    setIsShoppingModalOpen(true);
   };
 
   // WhatsApp direct helper
@@ -337,49 +341,54 @@ export default function LogisticsPage() {
 
   return (
     <div className="w-full max-w-full px-4 md:px-8 space-y-6 animate-in fade-in duration-300 pb-16 min-h-screen">
-      {/* Header Section */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-4 border-b border-slate-200 dark:border-slate-800 pb-6">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight font-headline text-slate-900 dark:text-white">
-              Logistik-Einsatzplan & Aufgaben
+      {/* Modern Compact Header & Search Bar (matches Kanban Disposition Board) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900/80 px-4 py-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+        <div className="flex items-center justify-between sm:justify-start gap-3">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
+            <h1 className="text-base sm:text-xl font-extrabold font-headline text-slate-900 dark:text-white">
+              Logistik-Einsatzplan
             </h1>
-            <span className="px-3 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[11px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
               {openCount} Offen
             </span>
+            {completedCount > 0 && (
+              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                {completedCount} Erledigt
+              </span>
+            )}
           </div>
-          <p className="text-slate-500 dark:text-slate-400 mt-1 text-xs md:text-sm">
-            Verwalten Sie alle operativen Termine, Kartonlieferungen, Halteverbote und Besichtigungen für bestätigte Aufträge.
-          </p>
         </div>
 
-        {/* Search Bar */}
-        <div className="relative w-full md:w-72">
-          <MagnifyingGlassIcon className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        {/* Compact Search Bar */}
+        <div className="relative w-full sm:w-72">
+          <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Kunde, Stadt, Auftragsnr..."
-            className="w-full pl-10 pr-4 py-2 text-xs rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-slate-400"
+            className="w-full pl-9 pr-4 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-slate-400"
           />
         </div>
       </div>
 
-      {/* Main Status Switcher: Offene Aufgaben vs Erledigte Aufgaben */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        {/* Primary Tabs */}
-        <div className="inline-flex p-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 shadow-sm w-full sm:w-auto">
+      {/* Main Status & Category Controls (Segmented Pill Slider) */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        {/* Status Switcher: Offene vs Erledigte Aufgaben */}
+        <div className="inline-flex p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 shadow-xs w-full sm:w-auto shrink-0">
           <button
             onClick={() => setStatusTab('offen')}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold font-headline transition-all ${
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold font-headline transition-all cursor-pointer ${
               statusTab === 'offen'
-                ? 'bg-primary text-white shadow-md shadow-primary/25 scale-[1.02]'
+                ? 'bg-primary text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <span>Offene Aufgaben</span>
-            <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
               statusTab === 'offen' ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
             }`}>
               {openCount}
@@ -388,14 +397,14 @@ export default function LogisticsPage() {
 
           <button
             onClick={() => setStatusTab('erledigt')}
-            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold font-headline transition-all ${
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold font-headline transition-all cursor-pointer ${
               statusTab === 'erledigt'
-                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25 scale-[1.02]'
+                ? 'bg-emerald-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
             <span>Erledigte Aufgaben</span>
-            <span className={`text-[10px] px-2 py-0.5 rounded-full ${
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
               statusTab === 'erledigt' ? 'bg-white/20 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
             }`}>
               {completedCount}
@@ -403,28 +412,39 @@ export default function LogisticsPage() {
           </button>
         </div>
 
-        {/* Category Filter Pills */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        {/* Mobile & Desktop Category Filter Pills (Aligned with Kanban Disposition style) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
           {[
-            { id: 'all', label: 'Alle' },
-            { id: 'viewing', label: 'Besichtigungen' },
-            { id: 'kartons', label: 'Kartons' },
-            { id: 'halteverbot', label: 'Halteverbot' },
-            { id: 'moebellift', label: 'Möbellift' },
-            { id: 'rechnung', label: 'Rechnungen' }
-          ].map(pill => (
-            <button
-              key={pill.id}
-              onClick={() => setCategoryFilter(pill.id as any)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border shrink-0 ${
-                categoryFilter === pill.id
-                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent shadow-sm'
-                  : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
-              }`}
-            >
-              {pill.label}
-            </button>
-          ))}
+            { id: 'all', label: 'Alle', count: categoryCounts.all, dot: 'bg-primary' },
+            { id: 'kartons', label: 'Kartons', count: categoryCounts.kartons, dot: 'bg-orange-500' },
+            { id: 'halteverbot', label: 'Halteverbot', count: categoryCounts.halteverbot, dot: 'bg-yellow-500' },
+            { id: 'moebellift', label: 'Möbellift', count: categoryCounts.moebellift, dot: 'bg-blue-500' },
+            { id: 'viewing', label: 'Besichtigungen', count: categoryCounts.viewing, dot: 'bg-purple-500' },
+            { id: 'rechnung', label: 'Rechnungen', count: categoryCounts.rechnung, dot: 'bg-emerald-500' }
+          ].map(pill => {
+            const isSelected = categoryFilter === pill.id;
+            return (
+              <button
+                key={pill.id}
+                onClick={() => setCategoryFilter(pill.id as any)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold font-headline whitespace-nowrap transition-all border shrink-0 cursor-pointer ${
+                  isSelected
+                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent shadow-xs'
+                    : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white dark:bg-slate-900' : pill.dot}`} />
+                <span>{pill.label}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                  isSelected 
+                    ? 'bg-white/20 dark:bg-black/20 text-white dark:text-slate-900 font-bold' 
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium'
+                }`}>
+                  {pill.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -485,7 +505,7 @@ export default function LogisticsPage() {
             return (
               <div
                 key={todo.id + todo.orderId}
-                className={`bg-white dark:bg-slate-900/90 rounded-3xl border transition-all duration-200 p-5 flex flex-col justify-between shadow-sm hover:shadow-md ${
+                className={`bg-white dark:bg-slate-900/90 rounded-2xl sm:rounded-3xl border transition-all duration-200 p-4 sm:p-5 flex flex-col justify-between shadow-xs hover:shadow-md ${
                   todo.done
                     ? 'border-slate-200 dark:border-slate-800 opacity-80 hover:opacity-100'
                     : todo.dueDateStatus === 'overdue'
@@ -522,19 +542,19 @@ export default function LogisticsPage() {
                     <div className="flex items-center justify-between gap-2">
                       <Link
                         href={todo.customerId ? `/dashboard/customers/${todo.customerId}` : `/dashboard/orders`}
-                        className="font-headline font-bold text-base text-slate-900 dark:text-white hover:text-primary transition-colors flex items-center gap-1.5"
+                        className="font-headline font-bold text-sm sm:text-base text-slate-900 dark:text-white hover:text-primary transition-colors flex items-center gap-1.5"
                       >
-                        <span>{todo.customerName}</span>
+                        <span className="line-clamp-1">{todo.customerName}</span>
                       </Link>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 shrink-0">
                         {custPhone && (
                           <button
                             type="button"
                             onClick={(e) => handleDirectWhatsApp(custPhone, undefined, e)}
-                            className="p-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 hover:bg-emerald-100 transition-all shrink-0"
+                            className="p-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 hover:bg-emerald-100 transition-all shrink-0 cursor-pointer"
                             title={`WhatsApp mit ${custName} öffnen`}
                           >
-                            <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
+                            <ChatBubbleLeftRightIcon className="w-4 h-4" />
                           </button>
                         )}
                         {todo.customerId && (
@@ -543,15 +563,17 @@ export default function LogisticsPage() {
                             className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-primary hover:bg-primary/10 transition-all shrink-0"
                             title="Kundenprofil öffnen"
                           >
-                            <UserIcon className="w-3.5 h-3.5" />
+                            <UserIcon className="w-4 h-4" />
                           </Link>
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                      <MapPinIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>{route}</span>
-                      <span className="mx-1">•</span>
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex-wrap">
+                      <span className="flex items-center gap-1">
+                        <MapPinIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate max-w-[200px]">{route}</span>
+                      </span>
+                      <span>•</span>
                       <span>Umzug: <strong className="text-slate-700 dark:text-slate-300">{moveDate}</strong></span>
                     </div>
                   </div>
@@ -570,7 +592,7 @@ export default function LogisticsPage() {
                         <span className="material-symbols-outlined text-orange-600 dark:text-orange-400 text-lg">inventory_2</span>
                         <div className="text-xs">
                           <span className="font-bold text-slate-800 dark:text-slate-200">
-                            {matSummary.total > 0 ? `${matSummary.total} Kartons` : 'Materialbedarf'}
+                            {matSummary.total > 0 ? `${matSummary.total} Kartons aus Angebot` : 'Materialbedarf'}
                           </span>
                           {matSummary.total > 0 && (
                             <p className="text-[11px] text-slate-500">
@@ -581,32 +603,49 @@ export default function LogisticsPage() {
                           )}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => handleOpenShoppingModal(parentOrder, e)}
-                        className="px-2.5 py-1 rounded-xl bg-orange-600 text-white text-[11px] font-bold hover:bg-orange-700 transition-colors flex items-center gap-1 shrink-0 shadow-xs"
-                        title="Baumarkt Einkaufszettel öffnen"
-                      >
-                        <ShoppingCartIcon className="w-3.5 h-3.5" />
-                        <span>Baumarkt</span>
-                      </button>
                     </div>
                   )}
 
                   {isHV && (
                     <div className="p-3 rounded-2xl bg-yellow-50/70 dark:bg-yellow-950/20 border border-yellow-200/60 dark:border-yellow-900/40 space-y-2 text-xs">
                       <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
-                          {hvzMethod === 'extern' ? '🏢 Externe Firma' : '🚗 Selbst aufstellen (Rothirsch)'}
+                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                          {hvzMethod === 'extern' ? (
+                            <>
+                              <BuildingOfficeIcon className="w-3 h-3 text-slate-500" />
+                              <span>Externe Firma</span>
+                            </>
+                          ) : (
+                            <>
+                              <TruckIcon className="w-3 h-3 text-primary" />
+                              <span>Selbst aufstellen (Rothirsch)</span>
+                            </>
+                          )}
                         </span>
-                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-yellow-100 dark:bg-yellow-900/60 text-yellow-800 dark:text-yellow-200">
-                          {hvzLoc === 'b' ? '🏠 Einzugsort (B)' : hvzLoc === 'both' ? '🔄 Beide (A & B)' : '🏢 Auszugsort (A)'}
+                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-yellow-100 dark:bg-yellow-900/60 text-yellow-800 dark:text-yellow-200 flex items-center gap-1">
+                          {hvzLoc === 'b' ? (
+                            <>
+                              <HomeIcon className="w-3 h-3" />
+                              <span>Einzugsort (B)</span>
+                            </>
+                          ) : hvzLoc === 'both' ? (
+                            <>
+                              <ArrowPathIcon className="w-3 h-3" />
+                              <span>Beide (A & B)</span>
+                            </>
+                          ) : (
+                            <>
+                              <BuildingOfficeIcon className="w-3 h-3" />
+                              <span>Auszugsort (A)</span>
+                            </>
+                          )}
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between gap-2 pt-1 border-t border-yellow-200/60 dark:border-yellow-900/30">
-                        <span className="text-[11px] text-slate-700 dark:text-slate-300 truncate">
-                          📍 {hvzAddress}
+                        <span className="text-[11px] text-slate-700 dark:text-slate-300 truncate flex items-center gap-1">
+                          <MapPinIcon className="w-3.5 h-3.5 text-yellow-600 shrink-0" />
+                          <span className="truncate">{hvzAddress}</span>
                         </span>
                         {hvzAddress && (
                           <a
@@ -628,8 +667,18 @@ export default function LogisticsPage() {
                   {isLift && (
                     <div className="p-3 rounded-2xl bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-900/40 space-y-2 text-xs">
                       <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200">
-                          {liftLoc === 'b' ? '🏠 Einzugsort (B)' : '🏢 Auszugsort (A)'}
+                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 flex items-center gap-1">
+                          {liftLoc === 'b' ? (
+                            <>
+                              <HomeIcon className="w-3 h-3" />
+                              <span>Einzugsort (B)</span>
+                            </>
+                          ) : (
+                            <>
+                              <BuildingOfficeIcon className="w-3 h-3" />
+                              <span>Auszugsort (A)</span>
+                            </>
+                          )}
                         </span>
                         <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
                           <ClockIcon className="w-3 h-3 text-blue-500" />
@@ -638,8 +687,9 @@ export default function LogisticsPage() {
                       </div>
 
                       <div className="flex items-center justify-between gap-2 pt-1 border-t border-blue-200/60 dark:border-blue-900/30">
-                        <span className="text-[11px] text-slate-700 dark:text-slate-300 truncate">
-                          📍 {liftAddress}
+                        <span className="text-[11px] text-slate-700 dark:text-slate-300 truncate flex items-center gap-1">
+                          <MapPinIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                          <span className="truncate">{liftAddress}</span>
                         </span>
                         {liftAddress && (
                           <a
@@ -680,8 +730,9 @@ export default function LogisticsPage() {
                       </div>
 
                       {addressA && (
-                        <div className="text-[11px] text-slate-700 dark:text-slate-300 truncate">
-                          📍 {addressA}
+                        <div className="text-[11px] text-slate-700 dark:text-slate-300 truncate flex items-center gap-1">
+                          <MapPinIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                          <span className="truncate">{addressA}</span>
                         </div>
                       )}
 
@@ -789,7 +840,7 @@ export default function LogisticsPage() {
                     <button
                       type="button"
                       onClick={(e) => handleToggleTask(todo, e)}
-                      className="w-full py-2.5 px-4 rounded-2xl bg-primary hover:bg-primary-hover text-white text-xs font-bold transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2 group active:scale-95"
+                      className="w-full py-2.5 px-4 rounded-xl sm:rounded-2xl bg-primary hover:bg-primary-hover text-white text-xs font-bold transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2 group active:scale-95 cursor-pointer"
                     >
                       <CheckIcon className="w-4 h-4 transition-transform group-hover:scale-125" />
                       <span>Als erledigt markieren</span>
@@ -826,15 +877,6 @@ export default function LogisticsPage() {
           onSaved={() => {
             // Realtime listener in Firestore automatically re-triggers snapshot
           }}
-        />
-      )}
-
-      {/* Baumarkt Shopping Modal */}
-      {isShoppingModalOpen && shoppingModalOrder && (
-        <BaumarktShoppingModal
-          isOpen={isShoppingModalOpen}
-          onClose={() => setIsShoppingModalOpen(false)}
-          order={shoppingModalOrder}
         />
       )}
     </div>

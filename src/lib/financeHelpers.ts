@@ -34,7 +34,10 @@ export function calculateOrderTotals(order: any): FinancialTotals {
   if (order.isFlatRate) {
     net = order.flatRateNet || 0;
   } else if (order.services && Array.isArray(order.services)) {
-    net = order.services.reduce((acc: number, curr: any) => acc + (curr.quantity * (curr.unitPrice || 0)), 0);
+    net = order.services.reduce((acc: number, curr: any) => {
+      if (curr.isIncluded) return acc;
+      return acc + ((curr.quantity || 0) * (curr.unitPrice || 0));
+    }, 0);
   }
 
   const tax = net * 0.19;
@@ -65,6 +68,8 @@ export function calculateOpenAmount(order: any): number {
 
   const { gross } = calculateOrderTotals(order);
   const paid = calculateTotalPaid(order);
+
+  if (order.status === 'invoice_paid' || (gross > 0 && paid >= gross - 0.01)) return 0;
   
-  return Math.max(0, gross - paid);
+  return Math.max(0, Math.round((gross - paid) * 100) / 100);
 }

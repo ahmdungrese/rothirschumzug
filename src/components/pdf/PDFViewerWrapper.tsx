@@ -34,10 +34,10 @@ export default function PDFViewerWrapper({ order, customer, type = 'order' }: { 
   if (!settings) return <div className="p-12 text-center text-text-main">Lade PDF-Ressourcen...</div>;
 
   const getDocument = () => {
-    if (type === 'employee') return <EmployeeSheetPDF order={order} customer={customer} employeeName={employeeName} />;
+    if (type === 'employee') return <EmployeeSheetPDF order={order} customer={customer} employeeName={employeeName} settings={settings} />;
     if (type === 'invoice') return <InvoicePDF order={order} customer={customer} settings={settings} employeeName={employeeName} />;
     if (type === 'contract') return <OrderPDF order={order} customer={customer} settings={settings} isContract={true} employeeName={employeeName} />;
-    if (type === 'protocol') return <ProtocolPDF order={order} customer={customer} employeeName={employeeName} />;
+    if (type === 'protocol') return <ProtocolPDF order={order} customer={customer} employeeName={employeeName} settings={settings} />;
     return <OrderPDF order={order} customer={customer} settings={settings} employeeName={employeeName} />;
   };
 

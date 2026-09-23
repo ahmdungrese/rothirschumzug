@@ -2,12 +2,14 @@
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, doc, updateDoc, where, Timestamp } from 'firebase/firestore';
-import { DocumentCheckIcon, DocumentTextIcon, DocumentIcon, BanknotesIcon, TruckIcon, PlusIcon, DocumentPlusIcon } from '@heroicons/react/24/outline';
+import { DocumentCheckIcon, DocumentTextIcon, DocumentIcon, BanknotesIcon, TruckIcon, PlusIcon, DocumentPlusIcon, AdjustmentsHorizontalIcon, PencilSquareIcon } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { PaymentManager } from '@/components/orders/PaymentManager';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { DispoModal } from '@/components/orders/DispoModal';
+import { OrderDetailsDrawer } from '@/components/dashboard/OrderDetailsDrawer';
+import { SignatureModal } from '@/components/orders/SignatureModal';
 import { calculateOrderTotals, calculateTotalPaid } from '@/lib/financeHelpers';
 
 export default function OrdersPage() {
@@ -17,6 +19,10 @@ export default function OrdersPage() {
   
   // Disposition Modal State
   const [dispoOrder, setDispoOrder] = useState<any>(null);
+
+  // Drawer and Signature Modals
+  const [drawerOrder, setDrawerOrder] = useState<any | null>(null);
+  const [signOrder, setSignOrder] = useState<any | null>(null);
 
   useEffect(() => {
     // Fetch only non-invoice statuses. We remove the 30-day limit so long-term orders don't disappear.
@@ -86,7 +92,13 @@ export default function OrdersPage() {
     <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-text-main">Aufträge & Planung</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold tracking-tight text-text-main">Aufträge & Planung</h1>
+            <span className="text-xs font-extrabold text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              v2.4.0
+            </span>
+          </div>
           <p className="text-text-muted mt-1">Verwalten Sie Angebote, teilen Sie Fahrzeuge/Mitarbeiter ein und erstellen Sie Rechnungen.</p>
         </div>
         <Link 
@@ -127,7 +139,7 @@ export default function OrdersPage() {
                         <div className="font-semibold text-text-main">
                           {order.invoiceNumber ? order.invoiceNumber : (order.orderNumber || (order.status === 'quote' ? 'Angebot' : 'Entwurf'))}
                         </div>
-                        <div className="text-sm text-text-main mt-1">{order.customerName || `Kunde ID: ${order.customerId.slice(0, 8)}...`}</div>
+                        <div className="text-sm text-text-main mt-1">{order.customerName || `Kunde ID: ${order.customerId?.slice(0, 8)}...`}</div>
                         {(order.logistics?.a_city || order.logistics?.b_city || order.orderMeta?.movingDateFrom) && (
                           <div className="text-xs text-text-muted mt-1 space-y-0.5">
                             {(order.logistics?.a_city || order.logistics?.b_city) && (
@@ -170,34 +182,76 @@ export default function OrdersPage() {
                       </div>
                     </td>
                     <td className="block md:table-cell p-2 md:p-4 md:text-right mt-2 md:mt-0">
-                      <div className="flex flex-col sm:flex-row items-stretch md:items-center justify-end gap-2 w-full">
+                      <div className="flex flex-col sm:flex-row items-stretch md:items-center justify-end gap-2 w-full flex-wrap">
                         
-                        {order.status === 'quote' && (
-                          <button 
-                            onClick={() => setDispoOrder(order)}
-                            className="btn-primary py-2 px-3 text-xs w-full sm:w-auto flex justify-center"
+                        {/* 1. Universal Drawer Trigger */}
+                        <button
+                          type="button"
+                          onClick={() => setDrawerOrder(order)}
+                          className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-all flex items-center justify-center gap-1 shrink-0"
+                          title="Auftrags-Cockpit & Phasen-Prüfung im Drawer öffnen"
+                        >
+                          <AdjustmentsHorizontalIcon className="w-3.5 h-3.5" />
+                          <span>Prüfen</span>
+                        </button>
+
+                        {/* 2. Draft Phase Action */}
+                        {order.status === 'draft' && (
+                          <Link 
+                            href={`/dashboard/customers/${order.customerId}/edit-order/${order.id}`}
+                            className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-all flex items-center justify-center gap-1 shrink-0"
+                            title="Entwurf bearbeiten"
                           >
-                            <TruckIcon className="w-4 h-4 mr-1" />
-                            Terminieren & Bestätigen
-                          </button>
+                            <PencilSquareIcon className="w-3.5 h-3.5" />
+                            <span>Entwurf bearbeiten</span>
+                          </Link>
                         )}
                         
+                        {/* 3. Quote / Clarification Actions */}
+                        {['quote', 'clarification'].includes(order.status) && (
+                          <>
+                            {!(order.signature || order.orderMeta?.customerSignature) && (
+                              <button 
+                                type="button"
+                                onClick={() => setSignOrder(order)}
+                                className="px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-500/10 hover:bg-amber-500 text-amber-600 hover:text-white dark:text-amber-400 border border-amber-500/20 transition-all flex items-center justify-center gap-1 shrink-0"
+                                title="Vertrag digital signieren"
+                              >
+                                <PencilSquareIcon className="w-3.5 h-3.5" />
+                                <span>Signieren</span>
+                              </button>
+                            )}
+                            <button 
+                              type="button"
+                              onClick={() => setDispoOrder(order)}
+                              className="btn-primary py-1.5 px-3 text-xs w-full sm:w-auto flex justify-center items-center gap-1 shrink-0"
+                              title="Terminieren & Bestätigen"
+                            >
+                              <TruckIcon className="w-3.5 h-3.5" />
+                              <span>Terminieren</span>
+                            </button>
+                          </>
+                        )}
+                        
+                        {/* 4. Confirmed / Completed Actions */}
                         {['confirmed', 'completed'].includes(order.status) && (
                           <Link 
-                            href={`/dashboard/customers/${order.customerId}/edit-order/new?type=invoice&sourceOrder=${order.id}`}
-                            className="btn-secondary border-green-500/30 text-green-500 hover:bg-green-500/10 py-2 px-3 text-xs w-full sm:w-auto flex justify-center"
+                            href={`/dashboard/customers/${order.customerId}/edit-invoice/${order.id}`}
+                            className="btn-secondary border-green-500/30 text-green-500 hover:bg-green-500/10 py-1.5 px-3 text-xs w-full sm:w-auto flex justify-center items-center gap-1 font-bold shrink-0"
+                            title="Rechnung für diesen Auftrag erstellen"
                           >
-                            <DocumentPlusIcon className="w-4 h-4 mr-1" />
-                            Rechnung erstellen
+                            <DocumentPlusIcon className="w-3.5 h-3.5" />
+                            <span>Rechnung erstellen</span>
                           </Link>
                         )}
 
+                        {/* 5. Invoiced Order Actions */}
                         {order.invoiceNumber && (
                           <div className="flex flex-col sm:flex-row items-stretch md:items-center gap-2 w-full sm:w-auto">
                             <select 
                               value={order.status} 
                               onChange={(e) => updateStatus(order.id, e.target.value)}
-                              className="bg-bg-dark border border-structure text-xs rounded px-2 py-2 text-text-muted focus:border-primary w-full sm:w-auto"
+                              className="bg-bg-dark border border-structure text-xs rounded px-2 py-1.5 text-text-muted focus:border-primary w-full sm:w-auto"
                             >
                               <option value="invoice_open">Offen</option>
                               <option value="invoice_paid">Bezahlt</option>
@@ -207,13 +261,13 @@ export default function OrdersPage() {
                             <div className="flex gap-2 w-full sm:w-auto mt-2 sm:mt-0">
                               <button 
                                 onClick={() => setSelectedPaymentOrder(order)}
-                                className="btn-secondary py-2 px-3 text-xs flex-1 sm:flex-none flex justify-center items-center"
-                                title="Zahlungen"
+                                className="btn-secondary py-1.5 px-3 text-xs flex-1 sm:flex-none flex justify-center items-center"
+                                title="Zahlungen erfassen / ansehen"
                               >
-                                <BanknotesIcon className="w-4 h-4 mr-1" /> Zahlungen
+                                <BanknotesIcon className="w-3.5 h-3.5 mr-1" /> Zahlungen
                               </button>
-                              <Link href={`/dashboard/customers/${order.customerId}`} className="btn-secondary py-2 px-3 text-xs flex-1 sm:flex-none flex justify-center items-center">
-                                <DocumentIcon className="w-4 h-4 mr-1" /> PDF
+                              <Link href={`/dashboard/customers/${order.customerId}`} className="btn-secondary py-1.5 px-3 text-xs flex-1 sm:flex-none flex justify-center items-center">
+                                <DocumentIcon className="w-3.5 h-3.5 mr-1" /> Profil
                               </Link>
                             </div>
                           </div>
@@ -240,6 +294,37 @@ export default function OrdersPage() {
           order={selectedPaymentOrder} 
           onUpdate={fetchOrders} 
           onClose={() => setSelectedPaymentOrder(null)} 
+        />
+      )}
+
+      {drawerOrder && (
+        <OrderDetailsDrawer
+          order={drawerOrder}
+          onClose={() => setDrawerOrder(null)}
+          onRefresh={() => {
+            const updated = orders.find(o => o.id === drawerOrder.id);
+            if (updated) setDrawerOrder(updated);
+          }}
+        />
+      )}
+
+      {signOrder && (
+        <SignatureModal
+          order={signOrder}
+          onClose={() => setSignOrder(null)}
+          onSigned={async () => {
+            try {
+              if (signOrder.status !== 'confirmed') {
+                await updateDoc(doc(db, 'orders', signOrder.id), {
+                  status: 'confirmed'
+                });
+              }
+              toast.success('Auftrag erfolgreich unterschrieben und bestätigt!');
+            } catch (err) {
+              console.error(err);
+            }
+            setSignOrder(null);
+          }}
         />
       )}
     </div>

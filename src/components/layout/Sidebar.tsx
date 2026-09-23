@@ -90,6 +90,17 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
             );
           })}
         </nav>
+
+        {/* System Version Footer */}
+        <div className="p-3.5 border-t border-structure bg-bg-dark/50 flex items-center justify-between text-xs text-text-muted">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="font-semibold text-[11px] text-text-main">Rothirsch ERP</span>
+          </div>
+          <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold border border-primary/20 text-[10px] font-mono">
+            v2.4.0
+          </span>
+        </div>
       </aside>
     </>
   );

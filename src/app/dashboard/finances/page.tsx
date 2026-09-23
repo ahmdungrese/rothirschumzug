@@ -15,6 +15,7 @@ import {
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { PaymentManager } from '@/components/orders/PaymentManager';
+import { StornoModal } from '@/components/finances/StornoModal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { calculateOrderTotals, calculateOpenAmount, calculateTotalPaid } from '@/lib/financeHelpers';
 
@@ -23,27 +24,76 @@ export default function FinancesPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPaymentOrder, setSelectedPaymentOrder] = useState<any>(null);
+  const [selectedStornoInvoice, setSelectedStornoInvoice] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'open' | 'all' | 'paid' | 'overdue'>('open');
 
   useEffect(() => {
-    // All invoices (both for orders and standalone) are stored in the invoices collection
-    const unsubInvoices = onSnapshot(query(collection(db, 'invoices')), (snapshot) => {
-      const allInvoices = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      // Filter out drafts that are not finalized invoices
-      const finalizedInvoices = allInvoices.filter(inv => !!inv.invoiceNumber);
+    let invoicesData: any[] = [];
+    let ordersData: any[] = [];
 
-      finalizedInvoices.sort((a: any, b: any) => {
+    const mergeAndSet = () => {
+      const ordersById = new Map<string, any>();
+      const ordersByInvNum = new Map<string, any>();
+      ordersData.forEach(o => {
+        ordersById.set(o.id, o);
+        if (o.invoiceNumber) {
+          ordersByInvNum.set(o.invoiceNumber, o);
+        }
+      });
+
+      const merged = invoicesData
+        .filter(inv => !!inv.invoiceNumber)
+        .map(inv => {
+          const parentOrder = (inv.sourceOrderId ? ordersById.get(inv.sourceOrderId) : null) || ordersByInvNum.get(inv.invoiceNumber);
+          
+          if (!parentOrder) return inv;
+
+          // Merge payments from parent order if parent order has payments and invoice doesn't (or parent has more)
+          const invPayments = Array.isArray(inv.payments) ? inv.payments : [];
+          const ordPayments = Array.isArray(parentOrder.payments) ? parentOrder.payments : [];
+          const bestPayments = ordPayments.length >= invPayments.length ? ordPayments : invPayments;
+
+          // Compute status
+          let bestStatus = inv.status;
+          if (parentOrder.status === 'invoice_paid') {
+            bestStatus = 'invoice_paid';
+          }
+
+          // Compute totals
+          const bestTotals = inv.totals || parentOrder.totals;
+
+          return {
+            ...inv,
+            payments: bestPayments,
+            status: bestStatus,
+            totals: bestTotals
+          };
+        });
+
+      merged.sort((a: any, b: any) => {
         const timeA = a.createdAt?.toMillis?.() || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
         const timeB = b.createdAt?.toMillis?.() || (b.createdAt ? new Date(b.createdAt).getTime() : 0);
         return timeB - timeA;
       });
-      
-      setInvoices(finalizedInvoices);
+
+      setInvoices(merged);
       setLoading(false);
+    };
+
+    const unsubInvoices = onSnapshot(query(collection(db, 'invoices')), (snapshot) => {
+      invoicesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      mergeAndSet();
     });
 
-    return () => { unsubInvoices(); };
+    const unsubOrders = onSnapshot(query(collection(db, 'orders')), (snapshot) => {
+      ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      mergeAndSet();
+    });
+
+    return () => { 
+      unsubInvoices(); 
+      unsubOrders();
+    };
   }, []);
 
   // Overdue calculation helper
@@ -91,7 +141,7 @@ export default function FinancesPage() {
           overdueCount++;
           overdueAmount += open;
         }
-      } else if (gross > 0 && paid >= gross) {
+      } else if (open === 0 || inv.status === 'invoice_paid' || (gross > 0 && paid >= gross - 0.01)) {
         paidCount++;
       }
     });
@@ -115,12 +165,13 @@ export default function FinancesPage() {
       const openAmount = calculateOpenAmount(inv);
       const gross = calculateOrderTotals(inv).gross;
       const paid = calculateTotalPaid(inv);
+      const isFullyPaid = inv.status === 'invoice_paid' || openAmount <= 0 || (gross > 0 && paid >= gross - 0.01);
 
       // Tab constraint
       if (activeTab === 'open') {
-        if (isCanceled || openAmount <= 0) return false;
+        if (isCanceled || isFullyPaid) return false;
       } else if (activeTab === 'paid') {
-        if (isCanceled || openAmount > 0 || gross === 0 || paid < gross) return false;
+        if (isCanceled || !isFullyPaid) return false;
       } else if (activeTab === 'overdue') {
         if (!isInvoiceOverdue(inv)) return false;
       }
@@ -455,14 +506,23 @@ export default function FinancesPage() {
                       <td className="py-3.5 px-5 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
                           {!isCanceled && (
-                            <button 
-                              onClick={() => setSelectedPaymentOrder(inv)}
-                              className="px-2.5 py-1 rounded-xl text-xs font-semibold font-headline bg-primary/10 hover:bg-primary text-primary hover:text-white transition-all border border-primary/20 flex items-center gap-1 shadow-2xs cursor-pointer"
-                              title="Zahlung verbuchen"
-                            >
-                              <BanknotesIcon className="w-3.5 h-3.5" />
-                              Zahlung
-                            </button>
+                            <>
+                              <button 
+                                onClick={() => setSelectedPaymentOrder(inv)}
+                                className="px-2.5 py-1 rounded-xl text-xs font-semibold font-headline bg-primary/10 hover:bg-primary text-primary hover:text-white transition-all border border-primary/20 flex items-center gap-1 shadow-2xs cursor-pointer"
+                                title="Zahlung verbuchen"
+                              >
+                                <BanknotesIcon className="w-3.5 h-3.5" />
+                                Zahlung
+                              </button>
+                              <button
+                                onClick={() => setSelectedStornoInvoice(inv)}
+                                className="px-2 py-1 rounded-xl text-xs font-semibold font-headline bg-amber-500/10 hover:bg-amber-500 text-amber-500 hover:text-white transition-all border border-amber-500/20 flex items-center gap-1 shadow-2xs cursor-pointer"
+                                title="Rechnung stornieren (Storno-Beleg erstellen)"
+                              >
+                                Stornieren
+                              </button>
+                            </>
                           )}
                           <Link 
                             href={`/dashboard/customers/${inv.customerId || ''}?orderId=${inv.id}&pdfType=invoice`} 
@@ -484,9 +544,18 @@ export default function FinancesPage() {
       {/* Payment Manager Modal */}
       {selectedPaymentOrder && (
         <PaymentManager 
-          order={selectedPaymentOrder} 
+          order={{ ...selectedPaymentOrder, _collection: 'invoices' }} 
+          freeInvoices={invoices}
           onUpdate={() => {}} 
           onClose={() => setSelectedPaymentOrder(null)} 
+        />
+      )}
+
+      {/* Storno Modal */}
+      {selectedStornoInvoice && (
+        <StornoModal
+          invoice={selectedStornoInvoice}
+          onClose={() => setSelectedStornoInvoice(null)}
         />
       )}
     </div>

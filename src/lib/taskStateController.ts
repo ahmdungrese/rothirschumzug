@@ -76,9 +76,50 @@ export function isTaskCompleted(order: any, taskId: string): boolean {
         order.status === 'confirmed' ||
         order.status === 'completed' ||
         (order.status && order.status.startsWith('invoice_')) ||
+        order.signatureOrder ||
+        order.signatureAGB ||
         order.signatures?.customer ||
+        checklistDone.signature ||
+        checklistDone.angebot_confirmed ||
+        ticketStates.signature ||
         order.isManuallySigned ||
         order.contractSigned
+      );
+
+    case 'team':
+    case 'team_assigned':
+      if (checklistDone.team !== undefined) return Boolean(checklistDone.team);
+      if (checklistDone.team_assigned !== undefined) return Boolean(checklistDone.team_assigned);
+      return Boolean(
+        ticketStates.team ||
+        ticketStates.team_assigned ||
+        order.teamAssigned ||
+        (Array.isArray(order.assignedEmployees) && order.assignedEmployees.length > 0) ||
+        (Array.isArray(order.team) && order.team.length > 0)
+      );
+
+    case 'protocol':
+      if (checklistDone.protocol !== undefined) return Boolean(checklistDone.protocol);
+      return Boolean(
+        ticketStates.protocol ||
+        (Array.isArray(order.protocols) && order.protocols.length > 0)
+      );
+
+    case 'invoice':
+      if (checklistDone.invoice !== undefined) return Boolean(checklistDone.invoice);
+      return Boolean(
+        ticketStates.invoice ||
+        Boolean(order.invoiceNumber) ||
+        (Array.isArray(order.invoices) && order.invoices.length > 0) ||
+        order.status?.startsWith('invoice_')
+      );
+
+    case 'payment':
+      if (checklistDone.payment !== undefined) return Boolean(checklistDone.payment);
+      return Boolean(
+        ticketStates.payment ||
+        order.status === 'invoice_paid' ||
+        (order.totals?.gross > 0 && ((order.totals?.gross || 0) - (order.totalPaid || 0) <= 0))
       );
 
     default:
@@ -162,6 +203,29 @@ export async function toggleTaskCompletion(
       updates['status'] = nextDone ? 'confirmed' : 'quote';
       updates['isManuallySigned'] = nextDone;
       updates['contractSigned'] = nextDone;
+      updates['checklistDone.signature'] = nextDone;
+      updates['ticketStates.signature'] = nextDone;
+      break;
+
+    case 'team':
+    case 'team_assigned':
+      updates['checklistDone.team'] = nextDone;
+      updates['teamAssigned'] = nextDone;
+      break;
+
+    case 'protocol':
+      updates['checklistDone.protocol'] = nextDone;
+      updates['ticketStates.protocol'] = nextDone;
+      break;
+
+    case 'invoice':
+      updates['checklistDone.invoice'] = nextDone;
+      updates['ticketStates.invoice'] = nextDone;
+      break;
+
+    case 'payment':
+      updates['checklistDone.payment'] = nextDone;
+      updates['ticketStates.payment'] = nextDone;
       break;
 
     default:
