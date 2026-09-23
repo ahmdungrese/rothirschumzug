@@ -34,7 +34,6 @@ export function isTaskCompleted(order: any, taskId: string): boolean {
         checklistDone.halteverbot ||
         logistics.hvzConfirmed ||
         logistics.hvzStatus === 'confirmed' ||
-        logistics.hvzDate ||
         order.logisticsState?.hvz_aufgestellt
       );
 
@@ -45,7 +44,6 @@ export function isTaskCompleted(order: any, taskId: string): boolean {
         checklistDone.kartons ||
         checklistDone.kartons_liefern ||
         logistics.boxesDelivered ||
-        logistics.boxDeliveryDate ||
         order.logisticsState?.kartons_geliefert
       );
 
@@ -126,6 +124,8 @@ export async function toggleTaskCompletion(
       updates['checklistDone.hvz'] = nextDone;
       updates['checklistDone.halteverbot'] = nextDone;
       updates['logistics.hvzConfirmed'] = nextDone;
+      updates['logistics.hvzStatus'] = nextDone ? 'confirmed' : 'pending';
+      updates['logisticsState.hvz_aufgestellt'] = nextDone;
       break;
 
     case 'kartons':
@@ -134,6 +134,7 @@ export async function toggleTaskCompletion(
       updates['checklistDone.kartons'] = nextDone;
       updates['checklistDone.kartons_liefern'] = nextDone;
       updates['logistics.boxesDelivered'] = nextDone;
+      updates['logisticsState.kartons_geliefert'] = nextDone;
       break;
 
     case 'moebellift':
@@ -142,6 +143,7 @@ export async function toggleTaskCompletion(
       updates['checklistDone.moebellift'] = nextDone;
       updates['checklistDone.moebellift_buchen'] = nextDone;
       updates['logistics.liftReserved'] = nextDone;
+      updates['logistics.liftStatus'] = nextDone ? 'confirmed' : 'pending';
       break;
 
     case 'viewing_date':
