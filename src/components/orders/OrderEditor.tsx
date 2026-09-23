@@ -12,6 +12,8 @@ import { OrderErrorBoundary } from './OrderErrorBoundary';
 
 function OrderEditorContent() {
   const { currentStep, setCurrentStep, isSaving, saveOrder, orderStatus } = useOrderEditor();
+  const [unlockedByAdmin, setUnlockedByAdmin] = React.useState(false);
+  const isContractLocked = orderStatus === 'confirmed' || orderStatus === 'completed';
 
   const handleTabClick = (stepNum: number) => {
     setCurrentStep(stepNum);
@@ -28,6 +30,30 @@ function OrderEditorContent() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-8 animate-in fade-in duration-500 relative pb-32">
+      {/* Contract Locked Warning Banner */}
+      {isContractLocked && (
+        <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <span className="material-symbols-outlined text-amber-500 text-2xl shrink-0">lock</span>
+            <div>
+              <p className="text-xs font-bold text-amber-500 uppercase tracking-wider">
+                Vertrag ist bestätigt & geschützt
+              </p>
+              <p className="text-xs text-text-muted">
+                Dieser Auftrag wurde bereits verbindlich bestätigt. Änderungen wirken sich auf den bestehenden Vertrag aus.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setUnlockedByAdmin(!unlockedByAdmin)}
+            className="px-3.5 py-1.5 rounded-xl text-xs font-bold border border-amber-500/40 text-amber-500 hover:bg-amber-500 hover:text-white transition-all shrink-0"
+          >
+            {unlockedByAdmin ? 'Wieder sperren' : 'Zur Bearbeitung entsperren'}
+          </button>
+        </div>
+      )}
+
       {/* 5-Step Progress Bar (Top) */}
       <div className="bg-bg-dark rounded-2xl border border-structure p-3 flex items-center justify-between shadow-sm mb-6 sticky top-4 z-50 backdrop-blur-xl">
         <div className="flex items-center w-full relative">

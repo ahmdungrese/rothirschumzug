@@ -2,13 +2,14 @@
 import React, { useRef, useState } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { db } from '@/lib/firebase';
-import { updateDoc, doc, arrayUnion, getDoc } from 'firebase/firestore';
+import { updateDoc, doc, arrayUnion, getDoc, serverTimestamp } from 'firebase/firestore';
 import { XMarkIcon, PlusCircleIcon, ClipboardDocumentIcon, PencilIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 
 export function ProtocolModal({ order, onClose }: { order: any, onClose: () => void }) {
-  const [type, setType] = useState('Gefahrenübergang (Haftungsausschluss)');
+  const [type, setType] = useState('Keine Schäden (Abschluss)');
   const [text, setText] = useState('');
+  const [markAsCompleted, setMarkAsCompleted] = useState(true);
   const sigPad = useRef<any>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [settings, setSettings] = useState<any>(null);
@@ -22,10 +23,11 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
           const firstCat = data.protocolCategories[0];
           setType(firstCat.name);
           setText(firstCat.text);
+          setMarkAsCompleted(firstCat.name.toLowerCase().includes('abschluss') || firstCat.name.toLowerCase().includes('schäden'));
         } else if (data.protocolTypes && data.protocolTypes.length > 0) {
-          // Fallback for legacy
           setType(data.protocolTypes[0]);
           setText('');
+          setMarkAsCompleted(data.protocolTypes[0].toLowerCase().includes('abschluss') || data.protocolTypes[0].toLowerCase().includes('schäden'));
         }
       }
     });
@@ -33,6 +35,8 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
 
   const handleTypeChange = (newType: string) => {
     setType(newType);
+    const isAbschluss = newType.toLowerCase().includes('abschluss') || newType.toLowerCase().includes('schäden');
+    setMarkAsCompleted(isAbschluss);
     if (settings?.protocolCategories) {
       const cat = settings.protocolCategories.find((c: any) => c.name === newType);
       if (cat) {
@@ -65,11 +69,21 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
         createdAt: new Date().toISOString()
       };
 
-      await updateDoc(doc(db, 'orders', order.id), {
-        protocols: arrayUnion(newProtocol)
-      });
+      const updates: Record<string, any> = {
+        protocols: arrayUnion(newProtocol),
+        'ticketStates.abnahmeprotokoll': true,
+        updatedAt: serverTimestamp()
+      };
+
+      if (markAsCompleted) {
+        updates['status'] = 'completed';
+        updates['completedAt'] = new Date().toISOString();
+        updates['ticketStates.transition_complete'] = true;
+      }
+
+      await updateDoc(doc(db, 'orders', order.id), updates);
       
-      toast.success("Protokoll erfolgreich gespeichert!");
+      toast.success(markAsCompleted ? "Protokoll gespeichert & Umzug als abgeschlossen markiert!" : "Protokoll erfolgreich gespeichert!");
       onClose();
     } catch (error) {
       console.error("Fehler", error);
@@ -143,6 +157,23 @@ export function ProtocolModal({ order, onClose }: { order: any, onClose: () => v
               />
             </div>
           </div>
+
+          <label className="flex items-center gap-3 p-3.5 rounded-xl bg-bg-dark border border-structure/80 cursor-pointer select-none hover:border-primary/40 transition-colors">
+            <input
+              type="checkbox"
+              checked={markAsCompleted}
+              onChange={(e) => setMarkAsCompleted(e.target.checked)}
+              className="w-5 h-5 rounded text-primary focus:ring-primary accent-primary cursor-pointer shrink-0"
+            />
+            <div>
+              <span className="text-xs md:text-sm font-bold text-text-main block">
+                Umzug als erfolgreich durchgeführt abschließen
+              </span>
+              <span className="text-[11px] text-text-muted block">
+                Versetzt den Auftrag in Phase 4 und schaltet die finale Rechnungserstellung frei.
+              </span>
+            </div>
+          </label>
           
           <div className="bg-bg-dark p-4 rounded-xl border-2 border-primary/20">
             <h3 className="font-semibold text-text-main mb-2 flex items-center gap-2">

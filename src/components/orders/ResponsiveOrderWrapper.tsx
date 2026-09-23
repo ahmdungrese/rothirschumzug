@@ -23,6 +23,10 @@ export function ResponsiveOrderWrapper({ orderId }: { orderId?: string }) {
 
   useEffect(() => {
     const checkInvoiceType = async () => {
+      if (typeof window !== 'undefined' && window.location.pathname.includes('/edit-invoice/')) {
+        setIsInvoice(true);
+        return;
+      }
       if (searchParams?.get('type') === 'invoice') {
         setIsInvoice(true);
         return;
@@ -52,12 +56,13 @@ export function ResponsiveOrderWrapper({ orderId }: { orderId?: string }) {
 
   if (isMobile === null || isInvoice === null) return null;
 
+  const isEditInvoiceRoute = typeof window !== 'undefined' && window.location.pathname.includes('/edit-invoice/');
   const actualOrderId = orderId === 'new' ? undefined : orderId;
-  const sourceOrderId = searchParams?.get('sourceOrder') || undefined;
+  const sourceOrderId = searchParams?.get('sourceOrder') || (isEditInvoiceRoute ? actualOrderId : undefined);
 
   let content = null;
   if (isInvoice) {
-    content = <InvoiceEditor orderId={actualOrderId} sourceOrderId={sourceOrderId} />;
+    content = <InvoiceEditor orderId={isEditInvoiceRoute ? undefined : actualOrderId} sourceOrderId={sourceOrderId} />;
   } else if (isMobile) {
     content = <MobileInspectionWizard orderId={actualOrderId} />;
   } else {
