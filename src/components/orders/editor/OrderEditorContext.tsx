@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { STANDARD_SERVICES_A, STANDARD_SERVICES_B, STANDARD_SERVICES_FIXED, QUICK_FURNITURE, QUICK_ROOMS } from './orderConstants';
+import { calculateOrderTotals } from '@/lib/financeHelpers';
 
 const OrderEditorContext = createContext<any>(null);
 
