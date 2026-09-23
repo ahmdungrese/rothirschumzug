@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { calculateOrderTotals, calculateTotalPaid, calculateOpenAmount } from '@/lib/financeHelpers';
 import { evaluateOrderLogistics } from '@/lib/orderValidation';
-import { toggleTaskCompletion, updateTaskSchedule } from '@/lib/taskStateController';
+import { toggleTaskCompletion, updateTaskSchedule, isTaskCompleted } from '@/lib/taskStateController';
 import { updateDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';

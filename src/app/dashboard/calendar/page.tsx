@@ -127,159 +127,120 @@ export default function CalendarPage() {
   }, [orders, currentDate]);
 
   return (
-    <div className="space-y-6 pb-20">
-      {/* Top Action & Navigation Bar */}
-      <div className="bg-bg-panel border border-structure p-5 md:p-6 rounded-3xl shadow-sm flex flex-col gap-5">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl md:text-2xl font-bold font-headline text-text-main flex items-center gap-2.5">
-                <CalendarDaysIcon className="w-7 h-7 text-primary" />
-                Einsatzplanung & Kalender
-              </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 uppercase tracking-widest font-headline">
-                Rothirsch v4.0
-              </span>
-            </div>
-            <p className="text-xs text-text-muted mt-1">
-              Operative Planung, Besichtigungen und Materialfristen im Überblick
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Search Input */}
-            <div className="relative flex-1 sm:w-60">
-              <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Kunde, Ort, Auftrag..."
-                className="w-full pl-9 pr-4 py-2 text-xs rounded-full bg-bg-card border border-structure focus:outline-none focus:ring-2 focus:ring-primary text-text-main placeholder:text-text-muted transition-all"
-              />
-            </div>
-
-            {/* Month Stepper Pill */}
-            <div className="flex items-center bg-bg-card border border-structure rounded-full p-1 shadow-inner">
-              <button 
-                onClick={prevMonth} 
-                className="p-1.5 hover:bg-structure/60 rounded-full transition-colors text-text-main"
-                title="Vorheriger Monat"
-              >
-                <ChevronLeftIcon className="w-4 h-4" />
-              </button>
-              <span className="text-xs md:text-sm font-bold text-text-main px-3 min-w-[130px] text-center font-headline">
-                {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-              </span>
-              <button 
-                onClick={nextMonth} 
-                className="p-1.5 hover:bg-structure/60 rounded-full transition-colors text-text-main"
-                title="Nächster Monat"
-              >
-                <ChevronRightIcon className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Quick Today Button */}
-            <button
-              onClick={goToToday}
-              className="px-3.5 py-2 rounded-full text-xs font-bold bg-bg-card hover:bg-structure/60 border border-structure text-text-main transition-colors font-headline"
+    <div className="space-y-4 pb-20">
+      {/* Ultra-Compact Top Bar (Maximizes calendar visibility without vertical scrolling) */}
+      <div className="bg-bg-panel border border-structure px-4 py-3 rounded-2xl shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        
+        {/* Left / Top: Month Stepper & Today */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          {/* Month Stepper Pill */}
+          <div className="flex items-center bg-bg-card border border-structure rounded-xl p-1 shadow-inner">
+            <button 
+              onClick={prevMonth} 
+              className="p-1.5 hover:bg-structure/60 rounded-lg transition-colors text-text-main cursor-pointer"
+              title="Vorheriger Monat"
             >
-              Heute
+              <ChevronLeftIcon className="w-4 h-4" />
+            </button>
+            <span className="text-xs md:text-sm font-bold text-text-main px-3 min-w-[125px] text-center font-headline">
+              {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+            </span>
+            <button 
+              onClick={nextMonth} 
+              className="p-1.5 hover:bg-structure/60 rounded-lg transition-colors text-text-main cursor-pointer"
+              title="Nächster Monat"
+            >
+              <ChevronRightIcon className="w-4 h-4" />
             </button>
           </div>
+
+          {/* Quick Today Button */}
+          <button
+            onClick={goToToday}
+            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-bg-card hover:bg-structure/60 border border-structure text-text-main transition-colors font-headline cursor-pointer shrink-0"
+          >
+            Heute
+          </button>
         </div>
 
-        {/* Functional Filter Tabs (Funktionen Trennen) */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-3 border-t border-structure">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-bold text-text-muted mr-1 hidden sm:flex items-center gap-1">
-              <FunnelIcon className="w-3.5 h-3.5" /> Filter:
+        {/* Center: Compact Filter Pills */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+          {/* Filter 1: Alle */}
+          <button
+            onClick={() => setActiveFilter('all')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 font-headline shrink-0 cursor-pointer ${
+              activeFilter === 'all'
+                ? 'bg-primary text-white shadow-xs'
+                : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
+            }`}
+          >
+            <span>Alle</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${activeFilter === 'all' ? 'bg-white/20 text-white' : 'bg-structure text-text-muted'}`}>
+              {monthStats.all}
             </span>
+          </button>
 
-            {/* Filter 1: Alle */}
-            <button
-              onClick={() => setActiveFilter('all')}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 font-headline ${
-                activeFilter === 'all'
-                  ? 'bg-[#D91E2A] text-white shadow-sm shadow-[#D91E2A]/20'
-                  : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
-              }`}
-            >
-              <span>Alle Termine</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeFilter === 'all' ? 'bg-white/25 text-white' : 'bg-structure text-text-muted'}`}>
-                {monthStats.all}
-              </span>
-            </button>
+          {/* Filter 2: Umzüge */}
+          <button
+            onClick={() => setActiveFilter('moves')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 font-headline shrink-0 cursor-pointer ${
+              activeFilter === 'moves'
+                ? 'bg-primary text-white shadow-xs'
+                : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
+            }`}
+          >
+            <TruckIcon className="w-3.5 h-3.5" />
+            <span>Umzüge</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${activeFilter === 'moves' ? 'bg-white/20 text-white' : 'bg-structure text-text-muted'}`}>
+              {monthStats.moves}
+            </span>
+          </button>
 
-            {/* Filter 2: Umzüge */}
-            <button
-              onClick={() => setActiveFilter('moves')}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 font-headline ${
-                activeFilter === 'moves'
-                  ? 'bg-[#D91E2A] text-white shadow-sm shadow-[#D91E2A]/20'
-                  : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
-              }`}
-            >
-              <TruckIcon className="w-3.5 h-3.5" />
-              <span>Umzüge</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeFilter === 'moves' ? 'bg-white/25 text-white' : 'bg-structure text-text-muted'}`}>
-                {monthStats.moves}
-              </span>
-            </button>
+          {/* Filter 3: Besichtigungen */}
+          <button
+            onClick={() => setActiveFilter('viewings')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 font-headline shrink-0 cursor-pointer ${
+              activeFilter === 'viewings'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-amber-400" />
+            <span>Besichtigungen</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${activeFilter === 'viewings' ? 'bg-white/20 text-white' : 'bg-structure text-text-muted'}`}>
+              {monthStats.viewings}
+            </span>
+          </button>
 
-            {/* Filter 3: Besichtigungen */}
-            <button
-              onClick={() => setActiveFilter('viewings')}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 font-headline ${
-                activeFilter === 'viewings'
-                  ? 'bg-amber-600 text-white shadow-sm shadow-amber-600/20'
-                  : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[13px]">visibility</span>
-              <span>Besichtigungen</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeFilter === 'viewings' ? 'bg-white/25 text-white' : 'bg-structure text-text-muted'}`}>
-                {monthStats.viewings}
-              </span>
-            </button>
-
-            {/* Filter 4: Logistik & Fristen */}
-            <button
-              onClick={() => setActiveFilter('logistics')}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 font-headline ${
-                activeFilter === 'logistics'
-                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/20'
-                  : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
-              }`}
-            >
-              <span className="material-symbols-outlined text-[13px]">inventory_2</span>
-              <span>Logistik & Material</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${activeFilter === 'logistics' ? 'bg-white/25 text-white' : 'bg-structure text-text-muted'}`}>
-                {monthStats.logistics}
-              </span>
-            </button>
-          </div>
-
-          {/* Color Legend */}
-          <div className="flex flex-wrap items-center gap-2 text-[10px] font-medium text-text-muted">
-            <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-[#D91E2A]"></span> Umzug
+          {/* Filter 4: Logistik */}
+          <button
+            onClick={() => setActiveFilter('logistics')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 font-headline shrink-0 cursor-pointer ${
+              activeFilter === 'logistics'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-blue-400" />
+            <span>Logistik</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${activeFilter === 'logistics' ? 'bg-white/20 text-white' : 'bg-structure text-text-muted'}`}>
+              {monthStats.logistics}
             </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-amber-500"></span> Besichtigung
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-yellow-500"></span> HVZ
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-blue-500"></span> Kartons
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-teal-500"></span> Möbellift
-            </span>
-          </div>
+          </button>
         </div>
+
+        {/* Right: Search Input */}
+        <div className="relative w-full sm:w-56 shrink-0">
+          <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Kunde, Ort suchen..."
+            className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl bg-bg-card border border-structure focus:outline-none focus:ring-2 focus:ring-primary text-text-main placeholder:text-text-muted transition-all"
+          />
+        </div>
+
       </div>
 
       {/* Calendar Grid Container */}
