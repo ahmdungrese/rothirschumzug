@@ -30,8 +30,19 @@ export const OrderEditorProvider = ({ children, orderId }: { children: React.Rea
   const canViewPrices = profile?.role === 'admin' ? true : profile?.canViewPrices ?? true;
   const [isSaving, setIsSaving] = useState(false);
   const [settings, setSettings] = useState<any>(null);
-  const [orderStatus, setOrderStatus] = useState('draft');
-  const [currentStep, setCurrentStep] = useState(1);
+  const stepParam = searchParams?.get('step');
+  const initialStep = (stepParam === 'inventory' || stepParam === '4') ? 4 : (stepParam ? parseInt(stepParam, 10) || 1 : 1);
+  const [currentStep, setCurrentStep] = useState(initialStep);
+
+  useEffect(() => {
+    const s = searchParams?.get('step');
+    if (s === '4' || s === 'inventory') {
+      setCurrentStep(4);
+    } else if (s) {
+      const parsed = parseInt(s, 10);
+      if (parsed >= 1 && parsed <= 5) setCurrentStep(parsed);
+    }
+  }, [searchParams]);
 
   // 1. Kundeninformationen
   const [customerData, setCustomerData] = useState({

@@ -188,6 +188,15 @@ export async function toggleTaskCompletion(
   };
 }
 
+export interface TaskScheduleExtras {
+  duration?: string;
+  durationHours?: number;
+  endTime?: string;
+  location?: 'a' | 'b' | 'both';
+  method?: 'selbst' | 'extern';
+  notes?: string;
+}
+
 /**
  * Unified schedule updater for logistics dates and times.
  * Synchronizes orderMeta and logistics objects atomically.
@@ -196,7 +205,8 @@ export async function updateTaskSchedule(
   orderId: string,
   taskId: string,
   dateStr: string,
-  timeStr: string = ''
+  timeStr: string = '',
+  extras?: TaskScheduleExtras
 ): Promise<void> {
   const orderRef = doc(db, 'orders', orderId);
   const updates: Record<string, any> = {
@@ -209,6 +219,7 @@ export async function updateTaskSchedule(
       updates['orderMeta.kartonDeliveryDate'] = dateStr;
       updates['orderMeta.kartonDeliveryTime'] = timeStr;
       updates['logistics.boxDeliveryDate'] = dateStr;
+      if (extras?.notes) updates['orderMeta.kartonNotes'] = extras.notes;
       break;
 
     case 'hvz':
@@ -216,12 +227,28 @@ export async function updateTaskSchedule(
       updates['orderMeta.halteverbotDate'] = dateStr;
       updates['orderMeta.halteverbotTime'] = timeStr;
       updates['logistics.hvzDate'] = dateStr;
+      if (extras?.location) {
+        updates['orderMeta.hvzLocation'] = extras.location;
+        updates['logistics.hvzLocation'] = extras.location;
+      }
+      if (extras?.method) {
+        updates['orderMeta.hvzMethod'] = extras.method;
+        updates['logistics.hvzMethod'] = extras.method;
+      }
+      if (extras?.notes) updates['orderMeta.hvzNotes'] = extras.notes;
       break;
 
     case 'moebellift':
     case 'moebellift_buchen':
       updates['orderMeta.moebelliftDate'] = dateStr;
       updates['orderMeta.moebelliftTime'] = timeStr;
+      if (extras?.duration) updates['orderMeta.moebelliftDuration'] = extras.duration;
+      if (extras?.endTime) updates['orderMeta.moebelliftEndTime'] = extras.endTime;
+      if (extras?.location) {
+        updates['orderMeta.moebelliftLocation'] = extras.location;
+        updates['logistics.moebelliftLocation'] = extras.location;
+      }
+      if (extras?.notes) updates['orderMeta.moebelliftNotes'] = extras.notes;
       break;
 
     case 'viewing_date':
@@ -230,6 +257,7 @@ export async function updateTaskSchedule(
       updates['orderMeta.viewingDate'] = combined;
       updates['viewingDate'] = combined;
       updates['orderMeta.viewingTime'] = timeStr;
+      if (extras?.notes) updates['orderMeta.viewingNotes'] = extras.notes;
       break;
 
     default:

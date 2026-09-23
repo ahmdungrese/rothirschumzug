@@ -24,6 +24,7 @@ import {
 import { evaluateOrderLogistics } from '@/lib/orderValidation';
 import { toggleTaskCompletion } from '@/lib/taskStateController';
 import { TaskScheduleModal } from '@/components/logistics/TaskScheduleModal';
+import { BaumarktShoppingModal } from '@/components/logistics/BaumarktShoppingModal';
 import { SignatureModal } from '@/components/orders/SignatureModal';
 import { ProtocolModal } from '@/components/customers/ProtocolModal';
 import { MessageSenderModal } from '@/components/customers/MessageSenderModal';
@@ -52,6 +53,7 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
 
   // Modals state
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [shoppingModalOpen, setShoppingModalOpen] = useState(false);
   const [currentTodoForSchedule, setCurrentTodoForSchedule] = useState<any>(null);
   const [signatureModalOpen, setSignatureModalOpen] = useState(false);
   const [protocolModalOpen, setProtocolModalOpen] = useState(false);
@@ -78,6 +80,43 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
   const orderNum = order.orderNumber || order.orderIdShort || (order.id ? `#${order.id.slice(-5).toUpperCase()}` : '#RH-AUFTRAG');
   const custPhone = customer?.phone || order.phone || order.customerPhone || '';
   const custEmail = customer?.email || order.email || order.customerEmail || '';
+
+  const addressA = [
+    order.logistics?.a_street || order.logistics?.from?.street,
+    order.logistics?.a_houseNr || order.logistics?.from?.houseNumber,
+    order.logistics?.a_zip || order.logistics?.from?.postalCode,
+    order.logistics?.a_city || order.logistics?.from?.city
+  ].filter(Boolean).join(' ');
+
+  const addressB = [
+    order.logistics?.b_street || order.logistics?.to?.street,
+    order.logistics?.b_houseNr || order.logistics?.to?.houseNumber,
+    order.logistics?.b_zip || order.logistics?.to?.postalCode,
+    order.logistics?.b_city || order.logistics?.to?.city
+  ].filter(Boolean).join(' ');
+
+  // Compute materials summary (boxes count)
+  const matSummary = (() => {
+    let standard = 0;
+    let buecher = 0;
+    let kleider = 0;
+    const add = (name: string, qty: number) => {
+      const n = (name || '').toLowerCase();
+      if (n.includes('bücher') || n.includes('buecher')) buecher += qty;
+      else if (n.includes('kleider')) kleider += qty;
+      else if (n.includes('karton') || n.includes('box')) standard += qty;
+    };
+    if (Array.isArray(order.services)) {
+      order.services.forEach((s: any) => add(s.name, s.quantity || 1));
+    }
+    if (Array.isArray(order.inventory)) {
+      order.inventory.forEach((i: any) => add(i.name, i.quantity || 1));
+    }
+    if (Array.isArray(order.materials)) {
+      order.materials.forEach((m: any) => add(m.name || 'Packmittel', m.quantity || 1));
+    }
+    return { standard, buecher, kleider, total: standard + buecher + kleider };
+  })();
 
   // Handle task toggling via state controller
   const handleToggleTask = async (taskId: string, label: string) => {
@@ -474,21 +513,76 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
                 </div>
 
                 {order.orderMeta?.viewingDate && order.orderMeta?.viewingDate !== 'erledigt_fotos' ? (
-                  <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/40 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
-                        {order.orderMeta?.viewingType || 'Vor-Ort Besichtigung'}
-                      </p>
-                      <p className="text-xs text-slate-600 dark:text-slate-300">
-                        {order.orderMeta?.viewingDate.split('T')[0]} {order.orderMeta?.viewingTime ? `um ${order.orderMeta?.viewingTime} Uhr` : ''}
-                      </p>
+                  <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/40 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                          {order.orderMeta?.viewingType || 'Vor-Ort Besichtigung'}
+                        </p>
+                        <p className="text-xs text-slate-600 dark:text-slate-300">
+                          {order.orderMeta?.viewingDate.split('T')[0]} {order.orderMeta?.viewingTime ? `um ${order.orderMeta?.viewingTime} Uhr` : ''}
+                        </p>
+                      </div>
+                      <span className="material-symbols-outlined text-amber-600 text-xl">calendar_today</span>
                     </div>
-                    <span className="material-symbols-outlined text-amber-600 text-xl">calendar_today</span>
+
+                    {addressA && (
+                      <div className="text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-amber-200/60 dark:border-amber-900/40 flex items-center justify-between gap-2">
+                        <span className="truncate">📍 {addressA}</span>
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressA)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2.5 py-1 rounded-lg bg-amber-200/70 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 font-bold hover:brightness-110 flex items-center gap-1 shrink-0"
+                          title="In Google Maps öffnen"
+                        >
+                          <MapPinIcon className="w-3.5 h-3.5" />
+                          <span>Navigation</span>
+                        </a>
+                      </div>
+                    )}
+
+                    <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/40 flex items-center gap-2">
+                      {order.customerId && (
+                        <Link
+                          href={`/dashboard/customers/${order.customerId}/edit-order/${order.id}?step=4`}
+                          className="flex-1 py-2 px-3 rounded-xl bg-primary text-white text-xs font-bold flex items-center justify-center gap-1.5 hover:brightness-110 shadow-xs"
+                        >
+                          <span className="material-symbols-outlined text-sm">chair</span>
+                          <span>Besichtigung starten (Umzugsliste)</span>
+                        </Link>
+                      )}
+                      {custPhone && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const timeText = order.orderMeta?.viewingTime ? ` um ${order.orderMeta.viewingTime} Uhr` : '';
+                            handleDirectWhatsApp(`Hallo ${custName}, ich bin pünktlich auf dem Weg zu Ihnen für unseren Besichtigungstermin${timeText}. Bis gleich!`);
+                          }}
+                          className="px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 hover:bg-emerald-700 transition-colors"
+                          title="Ich bin unterwegs senden"
+                        >
+                          <ChatBubbleLeftRightIcon className="w-4 h-4" />
+                          <span>Unterwegs</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-500 italic">
-                    Noch kein Besichtigungstermin vereinbart.
-                  </p>
+                  <div className="space-y-2">
+                    <p className="text-xs text-slate-500 italic">
+                      Noch kein Besichtigungstermin vereinbart.
+                    </p>
+                    {order.customerId && (
+                      <Link
+                        href={`/dashboard/customers/${order.customerId}/edit-order/${order.id}?step=4`}
+                        className="w-full py-2 px-3 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-sm">chair</span>
+                        <span>Direkt zu Umzugsliste & Möbeln</span>
+                      </Link>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -607,23 +701,45 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
                           disabled={isUpdatingTask}
                           className="w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
                         />
-                        <span className="text-xs font-bold text-slate-900 dark:text-white">
-                          Umzugskartons liefern
-                        </span>
+                        <div>
+                          <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                            Umzugskartons liefern
+                          </span>
+                          <span className="text-[11px] text-slate-500">
+                            {matSummary.total > 0 ? (
+                              <span>
+                                📦 {matSummary.total} Kartons ({matSummary.standard > 0 ? `${matSummary.standard}x Standard` : ''}{matSummary.buecher > 0 ? `, ${matSummary.buecher}x Bücher` : ''}{matSummary.kleider > 0 ? `, ${matSummary.kleider}x Kleider` : ''})
+                              </span>
+                            ) : (
+                              'Materialbedarf offen'
+                            )}
+                          </span>
+                        </div>
                       </div>
 
-                      <button
-                        onClick={() => handleOpenSchedule({ id: 'kartons_liefern', kanbanCategory: 'kartons', name: 'Kartons' })}
-                        className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-                      >
-                        <CalendarDaysIcon className="w-3.5 h-3.5" />
-                        <span>Termin planen</span>
-                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setShoppingModalOpen(true)}
+                          className="px-2.5 py-1 rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20 text-xs font-bold hover:bg-orange-500 hover:text-white transition-all flex items-center gap-1"
+                          title="Baumarkt Einkaufszettel öffnen"
+                        >
+                          <span className="material-symbols-outlined text-sm">shopping_cart</span>
+                          <span>Baumarkt</span>
+                        </button>
+                        <button
+                          onClick={() => handleOpenSchedule({ id: 'kartons_liefern', kanbanCategory: 'kartons', name: 'Kartons' })}
+                          className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                        >
+                          <CalendarDaysIcon className="w-3.5 h-3.5" />
+                          <span>Termin</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-700">
                       <span>
-                        Termin: {order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate || 'Noch nicht terminiert'}
+                        Lieferung: {order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate || 'Noch nicht terminiert'}
                         {order.orderMeta?.kartonDeliveryTime ? ` (${order.orderMeta.kartonDeliveryTime} Uhr)` : ''}
                       </span>
                       {(order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate) && (
@@ -637,7 +753,7 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
                           title="WhatsApp Nachricht senden"
                         >
                           <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
-                          <span>WhatsApp senden</span>
+                          <span>WhatsApp</span>
                         </button>
                       )}
                     </div>
@@ -654,9 +770,20 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
                           disabled={isUpdatingTask}
                           className="w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
                         />
-                        <span className="text-xs font-bold text-slate-900 dark:text-white">
-                          Halteverbotszone (HVZ) einrichten
-                        </span>
+                        <div>
+                          <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                            Halteverbotszone (HVZ)
+                          </span>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                              {order.orderMeta?.hvzMethod === 'extern' ? '🏢 Externe Firma' : '🚗 Selbst aufstellen'}
+                            </span>
+                            <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-primary/10 text-primary">
+                              {order.orderMeta?.hvzLocation === 'b' ? '🏠 Einzugsort (B)' : 
+                               order.orderMeta?.hvzLocation === 'both' ? '🔄 Beide Orte (A & B)' : '🏢 Auszugsort (A)'}
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
                       <button
@@ -666,6 +793,23 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
                         <CalendarDaysIcon className="w-3.5 h-3.5" />
                         <span>Termin planen</span>
                       </button>
+                    </div>
+
+                    {/* Address & Navigation */}
+                    <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-xs flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-600 dark:text-slate-300 truncate">
+                        📍 {order.orderMeta?.hvzLocation === 'b' ? (addressB || 'Einzugsadresse') : (addressA || 'Auszugsadresse')}
+                      </span>
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.orderMeta?.hvzLocation === 'b' ? addressB : addressA)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-primary hover:text-white text-slate-700 dark:text-slate-300 text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors"
+                        title="In Google Maps öffnen"
+                      >
+                        <MapPinIcon className="w-3 h-3" />
+                        <span>Maps</span>
+                      </a>
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-700">
@@ -682,39 +826,54 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
                           title="WhatsApp Nachricht senden"
                         >
                           <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
-                          <span>WhatsApp senden</span>
+                          <span>WhatsApp</span>
                         </button>
                       )}
                     </div>
                   </div>
 
                   {/* Task: Möbellift */}
-                  <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex items-center justify-between">
-                    <div className="flex items-center gap-2.5">
-                      <input
-                        type="checkbox"
-                        checked={evaluation.checklist.find(c => c.id === 'lift')?.done || false}
-                        onChange={() => handleToggleTask('moebellift_buchen', 'Möbellift')}
-                        disabled={isUpdatingTask}
-                        className="w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
-                      />
-                      <div>
-                        <span className="text-xs font-bold text-slate-900 dark:text-white block">
-                          Möbellift disponieren
-                        </span>
-                        <span className="text-[11px] text-slate-500">
-                          {order.orderMeta?.moebelliftDate ? `Geplant für: ${order.orderMeta.moebelliftDate}` : 'Bedarfsprüfung'}
-                        </span>
+                  <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex flex-col gap-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <input
+                          type="checkbox"
+                          checked={evaluation.checklist.find(c => c.id === 'lift')?.done || false}
+                          onChange={() => handleToggleTask('moebellift_buchen', 'Möbellift')}
+                          disabled={isUpdatingTask}
+                          className="w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
+                        />
+                        <div>
+                          <span className="text-xs font-bold text-slate-900 dark:text-white block">
+                            Möbellift disponieren
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.2 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                            {order.orderMeta?.moebelliftLocation === 'b' ? '🏠 Einzugsort (B)' : '🏢 Auszugsort (A)'}
+                          </span>
+                        </div>
                       </div>
+
+                      <button
+                        onClick={() => handleOpenSchedule({ id: 'moebellift_buchen', kanbanCategory: 'moebellift', name: 'Möbellift' })}
+                        className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                      >
+                        <CalendarDaysIcon className="w-3.5 h-3.5" />
+                        <span>Termin planen</span>
+                      </button>
                     </div>
 
-                    <button
-                      onClick={() => handleOpenSchedule({ id: 'moebellift_buchen', kanbanCategory: 'moebellift', name: 'Möbellift' })}
-                      className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-                    >
-                      <CalendarDaysIcon className="w-3.5 h-3.5" />
-                      <span>Termin planen</span>
-                    </button>
+                    <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-slate-700">
+                      <span>
+                        {order.orderMeta?.moebelliftDate ? (
+                          <>
+                            Geplant: <strong className="text-slate-900 dark:text-white">{order.orderMeta.moebelliftDate}</strong>
+                            {order.orderMeta?.moebelliftTime && ` • ${order.orderMeta.moebelliftTime} - ${order.orderMeta.moebelliftEndTime || ''} Uhr (${order.orderMeta.moebelliftDuration || '3'} Std.)`}
+                          </>
+                        ) : (
+                          'Bedarfsprüfung ausstehend'
+                        )}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -862,6 +1021,14 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
           onSaved={() => {
             if (onRefresh) onRefresh();
           }}
+        />
+      )}
+
+      {shoppingModalOpen && (
+        <BaumarktShoppingModal
+          isOpen={shoppingModalOpen}
+          onClose={() => setShoppingModalOpen(false)}
+          order={order}
         />
       )}
 

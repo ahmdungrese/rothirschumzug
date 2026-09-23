@@ -15,11 +15,15 @@ import {
   MapPinIcon,
   ArrowPathIcon,
   ShieldCheckIcon,
-  ExclamationCircleIcon
+  ExclamationCircleIcon,
+  ShoppingCartIcon,
+  ChatBubbleLeftRightIcon,
+  PhoneIcon
 } from '@heroicons/react/24/outline';
 import { generateTickets, SystemTicket } from '@/lib/ticketEngine';
 import { toggleTaskCompletion } from '@/lib/taskStateController';
 import { TaskScheduleModal } from '@/components/logistics/TaskScheduleModal';
+import { BaumarktShoppingModal } from '@/components/logistics/BaumarktShoppingModal';
 import toast from 'react-hot-toast';
 
 export default function LogisticsPage() {
@@ -29,6 +33,7 @@ export default function LogisticsPage() {
 
   const [activeTodos, setActiveTodos] = useState<SystemTicket[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
 
   // Status Tab: 'offen' (default) vs 'erledigt'
@@ -42,6 +47,10 @@ export default function LogisticsPage() {
   const [modalTodo, setModalTodo] = useState<any>(null);
   const [modalOrder, setModalOrder] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Modal state for Baumarkt Shopping List
+  const [shoppingModalOrder, setShoppingModalOrder] = useState<any>(null);
+  const [isShoppingModalOpen, setIsShoppingModalOpen] = useState(false);
 
   useEffect(() => {
     const qOrders = query(collection(db, 'orders'));
@@ -92,6 +101,7 @@ export default function LogisticsPage() {
       snap.docs.forEach(d => {
         currentCustomers[d.id] = { id: d.id, ...d.data() };
       });
+      setCustomers({ ...currentCustomers });
       processData();
     });
 
@@ -180,6 +190,81 @@ export default function LogisticsPage() {
     setModalTodo(todo);
     setModalOrder(parentOrder);
     setIsModalOpen(true);
+  };
+
+  // Open modal for Baumarkt shopping list
+  const handleOpenShoppingModal = (parentOrder: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShoppingModalOrder(parentOrder);
+    setIsShoppingModalOpen(true);
+  };
+
+  // WhatsApp direct helper
+  const handleDirectWhatsApp = (phone: string, text?: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!phone) {
+      toast.error('Keine Telefonnummer beim Kunden hinterlegt!');
+      return;
+    }
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const intlPhone = cleanPhone.startsWith('0') ? '49' + cleanPhone.substring(1) : cleanPhone;
+    const url = text 
+      ? `https://wa.me/${intlPhone}?text=${encodeURIComponent(text)}`
+      : `https://wa.me/${intlPhone}`;
+    window.open(url, '_blank');
+  };
+
+  // Material summary helper for kartons
+  const getMaterialsSummary = (order: any) => {
+    const materials = order?.logistics?.materials || [];
+    let standard = 0;
+    let buecher = 0;
+    let kleider = 0;
+    let seidenpapier = 0;
+    let klebeband = 0;
+
+    materials.forEach((m: any) => {
+      const name = (m.name || m.type || '').toLowerCase();
+      const count = parseInt(m.quantity || m.count || 0) || 0;
+      if (name.includes('bÃ¼cher') || name.includes('buecher') || name.includes('buch')) {
+        buecher += count;
+      } else if (name.includes('kleider')) {
+        kleider += count;
+      } else if (name.includes('seiden') || name.includes('packpapier')) {
+        seidenpapier += count;
+      } else if (name.includes('klebe') || name.includes('band')) {
+        klebeband += count;
+      } else if (name.includes('karton') || name.includes('standard')) {
+        standard += count;
+      }
+    });
+
+    if (Array.isArray(order?.services)) {
+      order.services.forEach((s: any) => {
+        const name = (s.name || '').toLowerCase();
+        const count = parseInt(s.quantity || s.count || 0) || 0;
+        if (name.includes('bÃ¼cher') || name.includes('buecher') || name.includes('buch')) {
+          buecher += count;
+        } else if (name.includes('kleider')) {
+          kleider += count;
+        } else if (name.includes('seiden') || name.includes('packpapier')) {
+          seidenpapier += count;
+        } else if (name.includes('klebe') || name.includes('band')) {
+          klebeband += count;
+        } else if (name.includes('karton') || name.includes('standard') || name.includes('umzugskarton')) {
+          standard += count;
+        }
+      });
+    }
+
+    return {
+      total: standard + buecher + kleider,
+      standard,
+      buecher,
+      kleider,
+      seidenpapier,
+      klebeband
+    };
   };
 
   // Badge helpers
@@ -362,6 +447,13 @@ export default function LogisticsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-5">
           {sortedTasks.map((todo) => {
             const parentOrder = orders.find(o => o.id === todo.orderId);
+            const customer = parentOrder ? customers[parentOrder.customerId] : null;
+            const custPhone = customer?.phone || parentOrder?.phone || parentOrder?.customerPhone || '';
+            const custName = todo.customerName || (customer ? `${customer.firstName || ''} ${customer.lastName || ''}`.trim() : 'Kunde');
+
+            const addressA = [parentOrder?.logistics?.a_street, parentOrder?.logistics?.a_city].filter(Boolean).join(', ');
+            const addressB = [parentOrder?.logistics?.b_street, parentOrder?.logistics?.b_city].filter(Boolean).join(', ');
+
             const catMeta = getCategoryMeta(todo);
             const scheduled = getScheduledDateInfo(todo, parentOrder);
             const orderNum = parentOrder?.orderNumber || (todo.orderId ? `#${todo.orderId.slice(-5).toUpperCase()}` : '#RH-AUFTRAG');
@@ -373,6 +465,22 @@ export default function LogisticsPage() {
               : 'Route nicht angegeben';
 
             const isLogisticsSchedulable = todo.id === 'kartons_liefern' || todo.id === 'halteverbot' || todo.id === 'moebellift_buchen' || todo.id === 'viewing_requested';
+
+            const isKarton = todo.id === 'kartons_liefern';
+            const isHV = todo.id === 'halteverbot';
+            const isLift = todo.id === 'moebellift_buchen';
+            const isViewing = todo.id === 'viewing_requested';
+
+            const matSummary = isKarton ? getMaterialsSummary(parentOrder) : null;
+
+            const hvzLoc = parentOrder?.orderMeta?.hvzLocation || (parentOrder?.logistics?.hvz_b && !parentOrder?.logistics?.hvz_a ? 'b' : parentOrder?.logistics?.hvz_a && parentOrder?.logistics?.hvz_b ? 'both' : 'a');
+            const hvzMethod = parentOrder?.orderMeta?.hvzMethod || (parentOrder?.logistics?.hvz_external ? 'extern' : 'selbst');
+            const hvzAddress = hvzLoc === 'b' ? (addressB || 'Einzugsadresse') : (addressA || 'Auszugsadresse');
+
+            const liftLoc = parentOrder?.orderMeta?.moebelliftLocation || 'a';
+            const liftAddress = liftLoc === 'b' ? (addressB || 'Einzugsadresse') : (addressA || 'Auszugsadresse');
+            const liftDuration = parentOrder?.orderMeta?.moebelliftDuration || '3';
+            const liftEndTime = parentOrder?.orderMeta?.moebelliftEndTime || '';
 
             return (
               <div
@@ -418,15 +526,27 @@ export default function LogisticsPage() {
                       >
                         <span>{todo.customerName}</span>
                       </Link>
-                      {todo.customerId && (
-                        <Link
-                          href={`/dashboard/customers/${todo.customerId}`}
-                          className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-primary hover:bg-primary/10 transition-all shrink-0"
-                          title="Kundenprofil öffnen"
-                        >
-                          <UserIcon className="w-3.5 h-3.5" />
-                        </Link>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {custPhone && (
+                          <button
+                            type="button"
+                            onClick={(e) => handleDirectWhatsApp(custPhone, undefined, e)}
+                            className="p-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 hover:bg-emerald-100 transition-all shrink-0"
+                            title={`WhatsApp mit ${custName} öffnen`}
+                          >
+                            <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {todo.customerId && (
+                          <Link
+                            href={`/dashboard/customers/${todo.customerId}`}
+                            className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-primary hover:bg-primary/10 transition-all shrink-0"
+                            title="Kundenprofil öffnen"
+                          >
+                            <UserIcon className="w-3.5 h-3.5" />
+                          </Link>
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 mt-1">
                       <MapPinIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
@@ -442,6 +562,158 @@ export default function LogisticsPage() {
                       {todo.title}
                     </p>
                   </div>
+
+                  {/* Task Specific Logistics Enhancement */}
+                  {isKarton && matSummary && (
+                    <div className="p-3 rounded-2xl bg-orange-50/70 dark:bg-orange-950/20 border border-orange-200/60 dark:border-orange-900/40 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-orange-600 dark:text-orange-400 text-lg">inventory_2</span>
+                        <div className="text-xs">
+                          <span className="font-bold text-slate-800 dark:text-slate-200">
+                            {matSummary.total > 0 ? `${matSummary.total} Kartons` : 'Materialbedarf'}
+                          </span>
+                          {matSummary.total > 0 && (
+                            <p className="text-[11px] text-slate-500">
+                              {matSummary.standard > 0 ? `${matSummary.standard}x Standard` : ''}
+                              {matSummary.buecher > 0 ? ` • ${matSummary.buecher}x Bücher` : ''}
+                              {matSummary.kleider > 0 ? ` • ${matSummary.kleider}x Kleider` : ''}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => handleOpenShoppingModal(parentOrder, e)}
+                        className="px-2.5 py-1 rounded-xl bg-orange-600 text-white text-[11px] font-bold hover:bg-orange-700 transition-colors flex items-center gap-1 shrink-0 shadow-xs"
+                        title="Baumarkt Einkaufszettel öffnen"
+                      >
+                        <ShoppingCartIcon className="w-3.5 h-3.5" />
+                        <span>Baumarkt</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {isHV && (
+                    <div className="p-3 rounded-2xl bg-yellow-50/70 dark:bg-yellow-950/20 border border-yellow-200/60 dark:border-yellow-900/40 space-y-2 text-xs">
+                      <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700">
+                          {hvzMethod === 'extern' ? '🏢 Externe Firma' : '🚗 Selbst aufstellen (Rothirsch)'}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-yellow-100 dark:bg-yellow-900/60 text-yellow-800 dark:text-yellow-200">
+                          {hvzLoc === 'b' ? '🏠 Einzugsort (B)' : hvzLoc === 'both' ? '🔄 Beide (A & B)' : '🏢 Auszugsort (A)'}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-yellow-200/60 dark:border-yellow-900/30">
+                        <span className="text-[11px] text-slate-700 dark:text-slate-300 truncate">
+                          📍 {hvzAddress}
+                        </span>
+                        {hvzAddress && (
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(hvzAddress)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="px-2 py-0.5 rounded-lg bg-yellow-200/80 dark:bg-yellow-900/60 hover:brightness-110 text-yellow-900 dark:text-yellow-200 text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors"
+                            title="In Google Maps öffnen"
+                          >
+                            <MapPinIcon className="w-3 h-3" />
+                            <span>Maps</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {isLift && (
+                    <div className="p-3 rounded-2xl bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-900/40 space-y-2 text-xs">
+                      <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200">
+                          {liftLoc === 'b' ? '🏠 Einzugsort (B)' : '🏢 Auszugsort (A)'}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
+                          <ClockIcon className="w-3 h-3 text-blue-500" />
+                          <span>{parentOrder?.orderMeta?.moebelliftTime ? `${parentOrder.orderMeta.moebelliftTime} - ${liftEndTime} (${liftDuration} Std.)` : `Dauer: ${liftDuration} Std.`}</span>
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-blue-200/60 dark:border-blue-900/30">
+                        <span className="text-[11px] text-slate-700 dark:text-slate-300 truncate">
+                          📍 {liftAddress}
+                        </span>
+                        {liftAddress && (
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(liftAddress)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="px-2 py-0.5 rounded-lg bg-blue-200/80 dark:bg-blue-900/60 hover:brightness-110 text-blue-900 dark:text-blue-200 text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors"
+                            title="In Google Maps öffnen"
+                          >
+                            <MapPinIcon className="w-3 h-3" />
+                            <span>Maps</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {isViewing && (
+                    <div className="p-3 rounded-2xl bg-purple-50/70 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-900/40 space-y-2.5 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold text-purple-900 dark:text-purple-200">
+                          {parentOrder?.orderMeta?.viewingType || 'Vor-Ort Besichtigung'}
+                        </span>
+                        {addressA && (
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressA)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="px-2 py-0.5 rounded-lg bg-purple-200/80 dark:bg-purple-900/60 hover:brightness-110 text-purple-900 dark:text-purple-200 text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors"
+                            title="Besichtigungsort in Google Maps öffnen"
+                          >
+                            <MapPinIcon className="w-3 h-3" />
+                            <span>Maps</span>
+                          </a>
+                        )}
+                      </div>
+
+                      {addressA && (
+                        <div className="text-[11px] text-slate-700 dark:text-slate-300 truncate">
+                          📍 {addressA}
+                        </div>
+                      )}
+
+                      <div className="pt-2 border-t border-purple-200/60 dark:border-purple-900/30 flex items-center gap-2">
+                        {parentOrder?.customerId && (
+                          <Link
+                            href={`/dashboard/customers/${parentOrder.customerId}/edit-order/${parentOrder.id}?step=4`}
+                            className="flex-1 py-1.5 px-2.5 rounded-xl bg-primary text-white text-[11px] font-bold flex items-center justify-center gap-1 hover:brightness-110 shadow-xs transition-all"
+                            title="Direkt zu Schritt 4 (Umzugsliste & Möbel) springen"
+                          >
+                            <span className="material-symbols-outlined text-xs">chair</span>
+                            <span>Besichtigung starten (Umzugsliste)</span>
+                          </Link>
+                        )}
+
+                        {custPhone && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              const timeText = parentOrder?.orderMeta?.viewingTime ? ` um ${parentOrder.orderMeta.viewingTime} Uhr` : '';
+                              handleDirectWhatsApp(custPhone, `Hallo ${custName}, ich bin pünktlich auf dem Weg zu Ihnen für unseren Besichtigungstermin${timeText}. Bis gleich!`, e);
+                            }}
+                            className="px-2.5 py-1.5 rounded-xl bg-emerald-600 text-white text-[11px] font-bold flex items-center gap-1 hover:bg-emerald-700 transition-colors shrink-0"
+                            title="Ich bin unterwegs senden"
+                          >
+                            <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
+                            <span>Unterwegs</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Details / Scheduled Termin Section */}
                   {isLogisticsSchedulable && (
@@ -461,15 +733,41 @@ export default function LogisticsPage() {
                       </div>
 
                       {scheduled ? (
-                        <div className="flex items-center gap-2 flex-wrap text-xs">
-                          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-primary/10 text-primary font-bold">
-                            <CalendarDaysIcon className="w-3.5 h-3.5" />
-                            <span>{scheduled.date}</span>
+                        <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-primary/10 text-primary font-bold">
+                              <CalendarDaysIcon className="w-3.5 h-3.5" />
+                              <span>{scheduled.date}</span>
+                            </div>
+                            <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
+                              <ClockIcon className="w-3.5 h-3.5 text-slate-400" />
+                              <span>{scheduled.time}</span>
+                            </div>
                           </div>
-                          <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
-                            <ClockIcon className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{scheduled.time}</span>
-                          </div>
+
+                          {custPhone && isKarton && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleDirectWhatsApp(custPhone, `Guten Tag ${custName}, Ihre Umzugskartons werden am ${scheduled.date} ${scheduled.time !== 'Ohne Zeitangabe' ? 'im Zeitfenster ' + scheduled.time : ''} geliefert. Viele Grüße, Rothirsch Umzüge`, e)}
+                              className="text-[11px] text-emerald-600 hover:text-emerald-700 font-bold flex items-center gap-1"
+                              title="Termin via WhatsApp bestätigen"
+                            >
+                              <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
+                              <span>WhatsApp</span>
+                            </button>
+                          )}
+
+                          {custPhone && isHV && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleDirectWhatsApp(custPhone, `Guten Tag ${custName}, die Halteverbotszone für Ihren Umzug wird am ${scheduled.date} aufgebaut. Viele Grüße, Rothirsch Umzüge`, e)}
+                              className="text-[11px] text-emerald-600 hover:text-emerald-700 font-bold flex items-center gap-1"
+                              title="Termin via WhatsApp bestätigen"
+                            >
+                              <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
+                              <span>WhatsApp</span>
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <button
@@ -528,6 +826,15 @@ export default function LogisticsPage() {
           onSaved={() => {
             // Realtime listener in Firestore automatically re-triggers snapshot
           }}
+        />
+      )}
+
+      {/* Baumarkt Shopping Modal */}
+      {isShoppingModalOpen && shoppingModalOrder && (
+        <BaumarktShoppingModal
+          isOpen={isShoppingModalOpen}
+          onClose={() => setIsShoppingModalOpen(false)}
+          order={shoppingModalOrder}
         />
       )}
     </div>

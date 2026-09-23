@@ -6,7 +6,9 @@ import {
   CalendarDaysIcon, 
   ClockIcon, 
   ChatBubbleLeftRightIcon,
-  CheckIcon
+  CheckIcon,
+  MapPinIcon,
+  TruckIcon
 } from '@heroicons/react/24/outline';
 import { updateTaskSchedule } from '@/lib/taskStateController';
 import toast from 'react-hot-toast';
@@ -33,6 +35,21 @@ export function TaskScheduleModal({
   const isLift = todo.id === 'moebellift_buchen' || todo.kanbanCategory === 'moebellift';
   const isViewing = todo.id === 'viewing_requested' || todo.id === 'viewing_date';
 
+  // Extract clean addresses
+  const addressA = [
+    parentOrder.logistics?.a_street || parentOrder.logistics?.from?.street,
+    parentOrder.logistics?.a_houseNr || parentOrder.logistics?.from?.houseNumber,
+    parentOrder.logistics?.a_zip || parentOrder.logistics?.from?.postalCode,
+    parentOrder.logistics?.a_city || parentOrder.logistics?.from?.city
+  ].filter(Boolean).join(' ');
+
+  const addressB = [
+    parentOrder.logistics?.b_street || parentOrder.logistics?.to?.street,
+    parentOrder.logistics?.b_houseNr || parentOrder.logistics?.to?.houseNumber,
+    parentOrder.logistics?.b_zip || parentOrder.logistics?.to?.postalCode,
+    parentOrder.logistics?.b_city || parentOrder.logistics?.to?.city
+  ].filter(Boolean).join(' ');
+
   // Determine initial date & time from order
   const initialDate = isKarton 
     ? (parentOrder.orderMeta?.kartonDeliveryDate || parentOrder.logistics?.boxDeliveryDate || '')
@@ -52,8 +69,18 @@ export function TaskScheduleModal({
         ? (parentOrder.orderMeta?.moebelliftTime || '')
         : (parentOrder.orderMeta?.viewingTime || (parentOrder.orderMeta?.viewingDate?.includes('T') ? parentOrder.orderMeta.viewingDate.split('T')[1]?.slice(0, 5) : ''));
 
+  const initialDuration = parentOrder.orderMeta?.moebelliftDuration || '3';
+  const initialLocation = parentOrder.orderMeta?.moebelliftLocation || parentOrder.orderMeta?.hvzLocation || 
+    (parentOrder.logistics?.a_parking && !parentOrder.logistics?.b_parking ? 'a' :
+     !parentOrder.logistics?.a_parking && parentOrder.logistics?.b_parking ? 'b' :
+     parentOrder.logistics?.a_parking && parentOrder.logistics?.b_parking ? 'both' : 'a');
+  const initialMethod = parentOrder.orderMeta?.hvzMethod || parentOrder.logistics?.hvzMethod || 'selbst';
+
   const [date, setDate] = useState(initialDate);
   const [time, setTime] = useState(initialTime);
+  const [duration, setDuration] = useState(initialDuration);
+  const [location, setLocation] = useState<'a' | 'b' | 'both'>(initialLocation as any);
+  const [method, setMethod] = useState<'selbst' | 'extern'>(initialMethod as any);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -65,8 +92,16 @@ export function TaskScheduleModal({
   const setRelativeDays = (daysFromNow: number) => {
     const d = new Date();
     d.setDate(d.getDate() + daysFromNow);
-    const dateStr = d.toISOString().split('T')[0];
-    setDate(dateStr);
+    setDate(d.toISOString().split('T')[0]);
+  };
+
+  const setMoveDay = () => {
+    const moveDateStr = parentOrder.orderMeta?.movingDateFrom || parentOrder.movingDate;
+    if (!moveDateStr) {
+      toast.error('Kein Umzugsdatum vorhanden');
+      return;
+    }
+    setDate(moveDateStr.split('T')[0]);
   };
 
   const setRelativeMoveDays = (daysBeforeMove: number) => {
@@ -77,16 +112,21 @@ export function TaskScheduleModal({
     }
     const d = new Date(moveDateStr.split('T')[0]);
     d.setDate(d.getDate() - daysBeforeMove);
-    const dateStr = d.toISOString().split('T')[0];
-    setDate(dateStr);
+    setDate(d.toISOString().split('T')[0]);
   };
 
-  const timeSlots = [
-    '08:00 - 12:00 Uhr (Vormittag)',
-    '10:00 - 14:00 Uhr (Mittag)',
-    '13:00 - 17:00 Uhr (Nachmittag)',
-    'Ganztägig (Flexibel)'
-  ];
+  // Calculate end time
+  const calculateEndTime = (startStr: string, durHours: number) => {
+    if (!startStr) return '';
+    const match = startStr.match(/(\d{1,2}):(\d{2})/);
+    if (!match) return '';
+    const h = parseInt(match[1], 10);
+    const m = match[2];
+    const endH = (h + durHours) % 24;
+    return `${endH < 10 ? '0' + endH : endH}:${m}`;
+  };
+
+  const endTimePreview = isLift && time ? calculateEndTime(time, parseInt(duration, 10) || 1) : '';
 
   const handleSave = async () => {
     if (!date) {
@@ -96,7 +136,12 @@ export function TaskScheduleModal({
 
     setIsSaving(true);
     try {
-      await updateTaskSchedule(parentOrder.id, todo.id, date, time);
+      await updateTaskSchedule(parentOrder.id, todo.id, date, time, {
+        duration: isLift ? duration : undefined,
+        endTime: isLift ? endTimePreview : undefined,
+        location: (isLift || isHV) ? location : undefined,
+        method: isHV ? method : undefined
+      });
       toast.success('Termin erfolgreich gespeichert!');
       if (onSaved) onSaved();
       onClose();
@@ -172,6 +217,89 @@ export function TaskScheduleModal({
 
         {/* Content Body */}
         <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
+
+          {/* Location Selector (A vs B vs Both) for Möbellift and HVZ */}
+          {(isLift || isHV) && (
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                <MapPinIcon className="w-4 h-4 text-primary" />
+                <span>Einsatzort festlegen</span>
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLocation('a')}
+                  className={`p-3 rounded-2xl border text-left transition-all ${
+                    location === 'a' 
+                      ? 'border-primary bg-primary/10 text-primary shadow-xs ring-1 ring-primary/30' 
+                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="text-xs font-bold flex items-center justify-between">
+                    <span>🏢 Auszugsort (A)</span>
+                    {location === 'a' && <CheckIcon className="w-4 h-4 text-primary" />}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1 truncate">
+                    {addressA || 'Adresse A'}
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLocation('b')}
+                  className={`p-3 rounded-2xl border text-left transition-all ${
+                    location === 'b' 
+                      ? 'border-primary bg-primary/10 text-primary shadow-xs ring-1 ring-primary/30' 
+                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="text-xs font-bold flex items-center justify-between">
+                    <span>🏠 Einzugsort (B)</span>
+                    {location === 'b' && <CheckIcon className="w-4 h-4 text-primary" />}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1 truncate">
+                    {addressB || 'Adresse B'}
+                  </p>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Execution Method for Halteverbot (Selbst vs Extern) */}
+          {isHV && (
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                Ausführung / Zuständigkeit
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMethod('selbst')}
+                  className={`p-3 rounded-2xl border text-left transition-all text-xs font-bold flex items-center gap-2 ${
+                    method === 'selbst' 
+                      ? 'border-primary bg-primary/10 text-primary shadow-xs ring-1 ring-primary/30' 
+                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  <TruckIcon className="w-4 h-4" />
+                  <span>Selbst aufstellen</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMethod('extern')}
+                  className={`p-3 rounded-2xl border text-left transition-all text-xs font-bold flex items-center gap-2 ${
+                    method === 'extern' 
+                      ? 'border-primary bg-primary/10 text-primary shadow-xs ring-1 ring-primary/30' 
+                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-base">domain</span>
+                  <span>Externe Firma</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Section 1: Datum */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
@@ -196,6 +324,37 @@ export function TaskScheduleModal({
             {/* Quick Presets */}
             <div className="flex items-center gap-2 flex-wrap pt-1">
               <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Schnellwahl:</span>
+              
+              {isLift && (
+                <button 
+                  type="button"
+                  onClick={setMoveDay}
+                  className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-primary/15 text-primary hover:bg-primary hover:text-white transition-all border border-primary/30"
+                >
+                  Am Umzugstag ({moveDateDisplay})
+                </button>
+              )}
+
+              {isHV && (
+                <button 
+                  type="button"
+                  onClick={() => setRelativeMoveDays(4)}
+                  className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-amber-500/15 text-amber-700 dark:text-amber-400 hover:bg-amber-500 hover:text-white transition-all border border-amber-500/30"
+                >
+                  4 Tage vor Umzug (Aufbau)
+                </button>
+              )}
+
+              {isKarton && (
+                <button 
+                  type="button"
+                  onClick={() => setRelativeMoveDays(21)}
+                  className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 hover:bg-orange-500 hover:text-white transition-all border border-orange-500/20"
+                >
+                  3 Wochen vor Umzug
+                </button>
+              )}
+
               <button 
                 type="button"
                 onClick={() => setRelativeDays(1)}
@@ -210,116 +369,115 @@ export function TaskScheduleModal({
               >
                 In 3 Tagen
               </button>
-              {isKarton && (
-                <button 
-                  type="button"
-                  onClick={() => setRelativeMoveDays(21)}
-                  className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-orange-500/10 text-orange-600 dark:text-orange-400 hover:bg-orange-500 hover:text-white transition-all border border-orange-500/20"
-                >
-                  3 Wochen vor Umzug
-                </button>
-              )}
-              {isHV && (
-                <button 
-                  type="button"
-                  onClick={() => setRelativeMoveDays(4)}
-                  className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-500 hover:text-white transition-all border border-yellow-500/20"
-                >
-                  4 Tage vor Umzug
-                </button>
-              )}
             </div>
           </div>
 
-          {/* Section 2: Uhrzeit & Zeitfenster */}
+          {/* Section 2: Uhrzeit & Dauer (besonders für Möbellift) */}
           <div className="space-y-3">
             <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
               <ClockIcon className="w-4 h-4 text-primary" />
-              <span>Uhrzeit / Zeitfenster</span>
+              <span>{isLift ? 'Startzeit & Dauer' : 'Uhrzeit / Zeitfenster'}</span>
             </label>
 
-            {/* Presets Chips */}
-            <div className="grid grid-cols-2 gap-2">
-              {timeSlots.map((slot) => {
-                const isSelected = time === slot;
-                return (
-                  <button
-                    key={slot}
-                    type="button"
-                    onClick={() => setTime(slot)}
-                    className={`p-2.5 text-xs text-left font-medium rounded-xl border transition-all ${
-                      isSelected
-                        ? 'bg-primary text-white border-primary shadow-sm scale-[1.02]'
-                        : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-primary/50'
-                    }`}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">
+                  {isLift ? 'Startzeit' : 'Uhrzeit'}
+                </label>
+                <input 
+                  type="time" 
+                  value={time}
+                  onChange={(e) => setTime(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary text-sm shadow-inner"
+                />
+              </div>
+
+              {isLift ? (
+                <div>
+                  <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">
+                    Dauer (Stunden)
+                  </label>
+                  <div className="flex items-center gap-1.5">
+                    {['1', '2', '3', '4', '5'].map(h => (
+                      <button
+                        key={h}
+                        type="button"
+                        onClick={() => setDuration(h)}
+                        className={`flex-1 py-2 text-xs font-bold rounded-xl border transition-all ${
+                          duration === h 
+                            ? 'bg-primary text-white border-primary shadow-xs' 
+                            : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        {h}h
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-[10px] text-slate-400 font-bold uppercase mb-1">
+                    Schnell-Zeitfenster
+                  </label>
+                  <select
+                    value={time}
+                    onChange={(e) => setTime(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 font-medium text-slate-900 dark:text-white text-xs"
                   >
-                    {slot}
-                  </button>
-                );
-              })}
+                    <option value="">Benutzerdefiniert</option>
+                    <option value="08:00 - 12:00">08:00 - 12:00 (Vormittag)</option>
+                    <option value="10:00 - 14:00">10:00 - 14:00 (Mittag)</option>
+                    <option value="13:00 - 17:00">13:00 - 17:00 (Nachmittag)</option>
+                    <option value="Ganztägig">Ganztägig (Flexibel)</option>
+                  </select>
+                </div>
+              )}
             </div>
 
-            <div className="pt-2">
-              <input 
-                type="text" 
-                placeholder="Oder genaue Uhrzeit (z.B. 14:30 Uhr)"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 font-medium text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary text-xs"
-              />
-            </div>
+            {/* Möbellift live preview badge */}
+            {isLift && time && (
+              <div className="p-3 rounded-2xl bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/40 text-blue-900 dark:text-blue-200 text-xs font-bold flex items-center justify-between">
+                <span>Geplanter Einsatz:</span>
+                <span className="font-headline text-primary">
+                  {time} - {endTimePreview} Uhr ({duration} Std.)
+                </span>
+              </div>
+            )}
           </div>
 
-          {/* WhatsApp Direct Notification Option */}
-          <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/80 dark:border-emerald-900/40 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0">
-                <ChatBubbleLeftRightIcon className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-emerald-900 dark:text-emerald-300">
-                  Kunde per WhatsApp informieren
-                </p>
-                <p className="text-[10px] text-emerald-700/80 dark:text-emerald-400">
-                  Senden Sie eine vorformulierte Nachricht mit Datum & Uhrzeit.
-                </p>
-              </div>
-            </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={handleSendWhatsApp}
+            className="px-3.5 py-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 text-xs font-bold flex items-center gap-1.5 transition-colors"
+          >
+            <ChatBubbleLeftRightIcon className="w-4 h-4 text-emerald-600" />
+            <span>Kunde informieren</span>
+          </button>
+
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleSendWhatsApp}
-              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-sm shrink-0 whitespace-nowrap"
+              onClick={onClose}
+              className="px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors"
             >
-              WhatsApp öffnen
+              Abbrechen
+            </button>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isSaving}
+              className="px-5 py-2.5 rounded-2xl bg-primary text-white text-xs font-bold hover:brightness-110 active:scale-95 transition-all shadow-md shadow-primary/20 flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <CheckIcon className="w-4 h-4" />
+              <span>{isSaving ? 'Speichern...' : 'Termin speichern'}</span>
             </button>
           </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-5 py-2.5 rounded-2xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
-          >
-            Abbrechen
-          </button>
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isSaving || !date}
-            className="btn-primary py-2.5 px-6 rounded-2xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-primary/20 disabled:opacity-50"
-          >
-            {isSaving ? (
-              <span>Speichern...</span>
-            ) : (
-              <>
-                <CheckIcon className="w-4 h-4" />
-                <span>Termin festlegen</span>
-              </>
-            )}
-          </button>
-        </div>
       </div>
     </div>
   );
