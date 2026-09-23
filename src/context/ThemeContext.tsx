@@ -11,20 +11,20 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("dark");
+  const [theme, setTheme] = useState<Theme>("light");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-    // Initial load from local storage
-    const storedTheme = localStorage.getItem("rothirsch-theme") as Theme;
-    if (storedTheme) {
-      setTheme(storedTheme);
+    // Standard-Modus: Hell-Modus (Light) as default for system
+    const hasDefaultedToLight = localStorage.getItem("rothirsch-theme-default-v2");
+    if (!hasDefaultedToLight) {
+      localStorage.setItem("rothirsch-theme", "light");
+      localStorage.setItem("rothirsch-theme-default-v2", "true");
+      setTheme("light");
     } else {
-      // Check system preference
-      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-        setTheme("light");
-      }
+      const storedTheme = localStorage.getItem("rothirsch-theme") as Theme;
+      setTheme(storedTheme === "dark" ? "dark" : "light");
     }
   }, []);
 

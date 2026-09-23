@@ -784,18 +784,6 @@ export function CustomerPremiumProfile({
             </button>
 
             {activeOrder && (
-              <button
-                type="button"
-                onClick={() => setDrawerOrder(activeOrder)}
-                className="px-4 py-2.5 rounded-full font-bold text-xs bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-                title="Vollständiges Auftrags-Cockpit & Phasenprüfung im Drawer öffnen"
-              >
-                <AdjustmentsHorizontalIcon className="w-4 h-4" />
-                <span>Cockpit (Drawer)</span>
-              </button>
-            )}
-
-            {activeOrder && (
               <Link
                 href={`/dashboard/customers/${customer.id}/edit-order/${activeOrder.id}`}
                 className="px-5 py-2.5 rounded-full font-bold text-xs bg-[#D91E2A] hover:bg-[#b51822] text-white shadow-md shadow-[#D91E2A]/20 transition-all flex items-center gap-1.5 cursor-pointer"
@@ -813,109 +801,6 @@ export function CustomerPremiumProfile({
             </Link>
           </div>
         </div>
-
-        {/* Integrated 4-Phasen Progress Stepper & Action Recommendation */}
-        {activeOrder && (
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
-            
-            {/* 4-Phasen Stepper */}
-            <div className="flex-1 space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
-                <span className="flex items-center gap-1.5 uppercase tracking-wider text-[11px] font-headline">
-                  <span className="w-2 h-2 rounded-full bg-primary"></span>
-                  Auftragsfortschritt (4 Phasen)
-                </span>
-                <span className="text-slate-900 dark:text-white font-extrabold">
-                  Phase {currentPhaseInfo.phase}: {currentPhaseInfo.label}
-                </span>
-              </div>
-
-              {/* Stepper Steps Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {[
-                  { num: 1, label: '1. Entwurf' },
-                  { num: 2, label: '2. Angebot' },
-                  { num: 3, label: '3. Bestätigt' },
-                  { num: 4, label: '4. Abrechnung' }
-                ].map((st) => {
-                  const isDone = currentPhaseInfo.phase > st.num;
-                  const isCurrent = currentPhaseInfo.phase === st.num;
-                  return (
-                    <div
-                      key={st.num}
-                      className={`p-2.5 rounded-2xl border transition-all flex items-center gap-2.5 ${
-                        isCurrent
-                          ? st.num === 3 
-                            ? 'bg-emerald-500/10 border-emerald-500 text-emerald-900 dark:text-emerald-300 ring-2 ring-emerald-500/20 shadow-xs' 
-                            : st.num === 2 
-                              ? 'bg-amber-500/10 border-amber-500 text-amber-900 dark:text-amber-300 ring-2 ring-amber-500/20 shadow-xs'
-                              : st.num === 4
-                                ? 'bg-purple-500/10 border-purple-500 text-purple-900 dark:text-purple-300 ring-2 ring-purple-500/20 shadow-xs'
-                                : 'bg-blue-500/10 border-blue-500 text-blue-900 dark:text-blue-300 ring-2 ring-blue-500/20 shadow-xs'
-                          : isDone
-                            ? 'bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
-                            : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-400'
-                      }`}
-                    >
-                      <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 text-[11px] font-bold shadow-xs ${
-                        isDone
-                          ? 'bg-emerald-500 text-white'
-                          : isCurrent
-                            ? st.num === 3 ? 'bg-emerald-500 text-white animate-pulse' : st.num === 2 ? 'bg-amber-500 text-white animate-pulse' : 'bg-primary text-white'
-                            : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
-                      }`}>
-                        {isDone ? <CheckIcon className="w-3.5 h-3.5 stroke-[3]" /> : st.num}
-                      </div>
-                      <div className="truncate">
-                        <span className="text-xs font-bold block truncate leading-tight">
-                          {st.label}
-                        </span>
-                        <span className="text-[10px] text-slate-400 block truncate">
-                          {isDone ? 'Erledigt' : isCurrent ? 'Aktive Phase' : 'Ausstehend'}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Smart Next-Step Recommendation */}
-            <div className="lg:w-80 shrink-0 bg-slate-50 dark:bg-slate-800/60 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex flex-col justify-between gap-2 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-headline">
-                  Nächste empfohlene Aktion
-                </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                  {nextStep.badge}
-                </span>
-              </div>
-              <p className="text-xs font-bold text-slate-800 dark:text-slate-200 line-clamp-1">
-                {nextStep.title}
-              </p>
-              <div className="flex items-center gap-2 pt-1">
-                {nextStep.secondaryBtnText && nextStep.onSecondaryAction && (
-                  <button
-                    type="button"
-                    onClick={nextStep.onSecondaryAction}
-                    className="py-2 px-3 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-200 font-bold text-xs border border-slate-200 dark:border-slate-700 transition-colors flex items-center gap-1 cursor-pointer shrink-0"
-                  >
-                    <span>{nextStep.secondaryBtnText}</span>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={nextStep.action}
-                  className="flex-1 py-2 px-3.5 rounded-xl bg-primary hover:bg-[#b51822] text-white font-bold text-xs transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-primary/20 cursor-pointer group"
-                >
-                  <span className="truncate">{nextStep.btnText}</span>
-                  <ArrowRightIcon className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform shrink-0" />
-                </button>
-              </div>
-            </div>
-
-          </div>
-        )}
       </div>
 
       {/* Quick Documents Hub (1-Klick Dokumentenzentrale) */}
@@ -1033,6 +918,280 @@ export function CustomerPremiumProfile({
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Unified Auftrags-Cockpit: Phasen-Steuerung, Empfohlene Aktion & Operative Checkliste */}
+      {activeOrder && (
+        <div className="bg-white dark:bg-slate-900 p-6 md:p-7 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+          
+          {/* 1. Cockpit Header: Phase, Progress & Phasen-Prüfung Drawer Button */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ${
+                completedCount === checklist.length && checklist.length > 0
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                  : 'bg-primary/10 text-primary border border-primary/20'
+              }`}>
+                <ClipboardDocumentCheckIcon className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="font-headline font-extrabold text-base md:text-lg text-slate-900 dark:text-white">
+                    Auftrags-Cockpit & Phasensteuerung
+                  </h2>
+                  <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                    Phase {currentPhaseInfo.phase}: {currentPhaseInfo.label}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Auftrag #{activeOrder.orderNumber || activeOrder.id?.slice(-5).toUpperCase()} • {completedCount} von {checklist.length} Aufgaben erledigt
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 self-end sm:self-auto flex-wrap sm:flex-nowrap">
+              {/* Progress Bar */}
+              <div className="flex items-center gap-2">
+                <div className="w-24 sm:w-32 bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                  <div 
+                    className="bg-emerald-500 h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${checklist.length > 0 ? (completedCount / checklist.length) * 100 : 0}%` }}
+                  />
+                </div>
+                <span className="text-xs font-black text-slate-700 dark:text-slate-200">
+                  {checklist.length > 0 ? Math.round((completedCount / checklist.length) * 100) : 0}%
+                </span>
+              </div>
+
+              {/* Phasen-Prüfung Drawer Button */}
+              <button
+                type="button"
+                onClick={() => setDrawerOrder(activeOrder)}
+                className="px-3.5 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                title="Detaillierte Phasen-Prüfung im Drawer öffnen"
+              >
+                <AdjustmentsHorizontalIcon className="w-4 h-4 text-primary" />
+                <span>Phasen-Prüfung</span>
+              </button>
+            </div>
+          </div>
+
+          {/* 2. 4-Phasen Stepper (Vollbreite) */}
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {[
+                { num: 1, label: '1. Entwurf' },
+                { num: 2, label: '2. Angebot' },
+                { num: 3, label: '3. Bestätigt' },
+                { num: 4, label: '4. Abrechnung' }
+              ].map((st) => {
+                const isDone = currentPhaseInfo.phase > st.num;
+                const isCurrent = currentPhaseInfo.phase === st.num;
+                return (
+                  <div
+                    key={st.num}
+                    className={`p-3 rounded-2xl border transition-all flex items-center gap-3 ${
+                      isCurrent
+                        ? st.num === 3 
+                          ? 'bg-emerald-500/10 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20 shadow-xs' 
+                          : st.num === 2 
+                            ? 'bg-amber-500/10 border-amber-500 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20 shadow-xs'
+                            : st.num === 4
+                              ? 'bg-purple-500/10 border-purple-500 text-purple-900 dark:text-purple-200 ring-2 ring-purple-500/20 shadow-xs'
+                              : 'bg-blue-500/10 border-blue-500 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20 shadow-xs'
+                        : isDone
+                          ? 'bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
+                          : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-400'
+                    }`}
+                  >
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-black shadow-xs ${
+                      isDone
+                        ? 'bg-emerald-500 text-white'
+                        : isCurrent
+                          ? st.num === 3 ? 'bg-emerald-500 text-white animate-pulse' : st.num === 2 ? 'bg-amber-500 text-white animate-pulse' : 'bg-primary text-white'
+                          : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
+                    }`}>
+                      {isDone ? <CheckIcon className="w-4 h-4 stroke-[3]" /> : st.num}
+                    </div>
+                    <div className="truncate min-w-0">
+                      <span className="text-xs font-bold block truncate leading-tight">
+                        {st.label}
+                      </span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">
+                        {isDone ? 'Erledigt' : isCurrent ? 'Aktive Phase' : 'Ausstehend'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 3. Nächste empfohlene Aktion (Volle Breite, kein Abschneiden des roten Buttons) */}
+          <div className="bg-gradient-to-r from-red-500/10 via-amber-500/5 to-slate-50/50 dark:from-red-950/30 dark:via-slate-800/40 dark:to-slate-800/20 p-4 sm:p-5 rounded-2xl border border-red-200/80 dark:border-red-900/40 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
+            <div className="space-y-1 min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary font-headline">
+                  Nächste empfohlene Aktion
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                  {nextStep.badge}
+                </span>
+              </div>
+              <h4 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white leading-snug">
+                {nextStep.title}
+              </h4>
+              {nextStep.desc && (
+                <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 mt-0.5">
+                  {nextStep.desc}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2.5 shrink-0 flex-wrap sm:flex-nowrap">
+              {nextStep.secondaryBtnText && nextStep.onSecondaryAction && (
+                <button
+                  type="button"
+                  onClick={nextStep.onSecondaryAction}
+                  className="py-2.5 px-4 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs border border-slate-200 dark:border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
+                >
+                  <span>{nextStep.secondaryBtnText}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={nextStep.action}
+                className="py-2.5 px-5 rounded-xl bg-primary hover:bg-[#b51822] text-white font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-md shadow-primary/25 cursor-pointer group shrink-0"
+              >
+                <span>{nextStep.btnText}</span>
+                <ArrowRightIcon className="w-4 h-4 group-hover:translate-x-1 transition-transform shrink-0" />
+              </button>
+            </div>
+          </div>
+
+          {/* 4. Operative Aufgaben & Checkliste (Interaktive Chips direkt im Cockpit) */}
+          {checklist.length > 0 && (
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 font-headline flex items-center gap-2">
+                  <span>Operative Checkliste ({currentPhaseInfo.phase === 3 ? 'Phase 3: Umzugsvorbereitung' : currentPhaseInfo.phase === 4 ? 'Phase 4: Durchführung & Abrechnung' : `Phase ${currentPhaseInfo.phase}: ${currentPhaseInfo.label}`})</span>
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    ({completedCount}/{checklist.length} aktiv)
+                  </span>
+                </h3>
+                <span className="text-[11px] text-slate-400 hidden sm:inline">
+                  Klick aktiviert / bearbeitet die Aufgabe
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {checklist.map((item) => {
+                  const isDone = item.done;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleChecklistClick(item)}
+                      className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer select-none group flex flex-col justify-between gap-3 shadow-xs ${
+                        isDone
+                          ? 'bg-emerald-500/10 dark:bg-emerald-950/40 border-emerald-500 text-emerald-950 dark:text-emerald-200 shadow-emerald-500/10'
+                          : item.id === 'signature'
+                            ? 'bg-amber-500/10 border-amber-500 hover:border-amber-600 text-amber-900 dark:text-amber-200'
+                            : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-slate-400 text-slate-700 dark:text-slate-300'
+                      }`}
+                      title={item.missingReason || (isDone ? 'Erledigt (Klicken zum Ändern)' : 'Klicken zum Bearbeiten')}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          {isDone ? (
+                            <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                              <CheckIcon className="w-5 h-5 stroke-[3]" />
+                            </div>
+                          ) : item.id === 'signature' ? (
+                            <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
+                              <PencilSquareIcon className="w-4 h-4" />
+                            </div>
+                          ) : item.id === 'kartons' ? (
+                            <div className="w-8 h-8 rounded-xl bg-orange-100 dark:bg-orange-950/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
+                              <CubeIcon className="w-4 h-4" />
+                            </div>
+                          ) : item.id === 'hvz' ? (
+                            <div className="w-8 h-8 rounded-xl bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                              <TruckIcon className="w-4 h-4" />
+                            </div>
+                          ) : item.id === 'moebellift' ? (
+                            <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
+                              <BuildingOfficeIcon className="w-4 h-4" />
+                            </div>
+                          ) : item.id === 'team' ? (
+                            <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                              <UserGroupIcon className="w-4 h-4" />
+                            </div>
+                          ) : (
+                            <div className="w-8 h-8 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-500 flex items-center justify-center shrink-0">
+                              <ClipboardDocumentCheckIcon className="w-4 h-4" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <span className={`text-xs font-extrabold block truncate leading-tight ${
+                              isDone ? 'text-emerald-700 dark:text-emerald-300' : ''
+                            }`}>
+                              {item.id === 'kartons' ? 'Umzugskartons' :
+                               item.id === 'hvz' ? 'Halteverbot (HVZ)' :
+                               item.id === 'moebellift' ? 'Möbellift' :
+                               item.id === 'team' ? 'Umzugsteam' :
+                               item.id === 'signature' ? 'Vertragsunterschrift' :
+                               item.id === 'address' ? 'Adressen (A & B)' :
+                               item.id === 'protocol' ? 'Übergabeprotokoll' :
+                               item.id === 'invoice' ? 'Rechnung' :
+                               item.id === 'payment' ? 'Zahlung' :
+                               item.id === 'viewing_date' ? 'Besichtigung' :
+                               item.id === 'data_verified' ? 'Stammdaten' : item.label}
+                            </span>
+                            <span className="text-[10px] text-slate-400 block line-clamp-1">
+                              {item.details || item.label}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Bottom Status Pill */}
+                      <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 dark:border-slate-800/60 mt-1">
+                        <span className={`text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1 ${
+                          isDone 
+                            ? 'text-emerald-600 dark:text-emerald-400 font-black' 
+                            : item.id === 'signature' 
+                              ? 'text-amber-600 dark:text-amber-400' 
+                              : 'text-slate-400'
+                        }`}>
+                          {isDone ? (
+                            <>
+                              <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-500" />
+                              <span>Erledigt</span>
+                            </>
+                          ) : item.id === 'signature' ? (
+                            <>
+                              <PencilSquareIcon className="w-3.5 h-3.5 text-amber-500" />
+                              <span>Jetzt signieren</span>
+                            </>
+                          ) : (
+                            <span>Offen</span>
+                          )}
+                        </span>
+                        <span className={`text-[10px] font-semibold transition-colors ${
+                          isDone ? 'text-emerald-600/70 hover:text-emerald-600' : 'text-slate-400 group-hover:text-primary'
+                        }`}>
+                          {isDone ? 'Ändern' : 'Aktivieren ➔'}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
         </div>
       )}
 
@@ -1243,162 +1402,7 @@ export function CustomerPremiumProfile({
             </div>
           </div>
 
-          {/* Operative Umzugsvorbereitung & Checkliste (Phase-spezifisch mit grünem Aktivierungsstatus) */}
-          {activeOrder && checklist.length > 0 && (
-            <div className="bg-white dark:bg-slate-900 p-6 md:p-7 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
-                <div className="flex items-center gap-2.5">
-                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${
-                    completedCount === checklist.length 
-                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
-                      : 'bg-primary/10 text-primary'
-                  }`}>
-                    <CheckCircleIcon className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h3 className="font-headline font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
-                      <span>Operative Aufgaben ({currentPhaseInfo.phase === 3 ? 'Phase 3: Umzugsvorbereitung' : currentPhaseInfo.phase === 4 ? 'Phase 4: Durchführung & Abrechnung' : `Phase ${currentPhaseInfo.phase}: ${currentPhaseInfo.label}`})</span>
-                    </h3>
-                    <p className="text-xs text-slate-400">
-                      {completedCount} von {checklist.length} Aufgaben erledigt
-                    </p>
-                  </div>
-                </div>
 
-                {/* Completion Progress Bar & Cockpit Drawer Button */}
-                <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap sm:flex-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => setDrawerOrder(activeOrder)}
-                    className="px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-                    title="Auftrags-Cockpit mit 4-Phasen-Prüfung und Details öffnen"
-                  >
-                    <AdjustmentsHorizontalIcon className="w-4 h-4" />
-                    <span className="hidden sm:inline">Cockpit & Prüfung (Drawer)</span>
-                    <span className="sm:hidden">Cockpit</span>
-                  </button>
-
-                  <div className="flex items-center gap-2">
-                    <div className="w-20 sm:w-28 bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                      <div 
-                        className="bg-emerald-500 h-2.5 rounded-full transition-all duration-300"
-                        style={{ width: `${checklist.length > 0 ? (completedCount / checklist.length) * 100 : 0}%` }}
-                      />
-                    </div>
-                    <span className="text-xs font-extrabold text-slate-700 dark:text-slate-200">
-                      {checklist.length > 0 ? Math.round((completedCount / checklist.length) * 100) : 0}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Interactive Task Chips Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {checklist.map((item) => {
-                  const isDone = item.done;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => handleChecklistClick(item)}
-                      className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer select-none group flex flex-col justify-between gap-3 shadow-xs ${
-                        isDone
-                          ? 'bg-emerald-500/10 dark:bg-emerald-950/40 border-emerald-500 text-emerald-950 dark:text-emerald-200 shadow-emerald-500/10'
-                          : item.id === 'signature'
-                            ? 'bg-amber-500/10 border-amber-500 hover:border-amber-600 text-amber-900 dark:text-amber-200'
-                            : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-slate-400 text-slate-700 dark:text-slate-300'
-                      }`}
-                      title={item.missingReason || (isDone ? 'Erledigt (Klicken zum Ändern)' : 'Klicken zum Bearbeiten')}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {isDone ? (
-                            <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                              <CheckIcon className="w-5 h-5 stroke-[3]" />
-                            </div>
-                          ) : item.id === 'signature' ? (
-                            <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                              <PencilSquareIcon className="w-4 h-4" />
-                            </div>
-                          ) : item.id === 'kartons' ? (
-                            <div className="w-8 h-8 rounded-xl bg-orange-100 dark:bg-orange-950/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
-                              <CubeIcon className="w-4 h-4" />
-                            </div>
-                          ) : item.id === 'hvz' ? (
-                            <div className="w-8 h-8 rounded-xl bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-                              <TruckIcon className="w-4 h-4" />
-                            </div>
-                          ) : item.id === 'moebellift' ? (
-                            <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
-                              <BuildingOfficeIcon className="w-4 h-4" />
-                            </div>
-                          ) : item.id === 'team' ? (
-                            <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-                              <UserGroupIcon className="w-4 h-4" />
-                            </div>
-                          ) : (
-                            <div className="w-8 h-8 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-500 flex items-center justify-center shrink-0">
-                              <ClipboardDocumentCheckIcon className="w-4 h-4" />
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <span className={`text-xs font-extrabold block truncate leading-tight ${
-                              isDone ? 'text-emerald-700 dark:text-emerald-300' : ''
-                            }`}>
-                              {item.id === 'kartons' ? 'Umzugskartons' :
-                               item.id === 'hvz' ? 'Halteverbot (HVZ)' :
-                               item.id === 'moebellift' ? 'Möbellift' :
-                               item.id === 'team' ? 'Umzugsteam' :
-                               item.id === 'signature' ? 'Vertragsunterschrift' :
-                               item.id === 'address' ? 'Adressen (A & B)' :
-                               item.id === 'protocol' ? 'Übergabeprotokoll' :
-                               item.id === 'invoice' ? 'Rechnung' :
-                               item.id === 'payment' ? 'Zahlung' :
-                               item.id === 'viewing_date' ? 'Besichtigung' :
-                               item.id === 'data_verified' ? 'Stammdaten' : item.label}
-                            </span>
-                            <span className="text-[10px] text-slate-400 block line-clamp-1">
-                              {item.details || item.label}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Bottom Status Pill */}
-                      <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 dark:border-slate-800/60 mt-1">
-                        <span className={`text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1 ${
-                          isDone 
-                            ? 'text-emerald-600 dark:text-emerald-400 font-black' 
-                            : item.id === 'signature' 
-                              ? 'text-amber-600 dark:text-amber-400' 
-                              : 'text-slate-400'
-                        }`}>
-                          {isDone ? (
-                            <>
-                              <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-500" />
-                              <span>Erledigt</span>
-                            </>
-                          ) : item.id === 'signature' ? (
-                            <>
-                              <PencilSquareIcon className="w-3.5 h-3.5 text-amber-500" />
-                              <span>Jetzt signieren</span>
-                            </>
-                          ) : (
-                            <span>Offen</span>
-                          )}
-                        </span>
-                        <span className={`text-[10px] font-semibold transition-colors ${
-                          isDone ? 'text-emerald-600/70 hover:text-emerald-600' : 'text-slate-400 group-hover:text-primary'
-                        }`}>
-                          {isDone ? 'Ändern' : 'Aktivieren ➔'}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           {/* Smart Logistics & Multi-Stop Route Engine (Bochum Depot Roundtrip) */}
           <div className="bg-white dark:bg-slate-900 p-6 md:p-7 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">

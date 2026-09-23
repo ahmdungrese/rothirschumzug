@@ -3,55 +3,9 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ============================================
-   DESIGN TOKENS — Dark Mode (Default)
+   DESIGN TOKENS — Light Mode (Default)
    ============================================ */
 :root,
-:root.dark,
-:root.dark-mode {
-  color-scheme: dark;
-  --color-primary:            #D91E2A;
-  --color-primary-hover:      #b81520;
-  --color-brand-primary:      #D91E2A;
-  
-  --color-background-dark:    #0B0F15;
-  --color-background-panel:   #111720;
-  --color-background-card:    #161F2C;
-  --color-structure:          rgba(255, 255, 255, 0.08);
-  --color-inactive:           #273B4B;
-  --color-text-main:          #F8FAFC;
-  --color-text-muted:         #94A3B8;
-  --color-doc-bg:             #161F2C;
-
-  /* Google Studio Mockup Tokens (Dark) */
-  --surface-container-lowest: #10161F;
-  --surface-container-low:    #141C27;
-  --surface-container:        #1A2432;
-  --surface-container-high:   #202D3E;
-  --surface-container-highest:#29384D;
-  --on-background:            #F8FAFC;
-  --on-surface:               #E2E8F0;
-  --on-surface-variant:       #94A3B8;
-  --outline-variant:          rgba(255, 255, 255, 0.12);
-  --outline:                  rgba(255, 255, 255, 0.25);
-
-  --lm-card:                  #161F2C;
-  --lm-inset:                 rgba(0,0,0,0.30);
-  --lm-hover:                 rgba(255,255,255,0.06);
-  --lm-border-subtle:         rgba(255,255,255,0.08);
-  --lm-border-medium:         rgba(255,255,255,0.14);
-  --lm-scrollbar:             rgba(255,255,255,0.15);
-  --lm-scrollbar-hover:       rgba(255,255,255,0.30);
-  --lm-sidebar-header:        #070A0E;
-  --lm-text-on-dark:          #FFFFFF;
-  --lm-kanban-col:            #10161F;
-  --lm-kanban-col-border:     rgba(255,255,255,0.08);
-  --lm-kanban-card-from:      #161F2C;
-  --lm-kanban-card-to:        #111720;
-}
-
-/* ============================================
-   DESIGN TOKENS — Light Mode
-   ============================================ */
 :root.light,
 :root.light-mode {
   color-scheme: light;
@@ -93,6 +47,52 @@
   --lm-kanban-col-border:     #E2E8F0;
   --lm-kanban-card-from:      #FFFFFF;
   --lm-kanban-card-to:        #F8FAFC;
+}
+
+/* ============================================
+   DESIGN TOKENS — Dark Mode
+   ============================================ */
+:root.dark,
+:root.dark-mode {
+  color-scheme: dark;
+  --color-primary:            #D91E2A;
+  --color-primary-hover:      #b81520;
+  --color-brand-primary:      #D91E2A;
+  
+  --color-background-dark:    #0B0F15;
+  --color-background-panel:   #111720;
+  --color-background-card:    #161F2C;
+  --color-structure:          rgba(255, 255, 255, 0.08);
+  --color-inactive:           #273B4B;
+  --color-text-main:          #F8FAFC;
+  --color-text-muted:         #94A3B8;
+  --color-doc-bg:             #161F2C;
+
+  /* Google Studio Mockup Tokens (Dark) */
+  --surface-container-lowest: #10161F;
+  --surface-container-low:    #141C27;
+  --surface-container:        #1A2432;
+  --surface-container-high:   #202D3E;
+  --surface-container-highest:#29384D;
+  --on-background:            #F8FAFC;
+  --on-surface:               #E2E8F0;
+  --on-surface-variant:       #94A3B8;
+  --outline-variant:          rgba(255, 255, 255, 0.12);
+  --outline:                  rgba(255, 255, 255, 0.25);
+
+  --lm-card:                  #161F2C;
+  --lm-inset:                 rgba(0,0,0,0.30);
+  --lm-hover:                 rgba(255,255,255,0.06);
+  --lm-border-subtle:         rgba(255,255,255,0.08);
+  --lm-border-medium:         rgba(255,255,255,0.14);
+  --lm-scrollbar:             rgba(255,255,255,0.15);
+  --lm-scrollbar-hover:       rgba(255,255,255,0.30);
+  --lm-sidebar-header:        #070A0E;
+  --lm-text-on-dark:          #FFFFFF;
+  --lm-kanban-col:            #10161F;
+  --lm-kanban-col-border:     rgba(255,255,255,0.08);
+  --lm-kanban-card-from:      #161F2C;
+  --lm-kanban-card-to:        #111720;
 }
 
 /* Globale Fixes für Select-Optionen */

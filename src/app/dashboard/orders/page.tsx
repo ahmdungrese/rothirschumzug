@@ -92,13 +92,7 @@ export default function OrdersPage() {
     <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-text-main">Aufträge & Planung</h1>
-            <span className="text-xs font-extrabold text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              v2.4.0
-            </span>
-          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-text-main">Aufträge & Planung</h1>
           <p className="text-text-muted mt-1">Verwalten Sie Angebote, teilen Sie Fahrzeuge/Mitarbeiter ein und erstellen Sie Rechnungen.</p>
         </div>
         <Link 

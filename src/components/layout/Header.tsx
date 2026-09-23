@@ -21,11 +21,6 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
           >
             <Bars3Icon className="w-6 h-6" />
           </button>
-          <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-[11px] font-bold border border-primary/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            <span>Rothirsch ERP</span>
-            <span className="font-mono text-[10px] opacity-80">v2.4.0</span>
-          </span>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4 lg:gap-6">

@@ -42,7 +42,7 @@ export default function RootLayout({
   return (
     <html
       lang="de"
-      className={`${plusJakartaSans.variable} ${anybody.variable} h-full antialiased`}
+      className={`${plusJakartaSans.variable} ${anybody.variable} h-full antialiased light light-mode`}
       suppressHydrationWarning
     >
       <head>
@@ -52,7 +52,7 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
         />
       </head>
-      <body className="h-full flex flex-col bg-bg-dark text-text-main">
+      <body className="h-full flex flex-col bg-slate-50 dark:bg-bg-dark text-slate-900 dark:text-text-main">
         <NetworkMonitor />
         <PwaRegister />
         <Providers>{children}</Providers>
