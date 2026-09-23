@@ -42,11 +42,11 @@ export function ActivityFeed() {
 
   const getIcon = (action: string) => {
     switch (action) {
-      case 'LOGIN': return <ClockIcon className="w-5 h-5 text-blue-400" />;
-      case 'CREATE_CUSTOMER': return <UserPlusIcon className="w-5 h-5 text-emerald-400" />;
-      case 'CREATE_ORDER': return <DocumentTextIcon className="w-5 h-5 text-orange-400" />;
-      case 'UPDATE_ORDER': return <CheckBadgeIcon className="w-5 h-5 text-purple-400" />;
-      default: return <ClipboardDocumentListIcon className="w-5 h-5 text-text-muted" />;
+      case 'LOGIN': return <ClockIcon className="w-4 h-4 text-blue-400" />;
+      case 'CREATE_CUSTOMER': return <UserPlusIcon className="w-4 h-4 text-emerald-400" />;
+      case 'CREATE_ORDER': return <DocumentTextIcon className="w-4 h-4 text-orange-400" />;
+      case 'UPDATE_ORDER': return <CheckBadgeIcon className="w-4 h-4 text-purple-400" />;
+      default: return <ClipboardDocumentListIcon className="w-4 h-4 text-text-muted" />;
     }
   };
 
@@ -70,64 +70,77 @@ export function ActivityFeed() {
     <div className="relative" ref={dropdownRef}>
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-text-muted hover:text-text-main hover:bg-structure/30 rounded-lg transition-colors"
+        className="relative p-2 text-text-muted hover:text-text-main hover:bg-structure/40 rounded-xl transition-colors cursor-pointer"
         title="Aktivitäten-Verlauf (Audit)"
       >
-        <ClipboardDocumentListIcon className="w-6 h-6" />
+        <ClipboardDocumentListIcon className="w-5 h-5 sm:w-6 sm:h-6" />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-bg-dark/95 backdrop-blur-xl border border-structure shadow-2xl rounded-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="p-3 bg-bg-dark border-b border-structure flex justify-between items-center">
-            <h3 className="font-semibold text-text-main">Aktivitäten (Audit)</h3>
-            <div className="flex items-center gap-2">
-              <span className="text-xs bg-structure text-text-muted px-2 py-1 rounded-md">{activities.length} Logs</span>
-              {activities.length > 0 && (
-                <button 
-                  onClick={handleDeleteAll}
-                  className="p-1.5 text-text-muted hover:text-red-400 hover:bg-red-400/10 rounded-md transition-colors"
-                  title="Alle Aktivitäten löschen"
-                >
-                  <TrashIcon className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          </div>
-          
-          <div className="max-h-96 overflow-y-auto custom-scrollbar">
-            {activities.length === 0 ? (
-              <div className="p-6 text-center text-text-muted flex flex-col items-center">
-                <ClipboardDocumentListIcon className="w-10 h-10 text-text-muted/30 mb-2" />
-                <p>Noch keine Aktivitäten.</p>
+        <>
+          {/* Mobile Backdrop Overlay - Identical to Dispo-Warnungen */}
+          <div 
+            onClick={() => setIsOpen(false)} 
+            className="fixed inset-0 bg-black/60 z-40 sm:hidden backdrop-blur-xs animate-in fade-in duration-200" 
+          />
+
+          {/* Activity Menu Container - Identical structure & positioning as Dispo-Warnungen */}
+          <div className="fixed inset-x-3 top-16 sm:inset-auto sm:right-0 sm:mt-2 sm:absolute w-auto sm:w-96 max-w-[calc(100vw-24px)] bg-bg-panel border border-structure shadow-2xl rounded-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="p-3.5 bg-bg-panel border-b border-structure flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <ClipboardDocumentListIcon className="w-4 h-4 text-primary" />
+                <h3 className="font-bold text-xs sm:text-sm font-headline text-text-main">Aktivitäten (Audit)</h3>
               </div>
-            ) : (
-              <div className="divide-y divide-structure/50">
-                {activities.map((act) => (
-                  <div key={act.id} className="block p-3 hover:bg-structure/20 transition-colors">
-                    <div className="flex gap-3">
-                      <div className="mt-0.5 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold bg-primary/10 text-primary px-2.5 py-0.5 rounded-full border border-primary/20 font-headline">
+                  {activities.length} Logs
+                </span>
+                {activities.length > 0 && (
+                  <button 
+                    onClick={handleDeleteAll}
+                    className="p-1.5 text-text-muted hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors cursor-pointer"
+                    title="Alle Aktivitäten löschen"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+            
+            <div className="max-h-[70vh] sm:max-h-96 overflow-y-auto custom-scrollbar divide-y divide-structure">
+              {activities.length === 0 ? (
+                <div className="p-8 text-center text-text-muted flex flex-col items-center">
+                  <ClipboardDocumentListIcon className="w-10 h-10 text-text-muted/40 mb-2" />
+                  <p className="font-semibold text-text-main text-sm">Noch keine Aktivitäten</p>
+                  <p className="text-xs text-text-muted mt-1">Systemereignisse und Änderungen werden hier protokolliert.</p>
+                </div>
+              ) : (
+                activities.map((act) => (
+                  <div key={act.id} className="block p-3.5 sm:p-4 hover:bg-structure/20 transition-colors">
+                    <div className="flex gap-3 items-start">
+                      <div className="mt-0.5 shrink-0 p-1.5 rounded-xl bg-structure/40">
                         {getIcon(act.action)}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-start">
-                          <span className="text-xs font-bold text-text-main truncate pr-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex justify-between items-start gap-2">
+                          <h4 className="text-xs sm:text-sm font-bold font-headline text-text-main truncate">
                             {act.userName || 'System'}
-                          </span>
-                          <span className="text-[10px] text-text-muted whitespace-nowrap">
+                          </h4>
+                          <span className="text-[10px] text-text-muted shrink-0 whitespace-nowrap">
                             {formatTime(act.timestamp)}
                           </span>
                         </div>
-                        <p className="text-xs text-text-muted mt-0.5 leading-snug">
+                        <p className="text-xs text-text-muted mt-0.5 leading-snug break-words">
                           {act.details}
                         </p>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                ))
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

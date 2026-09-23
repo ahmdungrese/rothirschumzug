@@ -1,14 +1,14 @@
 "use client";
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { HomeIcon, UsersIcon, DocumentTextIcon, Cog8ToothIcon } from '@heroicons/react/24/outline';
-import { HomeIcon as HomeSolid, UsersIcon as UsersSolid, DocumentTextIcon as DocumentSolid, Cog8ToothIcon as CogSolid } from '@heroicons/react/24/solid';
+import { HomeIcon, TruckIcon, UsersIcon, CalendarDaysIcon } from '@heroicons/react/24/outline';
+import { HomeIcon as HomeSolid, TruckIcon as TruckSolid, UsersIcon as UsersSolid, CalendarDaysIcon as CalendarDaysSolid } from '@heroicons/react/24/solid';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon, activeIcon: HomeSolid },
-  { name: 'Kunden', href: '/dashboard/customers', icon: UsersIcon, activeIcon: UsersSolid },
-  { name: 'Angebote', href: '/dashboard/orders', icon: DocumentTextIcon, activeIcon: DocumentSolid },
-  { name: 'Settings', href: '/dashboard/settings', icon: Cog8ToothIcon, activeIcon: CogSolid },
+  { name: 'Logistik', href: '/dashboard/logistics', icon: TruckIcon, activeIcon: TruckSolid },
+  { name: 'Kunde', href: '/dashboard/customers', icon: UsersIcon, activeIcon: UsersSolid },
+  { name: 'Kalender', href: '/dashboard/calendar', icon: CalendarDaysIcon, activeIcon: CalendarDaysSolid },
 ];
 
 export function BottomNav() {
