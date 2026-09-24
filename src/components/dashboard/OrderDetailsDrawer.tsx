@@ -651,7 +651,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
-                    onClick={() => handleOpenMessage('Erstkontakt (Bilder')}
+                    onClick={() => handleOpenMessage('t1')}
                     className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-primary text-left transition-all group"
                   >
                     <div className="flex items-center justify-between mb-1">
@@ -666,7 +666,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                   </button>
 
                   <button
-                    onClick={() => handleOpenMessage('Erstkontakt (Keine Bilder')}
+                    onClick={() => handleOpenMessage('t2')}
                     className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-primary text-left transition-all group"
                   >
                     <div className="flex items-center justify-between mb-1">
@@ -881,7 +881,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                     <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-900/40 flex items-center gap-2">
                       <Link
                         href={`${editOrderUrl}${editOrderUrl.includes('?') ? '&' : '?'}step=4`}
-                        className="flex-1 py-2 px-3 rounded-xl bg-primary text-white text-xs font-bold flex items-center justify-center gap-1.5 hover:brightness-110 shadow-xs"
+                        className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors"
                       >
                         <span className="material-symbols-outlined text-sm">chair</span>
                         <span>Besichtigung starten (Umzugsliste)</span>
@@ -893,7 +893,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                             const timeText = order.orderMeta?.viewingTime ? ` (${order.orderMeta.viewingTime})` : '';
                             handleDirectWhatsApp(`Hallo ${custName}, ich bin pünktlich auf dem Weg zu Ihnen für unseren Besichtigungstermin${timeText}. Bis gleich!`);
                           }}
-                          className="px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 hover:bg-emerald-700 transition-colors"
+                          className="px-3 py-2 rounded-xl bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 hover:bg-emerald-800 transition-colors"
                           title="Ich bin unterwegs senden"
                         >
                           <ChatBubbleLeftRightIcon className="w-4 h-4" />
@@ -909,10 +909,10 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                     </p>
                     <Link
                       href={`${editOrderUrl}${editOrderUrl.includes('?') ? '&' : '?'}step=4`}
-                      className="w-full py-2 px-3 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                      className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs"
                     >
                       <span className="material-symbols-outlined text-sm">chair</span>
-                      <span>Direkt zu Umzugsliste & Möbeln</span>
+                      <span>Besichtigung starten (Umzugsliste)</span>
                     </Link>
                   </div>
                 )}
@@ -926,7 +926,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
-                    onClick={() => handleOpenMessage('Angebot schicken')}
+                    onClick={() => handleOpenMessage('t3')}
                     className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-primary text-left transition-all group"
                   >
                     <div className="flex items-center justify-between mb-1">
@@ -941,7 +941,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                   </button>
 
                   <button
-                    onClick={() => handleOpenMessage('Nachfrage')}
+                    onClick={() => handleOpenMessage('t4')}
                     className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-primary text-left transition-all group"
                   >
                     <div className="flex items-center justify-between mb-1">
@@ -956,7 +956,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                   </button>
 
                   <button
-                    onClick={() => handleOpenMessage('Aktualisiertes')}
+                    onClick={() => handleOpenMessage('t5')}
                     className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-primary text-left transition-all group"
                   >
                     <div className="flex items-center justify-between mb-1">
@@ -971,7 +971,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                   </button>
 
                   <button
-                    onClick={() => handleOpenMessage('Absage')}
+                    onClick={() => handleOpenMessage('t6')}
                     className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-red-400 text-left transition-all group"
                   >
                     <div className="flex items-center justify-between mb-1">
@@ -1274,7 +1274,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
-                    onClick={() => handleOpenMessage('Bestätigung')}
+                    onClick={() => handleOpenMessage('t7')}
                     className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-emerald-500 text-left transition-all group"
                   >
                     <div className="flex items-center justify-between mb-1">
@@ -1289,7 +1289,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                   </button>
 
                   <button
-                    onClick={() => handleOpenMessage('Zeit des Umzugs')}
+                    onClick={() => handleOpenMessage('t8')}
                     className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-emerald-500 text-left transition-all group"
                   >
                     <div className="flex items-center justify-between mb-1">
@@ -1379,7 +1379,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <button
-                    onClick={() => handleOpenMessage('Rechnung schicken')}
+                    onClick={() => handleOpenMessage('t9')}
                     className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-primary text-left transition-all group"
                   >
                     <div className="flex items-center justify-between mb-1">
@@ -1394,7 +1394,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                   </button>
 
                   <button
-                    onClick={() => handleOpenMessage('Bewertung')}
+                    onClick={() => handleOpenMessage('t10')}
                     className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-primary text-left transition-all group"
                   >
                     <div className="flex items-center justify-between mb-1">

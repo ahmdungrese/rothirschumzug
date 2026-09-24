@@ -14,14 +14,17 @@ import {
   MagnifyingGlassIcon,
   MapPinIcon,
   ArrowPathIcon,
-  ShieldCheckIcon,
   ExclamationCircleIcon,
-  ShoppingCartIcon,
   ChatBubbleLeftRightIcon,
-  PhoneIcon,
   BuildingOfficeIcon,
   TruckIcon,
-  HomeIcon
+  HomeIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  Squares2X2Icon,
+  QueueListIcon,
+  CubeIcon,
+  DocumentTextIcon
 } from '@heroicons/react/24/outline';
 import { generateTickets, SystemTicket } from '@/lib/ticketEngine';
 import { toggleTaskCompletion } from '@/lib/taskStateController';
@@ -31,7 +34,6 @@ import toast from 'react-hot-toast';
 export default function LogisticsPage() {
   const { user, profile } = useAuth();
   const { theme } = useTheme();
-  const isLight = theme === 'light';
 
   const [activeTodos, setActiveTodos] = useState<SystemTicket[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
@@ -44,11 +46,20 @@ export default function LogisticsPage() {
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'viewing' | 'kartons' | 'halteverbot' | 'moebellift' | 'rechnung'>('all');
   // Search query
   const [searchQuery, setSearchQuery] = useState('');
+  // View Mode: 'compact' (Compact Symbol Cards with Accordion) vs 'grouped' (Bundled by Customer/Order)
+  const [viewMode, setViewMode] = useState<'compact' | 'grouped'>('compact');
+  // Track expanded cards/details by key
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
 
   // Modal state for scheduling
   const [modalTodo, setModalTodo] = useState<any>(null);
   const [modalOrder, setModalOrder] = useState<any>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const toggleExpandCard = (key: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setExpandedCards(prev => ({ ...prev, [key]: !prev[key] }));
+  };
 
   useEffect(() => {
     const qOrders = query(collection(db, 'orders'));
@@ -149,14 +160,14 @@ export default function LogisticsPage() {
 
       // 3. Search Filter
       if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
+        const queryStr = searchQuery.toLowerCase();
         const parentOrder = orders.find(o => o.id === t.orderId);
         const custName = (t.customerName || '').toLowerCase();
         const title = (t.title || '').toLowerCase();
         const orderNum = (parentOrder?.orderNumber || t.orderId || '').toLowerCase();
         const city = `${parentOrder?.logistics?.a_city || ''} ${parentOrder?.logistics?.b_city || ''}`.toLowerCase();
         
-        return custName.includes(query) || title.includes(query) || orderNum.includes(query) || city.includes(query);
+        return custName.includes(queryStr) || title.includes(queryStr) || orderNum.includes(queryStr) || city.includes(queryStr);
       }
 
       return true;
@@ -172,6 +183,27 @@ export default function LogisticsPage() {
       return 0;
     });
   }, [filteredTasks]);
+
+  // Group tasks by orderId for the 'grouped' view mode
+  const groupedOrders = useMemo(() => {
+    const map = new Map<string, { order: any; customer: any; custName: string; tasks: SystemTicket[] }>();
+    sortedTasks.forEach(todo => {
+      const key = todo.orderId || todo.customerId || todo.customerName || 'unbekannt';
+      if (!map.has(key)) {
+        const parentOrder = orders.find(o => o.id === todo.orderId);
+        const customer = parentOrder ? customers[parentOrder.customerId] : null;
+        const custName = todo.customerName || (customer ? `${customer.firstName || ''} ${customer.lastName || ''}`.trim() : 'Kunde');
+        map.set(key, {
+          order: parentOrder,
+          customer,
+          custName,
+          tasks: []
+        });
+      }
+      map.get(key)!.tasks.push(todo);
+    });
+    return Array.from(map.entries()).map(([key, val]) => ({ key, ...val }));
+  }, [sortedTasks, orders, customers]);
 
   // Handle task completion toggle
   const handleToggleTask = async (todo: SystemTicket, e: React.MouseEvent) => {
@@ -230,7 +262,7 @@ export default function LogisticsPage() {
     materials.forEach((m: any) => {
       const name = (m.name || m.type || '').toLowerCase();
       const count = parseInt(m.quantity || m.count || 0) || 0;
-      if (name.includes('bÃ¼cher') || name.includes('buecher') || name.includes('buch')) {
+      if (name.includes('bücher') || name.includes('buecher') || name.includes('buch')) {
         buecher += count;
       } else if (name.includes('kleider')) {
         kleider += count;
@@ -247,7 +279,7 @@ export default function LogisticsPage() {
       order.services.forEach((s: any) => {
         const name = (s.name || '').toLowerCase();
         const count = parseInt(s.quantity || s.count || 0) || 0;
-        if (name.includes('bÃ¼cher') || name.includes('buecher') || name.includes('buch')) {
+        if (name.includes('bücher') || name.includes('buecher') || name.includes('buch')) {
           buecher += count;
         } else if (name.includes('kleider')) {
           kleider += count;
@@ -271,22 +303,65 @@ export default function LogisticsPage() {
     };
   };
 
-  // Badge helpers
-  const getCategoryMeta = (todo: SystemTicket) => {
+  // Symbol & Badge helper for each category (Zero Red, clean icons & concise labels)
+  const getCategoryMeta = (todo: SystemTicket, parentOrder: any) => {
     if (todo.id === 'viewing_requested') {
-      return { label: 'Besichtigung', color: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20' };
+      return {
+        label: 'Besichtigung',
+        shortInfo: parentOrder?.orderMeta?.viewingType || 'Vor-Ort',
+        symbol: 'chair',
+        color: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/25',
+        iconBg: 'bg-purple-500/15 text-purple-600 dark:text-purple-400'
+      };
     }
     switch (todo.kanbanCategory) {
-      case 'kartons':
-        return { label: 'Kartons', color: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20' };
-      case 'halteverbot':
-        return { label: 'Halteverbot', color: 'bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20' };
-      case 'moebellift':
-        return { label: 'Möbellift', color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' };
+      case 'kartons': {
+        const mat = getMaterialsSummary(parentOrder);
+        return {
+          label: 'Kartons',
+          shortInfo: mat.total > 0 ? `${mat.total} Stk.` : 'Material',
+          symbol: 'inventory_2',
+          color: 'bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/25',
+          iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400'
+        };
+      }
+      case 'halteverbot': {
+        const hvzLoc = parentOrder?.orderMeta?.hvzLocation || (parentOrder?.logistics?.hvz_b && !parentOrder?.logistics?.hvz_a ? 'b' : parentOrder?.logistics?.hvz_a && parentOrder?.logistics?.hvz_b ? 'both' : 'a');
+        const locLabel = hvzLoc === 'both' ? 'A & B' : hvzLoc === 'b' ? 'Ort B' : 'Ort A';
+        return {
+          label: 'Halteverbot',
+          shortInfo: `HVZ (${locLabel})`,
+          symbol: 'local_parking',
+          color: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25',
+          iconBg: 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+        };
+      }
+      case 'moebellift': {
+        const liftDur = parentOrder?.orderMeta?.moebelliftDuration || '3';
+        return {
+          label: 'Möbellift',
+          shortInfo: `${liftDur} Std.`,
+          symbol: 'elevator',
+          color: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/25',
+          iconBg: 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
+        };
+      }
       case 'rechnung':
-        return { label: 'Rechnung', color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' };
+        return {
+          label: 'Rechnung',
+          shortInfo: 'Abrechnung',
+          symbol: 'receipt_long',
+          color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25',
+          iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+        };
       default:
-        return { label: 'Logistik', color: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700' };
+        return {
+          label: 'Logistik',
+          shortInfo: 'Aufgabe',
+          symbol: 'task_alt',
+          color: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700',
+          iconBg: 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+        };
     }
   };
 
@@ -322,60 +397,92 @@ export default function LogisticsPage() {
 
     let formattedDate = date;
     try {
-      formattedDate = new Date(date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      formattedDate = new Date(date).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
     } catch {}
 
     return {
       date: formattedDate,
-      time: time || 'Ohne Zeitangabe'
+      time: time || ''
     };
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-emerald-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-full px-4 md:px-8 space-y-6 animate-in fade-in duration-300 pb-16 min-h-screen">
-      {/* Modern Compact Header & Search Bar (matches Kanban Disposition Board) */}
+    <div className="w-full max-w-full px-4 md:px-8 space-y-5 animate-in fade-in duration-300 pb-16 min-h-screen">
+      {/* Clean Header & Search Bar (Zero Red — Emerald & Slate Palette) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900/80 px-4 py-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="flex items-center justify-between sm:justify-start gap-3">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <h1 className="text-base sm:text-xl font-extrabold font-headline text-slate-900 dark:text-white">
               Logistik-Einsatzplan
             </h1>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full border border-primary/20">
+            <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/25">
               {openCount} Offen
             </span>
             {completedCount > 0 && (
-              <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
                 {completedCount} Erledigt
               </span>
             )}
           </div>
         </div>
 
-        {/* Compact Search Bar */}
-        <div className="relative w-full sm:w-72">
-          <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Kunde, Stadt, Auftragsnr..."
-            className="w-full pl-9 pr-4 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary placeholder:text-slate-400"
-          />
+        <div className="flex items-center gap-2">
+          {/* View Mode Toggle: Einzelkarten (Compact Symbols) vs Nach Kunde bündeln */}
+          <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0">
+            <button
+              type="button"
+              onClick={() => setViewMode('compact')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                viewMode === 'compact'
+                  ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+              }`}
+              title="Kompakte Symbol-Karten"
+            >
+              <Squares2X2Icon className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Symbole</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('grouped')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                viewMode === 'grouped'
+                  ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+              }`}
+              title="Aufgaben pro Kunde zusammenfassen"
+            >
+              <QueueListIcon className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Pro Kunde ({groupedOrders.length})</span>
+            </button>
+          </div>
+
+          {/* Compact Search Bar */}
+          <div className="relative flex-1 sm:w-64">
+            <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Kunde, Stadt, Auftragsnr..."
+              className="w-full pl-9 pr-4 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder:text-slate-400"
+            />
+          </div>
         </div>
       </div>
 
-      {/* Main Status & Category Controls (Segmented Pill Slider) */}
+      {/* Main Status & Category Controls (Segmented Pill Slider — Emerald/Slate, No Red) */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         {/* Status Switcher: Offene vs Erledigte Aufgaben */}
         <div className="inline-flex p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 shadow-xs w-full sm:w-auto shrink-0">
@@ -383,7 +490,7 @@ export default function LogisticsPage() {
             onClick={() => setStatusTab('offen')}
             className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold font-headline transition-all cursor-pointer ${
               statusTab === 'offen'
-                ? 'bg-primary text-white shadow-xs'
+                ? 'bg-emerald-600 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -399,7 +506,7 @@ export default function LogisticsPage() {
             onClick={() => setStatusTab('erledigt')}
             className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold font-headline transition-all cursor-pointer ${
               statusTab === 'erledigt'
-                ? 'bg-emerald-600 text-white shadow-xs'
+                ? 'bg-slate-800 dark:bg-slate-700 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -412,14 +519,14 @@ export default function LogisticsPage() {
           </button>
         </div>
 
-        {/* Mobile & Desktop Category Filter Pills (Aligned with Kanban Disposition style) */}
+        {/* Category Filter Pills with Symbols */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
           {[
-            { id: 'all', label: 'Alle', count: categoryCounts.all, dot: 'bg-primary' },
+            { id: 'all', label: 'Alle', count: categoryCounts.all, dot: 'bg-emerald-500' },
             { id: 'kartons', label: 'Kartons', count: categoryCounts.kartons, dot: 'bg-orange-500' },
-            { id: 'halteverbot', label: 'Halteverbot', count: categoryCounts.halteverbot, dot: 'bg-yellow-500' },
+            { id: 'halteverbot', label: 'Halteverbot', count: categoryCounts.halteverbot, dot: 'bg-amber-500' },
             { id: 'moebellift', label: 'Möbellift', count: categoryCounts.moebellift, dot: 'bg-blue-500' },
-            { id: 'viewing', label: 'Besichtigungen', count: categoryCounts.viewing, dot: 'bg-purple-500' },
+            { id: 'viewing', label: 'Besichtigung', count: categoryCounts.viewing, dot: 'bg-purple-500' },
             { id: 'rechnung', label: 'Rechnungen', count: categoryCounts.rechnung, dot: 'bg-emerald-500' }
           ].map(pill => {
             const isSelected = categoryFilter === pill.id;
@@ -429,15 +536,15 @@ export default function LogisticsPage() {
                 onClick={() => setCategoryFilter(pill.id as any)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold font-headline whitespace-nowrap transition-all border shrink-0 cursor-pointer ${
                   isSelected
-                    ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-transparent shadow-xs'
-                    : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700'
+                    ? 'bg-emerald-600 text-white border-transparent shadow-xs'
+                    : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-emerald-500/40'
                 }`}
               >
-                <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white dark:bg-slate-900' : pill.dot}`} />
+                <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : pill.dot}`} />
                 <span>{pill.label}</span>
                 <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
                   isSelected 
-                    ? 'bg-white/20 dark:bg-black/20 text-white dark:text-slate-900 font-bold' 
+                    ? 'bg-white/20 text-white font-bold' 
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium'
                 }`}>
                   {pill.count}
@@ -448,10 +555,10 @@ export default function LogisticsPage() {
         </div>
       </div>
 
-      {/* Task Cards Grid */}
+      {/* Empty State */}
       {sortedTasks.length === 0 ? (
         <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center space-y-3">
-          <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
+          <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto text-emerald-600">
             <CheckIcon className="w-6 h-6" />
           </div>
           <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
@@ -463,9 +570,178 @@ export default function LogisticsPage() {
               : 'Erledigte Aufgaben werden hier archiviert, sobald Sie diese in der Liste abhaken.'}
           </p>
         </div>
+      ) : viewMode === 'grouped' ? (
+        /* ========================================================================= */
+        /* VIEW MODE 2: GROUPED BY CUSTOMER / ORDER (Zero Redundancy, Ultra-Clean)   */
+        /* ========================================================================= */
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {groupedOrders.map(({ key, order: parentOrder, customer, custName, tasks }) => {
+            const custPhone = customer?.phone || parentOrder?.phone || parentOrder?.customerPhone || '';
+            const orderNum = parentOrder?.orderNumber || (parentOrder?.id ? `#${parentOrder.id.slice(-5).toUpperCase()}` : '#RH-AUFTRAG');
+            const moveDate = parentOrder?.orderMeta?.movingDateFrom 
+              ? new Date(parentOrder.orderMeta.movingDateFrom).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })
+              : 'TBA';
+            const route = parentOrder?.logistics?.a_city 
+              ? `${parentOrder.logistics.a_city} ➔ ${parentOrder.logistics.b_city || 'Ziel'}`
+              : 'Route offen';
+            const addressA = [parentOrder?.logistics?.a_street, parentOrder?.logistics?.a_city].filter(Boolean).join(', ');
+
+            return (
+              <div
+                key={key}
+                className="bg-white dark:bg-slate-900/90 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-xs hover:shadow-md transition-all space-y-3"
+              >
+                {/* Customer Header Row */}
+                <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Link
+                        href={parentOrder?.customerId ? `/dashboard/customers/${parentOrder.customerId}` : `/dashboard/orders`}
+                        className="font-headline font-bold text-sm sm:text-base text-slate-900 dark:text-white hover:text-emerald-600 transition-colors truncate"
+                      >
+                        {custName}
+                      </Link>
+                      <span className="text-[10px] font-bold text-slate-400 font-headline shrink-0">
+                        {orderNum}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      <span className="truncate">{route}</span>
+                      <span>•</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0">Umzug: {moveDate}</span>
+                    </div>
+                  </div>
+
+                  {/* Customer Quick Symbol Buttons */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {addressA && (
+                      <a
+                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressA)}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-500/15 hover:text-emerald-600 transition-all"
+                        title={`Navigation: ${addressA}`}
+                      >
+                        <MapPinIcon className="w-4 h-4" />
+                      </a>
+                    )}
+                    {custPhone && (
+                      <button
+                        type="button"
+                        onClick={(e) => handleDirectWhatsApp(custPhone, undefined, e)}
+                        className="p-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 hover:bg-emerald-100 transition-all cursor-pointer"
+                        title={`WhatsApp an ${custName}`}
+                      >
+                        <ChatBubbleLeftRightIcon className="w-4 h-4" />
+                      </button>
+                    )}
+                    {parentOrder?.customerId && (
+                      <Link
+                        href={`/dashboard/customers/${parentOrder.customerId}`}
+                        className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-emerald-600 hover:bg-emerald-500/10 transition-all"
+                        title="Kundenakte öffnen"
+                      >
+                        <UserIcon className="w-4 h-4" />
+                      </Link>
+                    )}
+                  </div>
+                </div>
+
+                {/* Compact Symbol Rows for each Task of this Customer */}
+                <div className="space-y-2">
+                  {tasks.map(todo => {
+                    const catMeta = getCategoryMeta(todo, parentOrder);
+                    const scheduled = getScheduledDateInfo(todo, parentOrder);
+                    const isViewing = todo.id === 'viewing_requested';
+                    const isLogisticsSchedulable = todo.id === 'kartons_liefern' || todo.id === 'halteverbot' || todo.id === 'moebellift_buchen' || isViewing;
+
+                    return (
+                      <div
+                        key={todo.id}
+                        className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50"
+                      >
+                        {/* Left: Symbol + Category + Short Info */}
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${catMeta.iconBg}`}>
+                            <span className="material-symbols-outlined text-base">{catMeta.symbol}</span>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                {catMeta.label}
+                              </span>
+                              <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold border ${catMeta.color}`}>
+                                {catMeta.shortInfo}
+                              </span>
+                            </div>
+                            {scheduled && (
+                              <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
+                                <CalendarDaysIcon className="w-3 h-3" />
+                                {scheduled.date} {scheduled.time && `• ${scheduled.time}`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Right: Symbol Action Buttons + Green Primary Action */}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {isLogisticsSchedulable && (
+                            <button
+                              type="button"
+                              onClick={(e) => openScheduleModal(todo, parentOrder, e)}
+                              className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                                scheduled
+                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+                                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:text-emerald-600 hover:border-emerald-500/40'
+                              }`}
+                              title={scheduled ? `Termin ändern (${scheduled.date})` : 'Termin planen'}
+                            >
+                              <CalendarDaysIcon className="w-4 h-4" />
+                            </button>
+                          )}
+
+                          {isViewing && parentOrder?.customerId && !todo.done && (
+                            <Link
+                              href={`/dashboard/customers/${parentOrder.customerId}/edit-order/${parentOrder.id}?step=4`}
+                              className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 shadow-xs transition-all"
+                              title="Besichtigung starten (Umzugsliste)"
+                            >
+                              <span className="material-symbols-outlined text-xs">chair</span>
+                              <span className="hidden sm:inline">Besichtigung starten</span>
+                            </Link>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={(e) => handleToggleTask(todo, e)}
+                            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                              todo.done
+                                ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300'
+                                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs shadow-emerald-600/20'
+                            }`}
+                            title={todo.done ? 'Wiedereröffnen' : 'Als erledigt markieren'}
+                          >
+                            <CheckIcon className="w-3.5 h-3.5" />
+                            <span>{todo.done ? 'Offen' : 'Erledigt'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-5">
+        /* ========================================================================= */
+        /* VIEW MODE 1 (DEFAULT): COMPACT SYMBOL CARDS WITH COLLAPSIBLE DETAILS      */
+        /* ========================================================================= */
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {sortedTasks.map((todo) => {
+            const cardKey = `${todo.id}_${todo.orderId}`;
+            const isExpanded = !!expandedCards[cardKey];
+
             const parentOrder = orders.find(o => o.id === todo.orderId);
             const customer = parentOrder ? customers[parentOrder.customerId] : null;
             const custPhone = customer?.phone || parentOrder?.phone || parentOrder?.customerPhone || '';
@@ -474,18 +750,17 @@ export default function LogisticsPage() {
             const addressA = [parentOrder?.logistics?.a_street, parentOrder?.logistics?.a_city].filter(Boolean).join(', ');
             const addressB = [parentOrder?.logistics?.b_street, parentOrder?.logistics?.b_city].filter(Boolean).join(', ');
 
-            const catMeta = getCategoryMeta(todo);
+            const catMeta = getCategoryMeta(todo, parentOrder);
             const scheduled = getScheduledDateInfo(todo, parentOrder);
             const orderNum = parentOrder?.orderNumber || (todo.orderId ? `#${todo.orderId.slice(-5).toUpperCase()}` : '#RH-AUFTRAG');
             const moveDate = parentOrder?.orderMeta?.movingDateFrom 
-              ? new Date(parentOrder.orderMeta.movingDateFrom).toLocaleDateString('de-DE') 
+              ? new Date(parentOrder.orderMeta.movingDateFrom).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' }) 
               : 'TBA';
             const route = parentOrder?.logistics?.a_city 
               ? `${parentOrder.logistics.a_city} ➔ ${parentOrder.logistics.b_city || 'Ziel'}`
-              : 'Route nicht angegeben';
+              : 'Route offen';
 
             const isLogisticsSchedulable = todo.id === 'kartons_liefern' || todo.id === 'halteverbot' || todo.id === 'moebellift_buchen' || todo.id === 'viewing_requested';
-
             const isKarton = todo.id === 'kartons_liefern';
             const isHV = todo.id === 'halteverbot';
             const isLift = todo.id === 'moebellift_buchen';
@@ -502,349 +777,221 @@ export default function LogisticsPage() {
             const liftDuration = parentOrder?.orderMeta?.moebelliftDuration || '3';
             const liftEndTime = parentOrder?.orderMeta?.moebelliftEndTime || '';
 
+            const targetMapAddress = isHV ? hvzAddress : isLift ? liftAddress : addressA;
+
             return (
               <div
-                key={todo.id + todo.orderId}
-                className={`bg-white dark:bg-slate-900/90 rounded-2xl sm:rounded-3xl border transition-all duration-200 p-4 sm:p-5 flex flex-col justify-between shadow-xs hover:shadow-md ${
+                key={cardKey}
+                className={`bg-white dark:bg-slate-900/90 rounded-2xl border transition-all duration-200 p-4 flex flex-col justify-between shadow-xs hover:shadow-md ${
                   todo.done
-                    ? 'border-slate-200 dark:border-slate-800 opacity-80 hover:opacity-100'
+                    ? 'border-slate-200 dark:border-slate-800 opacity-75 hover:opacity-100'
                     : todo.dueDateStatus === 'overdue'
-                      ? 'border-red-400/80 dark:border-red-500/50 ring-1 ring-red-400/20'
-                      : 'border-slate-200/90 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                      ? 'border-amber-400/80 dark:border-amber-500/50'
+                      : 'border-slate-200/90 dark:border-slate-800 hover:border-emerald-500/40'
                 }`}
               >
-                {/* Card Top: Badges & Customer Header */}
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${catMeta.color}`}>
-                        {catMeta.label}
+                {/* 1. COMPACT TOP BAR: Symbol Badge + Scheduled Pill + Order Number */}
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {/* Category Symbol Pill */}
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border ${catMeta.color}`}>
+                        <span className="material-symbols-outlined text-sm">{catMeta.symbol}</span>
+                        <span>{catMeta.label}</span>
+                        <span className="opacity-75">• {catMeta.shortInfo}</span>
                       </span>
-                      {todo.dueDateStatus === 'overdue' && !todo.done && (
-                        <span className="bg-red-500/10 text-red-600 dark:text-red-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-red-500/20 animate-pulse flex items-center gap-1">
+
+                      {/* Scheduled Date Badge or Fällig Indicator */}
+                      {scheduled ? (
+                        <button
+                          type="button"
+                          onClick={(e) => openScheduleModal(todo, parentOrder, e)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+                          title="Termin ändern"
+                        >
+                          <CalendarDaysIcon className="w-3 h-3" />
+                          <span>{scheduled.date}{scheduled.time ? ` • ${scheduled.time}` : ''}</span>
+                        </button>
+                      ) : todo.dueDateStatus === 'overdue' && !todo.done ? (
+                        <span className="bg-amber-500/15 text-amber-700 dark:text-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-500/30 flex items-center gap-1">
                           <ExclamationCircleIcon className="w-3 h-3" />
-                          <span>Überfällig</span>
+                          <span>Fällig</span>
                         </span>
-                      )}
-                      {todo.dueDateStatus === 'due' && !todo.done && (
-                        <span className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-yellow-500/20">
-                          {todo.dueDateText || 'Bald fällig'}
-                        </span>
-                      )}
+                      ) : null}
                     </div>
-                    <span className="text-[10px] font-bold text-slate-400 font-headline">
+
+                    <span className="text-[10px] font-bold text-slate-400 font-headline shrink-0">
                       {orderNum}
                     </span>
                   </div>
 
-                  {/* Customer & Route */}
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
+                  {/* 2. CUSTOMER ROW + SYMBOL TOOLBAR (Replaces bulky boxes!) */}
+                  <div className="flex items-center justify-between gap-2 pt-1">
+                    <div className="min-w-0">
                       <Link
                         href={todo.customerId ? `/dashboard/customers/${todo.customerId}` : `/dashboard/orders`}
-                        className="font-headline font-bold text-sm sm:text-base text-slate-900 dark:text-white hover:text-primary transition-colors flex items-center gap-1.5"
+                        className="font-headline font-bold text-sm sm:text-base text-slate-900 dark:text-white hover:text-emerald-600 transition-colors block truncate"
                       >
-                        <span className="line-clamp-1">{todo.customerName}</span>
+                        {custName}
                       </Link>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {custPhone && (
-                          <button
-                            type="button"
-                            onClick={(e) => handleDirectWhatsApp(custPhone, undefined, e)}
-                            className="p-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 hover:bg-emerald-100 transition-all shrink-0 cursor-pointer"
-                            title={`WhatsApp mit ${custName} öffnen`}
-                          >
-                            <ChatBubbleLeftRightIcon className="w-4 h-4" />
-                          </button>
-                        )}
-                        {todo.customerId && (
-                          <Link
-                            href={`/dashboard/customers/${todo.customerId}`}
-                            className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-primary hover:bg-primary/10 transition-all shrink-0"
-                            title="Kundenprofil öffnen"
-                          >
-                            <UserIcon className="w-4 h-4" />
-                          </Link>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex-wrap">
-                      <span className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                         <MapPinIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="truncate max-w-[200px]">{route}</span>
-                      </span>
-                      <span>•</span>
-                      <span>Umzug: <strong className="text-slate-700 dark:text-slate-300">{moveDate}</strong></span>
+                        <span className="truncate max-w-[160px]">{route}</span>
+                        <span>•</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0">{moveDate}</span>
+                      </div>
+                    </div>
+
+                    {/* Quick Action Symbol Toolbar (Symbole) */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {/* 📅 Termin Symbol */}
+                      {isLogisticsSchedulable && (
+                        <button
+                          type="button"
+                          onClick={(e) => openScheduleModal(todo, parentOrder, e)}
+                          className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
+                            scheduled
+                              ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500/30 text-emerald-600'
+                              : 'bg-slate-100 dark:bg-slate-800 border-transparent text-slate-500 hover:text-emerald-600 hover:bg-emerald-500/10'
+                          }`}
+                          title={scheduled ? 'Termin ändern' : 'Datum & Zeitfenster planen'}
+                        >
+                          <CalendarDaysIcon className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      {/* 📍 Maps Symbol */}
+                      {targetMapAddress && (
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(targetMapAddress)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-emerald-600 hover:bg-emerald-500/10 transition-all"
+                          title={`In Google Maps öffnen: ${targetMapAddress}`}
+                        >
+                          <MapPinIcon className="w-4 h-4" />
+                        </a>
+                      )}
+
+                      {/* 💬 WhatsApp Symbol */}
+                      {custPhone && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            if (isViewing) {
+                              const timeText = parentOrder?.orderMeta?.viewingTime ? ` um ${parentOrder.orderMeta.viewingTime} Uhr` : '';
+                              handleDirectWhatsApp(custPhone, `Hallo ${custName}, ich bin pünktlich auf dem Weg zu Ihnen für unseren Besichtigungstermin${timeText}. Bis gleich!`, e);
+                            } else if (isKarton && scheduled) {
+                              handleDirectWhatsApp(custPhone, `Guten Tag ${custName}, Ihre Umzugskartons werden am ${scheduled.date} ${scheduled.time ? 'im Zeitfenster ' + scheduled.time : ''} geliefert. Viele Grüße, Rothirsch Umzüge`, e);
+                            } else {
+                              handleDirectWhatsApp(custPhone, undefined, e);
+                            }
+                          }}
+                          className="p-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 hover:bg-emerald-100 transition-all cursor-pointer"
+                          title={`WhatsApp an ${custName} senden`}
+                        >
+                          <ChatBubbleLeftRightIcon className="w-4 h-4" />
+                        </button>
+                      )}
+
+                      {/* ⌄ Accordion Toggle Symbol (Details ein-/ausblenden) */}
+                      <button
+                        type="button"
+                        onClick={(e) => toggleExpandCard(cardKey, e)}
+                        className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+                          isExpanded
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                        }`}
+                        title={isExpanded ? 'Details zuklappen' : 'Details aufklappen'}
+                      >
+                        {isExpanded ? (
+                          <ChevronUpIcon className="w-4 h-4" />
+                        ) : (
+                          <ChevronDownIcon className="w-4 h-4" />
+                        )}
+                      </button>
                     </div>
                   </div>
 
-                  {/* Task Title */}
-                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                      {todo.title}
-                    </p>
-                  </div>
+                  {/* 3. COLLAPSIBLE DETAILS DRAWER (Only visible when user clicks ⌄) */}
+                  {isExpanded && (
+                    <div className="pt-2.5 mt-2 border-t border-slate-100 dark:border-slate-800 space-y-2 text-xs animate-in fade-in duration-150">
+                      <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                        {todo.title}
+                      </p>
 
-                  {/* Task Specific Logistics Enhancement */}
-                  {isKarton && matSummary && (
-                    <div className="p-3 rounded-2xl bg-orange-50/70 dark:bg-orange-950/20 border border-orange-200/60 dark:border-orange-900/40 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-orange-600 dark:text-orange-400 text-lg">inventory_2</span>
-                        <div className="text-xs">
-                          <span className="font-bold text-slate-800 dark:text-slate-200">
-                            {matSummary.total > 0 ? `${matSummary.total} Kartons aus Angebot` : 'Materialbedarf'}
+                      {isKarton && matSummary && (
+                        <div className="p-2.5 rounded-xl bg-orange-50/60 dark:bg-orange-950/20 border border-orange-200/50 dark:border-orange-900/40 text-[11px] text-slate-700 dark:text-slate-300">
+                          <span className="font-bold block">Material-Aufschlüsselung ({matSummary.total} Stk.):</span>
+                          <span>
+                            {matSummary.standard > 0 ? `${matSummary.standard}x Standard ` : ''}
+                            {matSummary.buecher > 0 ? `• ${matSummary.buecher}x Bücher ` : ''}
+                            {matSummary.kleider > 0 ? `• ${matSummary.kleider}x Kleider` : ''}
+                            {matSummary.total === 0 ? 'Noch keine Kartons im Angebot eingetragen' : ''}
                           </span>
-                          {matSummary.total > 0 && (
-                            <p className="text-[11px] text-slate-500">
-                              {matSummary.standard > 0 ? `${matSummary.standard}x Standard` : ''}
-                              {matSummary.buecher > 0 ? ` • ${matSummary.buecher}x Bücher` : ''}
-                              {matSummary.kleider > 0 ? ` • ${matSummary.kleider}x Kleider` : ''}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {isHV && (
-                    <div className="p-3 rounded-2xl bg-yellow-50/70 dark:bg-yellow-950/20 border border-yellow-200/60 dark:border-yellow-900/40 space-y-2 text-xs">
-                      <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
-                          {hvzMethod === 'extern' ? (
-                            <>
-                              <BuildingOfficeIcon className="w-3 h-3 text-slate-500" />
-                              <span>Externe Firma</span>
-                            </>
-                          ) : (
-                            <>
-                              <TruckIcon className="w-3 h-3 text-primary" />
-                              <span>Selbst aufstellen (Rothirsch)</span>
-                            </>
-                          )}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-yellow-100 dark:bg-yellow-900/60 text-yellow-800 dark:text-yellow-200 flex items-center gap-1">
-                          {hvzLoc === 'b' ? (
-                            <>
-                              <HomeIcon className="w-3 h-3" />
-                              <span>Einzugsort (B)</span>
-                            </>
-                          ) : hvzLoc === 'both' ? (
-                            <>
-                              <ArrowPathIcon className="w-3 h-3" />
-                              <span>Beide (A & B)</span>
-                            </>
-                          ) : (
-                            <>
-                              <BuildingOfficeIcon className="w-3 h-3" />
-                              <span>Auszugsort (A)</span>
-                            </>
-                          )}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-yellow-200/60 dark:border-yellow-900/30">
-                        <span className="text-[11px] text-slate-700 dark:text-slate-300 truncate flex items-center gap-1">
-                          <MapPinIcon className="w-3.5 h-3.5 text-yellow-600 shrink-0" />
-                          <span className="truncate">{hvzAddress}</span>
-                        </span>
-                        {hvzAddress && (
-                          <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(hvzAddress)}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="px-2 py-0.5 rounded-lg bg-yellow-200/80 dark:bg-yellow-900/60 hover:brightness-110 text-yellow-900 dark:text-yellow-200 text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors"
-                            title="In Google Maps öffnen"
-                          >
-                            <MapPinIcon className="w-3 h-3" />
-                            <span>Maps</span>
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {isLift && (
-                    <div className="p-3 rounded-2xl bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-900/40 space-y-2 text-xs">
-                      <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 flex items-center gap-1">
-                          {liftLoc === 'b' ? (
-                            <>
-                              <HomeIcon className="w-3 h-3" />
-                              <span>Einzugsort (B)</span>
-                            </>
-                          ) : (
-                            <>
-                              <BuildingOfficeIcon className="w-3 h-3" />
-                              <span>Auszugsort (A)</span>
-                            </>
-                          )}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center gap-1">
-                          <ClockIcon className="w-3 h-3 text-blue-500" />
-                          <span>{parentOrder?.orderMeta?.moebelliftTime ? `${parentOrder.orderMeta.moebelliftTime} - ${liftEndTime} (${liftDuration} Std.)` : `Dauer: ${liftDuration} Std.`}</span>
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-blue-200/60 dark:border-blue-900/30">
-                        <span className="text-[11px] text-slate-700 dark:text-slate-300 truncate flex items-center gap-1">
-                          <MapPinIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                          <span className="truncate">{liftAddress}</span>
-                        </span>
-                        {liftAddress && (
-                          <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(liftAddress)}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="px-2 py-0.5 rounded-lg bg-blue-200/80 dark:bg-blue-900/60 hover:brightness-110 text-blue-900 dark:text-blue-200 text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors"
-                            title="In Google Maps öffnen"
-                          >
-                            <MapPinIcon className="w-3 h-3" />
-                            <span>Maps</span>
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {isViewing && (
-                    <div className="p-3 rounded-2xl bg-purple-50/70 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-900/40 space-y-2.5 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] font-bold text-purple-900 dark:text-purple-200">
-                          {parentOrder?.orderMeta?.viewingType || 'Vor-Ort Besichtigung'}
-                        </span>
-                        {addressA && (
-                          <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressA)}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="px-2 py-0.5 rounded-lg bg-purple-200/80 dark:bg-purple-900/60 hover:brightness-110 text-purple-900 dark:text-purple-200 text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors"
-                            title="Besichtigungsort in Google Maps öffnen"
-                          >
-                            <MapPinIcon className="w-3 h-3" />
-                            <span>Maps</span>
-                          </a>
-                        )}
-                      </div>
-
-                      {addressA && (
-                        <div className="text-[11px] text-slate-700 dark:text-slate-300 truncate flex items-center gap-1">
-                          <MapPinIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                          <span className="truncate">{addressA}</span>
                         </div>
                       )}
 
-                      <div className="pt-2 border-t border-purple-200/60 dark:border-purple-900/30 flex items-center gap-2">
-                        {parentOrder?.customerId && (
-                          <Link
-                            href={`/dashboard/customers/${parentOrder.customerId}/edit-order/${parentOrder.id}?step=4`}
-                            className="flex-1 py-1.5 px-2.5 rounded-xl bg-primary text-white text-[11px] font-bold flex items-center justify-center gap-1 hover:brightness-110 shadow-xs transition-all"
-                            title="Direkt zu Schritt 4 (Umzugsliste & Möbel) springen"
-                          >
-                            <span className="material-symbols-outlined text-xs">chair</span>
-                            <span>Besichtigung starten (Umzugsliste)</span>
-                          </Link>
-                        )}
-
-                        {custPhone && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              const timeText = parentOrder?.orderMeta?.viewingTime ? ` um ${parentOrder.orderMeta.viewingTime} Uhr` : '';
-                              handleDirectWhatsApp(custPhone, `Hallo ${custName}, ich bin pünktlich auf dem Weg zu Ihnen für unseren Besichtigungstermin${timeText}. Bis gleich!`, e);
-                            }}
-                            className="px-2.5 py-1.5 rounded-xl bg-emerald-600 text-white text-[11px] font-bold flex items-center gap-1 hover:bg-emerald-700 transition-colors shrink-0"
-                            title="Ich bin unterwegs senden"
-                          >
-                            <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
-                            <span>Unterwegs</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Details / Scheduled Termin Section */}
-                  {isLogisticsSchedulable && (
-                    <div className="p-3 rounded-2xl bg-slate-50/70 dark:bg-slate-800/30 border border-slate-200/60 dark:border-slate-700/40 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                          <CalendarDaysIcon className="w-3.5 h-3.5 text-primary" />
-                          <span>Termin & Uhrzeit</span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={(e) => openScheduleModal(todo, parentOrder, e)}
-                          className="text-[11px] font-bold text-primary hover:text-primary-hover transition-colors"
-                        >
-                          {scheduled ? 'Ändern' : 'Planen'}
-                        </button>
-                      </div>
-
-                      {scheduled ? (
-                        <div className="flex items-center justify-between gap-2 flex-wrap text-xs">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-primary/10 text-primary font-bold">
-                              <CalendarDaysIcon className="w-3.5 h-3.5" />
-                              <span>{scheduled.date}</span>
-                            </div>
-                            <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
-                              <ClockIcon className="w-3.5 h-3.5 text-slate-400" />
-                              <span>{scheduled.time}</span>
-                            </div>
+                      {isHV && (
+                        <div className="p-2.5 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/40 text-[11px] space-y-1">
+                          <div className="flex items-center justify-between font-bold text-slate-700 dark:text-slate-200">
+                            <span>Aufstellung: {hvzMethod === 'extern' ? 'Externe Firma' : 'Selbst (Rothirsch)'}</span>
+                            <span>Ort: {hvzLoc === 'b' ? 'Einzug (B)' : hvzLoc === 'both' ? 'Beide (A & B)' : 'Auszug (A)'}</span>
                           </div>
-
-                          {custPhone && isKarton && (
-                            <button
-                              type="button"
-                              onClick={(e) => handleDirectWhatsApp(custPhone, `Guten Tag ${custName}, Ihre Umzugskartons werden am ${scheduled.date} ${scheduled.time !== 'Ohne Zeitangabe' ? 'im Zeitfenster ' + scheduled.time : ''} geliefert. Viele Grüße, Rothirsch Umzüge`, e)}
-                              className="text-[11px] text-emerald-600 hover:text-emerald-700 font-bold flex items-center gap-1"
-                              title="Termin via WhatsApp bestätigen"
-                            >
-                              <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
-                              <span>WhatsApp</span>
-                            </button>
-                          )}
-
-                          {custPhone && isHV && (
-                            <button
-                              type="button"
-                              onClick={(e) => handleDirectWhatsApp(custPhone, `Guten Tag ${custName}, die Halteverbotszone für Ihren Umzug wird am ${scheduled.date} aufgebaut. Viele Grüße, Rothirsch Umzüge`, e)}
-                              className="text-[11px] text-emerald-600 hover:text-emerald-700 font-bold flex items-center gap-1"
-                              title="Termin via WhatsApp bestätigen"
-                            >
-                              <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
-                              <span>WhatsApp</span>
-                            </button>
-                          )}
+                          {hvzAddress && <p className="text-slate-500 truncate">📍 {hvzAddress}</p>}
                         </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={(e) => openScheduleModal(todo, parentOrder, e)}
-                          className="w-full py-2 px-3 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-slate-500 hover:text-primary hover:border-primary hover:bg-primary/5 transition-all text-xs font-medium text-center flex items-center justify-center gap-1.5"
-                        >
-                          <CalendarDaysIcon className="w-4 h-4" />
-                          <span>Datum & Zeitfenster festlegen</span>
-                        </button>
+                      )}
+
+                      {isLift && (
+                        <div className="p-2.5 rounded-xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/50 dark:border-blue-900/40 text-[11px] space-y-1">
+                          <div className="flex items-center justify-between font-bold text-slate-700 dark:text-slate-200">
+                            <span>Ort: {liftLoc === 'b' ? 'Einzug (B)' : 'Auszug (A)'}</span>
+                            <span>{parentOrder?.orderMeta?.moebelliftTime ? `${parentOrder.orderMeta.moebelliftTime} - ${liftEndTime} (${liftDuration} Std.)` : `Dauer: ${liftDuration} Std.`}</span>
+                          </div>
+                          {liftAddress && <p className="text-slate-500 truncate">📍 {liftAddress}</p>}
+                        </div>
+                      )}
+
+                      {isViewing && addressA && (
+                        <div className="p-2.5 rounded-xl bg-purple-50/60 dark:bg-purple-950/20 border border-purple-200/50 dark:border-purple-900/40 text-[11px] text-slate-700 dark:text-slate-300">
+                          <span className="font-bold block">{parentOrder?.orderMeta?.viewingType || 'Vor-Ort Besichtigung'}</span>
+                          <span className="truncate block">📍 {addressA}</span>
+                        </div>
                       )}
                     </div>
                   )}
                 </div>
 
-                {/* Card Bottom: Action Button */}
-                <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+                {/* 4. CARD BOTTOM: GREEN PRIMARY BUTTONS ("Besichtigung starten" & "Als erledigt markieren") */}
+                <div className="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
                   {!todo.done ? (
-                    <button
-                      type="button"
-                      onClick={(e) => handleToggleTask(todo, e)}
-                      className="w-full py-2.5 px-4 rounded-xl sm:rounded-2xl bg-primary hover:bg-primary-hover text-white text-xs font-bold transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-2 group active:scale-95 cursor-pointer"
-                    >
-                      <CheckIcon className="w-4 h-4 transition-transform group-hover:scale-125" />
-                      <span>Als erledigt markieren</span>
-                    </button>
+                    <>
+                      {isViewing && parentOrder?.customerId && (
+                        <Link
+                          href={`/dashboard/customers/${parentOrder.customerId}/edit-order/${parentOrder.id}?step=4`}
+                          className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs shadow-emerald-600/20 transition-all"
+                          title="Direkt zu Schritt 4 (Umzugsliste & Möbel) springen"
+                        >
+                          <span className="material-symbols-outlined text-sm">chair</span>
+                          <span>Besichtigung starten</span>
+                        </Link>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={(e) => handleToggleTask(todo, e)}
+                        className={`${
+                          isViewing && parentOrder?.customerId
+                            ? 'px-3 py-2 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white'
+                            : 'w-full py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs shadow-emerald-600/20'
+                        } rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 group active:scale-95 cursor-pointer`}
+                      >
+                        <CheckIcon className="w-4 h-4 transition-transform group-hover:scale-110" />
+                        <span>{isViewing && parentOrder?.customerId ? 'Erledigt' : 'Als erledigt markieren'}</span>
+                      </button>
+                    </>
                   ) : (
                     <div className="w-full flex items-center justify-between">
                       <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
@@ -854,7 +1001,7 @@ export default function LogisticsPage() {
                       <button
                         type="button"
                         onClick={(e) => handleToggleTask(todo, e)}
-                        className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 underline font-medium"
+                        className="text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 underline font-medium cursor-pointer"
                       >
                         Wiedereröffnen
                       </button>

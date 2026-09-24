@@ -8,6 +8,69 @@ import { pdf } from '@react-pdf/renderer';
 import { OrderPDF } from '../pdf/OrderPDF';
 import { InvoicePDF } from '../pdf/InvoicePDF';
 
+const DEFAULT_COMMUNICATION_TEMPLATES = [
+  {
+    id: 't1',
+    name: 'Erstkontakt (Bilder oder Liste erhalten)',
+    subject: 'Angebot für Ihren Umzug',
+    body: 'Hallo [Name],\n\nvielen Dank für Ihr Interesse an unserem Service und für die Übersendung der Bilder.\n\nGerne erstellen wir Ihnen ein individuelles Angebot mit Festpreis und lassen Ihnen dieses zeitnah zukommen.\n\nSollten Sie vorab noch weitere Fragen haben, stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge\n\nKontaktdaten: Telefon: +49 1590 6603011 | E-Mail: info@rothirsch-umzug.de | Webseite: www.rothirsch-umzug.de'
+  },
+  {
+    id: 't2',
+    name: 'Erstkontakt (Keine Bilder oder Liste)',
+    subject: 'Ihre Umzugsanfrage',
+    body: 'Hallo [Name],\n\nvielen Dank für Ihr Interesse an unserem Service. Gerne erstellen wir für Sie ein Angebot mit einem festen Preis. Teilen Sie uns bitte Bilder oder eine Liste mit den gewünschten Leistungen mit. Sie können uns auch gerne Ihre Telefonnummer mitteilen oder uns jederzeit anrufen, um Ihren Umzug zu besprechen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge\n\nKontaktdaten: Telefon: +49 1590 6603011 | E-Mail: info@rothirsch-umzug.de | Webseite: www.rothirsch-umzug.de'
+  },
+  {
+    id: 't3',
+    name: 'Angebot schicken',
+    subject: 'Ihr Umzugsangebot – Festpreis',
+    body: 'Sehr geehrte(r) [Name],\n\nanbei sende ich Ihnen unser verbindliches Angebot für Ihren bevorstehenden Umzug am [Datum]. Bitte überprüfen Sie die angehängte Datei für die detaillierten Informationen und Konditionen.\n\nBei Rothirsch Umzüge legen wir großen Wert auf den Schutz Ihrer Möbel. Daher werden alle Möbelstücke sorgfältig mit Umzugsdecken und hochwertigen Schutzmaterialien geschützt.\n\nEs handelt sich bei unserem Angebot um einen Festpreis ([Summe]). Sie können darauf vertrauen, dass es keine unerwarteten zusätzlichen Gebühren gibt.\n\nWenn Sie mit dem Angebot zufrieden sind, bitten wir Sie um eine kurze Bestätigung, damit wir Ihren Wunschtermin verbindlich für Sie reservieren können.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+  },
+  {
+    id: 't4',
+    name: 'Nachfrage zu Ihrem Umzugsangebot',
+    subject: 'Nachfrage zu Ihrem Umzugsangebot',
+    body: 'Hallo [Name],\n\nich wollte mich kurz erkundigen, ob Sie bereits eine Entscheidung zu unserem Angebot getroffen haben. Der gewünschte Termin am [Datum] ist aktuell noch verfügbar – allerdings erhalten wir viele Anfragen, sodass eine zeitnahe Rückmeldung wichtig für die Reservierung ist.\n\nSollten noch Fragen offen sein oder Sie Anpassungen wünschen, können wir das gerne telefonisch besprechen.\n\nGeben Sie uns einfach kurz Bescheid.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+  },
+  {
+    id: 't5',
+    name: 'Aktualisiertes Angebot schicken',
+    subject: 'Ihr aktualisiertes Umzugsangebot',
+    body: 'Sehr geehrte(r) [Name],\n\nvielen Dank für Ihre Rückmeldung. Anbei senden wir Ihnen das überarbeitete Angebot sowie die angepasste Umzugsliste, die Ihren Änderungswünschen entspricht.\n\nFalls Sie noch weitere Fragen haben oder weitere Anpassungen benötigen, stehen wir Ihnen jederzeit gern zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+  },
+  {
+    id: 't6',
+    name: 'Absage',
+    subject: 'Schade, dass es nicht geklappt hat',
+    body: 'Hallo [Name],\n\nes ist schade zu hören, dass Sie sich für einen anderen Anbieter entschieden haben. Wir wünschen Ihnen dennoch viel Erfolg und einen reibungslosen Umzug.\n\nSollten Sie in Zukunft erneut Unterstützung benötigen, stehen wir Ihnen jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+  },
+  {
+    id: 't7',
+    name: 'Bestätigung (Auftragsbestätigung & Termin)',
+    subject: 'Auftragsbestätigung für Ihren Umzug',
+    body: 'Hallo [Name],\n\nvielen Dank für Ihr Vertrauen und das unterzeichnete Angebot! Hiermit bestätige ich Ihnen verbindlich den Umzugstermin am [Datum].\n\nWir freuen uns auf die Zusammenarbeit und darauf, Ihnen den Weg in Ihr neues Zuhause so angenehm wie möglich zu gestalten.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+  },
+  {
+    id: 't8',
+    name: 'Zeit des Umzugs (Wann trifft das Team ein?)',
+    subject: 'Ihre Umzugs-Uhrzeit / Ankunftszeit unseres Teams',
+    body: 'Hallo [Name],\n\nkurze Information zu Ihrem Umzug am [Datum]: Unser Team wird voraussichtlich zwischen 08:30 und 09:30 Uhr bei Ihnen an der Beladestelle eintreffen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+  },
+  {
+    id: 't9',
+    name: 'Rechnung schicken',
+    subject: 'Ihre Rechnung – Rothirsch Umzüge',
+    body: 'Sehr geehrte(r) [Name],\n\nanbei erhalten Sie die Rechnung für die von uns erbrachten Dienstleistungen. Sollten Sie Fragen oder Anmerkungen haben, stehe ich Ihnen selbstverständlich gerne zur Verfügung.\n\nWir möchten uns herzlich für Ihr Vertrauen bedanken! Falls Sie mit unserer Arbeit zufrieden waren, würden wir uns sehr über eine kurze Bewertung auf Google oder Check24 freuen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+  },
+  {
+    id: 't10',
+    name: 'Dank für Bewertung',
+    subject: 'Vielen Dank für Ihre Bewertung!',
+    body: 'Hallo [Name],\n\nvielen Dank für Ihre großartige Bewertung! Wir freuen uns wirklich sehr über Ihr positives Feedback und es ist schön zu hören, dass alles nach Ihren Wünschen gelaufen ist. Es war uns eine Freude, Ihren Umzug durchzuführen!\n\nViele Grüße\n[Mitarbeiter]\nRothirsch Umzüge'
+  }
+];
+
 export function MessageSenderModal({ 
   order, 
   customer, 
@@ -19,7 +82,7 @@ export function MessageSenderModal({
   defaultTemplateName?: string;
   onClose: () => void 
 }) {
-  const [templates, setTemplates] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<any[]>(DEFAULT_COMMUNICATION_TEMPLATES);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -27,47 +90,101 @@ export function MessageSenderModal({
   const [attachmentType, setAttachmentType] = useState<'none' | 'order' | 'invoice'>('none');
   const [settings, setSettings] = useState<any>(null);
   const { profile } = useAuth();
+
+  const findBestMatchingTemplate = (tpls: any[], queryRaw?: string) => {
+    if (!tpls || tpls.length === 0) return null;
+    if (!queryRaw) return tpls[0];
+
+    const q = queryRaw.trim().toLowerCase();
+
+    // 1. Direct ID match (e.g. "t1", "t5", "t6", "t7", "t8", "t9", "t10")
+    const idMatch = tpls.find((t: any) => (t.id || '').toLowerCase() === q);
+    if (idMatch) return idMatch;
+
+    // 2. Embedded ID match (e.g. "Absage (t6)" -> "t6")
+    const embeddedId = q.match(/\b(t[0-9]{1,2})\b/);
+    if (embeddedId && embeddedId[1]) {
+      const byEmbeddedId = tpls.find((t: any) => (t.id || '').toLowerCase() === embeddedId[1]);
+      if (byEmbeddedId) return byEmbeddedId;
+    }
+
+    // 3. Exact or substring match in template name
+    const nameMatch = tpls.find((t: any) => (t.name || '').toLowerCase().includes(q));
+    if (nameMatch) return nameMatch;
+
+    // 4. Semantic keyword mapping for German synonyms
+    if (q.includes('absage')) return tpls.find((t: any) => t.id === 't6' || (t.name || '').toLowerCase().includes('absage')) || tpls[0];
+    if (q.includes('aktualisiert') || q.includes('erstellt')) return tpls.find((t: any) => t.id === 't5' || (t.name || '').toLowerCase().includes('aktualisiert')) || tpls[0];
+    if (q.includes('bestätigung') || q.includes('bestaetigung')) return tpls.find((t: any) => t.id === 't7' || (t.name || '').toLowerCase().includes('bestätigung')) || tpls[0];
+    if (q.includes('zeit') || q.includes('ankunft') || q.includes('team')) return tpls.find((t: any) => t.id === 't8' || (t.name || '').toLowerCase().includes('zeit')) || tpls[0];
+    if (q.includes('nachfrage') || q.includes('nachfassen')) return tpls.find((t: any) => t.id === 't4' || (t.name || '').toLowerCase().includes('nachfrage')) || tpls[0];
+    if (q.includes('angebot')) return tpls.find((t: any) => t.id === 't3' || (t.name || '').toLowerCase().includes('angebot schicken')) || tpls[0];
+    if (q.includes('rechnung')) return tpls.find((t: any) => t.id === 't9' || (t.name || '').toLowerCase().includes('rechnung')) || tpls[0];
+    if (q.includes('bewertung') || q.includes('dank')) return tpls.find((t: any) => t.id === 't10' || (t.name || '').toLowerCase().includes('bewertung')) || tpls[0];
+    if (q.includes('keine bilder')) return tpls.find((t: any) => t.id === 't2' || (t.name || '').toLowerCase().includes('keine bilder')) || tpls[0];
+
+    return tpls[0];
+  };
   
   useEffect(() => {
-    // Lade die Vorlagen aus den Settings
     const loadSettings = async () => {
+      let mergedTemplates = [...DEFAULT_COMMUNICATION_TEMPLATES];
       try {
         const docSnap = await getDoc(doc(db, 'system', 'settings'));
         if (docSnap.exists()) {
           const data = docSnap.data();
           setSettings(data);
-          if (data.communicationTemplates) {
-            const tpls = data.communicationTemplates;
-            setTemplates(tpls);
-            if (tpls.length > 0) {
-              let tplToApply = tpls[0];
-              if (defaultTemplateName) {
-                const found = tpls.find((t: any) => t.name.toLowerCase().includes(defaultTemplateName.toLowerCase()));
-                if (found) tplToApply = found;
+          if (Array.isArray(data.communicationTemplates) && data.communicationTemplates.length > 0) {
+            // Merge custom Firestore templates with DEFAULT_COMMUNICATION_TEMPLATES so no template (t1-t10) is ever missing!
+            const customMap = new Map<string, any>();
+            data.communicationTemplates.forEach((t: any) => {
+              if (t && t.id) customMap.set(t.id, t);
+            });
+            mergedTemplates = DEFAULT_COMMUNICATION_TEMPLATES.map(def => {
+              const custom = customMap.get(def.id);
+              return custom ? { ...def, ...custom } : def;
+            });
+            // Append any extra custom templates created in Settings that aren't t1..t10
+            data.communicationTemplates.forEach((t: any) => {
+              if (t && !DEFAULT_COMMUNICATION_TEMPLATES.some(d => d.id === t.id)) {
+                mergedTemplates.push(t);
               }
-              setSelectedTemplateId(tplToApply.id);
-              applyTemplate(tplToApply, order, customer, profile);
-            }
+            });
           }
         }
       } catch (e) {
         console.error("Error loading templates", e);
       }
+
+      setTemplates(mergedTemplates);
+      const tplToApply = findBestMatchingTemplate(mergedTemplates, defaultTemplateName) || mergedTemplates[0];
+      if (tplToApply) {
+        setSelectedTemplateId(tplToApply.id);
+        applyTemplate(tplToApply, order, customer, profile);
+        const lowerName = (tplToApply.name || '').toLowerCase();
+        if (lowerName.includes('angebot') || tplToApply.id === 't3' || tplToApply.id === 't5') {
+          setAttachmentType('order');
+        } else if (lowerName.includes('rechnung') || tplToApply.id === 't9') {
+          setAttachmentType(order?.invoiceNumber ? 'invoice' : 'none');
+        } else {
+          setAttachmentType('none');
+        }
+      }
     };
     loadSettings();
-  }, [order, customer, profile]);
+  }, [order, customer, profile, defaultTemplateName]);
 
   const applyTemplate = (tpl: any, o: any, c: any, p: any) => {
     if (!tpl) return;
     
-    // Daten vorbereiten
     const billing = o?.billingAddress || c;
     const salutation = billing?.salutation || c?.salutation || '';
     const lastName = billing?.lastName || c?.lastName || '';
     const firstName = billing?.firstName || c?.firstName || '';
     const type = billing?.type || c?.type || 'privat';
+    const fullName = `${firstName} ${lastName}`.trim() || billing?.company || c?.company || o?.customerName || 'Kunde';
     
-    let kundeAnrede = `Sehr geehrte(r) ${firstName} ${lastName}`.trim();
+    let kundeAnrede = `Sehr geehrte(r) ${fullName}`.trim();
     
     if (type === 'firma') {
       if (salutation === 'Herr' && lastName) {
@@ -78,29 +195,33 @@ export function MessageSenderModal({
         kundeAnrede = `Sehr geehrte Damen und Herren`;
       }
     } else {
-      if (salutation === 'Herr') {
+      if (salutation === 'Herr' && lastName) {
         kundeAnrede = `Sehr geehrter Herr ${lastName}`;
-      } else if (salutation === 'Frau') {
+      } else if (salutation === 'Frau' && lastName) {
         kundeAnrede = `Sehr geehrte Frau ${lastName}`;
       }
     }
 
-    const movingDate = o?.orderMeta?.movingDateFrom 
-      ? new Date(o.orderMeta.movingDateFrom).toLocaleDateString('de-DE') 
+    const rawMovingDate = o?.orderMeta?.movingDateFrom || o?.movingDate || o?.logistics?.movingDate;
+    const movingDate = rawMovingDate 
+      ? new Date(rawMovingDate).toLocaleDateString('de-DE') 
       : 'Nach Absprache';
       
     const manager = p?.displayName || p?.email || 'Rothirsch Team';
     const summe = o?.totals?.gross ? `${o.totals.gross.toFixed(2)} €` : '0,00 €';
 
-    // Variablen ersetzen
     let newSubject = tpl.subject || '';
     let newBody = tpl.body || '';
 
     const replaceVars = (text: string) => {
       return text
+        .replace(/\[Name\]/g, fullName)
+        .replace(/\[Datum\]/g, movingDate)
+        .replace(/\[Mitarbeiter\]/g, manager)
+        .replace(/\[Summe\]/g, summe)
         .replace(/\{\{Kunde_Anrede\}\}/g, kundeAnrede)
-        .replace(/\{\{Kunde_Name\}\}/g, `${firstName} ${lastName}`.trim())
-        .replace(/\{\{Kunde_Nachname\}\}/g, lastName)
+        .replace(/\{\{Kunde_Name\}\}/g, fullName)
+        .replace(/\{\{Kunde_Nachname\}\}/g, lastName || fullName)
         .replace(/\{\{Umzugsdatum\}\}/g, movingDate)
         .replace(/\{\{Angebot_Summe\}\}/g, summe)
         .replace(/\{\{Sachbearbeiter\}\}/g, manager);
@@ -117,9 +238,9 @@ export function MessageSenderModal({
     if (tpl) {
       applyTemplate(tpl, order, customer, profile);
       
-      // Auto-Select Attachment Type based on Template Name
-      if (tpl.name.toLowerCase().includes('angebot')) setAttachmentType('order');
-      else if (tpl.name.toLowerCase().includes('rechnung')) setAttachmentType(order?.invoiceNumber ? 'invoice' : 'none');
+      const lowerName = (tpl.name || '').toLowerCase();
+      if (lowerName.includes('angebot') || tpl.id === 't3' || tpl.id === 't5') setAttachmentType('order');
+      else if (lowerName.includes('rechnung') || tpl.id === 't9') setAttachmentType(order?.invoiceNumber ? 'invoice' : 'none');
       else setAttachmentType('none');
     }
   };
