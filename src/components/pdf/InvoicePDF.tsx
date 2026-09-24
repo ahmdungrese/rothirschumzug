@@ -32,7 +32,6 @@ const styles = StyleSheet.create({
   
   docInfoBox: {
     width: '44%',
-    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: PDF_COLORS.border,
     borderRadius: 4,
@@ -80,7 +79,6 @@ const styles = StyleSheet.create({
   },
   
   routeCard: {
-    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: PDF_COLORS.border,
     borderLeftWidth: 3,
@@ -135,7 +133,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   paymentCard: {
-    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: PDF_COLORS.border,
     borderRadius: 4,

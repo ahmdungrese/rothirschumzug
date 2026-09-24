@@ -19,6 +19,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user, loading, router]);
 
+  // Ensure pressing the browser Back button never leaves a stale or blank view
+  useEffect(() => {
+    const handlePopState = () => {
+      router.refresh();
+    };
+    const handlePageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) {
+        router.refresh();
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('pageshow', handlePageShow);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('pageshow', handlePageShow);
+    };
+  }, [router]);
+
   if (loading || !user) {
     return (
       <div className="flex-1 flex items-center justify-center min-h-screen">

@@ -1,3 +1,5 @@
+"use client";
+
 import { ResponsiveOrderWrapper } from "@/components/orders/ResponsiveOrderWrapper";
 import Link from "next/link";
 import { ArrowLeftIcon } from "@heroicons/react/24/outline";
@@ -18,3 +20,4 @@ export default function NewOrderDirectPage() {
     </div>
   );
 }
+

@@ -32,7 +32,6 @@ const styles = StyleSheet.create({
   
   docInfoBox: {
     width: '44%',
-    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: PDF_COLORS.border,
     borderRadius: 4,
@@ -69,9 +68,8 @@ const styles = StyleSheet.create({
     color: PDF_COLORS.textMain,
   },
   
-  // Umzugsdaten Card (Crisp clean white, no gray background, with subtle left accent)
+  // Umzugsdaten Card (Crisp clean border with subtle left accent, transparent over watermark)
   routeCard: {
-    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: PDF_COLORS.border,
     borderLeftWidth: 3,

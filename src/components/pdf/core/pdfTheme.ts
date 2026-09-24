@@ -44,7 +44,6 @@ export const pdfCommonStyles = StyleSheet.create({
   },
   tableHeader: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
     borderBottomWidth: 1.5,
     borderBottomColor: PDF_COLORS.primary,
     borderTopWidth: 1,
@@ -62,7 +61,6 @@ export const pdfCommonStyles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 6,
     alignItems: 'center',
-    backgroundColor: '#ffffff',
   },
   
   // Totals Section
@@ -73,7 +71,6 @@ export const pdfCommonStyles = StyleSheet.create({
   },
   totalsBox: {
     width: '45%',
-    backgroundColor: '#ffffff',
     borderRadius: 4,
     borderWidth: 1,
     borderColor: PDF_COLORS.border,

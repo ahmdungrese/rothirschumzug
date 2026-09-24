@@ -191,6 +191,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
   const handleInvoiceClick = () => {
     if (isReadyForInvoice) {
+      onClose();
       router.push(editInvoiceUrl);
     } else {
       setEarlyInvoiceWarningOpen(true);
@@ -384,9 +385,8 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                 title="Kundenakte öffnen"
               >
                 <span>{custName}</span>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-200/70 dark:bg-slate-800 group-hover:bg-primary group-hover:text-white text-slate-600 dark:text-slate-300 text-[10px] font-bold transition-all">
-                  <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
-                  <span>Kundenakte</span>
+                <span className="w-7 h-7 rounded-lg bg-slate-200/80 dark:bg-slate-800 group-hover:bg-primary group-hover:text-white text-slate-600 dark:text-slate-300 inline-flex items-center justify-center transition-all shadow-2xs">
+                  <ArrowTopRightOnSquareIcon className="w-4 h-4" />
                 </span>
               </Link>
             </div>
@@ -400,26 +400,25 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
             </button>
           </div>
 
-          {/* Quick Contact & Action Buttons */}
+          {/* Quick Contact (Icon-Only) & Action Buttons */}
           <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-200/80 dark:border-slate-700/60">
             {custPhone && (
               <>
                 <a 
                   href={`tel:${custPhone}`}
-                  className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold flex items-center gap-1.5 transition-colors"
-                  title="Anrufen"
+                  className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-center transition-colors"
+                  title={`Anrufen: ${custPhone}`}
                 >
                   <PhoneIcon className="w-4 h-4 text-emerald-600" />
-                  <span>{custPhone}</span>
                 </a>
 
                 <button 
+                  type="button"
                   onClick={() => handleDirectWhatsApp()}
-                  className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 text-xs font-bold flex items-center gap-1.5 transition-colors"
-                  title="WhatsApp Chat öffnen"
+                  className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center transition-colors cursor-pointer"
+                  title={`WhatsApp Chat öffnen (${custPhone})`}
                 >
                   <ChatBubbleLeftRightIcon className="w-4 h-4 text-emerald-600" />
-                  <span>WhatsApp</span>
                 </button>
               </>
             )}
@@ -427,11 +426,10 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
             {custEmail && (
               <a 
                 href={`mailto:${custEmail}`}
-                className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-medium flex items-center gap-1.5 transition-colors"
-                title="E-Mail schreiben"
+                className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-colors"
+                title={`E-Mail schreiben: ${custEmail}`}
               >
                 <EnvelopeIcon className="w-4 h-4 text-blue-500" />
-                <span className="truncate max-w-[140px]">{custEmail}</span>
               </a>
             )}
 
@@ -447,33 +445,19 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                 title="Angebot / Auftrag als PDF anzeigen & herunterladen"
               >
                 <DocumentTextIcon className="w-4 h-4 text-primary" />
-                <span>PDF anzeigen</span>
+                <span>PDF</span>
               </button>
 
-              {/* Editor (Angebot bearbeiten) */}
+              {/* Single Offer Editor Button in Cockpit Header */}
               <Link
                 href={editOrderUrl}
-                className="px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+                onClick={onClose}
+                className="px-3.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
                 title="Angebot, Umzugsliste & Kalkulation im Editor bearbeiten"
               >
                 <PencilSquareIcon className="w-4 h-4" />
                 <span>Angebot bearbeiten</span>
               </Link>
-
-              {/* Smart Invoice Button in Header */}
-              <button
-                type="button"
-                onClick={handleInvoiceClick}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                  isReadyForInvoice
-                    ? 'bg-[#D91E2A] hover:bg-[#b51822] text-white shadow-xs'
-                    : 'bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700'
-                }`}
-                title={isReadyForInvoice ? 'Rechnung öffnen / erstellen' : 'Auftrag noch nicht abgeschlossen – Klicken für vorzeitige Rechnung'}
-              >
-                <CurrencyEuroIcon className="w-4 h-4" />
-                <span>{order.invoiceNumber ? `Rechnung (${order.invoiceNumber})` : 'Rechnung'}</span>
-              </button>
             </div>
           </div>
         </div>
@@ -566,13 +550,6 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 font-headline">
                     Stammdaten-Prüfung (Live aus Kundenformular)
                   </h4>
-                  <Link
-                    href={editOrderUrl}
-                    className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
-                  >
-                    <PencilSquareIcon className="w-3.5 h-3.5" />
-                    <span>Daten ergänzen</span>
-                  </Link>
                 </div>
                 
                 <div className="space-y-2 text-xs">
@@ -704,15 +681,6 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                   </button>
                 </div>
               </div>
-
-              {/* Action to create offer */}
-              <Link
-                href={editOrderUrl}
-                className="w-full py-3 bg-primary text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-md hover:bg-primary/90 transition-all font-headline"
-              >
-                <PencilSquareIcon className="w-4 h-4" />
-                <span>Angebot & Kalkulation bearbeiten</span>
-              </Link>
             </div>
           )}
 
@@ -1562,6 +1530,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                 type="button"
                 onClick={() => {
                   setEarlyInvoiceWarningOpen(false);
+                  onClose();
                   router.push(editInvoiceUrl);
                 }}
                 className="px-4 py-2.5 rounded-xl bg-[#D91E2A] hover:bg-[#b51822] text-white text-xs font-bold shadow-md transition-colors cursor-pointer"
