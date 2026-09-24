@@ -195,8 +195,8 @@ export const InvoicePDF = ({
     introGreeting = `Sehr geehrte Frau ${billing.lastName},`;
   }
 
-  const invoiceOutro = (settings?.texts?.invoiceOutro || '').replace(/Rothirsch Umzüge(\s+und\s+Logistik)?/gi, 'Rothirsch Umzug');
-  const invoiceGreeting = (settings?.texts?.invoiceGreeting || '').replace(/Rothirsch Umzüge(\s+und\s+Logistik)?/gi, 'Rothirsch Umzug');
+  const invoiceOutro = settings?.texts?.invoiceOutro || '';
+  const invoiceGreeting = settings?.texts?.invoiceGreeting || '';
 
   const hasRouteInfo = order?.logistics?.a_city || order?.logistics?.b_city;
 
@@ -208,8 +208,8 @@ export const InvoicePDF = ({
     <Document title={docTitle}>
       <Page size="A4" style={styles.page}>
         <PDFWatermark type="symbols" />
-
         <PDFHeader settings={settings} docTitle={isStorno ? 'Stornorechnung' : 'Rechnung'} />
+        <PDFFooter settings={settings} />
 
         {/* Recipient Window & Document Meta Box */}
         <View style={styles.customerDateBox}>
@@ -418,19 +418,19 @@ export const InvoicePDF = ({
               <View style={styles.paymentCard}>
                 <View style={styles.bankRow}>
                   <Text style={{ fontFamily: 'Helvetica-Bold' }}>Kontoinhaber:</Text>
-                  <Text>Rothirsch Umzug</Text>
+                  <Text>{settings?.companyName || 'Rothirsch Umzug'}</Text>
                 </View>
                 <View style={styles.bankRow}>
                   <Text style={{ fontFamily: 'Helvetica-Bold' }}>IBAN:</Text>
-                  <Text>{settings?.iban || 'DE51 4305 0001 0033 4371 12'}</Text>
+                  <Text>{settings?.iban || ''}</Text>
                 </View>
                 <View style={styles.bankRow}>
                   <Text style={{ fontFamily: 'Helvetica-Bold' }}>BIC:</Text>
-                  <Text>{settings?.bic || 'WELADED1B0C'}</Text>
+                  <Text>{settings?.bic || ''}</Text>
                 </View>
                 <View style={styles.bankRow}>
                   <Text style={{ fontFamily: 'Helvetica-Bold' }}>Kreditinstitut:</Text>
-                  <Text>{settings?.bankName || 'Sparkasse Bochum'}</Text>
+                  <Text>{settings?.bankName || ''}</Text>
                 </View>
                 <View style={{ ...styles.bankRow, marginTop: 4, paddingTop: 4, borderTopWidth: 0.5, borderTopColor: PDF_COLORS.border }}>
                   <Text style={{ fontFamily: 'Helvetica-Bold', color: PDF_COLORS.primary }}>Zahlungsziel:</Text>
@@ -450,8 +450,6 @@ export const InvoicePDF = ({
             {invoiceGreeting}
           </Text>
         ) : null}
-
-        <PDFFooter settings={settings} />
       </Page>
     </Document>
   );

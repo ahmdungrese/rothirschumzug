@@ -45,6 +45,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { StornoModal } from '@/components/finances/StornoModal';
 import { OrderDetailsDrawer } from '@/components/dashboard/OrderDetailsDrawer';
+import { TaskScheduleModal } from '@/components/logistics/TaskScheduleModal';
 
 const DEFAULT_COMMUNICATION_TEMPLATES = [
   {
@@ -294,6 +295,29 @@ export function CustomerPremiumProfile({
   // Dashboard-Style Drawer State for full 4-phase examination
   const [drawerOrder, setDrawerOrder] = useState<any | null>(null);
   const [drawerInitialPhase, setDrawerInitialPhase] = useState<number | undefined>(undefined);
+  const [scheduleModalTodo, setScheduleModalTodo] = useState<any | null>(null);
+
+  // Keep drawerOrder synced with live orders array from Firestore
+  useEffect(() => {
+    if (drawerOrder?.id) {
+      const updated = orders.find((o: any) => o.id === drawerOrder.id);
+      if (updated) setDrawerOrder(updated);
+    }
+  }, [orders]);
+
+  const formatCustomerDate = (dateRaw?: string, timeRaw?: string) => {
+    if (!dateRaw || dateRaw === 'requested') return '';
+    if (dateRaw === 'erledigt_fotos') return 'Durch Fotos erledigt ✓';
+    const cleanDatePart = dateRaw.split('T')[0];
+    const embeddedTime = dateRaw.includes('T') ? dateRaw.split('T')[1]?.slice(0, 5) : '';
+    let formattedDate = cleanDatePart;
+    try {
+      const [y, m, d] = cleanDatePart.split('-');
+      if (y && m && d) formattedDate = `${d}.${m}.${y}`;
+    } catch {}
+    const displayTime = timeRaw || embeddedTime;
+    return displayTime ? `${formattedDate} (${displayTime}${displayTime.includes('Uhr') || displayTime === 'Ganztägig' ? '' : ' Uhr'})` : formattedDate;
+  };
 
   // Logistics & Route extraction
   const orderLogistics = activeOrder?.logistics || {};
@@ -1261,30 +1285,123 @@ export function CustomerPremiumProfile({
               </div>
             </div>
 
-            {/* Move Schedule & Scope Card */}
+            {/* Move Schedule & Scope Card (Synchronized with Cockpit & Offer Form) */}
             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-headline">
-                  Termin & Umfang
+                  Termine & Umfang (Live-Sync)
                 </span>
                 <CalendarDaysIcon className="w-5 h-5 text-blue-500" />
               </div>
 
-              <div className="text-xl font-bold text-slate-900 dark:text-white font-headline">
-                {logisticsEval?.movingDateDisplay || 'Kein Termin eingetragen'}
-              </div>
-
-              <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
-                <span className="flex items-center gap-1.5 truncate">
-                  <MapPinIcon className="w-3.5 h-3.5 text-blue-500 shrink-0" />
-                  <span className="truncate">{logisticsEval?.routeDisplay || 'Keine Route'}</span>
-                </span>
+              <div className="flex items-baseline justify-between gap-2">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                    Haupt-Umzugstermin
+                  </span>
+                  <div className="text-xl font-bold text-slate-900 dark:text-white font-headline">
+                    {logisticsEval?.movingDateDisplay || 'Kein Termin eingetragen'}
+                  </div>
+                </div>
                 {(orderLogistics.estimatedVolume || activeOrder?.estimatedCbm) && (
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shrink-0">
+                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shrink-0">
                     {orderLogistics.estimatedVolume || activeOrder?.estimatedCbm} m³
                   </span>
                 )}
               </div>
+
+              {activeOrder && (
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-xs">
+                  {/* 1. Besichtigungstermin */}
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                    <span className="text-slate-500 dark:text-slate-400 font-medium">Besichtigung:</span>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleModalTodo({ id: 'viewing_requested', name: 'Besichtigung' })}
+                      className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Klicken zum Planen oder Ändern des Besichtigungstermins"
+                    >
+                      {activeOrder.orderMeta?.viewingDate && activeOrder.orderMeta?.viewingDate !== 'requested' ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <CheckIcon className="w-3.5 h-3.5 shrink-0" />
+                          <span>{formatCustomerDate(activeOrder.orderMeta.viewingDate, activeOrder.orderMeta.viewingTime)}</span>
+                        </span>
+                      ) : (
+                        <span className="text-primary underline">+ Termin planen</span>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* 2. Halteverbotszone (HVZ) */}
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                    <span className="text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1">
+                      <span>Halteverbot (HVZ):</span>
+                      {(activeOrder.orderMeta?.hvzMethod || activeOrder.logistics?.hvzMethod) && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold">
+                          {(activeOrder.orderMeta?.hvzMethod || activeOrder.logistics?.hvzMethod) === 'extern' ? 'Extern' : 'Selbst'}
+                        </span>
+                      )}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleModalTodo({ id: 'halteverbot', kanbanCategory: 'halteverbot', name: 'Halteverbot' })}
+                      className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Klicken zum Planen oder Ändern der Halteverbotszone"
+                    >
+                      {activeOrder.orderMeta?.halteverbotDate || activeOrder.logistics?.hvzDate ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <CheckIcon className="w-3.5 h-3.5 shrink-0" />
+                          <span>{formatCustomerDate(activeOrder.orderMeta?.halteverbotDate || activeOrder.logistics?.hvzDate, activeOrder.orderMeta?.halteverbotTime || activeOrder.logistics?.hvzTime)}</span>
+                        </span>
+                      ) : (
+                        <span className="text-primary underline">+ Termin planen</span>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* 3. Kartonlieferung */}
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                    <span className="text-slate-500 dark:text-slate-400 font-medium">Kartonlieferung:</span>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleModalTodo({ id: 'kartons_liefern', kanbanCategory: 'kartons', name: 'Kartons' })}
+                      className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Klicken zum Planen oder Ändern der Kartonlieferung"
+                    >
+                      {activeOrder.orderMeta?.kartonDeliveryDate || activeOrder.logistics?.boxDeliveryDate ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <CheckIcon className="w-3.5 h-3.5 shrink-0" />
+                          <span>{formatCustomerDate(activeOrder.orderMeta?.kartonDeliveryDate || activeOrder.logistics?.boxDeliveryDate, activeOrder.orderMeta?.kartonDeliveryTime || activeOrder.logistics?.boxDeliveryTime)}</span>
+                        </span>
+                      ) : (
+                        <span className="text-primary underline">+ Termin planen</span>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* 4. Möbellift (if needed or scheduled) */}
+                  {(activeOrder.logistics?.a_furnitureLift || activeOrder.logistics?.b_furnitureLift || activeOrder.orderMeta?.moebelliftDate) && (
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                      <span className="text-slate-500 dark:text-slate-400 font-medium">Möbellift:</span>
+                      <button
+                        type="button"
+                        onClick={() => setScheduleModalTodo({ id: 'moebellift_buchen', kanbanCategory: 'moebellift', name: 'Möbellift' })}
+                        className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
+                        title="Klicken zum Planen oder Ändern des Möbellifts"
+                      >
+                        {activeOrder.orderMeta?.moebelliftDate ? (
+                          <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                            <CheckIcon className="w-3.5 h-3.5 shrink-0" />
+                            <span>{formatCustomerDate(activeOrder.orderMeta.moebelliftDate, activeOrder.orderMeta.moebelliftTime)}</span>
+                          </span>
+                        ) : (
+                          <span className="text-primary underline">+ Termin planen</span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -2427,6 +2544,20 @@ export function CustomerPremiumProfile({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Direct Schedule Modal from Customer Page */}
+      {scheduleModalTodo && activeOrder && (
+        <TaskScheduleModal
+          isOpen={Boolean(scheduleModalTodo)}
+          onClose={() => setScheduleModalTodo(null)}
+          todo={scheduleModalTodo}
+          parentOrder={activeOrder}
+          onSaved={() => {
+            if (onRefresh) onRefresh();
+            setScheduleModalTodo(null);
+          }}
+        />
       )}
 
       {/* 4-Phasen Dashboard-Style Order Details Drawer */}

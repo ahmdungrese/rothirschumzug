@@ -31,7 +31,7 @@ import { SignatureModal } from '@/components/orders/SignatureModal';
 import { ProtocolModal } from '@/components/customers/ProtocolModal';
 import { MessageSenderModal } from '@/components/customers/MessageSenderModal';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 
 interface OrderDetailsDrawerProps {
@@ -42,16 +42,36 @@ interface OrderDetailsDrawerProps {
   onRefresh?: () => void;
 }
 
-export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onRefresh }: OrderDetailsDrawerProps) {
+export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase, onClose, onRefresh }: OrderDetailsDrawerProps) {
+  const [order, setOrder] = useState<any>(initialOrder);
+
+  // Sync when initialOrder prop changes
+  useEffect(() => {
+    if (initialOrder) {
+      setOrder(initialOrder);
+    }
+  }, [initialOrder]);
+
+  // Real-time Firestore listener so any date/status change in TaskScheduleModal or SignatureModal updates immediately
+  useEffect(() => {
+    if (!initialOrder?.id) return;
+    const unsub = onSnapshot(doc(db, 'orders', initialOrder.id), (snap) => {
+      if (snap.exists()) {
+        setOrder({ id: snap.id, ...snap.data() });
+      }
+    }, (err) => console.error('OrderDetailsDrawer live sync error:', err));
+    return () => unsub();
+  }, [initialOrder?.id]);
+
   // Determine initial phase from status
-  const getInitialPhase = (st: string) => {
+  const getInitialPhase = (st: string, ord: any) => {
     if (st === 'completed' || st?.startsWith('invoice_') || st === 'archived') return 4;
-    if (st === 'confirmed') return 3;
-    if (st === 'quote' || st === 'verhandlung' || Boolean(order?.orderMeta?.viewingDate || order?.viewingDate)) return 2;
+    if (st === 'confirmed' || ord?.isManuallySigned || ord?.contractSigned || ord?.signatureOrder) return 3;
+    if (st === 'quote' || st === 'verhandlung' || Boolean(ord?.orderMeta?.viewingDate || ord?.viewingDate)) return 2;
     return 1;
   };
 
-  const currentOrderPhase = getInitialPhase(order?.status || 'draft');
+  const currentOrderPhase = getInitialPhase(order?.status || 'draft', order);
   const [activePhaseTab, setActivePhaseTab] = useState<number>(initialPhase || currentOrderPhase);
 
   useEffect(() => {
@@ -75,7 +95,7 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
       setInternalCustomer(customer);
       return;
     }
-    if (order?.customerId) {
+    if (order?.customerId && order.customerId !== 'undefined') {
       getDoc(doc(db, 'customers', order.customerId)).then((snap) => {
         if (snap.exists()) {
           setInternalCustomer({ id: snap.id, ...snap.data() });
@@ -98,25 +118,58 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
   const evaluation = evaluateOrderLogistics(order, internalCustomer);
   const custName = internalCustomer 
     ? `${internalCustomer.firstName || ''} ${internalCustomer.lastName || ''}`.trim() || internalCustomer.company || 'Kunde ohne Name'
-    : order.customerName || order.clientName || 'Kunde ohne Name';
+    : order.customerName || order.clientName || `${order.billingAddress?.firstName || ''} ${order.billingAddress?.lastName || ''}`.trim() || 'Kunde ohne Name';
 
   const orderNum = order.orderNumber || order.orderIdShort || (order.id ? `#${order.id.slice(-5).toUpperCase()}` : '#RH-AUFTRAG');
-  const custPhone = internalCustomer?.phone || order.phone || order.customerPhone || '';
-  const custEmail = internalCustomer?.email || order.email || order.customerEmail || '';
+  const custPhone = internalCustomer?.phone || order.billingAddress?.phone || order.phone || order.customerPhone || '';
+  const custEmail = internalCustomer?.email || order.billingAddress?.email || order.email || order.customerEmail || '';
 
-  const addressA = [
-    order.logistics?.a_street || order.logistics?.from?.street,
-    order.logistics?.a_houseNr || order.logistics?.from?.houseNumber,
-    order.logistics?.a_zip || order.logistics?.from?.postalCode,
-    order.logistics?.a_city || order.logistics?.from?.city
+  const customerBillingAddr = [
+    internalCustomer?.street || order.billingAddress?.street,
+    internalCustomer?.houseNr || order.billingAddress?.houseNr,
+    internalCustomer?.zip || order.billingAddress?.zip,
+    internalCustomer?.city || order.billingAddress?.city
   ].filter(Boolean).join(' ');
+
+  const rawAddressA = [
+    order.logistics?.a_street || order.logistics?.from?.street || order.logistics?.auszug?.street,
+    order.logistics?.a_houseNr || order.logistics?.from?.houseNumber || order.logistics?.auszug?.houseNr,
+    order.logistics?.a_zip || order.logistics?.from?.postalCode || order.logistics?.auszug?.zip,
+    order.logistics?.a_city || order.logistics?.from?.city || order.logistics?.auszug?.city
+  ].filter(Boolean).join(' ');
+
+  const addressA = rawAddressA || customerBillingAddr || '';
+  const floorA = order.logistics?.a_floor || order.logistics?.from?.floor || '';
 
   const addressB = [
-    order.logistics?.b_street || order.logistics?.to?.street,
-    order.logistics?.b_houseNr || order.logistics?.to?.houseNumber,
-    order.logistics?.b_zip || order.logistics?.to?.postalCode,
-    order.logistics?.b_city || order.logistics?.to?.city
+    order.logistics?.b_street || order.logistics?.to?.street || order.logistics?.einzug?.street,
+    order.logistics?.b_houseNr || order.logistics?.to?.houseNumber || order.logistics?.einzug?.houseNr,
+    order.logistics?.b_zip || order.logistics?.to?.postalCode || order.logistics?.einzug?.zip,
+    order.logistics?.b_city || order.logistics?.to?.city || order.logistics?.einzug?.city
   ].filter(Boolean).join(' ');
+  const floorB = order.logistics?.b_floor || order.logistics?.to?.floor || '';
+
+  const targetCustomerId = (internalCustomer?.id || customer?.id || order?.customerId || '').trim();
+  const editOrderUrl = (targetCustomerId && targetCustomerId !== 'undefined')
+    ? `/dashboard/customers/${targetCustomerId}/edit-order/${order.id}`
+    : `/dashboard/orders/new?orderId=${order.id}`;
+  const editInvoiceUrl = (targetCustomerId && targetCustomerId !== 'undefined')
+    ? `/dashboard/customers/${targetCustomerId}/edit-invoice/${order.id}`
+    : `/dashboard/orders/new?orderId=${order.id}&type=invoice`;
+
+  const formatScheduleDate = (dateRaw?: string, timeRaw?: string) => {
+    if (!dateRaw || dateRaw === 'requested') return '';
+    if (dateRaw === 'erledigt_fotos') return 'Durch Fotos / Inventarliste erledigt ✓';
+    const cleanDatePart = dateRaw.split('T')[0];
+    const embeddedTime = dateRaw.includes('T') ? dateRaw.split('T')[1]?.slice(0, 5) : '';
+    let formattedDate = cleanDatePart;
+    try {
+      const [y, m, d] = cleanDatePart.split('-');
+      if (y && m && d) formattedDate = `${d}.${m}.${y}`;
+    } catch {}
+    const displayTime = timeRaw || embeddedTime;
+    return displayTime ? `${formattedDate} (${displayTime}${displayTime.includes('Uhr') || displayTime === 'Ganztägig' ? '' : ' Uhr'})` : formattedDate;
+  };
 
   // Compute materials summary (boxes count)
   const matSummary = (() => {
@@ -259,16 +312,14 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
               </a>
             )}
 
-            {order.customerId && (
-              <Link
-                href={`/dashboard/customers/${order.customerId}/edit-order/${order.id}`}
-                className="ml-auto px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
-                title="Angebot im Editor öffnen"
-              >
-                <PencilSquareIcon className="w-4 h-4" />
-                <span>Editor</span>
-              </Link>
-            )}
+            <Link
+              href={editOrderUrl}
+              className="ml-auto px-3.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+              title="Angebot, Umzugsliste & Kalkulation im Editor bearbeiten"
+            >
+              <PencilSquareIcon className="w-4 h-4" />
+              <span>Angebot bearbeiten</span>
+            </Link>
           </div>
         </div>
 
@@ -308,7 +359,7 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
         {/* Phase Navigation Stepper Tabs */}
         <div className="flex items-center border-b border-slate-200 dark:border-slate-800 px-4 bg-slate-100/50 dark:bg-slate-900/50 overflow-x-auto scrollbar-none">
           {[
-            { phase: 1, label: '1. Anfrage', sub: 'Lead prüfen' },
+            { phase: 1, label: '1. Anfrage', sub: 'Stammdaten & Lead' },
             { phase: 2, label: '2. Verhandlung', sub: 'Besichtigung & Sign' },
             { phase: 3, label: '3. Bestätigt', sub: 'Logistik & Termine' },
             { phase: 4, label: '4. Abschluss', sub: 'Protokoll & Rechnung' },
@@ -347,25 +398,34 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
             <div className="space-y-6">
               <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/70 dark:border-blue-900/40">
                 <h3 className="text-sm font-bold text-blue-900 dark:text-blue-300 font-headline mb-1">
-                  Phase 1: Neue Anfrage (Lead)
+                  Phase 1: Neue Anfrage & Stammdaten-Prüfung
                 </h3>
                 <p className="text-xs text-blue-700 dark:text-blue-400">
-                  Prüfe hier die Kontaktdaten und Details der Anfrage. Kontaktiere den Kunden mit einer der passenden Erstkontakt-Vorlagen.
+                  Alle Daten sind live mit dem Kunden- & Angebotsformular verknüpft. Prüfe die Adressen und vereinbare bei Bedarf direkt den Besichtigungstermin.
                 </p>
               </div>
 
               {/* Data Verification Checklist */}
               <div className="panel p-4 space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 font-headline">
-                  Stammdaten-Prüfung
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 font-headline">
+                    Stammdaten-Prüfung (Live aus Kundenformular)
+                  </h4>
+                  <Link
+                    href={editOrderUrl}
+                    className="text-[11px] font-bold text-primary hover:underline flex items-center gap-1"
+                  >
+                    <PencilSquareIcon className="w-3.5 h-3.5" />
+                    <span>Daten ergänzen</span>
+                  </Link>
+                </div>
                 
                 <div className="space-y-2 text-xs">
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                    <span className="text-slate-600 dark:text-slate-400">Telefonnummer</span>
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 gap-3">
+                    <span className="text-slate-600 dark:text-slate-400 shrink-0">Telefonnummer</span>
                     {custPhone ? (
-                      <span className="font-bold text-emerald-600 flex items-center gap-1">
-                        <CheckIcon className="w-3.5 h-3.5" /> {custPhone}
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-right">
+                        <CheckIcon className="w-3.5 h-3.5 shrink-0" /> {custPhone}
                       </span>
                     ) : (
                       <span className="font-bold text-amber-600 flex items-center gap-1">
@@ -374,11 +434,11 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                    <span className="text-slate-600 dark:text-slate-400">E-Mail-Adresse</span>
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 gap-3">
+                    <span className="text-slate-600 dark:text-slate-400 shrink-0">E-Mail-Adresse</span>
                     {custEmail ? (
-                      <span className="font-bold text-emerald-600 flex items-center gap-1">
-                        <CheckIcon className="w-3.5 h-3.5" /> {custEmail}
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 truncate max-w-[240px]" title={custEmail}>
+                        <CheckIcon className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{custEmail}</span>
                       </span>
                     ) : (
                       <span className="font-bold text-amber-600 flex items-center gap-1">
@@ -387,18 +447,66 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                    <span className="text-slate-600 dark:text-slate-400">Auszugsadresse (A)</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200">
-                      {order.logistics?.from?.city || 'Nicht angegeben'}
-                    </span>
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 gap-3">
+                    <span className="text-slate-600 dark:text-slate-400 shrink-0">Auszugsadresse (A)</span>
+                    {addressA ? (
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-right">
+                        <CheckIcon className="w-3.5 h-3.5 shrink-0" />
+                        <span>{addressA}{floorA ? ` (${floorA})` : ''}</span>
+                      </span>
+                    ) : (
+                      <span className="font-bold text-amber-600 flex items-center gap-1">
+                        <ExclamationTriangleIcon className="w-3.5 h-3.5" /> Nicht angegeben
+                      </span>
+                    )}
                   </div>
 
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                    <span className="text-slate-600 dark:text-slate-400">Einzugsadresse (B)</span>
-                    <span className="font-bold text-slate-800 dark:text-slate-200">
-                      {order.logistics?.to?.city || 'Nicht angegeben'}
-                    </span>
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 gap-3">
+                    <span className="text-slate-600 dark:text-slate-400 shrink-0">Einzugsadresse (B)</span>
+                    {addressB ? (
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-right">
+                        <CheckIcon className="w-3.5 h-3.5 shrink-0" />
+                        <span>{addressB}{floorB ? ` (${floorB})` : ''}</span>
+                      </span>
+                    ) : (
+                      <span className="font-bold text-amber-600 flex items-center gap-1">
+                        <ExclamationTriangleIcon className="w-3.5 h-3.5" /> Nicht angegeben
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 gap-3">
+                    <span className="text-slate-600 dark:text-slate-400 shrink-0">Wunsch-Umzugstermin</span>
+                    {order.orderMeta?.movingDateFrom || order.movingDate ? (
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckIcon className="w-3.5 h-3.5 shrink-0" /> {evaluation.movingDateDisplay}
+                      </span>
+                    ) : (
+                      <span className="font-bold text-amber-600 flex items-center gap-1">
+                        <ExclamationTriangleIcon className="w-3.5 h-3.5" /> Offen
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 gap-3">
+                    <span className="text-slate-600 dark:text-slate-400 shrink-0">Besichtigungstermin</span>
+                    <div className="flex items-center gap-2">
+                      {order.orderMeta?.viewingDate ? (
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <CheckIcon className="w-3.5 h-3.5 shrink-0" />
+                          <span>{formatScheduleDate(order.orderMeta?.viewingDate, order.orderMeta?.viewingTime)}</span>
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 italic">Noch nicht geplant</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleOpenSchedule({ id: 'viewing_requested', name: 'Besichtigung' })}
+                        className="px-2 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-white font-bold text-[11px] transition-colors"
+                      >
+                        Planen
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -443,15 +551,13 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
               </div>
 
               {/* Action to create offer */}
-              {order.customerId && (
-                <Link
-                  href={`/dashboard/customers/${order.customerId}/edit-order/${order.id}`}
-                  className="w-full py-3 bg-primary text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-md hover:bg-primary/90 transition-all font-headline"
-                >
-                  <PencilSquareIcon className="w-4 h-4" />
-                  <span>Angebot im Editor erstellen / bearbeiten</span>
-                </Link>
-              )}
+              <Link
+                href={editOrderUrl}
+                className="w-full py-3 bg-primary text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-md hover:bg-primary/90 transition-all font-headline"
+              >
+                <PencilSquareIcon className="w-4 h-4" />
+                <span>Angebot & Kalkulation bearbeiten</span>
+              </Link>
             </div>
           )}
 
@@ -470,55 +576,86 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
               </div>
 
               {/* Digital Signature Card */}
-              <div className="panel p-4 border-2 border-primary/30 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <DocumentCheckIcon className="w-5 h-5 text-primary" />
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white font-headline">
-                      Digitale Unterschrift
-                    </h4>
-                  </div>
-                  {order.signatureOrder ? (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 flex items-center gap-1">
-                      <CheckCircleIcon className="w-3.5 h-3.5" /> Unterschrieben
-                    </span>
-                  ) : (
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-                      Ausstehend
-                    </span>
-                  )}
-                </div>
-
-                {order.signatureOrder ? (
-                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-between">
-                    <div>
-                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {order.signatureOrderPlace ? `${order.signatureOrderPlace}, ${order.signatureOrderDateString}` : 'Unterschrieben'}
-                      </p>
-                      <p className="text-[10px] text-slate-500">Unterschrift im PDF eingebettet</p>
+              {(() => {
+                const isSigned = Boolean(
+                  order.signatureOrder ||
+                  order.signature ||
+                  order.isManuallySigned ||
+                  order.contractSigned ||
+                  order.status === 'confirmed'
+                );
+                return (
+                  <div className={`panel p-4 border-2 transition-all space-y-3 ${
+                    isSigned
+                      ? 'border-emerald-500 bg-emerald-500/10 dark:bg-emerald-950/30'
+                      : 'border-primary/30'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <DocumentCheckIcon className={`w-5 h-5 ${isSigned ? 'text-emerald-600' : 'text-primary'}`} />
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white font-headline">
+                          Vertragsbestätigung & Digitale Unterschrift
+                        </h4>
+                      </div>
+                      {isSigned ? (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-white flex items-center gap-1">
+                          <CheckCircleIcon className="w-3.5 h-3.5" /> Bestätigt & Signiert ✓
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                          Ausstehend
+                        </span>
+                      )}
                     </div>
-                    <button
-                      onClick={() => setSignatureModalOpen(true)}
-                      className="px-3 py-1 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                    >
-                      Neu signieren
-                    </button>
+
+                    {isSigned ? (
+                      <div className="p-3 rounded-xl bg-white/80 dark:bg-slate-800 flex items-center justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                            {order.signatureOrderPlace
+                              ? `${order.signatureOrderPlace}, ${order.signatureOrderDateString}`
+                              : 'Vertrag bestätigt (Phase 3 freigeschaltet)'}
+                          </p>
+                          <p className="text-[10px] text-slate-500">
+                            {order.signatureOrder ? 'Unterschrift im PDF eingebettet' : 'Manuell / Digital bestätigt'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => setSignatureModalOpen(true)}
+                            className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                          >
+                            Unterschrift öffnen
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                          Lass den Kunden hier direkt auf deinem Display unterschreiben oder bestätige die Zusage. Der Auftrag wechselt sofort in Phase 3 (Bestätigt)!
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <button
+                            onClick={() => setSignatureModalOpen(true)}
+                            className="flex-1 py-2.5 px-4 bg-gradient-to-r from-amber-600 to-amber-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow hover:brightness-110 transition-all font-headline cursor-pointer"
+                          >
+                            <PencilSquareIcon className="w-4 h-4" />
+                            <span>Auftrag jetzt digital unterschreiben</span>
+                          </button>
+                          <button
+                            onClick={() => handleToggleTask('signature', 'Vertragsbestätigung')}
+                            disabled={isUpdatingTask}
+                            className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                          >
+                            <CheckIcon className="w-4 h-4" />
+                            <span>Manuell bestätigen</span>
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div>
-                    <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
-                      Lass den Kunden hier direkt auf deinem Display (Tablet/Handy/PC) unterschreiben. Der Auftrag wird sofort bestätigt und das PDF signiert!
-                    </p>
-                    <button
-                      onClick={() => setSignatureModalOpen(true)}
-                      className="w-full py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow hover:brightness-110 transition-all font-headline"
-                    >
-                      <PencilSquareIcon className="w-4 h-4" />
-                      <span>Auftrag jetzt digital unterschreiben</span>
-                    </button>
-                  </div>
-                )}
-              </div>
+                );
+              })()}
 
               {/* Besichtigungstermin Card */}
               <div className="panel p-4 space-y-3">
@@ -535,31 +672,32 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
                   </button>
                 </div>
 
-                {order.orderMeta?.viewingDate && order.orderMeta?.viewingDate !== 'erledigt_fotos' ? (
-                  <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-900/40 space-y-3">
+                {order.orderMeta?.viewingDate && order.orderMeta?.viewingDate !== 'requested' ? (
+                  <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-500/60 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-xs font-bold text-amber-900 dark:text-amber-200">
-                          {order.orderMeta?.viewingType || 'Vor-Ort Besichtigung'}
+                        <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
+                          <CheckCircleIcon className="w-4 h-4 text-emerald-600" />
+                          <span>{order.orderMeta?.viewingType || 'Geplanter Besichtigungstermin'}</span>
                         </p>
-                        <p className="text-xs text-slate-600 dark:text-slate-300">
-                          {order.orderMeta?.viewingDate.split('T')[0]} {order.orderMeta?.viewingTime ? `um ${order.orderMeta?.viewingTime} Uhr` : ''}
+                        <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 mt-0.5">
+                          {formatScheduleDate(order.orderMeta?.viewingDate, order.orderMeta?.viewingTime)}
                         </p>
                       </div>
-                      <span className="material-symbols-outlined text-amber-600 text-xl">calendar_today</span>
+                      <span className="material-symbols-outlined text-emerald-600 text-xl">calendar_today</span>
                     </div>
 
                     {addressA && (
-                      <div className="text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-amber-200/60 dark:border-amber-900/40 flex items-center justify-between gap-2">
+                      <div className="text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-emerald-200/60 dark:border-emerald-900/40 flex items-center justify-between gap-2">
                         <span className="truncate flex items-center gap-1">
-                          <MapPinIcon className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                          <MapPinIcon className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
                           <span className="truncate">{addressA}</span>
                         </span>
                         <a
                           href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressA)}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="px-2.5 py-1 rounded-lg bg-amber-200/70 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 font-bold hover:brightness-110 flex items-center gap-1 shrink-0"
+                          className="px-2.5 py-1 rounded-lg bg-emerald-200/70 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-200 font-bold hover:brightness-110 flex items-center gap-1 shrink-0"
                           title="In Google Maps öffnen"
                         >
                           <MapPinIcon className="w-3.5 h-3.5" />
@@ -568,21 +706,19 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
                       </div>
                     )}
 
-                    <div className="pt-2 border-t border-amber-200/60 dark:border-amber-900/40 flex items-center gap-2">
-                      {order.customerId && (
-                        <Link
-                          href={`/dashboard/customers/${order.customerId}/edit-order/${order.id}?step=4`}
-                          className="flex-1 py-2 px-3 rounded-xl bg-primary text-white text-xs font-bold flex items-center justify-center gap-1.5 hover:brightness-110 shadow-xs"
-                        >
-                          <span className="material-symbols-outlined text-sm">chair</span>
-                          <span>Besichtigung starten (Umzugsliste)</span>
-                        </Link>
-                      )}
+                    <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-900/40 flex items-center gap-2">
+                      <Link
+                        href={`${editOrderUrl}${editOrderUrl.includes('?') ? '&' : '?'}step=4`}
+                        className="flex-1 py-2 px-3 rounded-xl bg-primary text-white text-xs font-bold flex items-center justify-center gap-1.5 hover:brightness-110 shadow-xs"
+                      >
+                        <span className="material-symbols-outlined text-sm">chair</span>
+                        <span>Besichtigung starten (Umzugsliste)</span>
+                      </Link>
                       {custPhone && (
                         <button
                           type="button"
                           onClick={() => {
-                            const timeText = order.orderMeta?.viewingTime ? ` um ${order.orderMeta.viewingTime} Uhr` : '';
+                            const timeText = order.orderMeta?.viewingTime ? ` (${order.orderMeta.viewingTime})` : '';
                             handleDirectWhatsApp(`Hallo ${custName}, ich bin pünktlich auf dem Weg zu Ihnen für unseren Besichtigungstermin${timeText}. Bis gleich!`);
                           }}
                           className="px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 hover:bg-emerald-700 transition-colors"
@@ -599,15 +735,13 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
                     <p className="text-xs text-slate-500 italic">
                       Noch kein Besichtigungstermin vereinbart.
                     </p>
-                    {order.customerId && (
-                      <Link
-                        href={`/dashboard/customers/${order.customerId}/edit-order/${order.id}?step=4`}
-                        className="w-full py-2 px-3 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
-                      >
-                        <span className="material-symbols-outlined text-sm">chair</span>
-                        <span>Direkt zu Umzugsliste & Möbeln</span>
-                      </Link>
-                    )}
+                    <Link
+                      href={`${editOrderUrl}${editOrderUrl.includes('?') ? '&' : '?'}step=4`}
+                      className="w-full py-2 px-3 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-sm">chair</span>
+                      <span>Direkt zu Umzugsliste & Möbeln</span>
+                    </Link>
                   </div>
                 )}
               </div>
@@ -764,15 +898,13 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
 
                         <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-700">
                           <span>
-                            Lieferung: {order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate || 'Noch nicht terminiert'}
-                            {order.orderMeta?.kartonDeliveryTime ? ` (${order.orderMeta.kartonDeliveryTime} Uhr)` : ''}
+                            Lieferung: {formatScheduleDate(order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate, order.orderMeta?.kartonDeliveryTime || order.logistics?.boxDeliveryTime) || 'Noch nicht terminiert'}
                           </span>
                           {(order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate) && (
                             <button
                               onClick={() => {
-                                const date = order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate;
-                                const time = order.orderMeta?.kartonDeliveryTime || '';
-                                handleDirectWhatsApp(`Guten Tag, Ihre Umzugskartons werden am ${date} ${time ? 'im Zeitfenster ' + time : ''} geliefert.`);
+                                const date = formatScheduleDate(order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate, order.orderMeta?.kartonDeliveryTime || order.logistics?.boxDeliveryTime);
+                                handleDirectWhatsApp(`Guten Tag, Ihre Umzugskartons werden am ${date} geliefert.`);
                               }}
                               className="text-emerald-600 hover:underline flex items-center gap-1 font-bold"
                               title="WhatsApp Nachricht senden"
@@ -789,6 +921,9 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
                   {/* Task: Halteverbot (HVZ) */}
                   {(() => {
                     const isHvzDone = evaluation.checklist.find(c => c.id === 'hvz')?.done || false;
+                    const resolvedHvzMethod = order.orderMeta?.hvzMethod || order.logistics?.hvzMethod || 'selbst';
+                    const resolvedHvzLoc = order.orderMeta?.hvzLocation || order.logistics?.hvzLocation || 
+                      (order.logistics?.a_parking && order.logistics?.b_parking ? 'both' : order.logistics?.b_parking ? 'b' : 'a');
                     return (
                       <div className={`p-3.5 rounded-xl border-2 transition-all flex flex-col gap-2.5 ${
                         isHvzDone
@@ -808,9 +943,9 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
                               <span className={`text-xs font-bold block ${isHvzDone ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-900 dark:text-white'}`}>
                                 Halteverbotszone (HVZ) {isHvzDone && '✓'}
                               </span>
-                              <div className="flex items-center gap-1.5 mt-0.5">
+                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                                  {order.orderMeta?.hvzMethod === 'extern' ? (
+                                  {resolvedHvzMethod === 'extern' ? (
                                     <>
                                       <BuildingOfficeIcon className="w-3 h-3 text-slate-500" />
                                       <span>Externe Firma</span>
@@ -823,12 +958,12 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
                                   )}
                                 </span>
                                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary flex items-center gap-1">
-                                  {order.orderMeta?.hvzLocation === 'b' ? (
+                                  {resolvedHvzLoc === 'b' ? (
                                     <>
                                       <HomeIcon className="w-3 h-3" />
                                       <span>Einzugsort (B)</span>
                                     </>
-                                  ) : order.orderMeta?.hvzLocation === 'both' ? (
+                                  ) : resolvedHvzLoc === 'both' ? (
                                     <>
                                       <ArrowPathIcon className="w-3 h-3" />
                                       <span>Beide Orte (A & B)</span>
@@ -857,10 +992,10 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
                         <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-xs flex items-center justify-between gap-2">
                           <span className="text-[11px] text-slate-600 dark:text-slate-300 truncate flex items-center gap-1">
                             <MapPinIcon className="w-3.5 h-3.5 text-primary shrink-0" />
-                            <span className="truncate">{order.orderMeta?.hvzLocation === 'b' ? (addressB || 'Einzugsadresse') : (addressA || 'Auszugsadresse')}</span>
+                            <span className="truncate">{resolvedHvzLoc === 'b' ? (addressB || 'Einzugsadresse') : (addressA || 'Auszugsadresse')}</span>
                           </span>
                           <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.orderMeta?.hvzLocation === 'b' ? addressB : addressA)}`}
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(resolvedHvzLoc === 'b' ? addressB : addressA)}`}
                             target="_blank"
                             rel="noreferrer"
                             className="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-primary hover:text-white text-slate-700 dark:text-slate-300 text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors"
@@ -873,12 +1008,12 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
 
                         <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-700">
                           <span>
-                            Aufbau: {order.orderMeta?.halteverbotDate || order.logistics?.hvzDate || 'Noch nicht terminiert'}
+                            Aufbau: {formatScheduleDate(order.orderMeta?.halteverbotDate || order.logistics?.hvzDate, order.orderMeta?.halteverbotTime || order.logistics?.hvzTime) || 'Noch nicht terminiert'}
                           </span>
                           {(order.orderMeta?.halteverbotDate || order.logistics?.hvzDate) && (
                             <button
                               onClick={() => {
-                                const date = order.orderMeta?.halteverbotDate || order.logistics?.hvzDate;
+                                const date = formatScheduleDate(order.orderMeta?.halteverbotDate || order.logistics?.hvzDate, order.orderMeta?.halteverbotTime || order.logistics?.hvzTime);
                                 handleDirectWhatsApp(`Guten Tag, die Halteverbotszone für Ihren Umzug wird am ${date} vorschriftsmäßig aufgestellt.`);
                               }}
                               className="text-emerald-600 hover:underline flex items-center gap-1 font-bold"
@@ -896,6 +1031,7 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
                   {/* Task: Möbellift */}
                   {(() => {
                     const isLiftDone = evaluation.checklist.find(c => c.id === 'lift')?.done || false;
+                    const resolvedLiftLoc = order.orderMeta?.moebelliftLocation || order.logistics?.moebelliftLocation || (order.logistics?.b_furnitureLift && !order.logistics?.a_furnitureLift ? 'b' : 'a');
                     return (
                       <div className={`p-3.5 rounded-xl border-2 transition-all flex flex-col gap-2.5 ${
                         isLiftDone
@@ -916,7 +1052,7 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
                                 Möbellift disponieren {isLiftDone && '✓'}
                               </span>
                               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                                {order.orderMeta?.moebelliftLocation === 'b' ? (
+                                {resolvedLiftLoc === 'b' ? (
                                   <>
                                     <HomeIcon className="w-3 h-3" />
                                     <span>Einzugsort (B)</span>
@@ -944,7 +1080,7 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
                           <span>
                             {order.orderMeta?.moebelliftDate ? (
                               <>
-                                Geplant: <strong className="text-slate-900 dark:text-white">{order.orderMeta.moebelliftDate}</strong>
+                                Geplant: <strong className="text-slate-900 dark:text-white">{formatScheduleDate(order.orderMeta.moebelliftDate)}</strong>
                                 {order.orderMeta?.moebelliftTime && ` • ${order.orderMeta.moebelliftTime} - ${order.orderMeta.moebelliftEndTime || ''} Uhr (${order.orderMeta.moebelliftDuration || '3'} Std.)`}
                               </>
                             ) : (
@@ -1035,22 +1171,20 @@ export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onR
                   </span>
                 </button>
 
-                {order.customerId && (
-                  <Link
-                    href={`/dashboard/customers/${order.customerId}/edit-invoice/${order.id}`}
-                    className="p-4 rounded-2xl bg-[#D91E2A] text-white flex flex-col items-center text-center gap-2 shadow-md hover:bg-[#b51822] transition-all group font-headline"
-                  >
-                    <span className="material-symbols-outlined text-3xl group-hover:scale-110 transition-transform">
-                      receipt_long
-                    </span>
-                    <span className="text-xs font-bold">
-                      Rechnung erstellen
-                    </span>
-                    <span className="text-[10px] text-white/80">
-                      1-Klick Abrechnung mit allen Leistungen
-                    </span>
-                  </Link>
-                )}
+                <Link
+                  href={editInvoiceUrl}
+                  className="p-4 rounded-2xl bg-[#D91E2A] text-white flex flex-col items-center text-center gap-2 shadow-md hover:bg-[#b51822] transition-all group font-headline"
+                >
+                  <span className="material-symbols-outlined text-3xl group-hover:scale-110 transition-transform">
+                    receipt_long
+                  </span>
+                  <span className="text-xs font-bold">
+                    {order.invoiceNumber ? `Rechnung (${order.invoiceNumber}) bearbeiten` : 'Rechnung erstellen'}
+                  </span>
+                  <span className="text-[10px] text-white/80">
+                    1-Klick Abrechnung mit allen Leistungen
+                  </span>
+                </Link>
               </div>
 
               {/* Vorlagen Quick Actions for Phase 4 */}

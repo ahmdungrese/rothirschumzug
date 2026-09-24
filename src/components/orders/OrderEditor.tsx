@@ -78,7 +78,8 @@ const QUICK_ROOMS = [
 
 export function OrderEditor({ orderId }: { orderId?: string }) {
   const params = useParams();
-  const urlCustomerId = params.id as string;
+  const [loadedCustomerId, setLoadedCustomerId] = useState<string>('');
+  const urlCustomerId = (params.id && params.id !== 'undefined') ? (params.id as string) : loadedCustomerId;
   const router = useRouter();
   const searchParams = useSearchParams();
   const isInvoice = searchParams?.get('type') === 'invoice';
@@ -127,11 +128,21 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     validUntil: '',
     manager: '',
     paymentMethod: '',
-    viewingDate: ''
+    viewingDate: '',
+    viewingTime: '',
+    hvzMethod: 'selbst',
+    hvzLocation: 'a',
+    halteverbotDate: '',
+    halteverbotTime: '',
+    kartonDeliveryDate: '',
+    kartonDeliveryTime: '',
+    moebelliftDate: '',
+    moebelliftTime: '',
+    moebelliftDuration: '3'
   });
 
   // 2. Adressen
-  const [logistics, setLogistics] = useState({
+  const [logistics, setLogistics] = useState<any>({
     a_street: '', a_houseNr: '', a_zip: '', a_city: '', a_floor: '', a_distance: 0, a_type: '', a_elevator: false, a_parking: false, a_furnitureLift: false,
     b_street: '', b_houseNr: '', b_zip: '', b_city: '', b_floor: '', b_distance: 0, b_type: '', b_elevator: false, b_parking: false, b_furnitureLift: false,
   });
@@ -320,19 +331,53 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       getDoc(doc(db, 'orders', orderId)).then(docSnap => {
         if (docSnap.exists()) {
           const data = docSnap.data();
+          if (data.customerId && data.customerId !== 'undefined') {
+            setLoadedCustomerId(data.customerId);
+          }
           setOrderStatus(data.status || 'draft');
-          setOrderMeta({
-            movingDateFrom: data.orderMeta?.movingDateFrom || '',
+          setOrderMeta((prev: any) => ({
+            ...prev,
+            ...(data.orderMeta || {}),
+            movingDateFrom: data.orderMeta?.movingDateFrom || data.movingDate || '',
             movingDateTo: data.orderMeta?.movingDateTo || '',
             validUntil: data.orderMeta?.validUntil || '',
             manager: data.orderMeta?.manager || '',
             paymentMethod: data.orderMeta?.paymentMethod || '',
-            viewingDate: data.orderMeta?.viewingDate || data.viewingDate || ''
-          });
-          setLogistics({
-            a_street: data.logistics?.a_street || '', a_houseNr: data.logistics?.a_houseNr || '', a_zip: data.logistics?.a_zip || '', a_city: data.logistics?.a_city || '', a_floor: data.logistics?.a_floor || '', a_distance: data.logistics?.a_distance || 0, a_type: data.logistics?.a_type || '', a_elevator: data.logistics?.a_elevator || false, a_parking: data.logistics?.a_parking || false, a_furnitureLift: data.logistics?.a_furnitureLift || false,
-            b_street: data.logistics?.b_street || '', b_houseNr: data.logistics?.b_houseNr || '', b_zip: data.logistics?.b_zip || '', b_city: data.logistics?.b_city || '', b_floor: data.logistics?.b_floor || '', b_distance: data.logistics?.b_distance || 0, b_type: data.logistics?.b_type || '', b_elevator: data.logistics?.b_elevator || false, b_parking: data.logistics?.b_parking || false, b_furnitureLift: data.logistics?.b_furnitureLift || false,
-          });
+            viewingDate: data.orderMeta?.viewingDate || data.viewingDate || '',
+            viewingTime: data.orderMeta?.viewingTime || data.logistics?.viewingTime || '',
+            hvzMethod: data.orderMeta?.hvzMethod || data.logistics?.hvzMethod || 'selbst',
+            hvzLocation: data.orderMeta?.hvzLocation || data.logistics?.hvzLocation || (data.logistics?.a_parking && data.logistics?.b_parking ? 'both' : data.logistics?.b_parking ? 'b' : 'a'),
+            halteverbotDate: data.orderMeta?.halteverbotDate || data.logistics?.hvzDate || '',
+            halteverbotTime: data.orderMeta?.halteverbotTime || data.logistics?.hvzTime || '',
+            kartonDeliveryDate: data.orderMeta?.kartonDeliveryDate || data.logistics?.boxDeliveryDate || '',
+            kartonDeliveryTime: data.orderMeta?.kartonDeliveryTime || data.logistics?.boxDeliveryTime || '',
+            moebelliftDate: data.orderMeta?.moebelliftDate || data.logistics?.moebelliftDate || '',
+            moebelliftTime: data.orderMeta?.moebelliftTime || data.logistics?.moebelliftTime || ''
+          }));
+          setLogistics((prev: any) => ({
+            ...prev,
+            ...(data.logistics || {}),
+            a_street: data.logistics?.a_street || data.logistics?.from?.street || '',
+            a_houseNr: data.logistics?.a_houseNr || data.logistics?.from?.houseNumber || '',
+            a_zip: data.logistics?.a_zip || data.logistics?.from?.postalCode || '',
+            a_city: data.logistics?.a_city || data.logistics?.from?.city || '',
+            a_floor: data.logistics?.a_floor || data.logistics?.from?.floor || '',
+            a_distance: data.logistics?.a_distance || 0,
+            a_type: data.logistics?.a_type || '',
+            a_elevator: data.logistics?.a_elevator || false,
+            a_parking: data.logistics?.a_parking || false,
+            a_furnitureLift: data.logistics?.a_furnitureLift || false,
+            b_street: data.logistics?.b_street || data.logistics?.to?.street || '',
+            b_houseNr: data.logistics?.b_houseNr || data.logistics?.to?.houseNumber || '',
+            b_zip: data.logistics?.b_zip || data.logistics?.to?.postalCode || '',
+            b_city: data.logistics?.b_city || data.logistics?.to?.city || '',
+            b_floor: data.logistics?.b_floor || data.logistics?.to?.floor || '',
+            b_distance: data.logistics?.b_distance || 0,
+            b_type: data.logistics?.b_type || '',
+            b_elevator: data.logistics?.b_elevator || false,
+            b_parking: data.logistics?.b_parking || false,
+            b_furnitureLift: data.logistics?.b_furnitureLift || false,
+          }));
           setIsFlatRate(data.isFlatRate !== undefined ? data.isFlatRate : true);
           setFlatRateNet(data.flatRateNet || 0);
           setServices(data.services || []);
@@ -927,23 +972,80 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               </div>
             )}
           </div>
-          <div id="highlight-viewingDate" className="rounded-xl transition-all">
+          <div id="highlight-viewingDate" className="rounded-xl transition-all space-y-2">
             <label className="flex items-center justify-between text-xs text-text-muted mb-1">
-              <span>Besichtigungstermin</span>
-              {(orderMeta.viewingDate === 'requested' || orderMeta.viewingDate === '') && (
-                <button type="button" onClick={() => setOrderMeta({...orderMeta, viewingDate: 'erledigt_fotos'})} className="text-primary hover:opacity-70 transition-opacity underline">
+              <span>Besichtigungstermin (Datum & Uhrzeit)</span>
+              {orderMeta.viewingDate !== 'erledigt_fotos' ? (
+                <button
+                  type="button"
+                  onClick={() => setOrderMeta({ ...orderMeta, viewingDate: 'erledigt_fotos', viewingTime: '' })}
+                  className="text-primary hover:opacity-70 transition-opacity underline text-[11px] font-bold"
+                >
                   Durch Fotos erledigt
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setOrderMeta({ ...orderMeta, viewingDate: '', viewingTime: '' })}
+                  className="text-text-muted hover:text-primary transition-colors underline text-[11px]"
+                >
+                  Termin wählen
                 </button>
               )}
             </label>
-            <input id="input-viewingDate" type="datetime-local" value={['requested', 'erledigt_fotos'].includes(orderMeta.viewingDate) ? '' : (orderMeta.viewingDate || '')} onChange={e => setOrderMeta({...orderMeta, viewingDate: e.target.value})} className="input-field w-full" />
-            {orderMeta.viewingDate === 'erledigt_fotos' && (
-              <p className="text-xs font-bold text-green-400 mt-1">✓ Erledigt durch Fotos/Inventarliste</p>
+
+            {orderMeta.viewingDate === 'erledigt_fotos' ? (
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center justify-between">
+                <span>✓ Erledigt durch Fotos / Inventarliste</span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  id="input-viewingDate"
+                  type="date"
+                  value={['requested', 'erledigt_fotos'].includes(orderMeta.viewingDate) ? '' : (orderMeta.viewingDate || '').split('T')[0]}
+                  onChange={e => {
+                    const newDate = e.target.value;
+                    const timeMatch = (orderMeta.viewingTime || '').match(/(\d{2}:\d{2})/);
+                    const isoTime = timeMatch ? timeMatch[1] : ((orderMeta.viewingDate || '').includes('T') ? (orderMeta.viewingDate || '').split('T')[1]?.slice(0, 5) : '');
+                    const combined = newDate ? (isoTime ? `${newDate}T${isoTime}` : newDate) : '';
+                    setOrderMeta({ ...orderMeta, viewingDate: combined, viewingDateOnly: newDate });
+                  }}
+                  className="input-field w-full text-xs"
+                />
+                <select
+                  value={orderMeta.viewingTime || ((orderMeta.viewingDate || '').includes('T') ? (orderMeta.viewingDate || '').split('T')[1]?.slice(0, 5) : '')}
+                  onChange={e => {
+                    const newTime = e.target.value;
+                    const datePart = ['requested', 'erledigt_fotos'].includes(orderMeta.viewingDate) ? '' : (orderMeta.viewingDate || '').split('T')[0];
+                    const timeMatch = newTime.match(/(\d{2}:\d{2})/);
+                    const isoTime = timeMatch ? timeMatch[1] : '';
+                    const combined = datePart ? (isoTime ? `${datePart}T${isoTime}` : datePart) : '';
+                    setOrderMeta({ ...orderMeta, viewingTime: newTime, viewingDate: combined });
+                  }}
+                  className="input-field w-full text-xs"
+                >
+                  <option value="">Uhrzeit / Zeitfenster...</option>
+                  <option value="08:00 - 12:00">08:00 - 12:00 (Vormittag)</option>
+                  <option value="10:00 - 14:00">10:00 - 14:00 (Mittag)</option>
+                  <option value="13:00 - 17:00">13:00 - 17:00 (Nachmittag)</option>
+                  <option value="09:00">09:00 Uhr</option>
+                  <option value="10:00">10:00 Uhr</option>
+                  <option value="11:00">11:00 Uhr</option>
+                  <option value="12:00">12:00 Uhr</option>
+                  <option value="14:00">14:00 Uhr</option>
+                  <option value="15:00">15:00 Uhr</option>
+                  <option value="16:00">16:00 Uhr</option>
+                  <option value="17:00">17:00 Uhr</option>
+                  <option value="18:00">18:00 Uhr</option>
+                  <option value="Ganztägig">Ganztägig (Flexibel)</option>
+                </select>
+              </div>
             )}
             {orderMeta.viewingDate === 'requested' && (
               <p className="text-xs font-bold text-orange-400 mt-1">Kunde hat Besichtigung angefragt!</p>
             )}
-            <p className="text-[10px] text-text-muted mt-1">Erscheint automatisch im Kalender.</p>
+            <p className="text-[10px] text-text-muted mt-1">Synchronisiert automatisch mit Kundenakte, Cockpit & Kalender.</p>
           </div>
           <div>
             <label className="block text-xs text-text-muted mb-1">Gültig bis</label>
@@ -1091,8 +1193,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               </div>
             </div>
             
-            <div className="col-span-4 mt-2">
-              <label className="block text-xs text-text-muted mb-2">Besonderheiten (Auszug)</label>
+            <div className="col-span-4 mt-2 space-y-3">
+              <label className="block text-xs text-text-muted mb-2">Besonderheiten (Auszug A)</label>
               <div className="grid grid-cols-3 gap-2">
                 <button 
                   type="button" 
@@ -1104,7 +1206,12 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 </button>
                 <button 
                   type="button" 
-                  onClick={() => setLogistics({...logistics, a_parking: !logistics.a_parking})} 
+                  onClick={() => {
+                    const nextA = !logistics.a_parking;
+                    const nextLoc = nextA && logistics.b_parking ? 'both' : nextA ? 'a' : logistics.b_parking ? 'b' : 'a';
+                    setLogistics({...logistics, a_parking: nextA, hvzLocation: nextLoc});
+                    setOrderMeta({...orderMeta, hvzLocation: nextLoc});
+                  }} 
                   className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.a_parking ? 'border-primary bg-primary/20 text-primary shadow-lg shadow-primary/20' : 'border-structure bg-bg-dark text-text-muted hover:border-text-muted/30 hover:bg-bg-panel'}`}
                 >
                   <NoSymbolIcon className="w-6 h-6 mb-1" />
@@ -1119,6 +1226,98 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   <span className="text-xs font-medium">Möbellift</span>
                 </button>
               </div>
+
+              {/* Inline HVZ Configuration when Halteverbot A is active */}
+              {logistics.a_parking && (
+                <div className="p-3.5 rounded-xl bg-primary/5 border border-primary/30 space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-primary flex items-center gap-1.5">
+                      <NoSymbolIcon className="w-4 h-4" />
+                      <span>Halteverbotszone (Auszug A) planen</span>
+                    </span>
+                    {orderMeta.movingDateFrom && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date(orderMeta.movingDateFrom.split('T')[0]);
+                          d.setDate(d.getDate() - 4);
+                          const dStr = d.toISOString().split('T')[0];
+                          setOrderMeta({ ...orderMeta, halteverbotDate: dStr });
+                          setLogistics({ ...logistics, hvzDate: dStr });
+                        }}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded bg-primary/15 text-primary hover:bg-primary hover:text-white transition-colors"
+                      >
+                        4 Tage vor Umzug setzen
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOrderMeta({ ...orderMeta, hvzMethod: 'selbst' });
+                        setLogistics({ ...logistics, hvzMethod: 'selbst' });
+                      }}
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                        (orderMeta.hvzMethod || 'selbst') === 'selbst'
+                          ? 'bg-primary text-white border-primary shadow-xs'
+                          : 'bg-bg-panel border-structure text-text-muted hover:text-text-main'
+                      }`}
+                    >
+                      <TruckIcon className="w-4 h-4" />
+                      <span>Selbst aufstellen</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOrderMeta({ ...orderMeta, hvzMethod: 'extern' });
+                        setLogistics({ ...logistics, hvzMethod: 'extern' });
+                      }}
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                        orderMeta.hvzMethod === 'extern'
+                          ? 'bg-primary text-white border-primary shadow-xs'
+                          : 'bg-bg-panel border-structure text-text-muted hover:text-text-main'
+                      }`}
+                    >
+                      <BuildingOffice2Icon className="w-4 h-4" />
+                      <span>Externe Firma</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-text-muted font-bold uppercase mb-1">Aufstelldatum</label>
+                      <input
+                        type="date"
+                        value={orderMeta.halteverbotDate || logistics.hvzDate || ''}
+                        onChange={e => {
+                          setOrderMeta({ ...orderMeta, halteverbotDate: e.target.value });
+                          setLogistics({ ...logistics, hvzDate: e.target.value });
+                        }}
+                        className="input-field w-full text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-text-muted font-bold uppercase mb-1">Uhrzeit / Zeitfenster</label>
+                      <select
+                        value={orderMeta.halteverbotTime || ''}
+                        onChange={e => {
+                          setOrderMeta({ ...orderMeta, halteverbotTime: e.target.value });
+                          setLogistics({ ...logistics, hvzTime: e.target.value });
+                        }}
+                        className="input-field w-full text-xs"
+                      >
+                        <option value="">Zeitfenster wählen...</option>
+                        <option value="08:00 - 12:00">08:00 - 12:00 (Vormittag)</option>
+                        <option value="10:00 - 14:00">10:00 - 14:00 (Mittag)</option>
+                        <option value="13:00 - 17:00">13:00 - 17:00 (Nachmittag)</option>
+                        <option value="Ganztägig">Ganztägig (Flexibel)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1138,14 +1337,14 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               <label className="block text-xs text-text-muted mb-1">PLZ</label>
               <input id="input-b_zip" type="text" value={logistics.b_zip} onChange={async (e) => {
                   const val = e.target.value;
-                  setLogistics(prev => ({...prev, b_zip: val}));
+                  setLogistics((prev: any) => ({...prev, b_zip: val}));
                   if (val.length === 5) {
                     try {
                       const res = await fetch(`https://api.zippopotam.us/de/${val}`);
                       if (res.ok) {
                         const data = await res.json();
                         if (data.places && data.places.length > 0) {
-                          setLogistics(prev => ({...prev, b_zip: val, b_city: data.places[0]['place name']}));
+                          setLogistics((prev: any) => ({...prev, b_zip: val, b_city: data.places[0]['place name']}));
                         }
                       }
                     } catch(err) {}
@@ -1174,8 +1373,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               </div>
             </div>
             
-            <div className="col-span-4 mt-2">
-              <label className="block text-xs text-text-muted mb-2">Besonderheiten (Einzug)</label>
+            <div className="col-span-4 mt-2 space-y-3">
+              <label className="block text-xs text-text-muted mb-2">Besonderheiten (Einzug B)</label>
               <div className="grid grid-cols-3 gap-2">
                 <button 
                   type="button" 
@@ -1187,7 +1386,12 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 </button>
                 <button 
                   type="button" 
-                  onClick={() => setLogistics({...logistics, b_parking: !logistics.b_parking})} 
+                  onClick={() => {
+                    const nextB = !logistics.b_parking;
+                    const nextLoc = logistics.a_parking && nextB ? 'both' : nextB ? 'b' : logistics.a_parking ? 'a' : 'b';
+                    setLogistics({...logistics, b_parking: nextB, hvzLocation: nextLoc});
+                    setOrderMeta({...orderMeta, hvzLocation: nextLoc});
+                  }} 
                   className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.b_parking ? 'border-primary bg-primary/20 text-primary shadow-lg shadow-primary/20' : 'border-structure bg-bg-dark text-text-muted hover:border-text-muted/30 hover:bg-bg-panel'}`}
                 >
                   <NoSymbolIcon className="w-6 h-6 mb-1" />
@@ -1202,6 +1406,98 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   <span className="text-xs font-medium">Möbellift</span>
                 </button>
               </div>
+
+              {/* Inline HVZ Configuration when Halteverbot B is active */}
+              {logistics.b_parking && (
+                <div className="p-3.5 rounded-xl bg-primary/5 border border-primary/30 space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-primary flex items-center gap-1.5">
+                      <NoSymbolIcon className="w-4 h-4" />
+                      <span>Halteverbotszone ({logistics.a_parking ? 'Auszug A & Einzug B' : 'Einzug B'}) planen</span>
+                    </span>
+                    {orderMeta.movingDateFrom && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const d = new Date(orderMeta.movingDateFrom.split('T')[0]);
+                          d.setDate(d.getDate() - 4);
+                          const dStr = d.toISOString().split('T')[0];
+                          setOrderMeta({ ...orderMeta, halteverbotDate: dStr });
+                          setLogistics({ ...logistics, hvzDate: dStr });
+                        }}
+                        className="text-[10px] font-bold px-2 py-0.5 rounded bg-primary/15 text-primary hover:bg-primary hover:text-white transition-colors"
+                      >
+                        4 Tage vor Umzug setzen
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOrderMeta({ ...orderMeta, hvzMethod: 'selbst' });
+                        setLogistics({ ...logistics, hvzMethod: 'selbst' });
+                      }}
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                        (orderMeta.hvzMethod || 'selbst') === 'selbst'
+                          ? 'bg-primary text-white border-primary shadow-xs'
+                          : 'bg-bg-panel border-structure text-text-muted hover:text-text-main'
+                      }`}
+                    >
+                      <TruckIcon className="w-4 h-4" />
+                      <span>Selbst aufstellen</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOrderMeta({ ...orderMeta, hvzMethod: 'extern' });
+                        setLogistics({ ...logistics, hvzMethod: 'extern' });
+                      }}
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                        orderMeta.hvzMethod === 'extern'
+                          ? 'bg-primary text-white border-primary shadow-xs'
+                          : 'bg-bg-panel border-structure text-text-muted hover:text-text-main'
+                      }`}
+                    >
+                      <BuildingOffice2Icon className="w-4 h-4" />
+                      <span>Externe Firma</span>
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] text-text-muted font-bold uppercase mb-1">Aufstelldatum</label>
+                      <input
+                        type="date"
+                        value={orderMeta.halteverbotDate || logistics.hvzDate || ''}
+                        onChange={e => {
+                          setOrderMeta({ ...orderMeta, halteverbotDate: e.target.value });
+                          setLogistics({ ...logistics, hvzDate: e.target.value });
+                        }}
+                        className="input-field w-full text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-text-muted font-bold uppercase mb-1">Uhrzeit / Zeitfenster</label>
+                      <select
+                        value={orderMeta.halteverbotTime || ''}
+                        onChange={e => {
+                          setOrderMeta({ ...orderMeta, halteverbotTime: e.target.value });
+                          setLogistics({ ...logistics, hvzTime: e.target.value });
+                        }}
+                        className="input-field w-full text-xs"
+                      >
+                        <option value="">Zeitfenster wählen...</option>
+                        <option value="08:00 - 12:00">08:00 - 12:00 (Vormittag)</option>
+                        <option value="10:00 - 14:00">10:00 - 14:00 (Mittag)</option>
+                        <option value="13:00 - 17:00">13:00 - 17:00 (Nachmittag)</option>
+                        <option value="Ganztägig">Ganztägig (Flexibel)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

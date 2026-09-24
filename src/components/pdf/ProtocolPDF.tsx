@@ -128,6 +128,7 @@ export const ProtocolPDF = ({
       <Page size="A4" style={styles.page}>
         <PDFWatermark type="symbols" />
         <PDFHeader settings={settings} docTitle="Arbeitsprotokoll & Dokumentation" />
+        <PDFFooter settings={settings} />
 
         <View style={styles.titleRow}>
           <Text style={styles.title}>Arbeitsprotokoll & Haftungsausschluss</Text>
@@ -213,8 +214,6 @@ export const ProtocolPDF = ({
             </View>
           </View>
         )}
-
-        <PDFFooter settings={settings} customNote="Offizielles Arbeitsprotokoll • Rothirsch Umzug" />
       </Page>
     </Document>
   );

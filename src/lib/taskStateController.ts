@@ -283,6 +283,7 @@ export async function updateTaskSchedule(
       updates['orderMeta.kartonDeliveryDate'] = dateStr;
       updates['orderMeta.kartonDeliveryTime'] = timeStr;
       updates['logistics.boxDeliveryDate'] = dateStr;
+      updates['logistics.boxDeliveryTime'] = timeStr;
       if (extras?.notes) updates['orderMeta.kartonNotes'] = extras.notes;
       break;
 
@@ -291,9 +292,18 @@ export async function updateTaskSchedule(
       updates['orderMeta.halteverbotDate'] = dateStr;
       updates['orderMeta.halteverbotTime'] = timeStr;
       updates['logistics.hvzDate'] = dateStr;
+      updates['logistics.hvzTime'] = timeStr;
       if (extras?.location) {
         updates['orderMeta.hvzLocation'] = extras.location;
         updates['logistics.hvzLocation'] = extras.location;
+        if (extras.location === 'a') {
+          updates['logistics.a_parking'] = true;
+        } else if (extras.location === 'b') {
+          updates['logistics.b_parking'] = true;
+        } else if (extras.location === 'both') {
+          updates['logistics.a_parking'] = true;
+          updates['logistics.b_parking'] = true;
+        }
       }
       if (extras?.method) {
         updates['orderMeta.hvzMethod'] = extras.method;
@@ -306,23 +316,37 @@ export async function updateTaskSchedule(
     case 'moebellift_buchen':
       updates['orderMeta.moebelliftDate'] = dateStr;
       updates['orderMeta.moebelliftTime'] = timeStr;
+      updates['logistics.moebelliftDate'] = dateStr;
+      updates['logistics.moebelliftTime'] = timeStr;
       if (extras?.duration) updates['orderMeta.moebelliftDuration'] = extras.duration;
       if (extras?.endTime) updates['orderMeta.moebelliftEndTime'] = extras.endTime;
       if (extras?.location) {
         updates['orderMeta.moebelliftLocation'] = extras.location;
         updates['logistics.moebelliftLocation'] = extras.location;
+        if (extras.location === 'a') {
+          updates['logistics.a_furnitureLift'] = true;
+        } else if (extras.location === 'b') {
+          updates['logistics.b_furnitureLift'] = true;
+        }
       }
       if (extras?.notes) updates['orderMeta.moebelliftNotes'] = extras.notes;
       break;
 
     case 'viewing_date':
-    case 'viewing_requested':
-      const combined = timeStr ? `${dateStr}T${timeStr}` : dateStr;
+    case 'viewing_requested': {
+      // Extract valid HH:mm if timeStr is a window like "08:00 - 12:00" so datetime-local inputs never break
+      const timeMatch = (timeStr || '').match(/(\d{2}:\d{2})/);
+      const cleanIsoTime = timeMatch ? timeMatch[1] : '';
+      const combined = cleanIsoTime ? `${dateStr}T${cleanIsoTime}` : dateStr;
       updates['orderMeta.viewingDate'] = combined;
+      updates['orderMeta.viewingDateOnly'] = dateStr;
       updates['viewingDate'] = combined;
       updates['orderMeta.viewingTime'] = timeStr;
+      updates['logistics.viewingDate'] = combined;
+      updates['logistics.viewingTime'] = timeStr;
       if (extras?.notes) updates['orderMeta.viewingNotes'] = extras.notes;
       break;
+    }
 
     default:
       updates[`orderMeta.${taskId}Date`] = dateStr;

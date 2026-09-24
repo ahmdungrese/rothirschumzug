@@ -68,14 +68,15 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
   });
   
   // 2. Termine
-  const [orderMeta, setOrderMeta] = useState({
-    movingDateFrom: '', movingDateTo: '', validUntil: '', manager: '', paymentMethod: '', viewingDate: ''
+  const [orderMeta, setOrderMeta] = useState<any>({
+    movingDateFrom: '', movingDateTo: '', validUntil: '', manager: '', paymentMethod: '', viewingDate: '', viewingTime: '',
+    hvzMethod: 'selbst', hvzLocation: 'a', halteverbotDate: '', halteverbotTime: ''
   });
   const [showBisDate, setShowBisDate] = useState(false);
   useEffect(() => { if (orderMeta.movingDateTo) setShowBisDate(true); }, [orderMeta.movingDateTo]);
 
   // 3. Logistik
-  const [logistics, setLogistics] = useState({
+  const [logistics, setLogistics] = useState<any>({
     a_type: 'Wohnung', a_street: '', a_houseNr: '', a_zip: '', a_city: '', a_floor: 'Erdgeschoss', a_elevator: false, a_parking: false, a_furnitureLift: false, a_distance: 0,
     b_type: 'Wohnung', b_street: '', b_houseNr: '', b_zip: '', b_city: '', b_floor: 'Erdgeschoss', b_elevator: false, b_parking: false, b_furnitureLift: false, b_distance: 0,
   });
@@ -354,17 +355,59 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
               <h1 className="text-2xl font-bold text-text-main mb-6">Termine</h1>
               <div className="bg-bg-panel border border-structure rounded-2xl p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label className="flex items-center justify-between text-sm text-text-muted mb-2">
+                  <div className="space-y-2">
+                    <label className="flex items-center justify-between text-sm text-text-muted mb-1">
                       <span>Besichtigung am</span>
-                      {(orderMeta.viewingDate === 'requested' || orderMeta.viewingDate === '') && (
-                        <button type="button" onClick={() => setOrderMeta({...orderMeta, viewingDate: 'erledigt_fotos'})} className="text-primary hover:text-white underline text-xs">
+                      {orderMeta.viewingDate !== 'erledigt_fotos' ? (
+                        <button type="button" onClick={() => setOrderMeta({...orderMeta, viewingDate: 'erledigt_fotos', viewingTime: ''})} className="text-primary hover:text-white underline text-xs font-bold">
                           Durch Fotos erledigt
+                        </button>
+                      ) : (
+                        <button type="button" onClick={() => setOrderMeta({...orderMeta, viewingDate: '', viewingTime: ''})} className="text-text-muted hover:text-primary underline text-xs">
+                          Termin wählen
                         </button>
                       )}
                     </label>
-                    <input type="datetime-local" value={['requested', 'erledigt_fotos'].includes(orderMeta.viewingDate) ? '' : (orderMeta.viewingDate || '')} onChange={e => setOrderMeta({...orderMeta, viewingDate: e.target.value})} className="input-field w-full text-lg py-3" />
-                    {orderMeta.viewingDate === 'erledigt_fotos' && <p className="text-xs font-bold text-green-400 mt-1">✓ Erledigt durch Fotos/Liste</p>}
+                    {orderMeta.viewingDate === 'erledigt_fotos' ? (
+                      <p className="text-xs font-bold text-green-400 p-3 rounded-xl bg-green-500/10 border border-green-500/30">✓ Erledigt durch Fotos/Liste</p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input
+                          type="date"
+                          value={['requested', 'erledigt_fotos'].includes(orderMeta.viewingDate) ? '' : (orderMeta.viewingDate || '').split('T')[0]}
+                          onChange={e => {
+                            const newDate = e.target.value;
+                            const timeMatch = (orderMeta.viewingTime || '').match(/(\d{2}:\d{2})/);
+                            const isoTime = timeMatch ? timeMatch[1] : ((orderMeta.viewingDate || '').includes('T') ? (orderMeta.viewingDate || '').split('T')[1]?.slice(0, 5) : '');
+                            const combined = newDate ? (isoTime ? `${newDate}T${isoTime}` : newDate) : '';
+                            setOrderMeta({ ...orderMeta, viewingDate: combined, viewingDateOnly: newDate });
+                          }}
+                          className="input-field w-full text-base py-2.5"
+                        />
+                        <select
+                          value={orderMeta.viewingTime || ((orderMeta.viewingDate || '').includes('T') ? (orderMeta.viewingDate || '').split('T')[1]?.slice(0, 5) : '')}
+                          onChange={e => {
+                            const newTime = e.target.value;
+                            const datePart = ['requested', 'erledigt_fotos'].includes(orderMeta.viewingDate) ? '' : (orderMeta.viewingDate || '').split('T')[0];
+                            const timeMatch = newTime.match(/(\d{2}:\d{2})/);
+                            const isoTime = timeMatch ? timeMatch[1] : '';
+                            const combined = datePart ? (isoTime ? `${datePart}T${isoTime}` : datePart) : '';
+                            setOrderMeta({ ...orderMeta, viewingTime: newTime, viewingDate: combined });
+                          }}
+                          className="input-field w-full text-sm py-2.5"
+                        >
+                          <option value="">Uhrzeit / Zeitfenster...</option>
+                          <option value="08:00 - 12:00">08:00 - 12:00 (Vormittag)</option>
+                          <option value="10:00 - 14:00">10:00 - 14:00 (Mittag)</option>
+                          <option value="13:00 - 17:00">13:00 - 17:00 (Nachmittag)</option>
+                          <option value="10:00">10:00 Uhr</option>
+                          <option value="12:00">12:00 Uhr</option>
+                          <option value="14:00">14:00 Uhr</option>
+                          <option value="16:00">16:00 Uhr</option>
+                          <option value="Ganztägig">Ganztägig</option>
+                        </select>
+                      </div>
+                    )}
                     {orderMeta.viewingDate === 'requested' && <p className="text-xs font-bold text-orange-400 mt-1">Kunde hat Besichtigung angefragt!</p>}
                   </div>
                   <div><label className="block text-sm text-text-muted mb-2">Angebot gültig bis</label><input type="date" value={orderMeta.validUntil} onChange={e => setOrderMeta({...orderMeta, validUntil: e.target.value})} className="input-field w-full text-lg py-3" /></div>
@@ -418,7 +461,7 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
                           const res = await fetch(`https://api.zippopotam.us/de/${cleanVal}`);
                           if (res.ok) {
                             const data = await res.json();
-                            if (data.places && data.places.length > 0) setLogistics(prev => ({...prev, a_zip: cleanVal, a_city: data.places[0]['place name']}));
+                            if (data.places && data.places.length > 0) setLogistics((prev: any) => ({...prev, a_zip: cleanVal, a_city: data.places[0]['place name']}));
                           }
                         } catch(err) {}
                       }
@@ -441,9 +484,34 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <button type="button" onClick={() => setLogistics({...logistics, a_elevator: !logistics.a_elevator})} className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${logistics.a_elevator ? 'border-primary bg-primary/10 text-primary' : 'border-structure bg-bg-dark text-text-muted'}`}><ArrowsUpDownIcon className="w-6 h-6 mb-1" /><span className="font-bold">Aufzug</span></button>
-                    <button type="button" onClick={() => setLogistics({...logistics, a_parking: !logistics.a_parking})} className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${logistics.a_parking ? 'border-red-500 bg-red-500/10 text-red-500' : 'border-structure bg-bg-dark text-text-muted'}`}><NoSymbolIcon className="w-6 h-6 mb-1" /><span className="font-bold">Halteverbot</span></button>
+                    <button type="button" onClick={() => {
+                      const nextA = !logistics.a_parking;
+                      const nextLoc = nextA && logistics.b_parking ? 'both' : nextA ? 'a' : logistics.b_parking ? 'b' : 'a';
+                      setLogistics({...logistics, a_parking: nextA, hvzLocation: nextLoc});
+                      setOrderMeta({...orderMeta, hvzLocation: nextLoc});
+                    }} className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${logistics.a_parking ? 'border-red-500 bg-red-500/10 text-red-500' : 'border-structure bg-bg-dark text-text-muted'}`}><NoSymbolIcon className="w-6 h-6 mb-1" /><span className="font-bold">Halteverbot</span></button>
                     <button type="button" onClick={() => setLogistics({...logistics, a_furnitureLift: !logistics.a_furnitureLift})} className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${logistics.a_furnitureLift ? 'border-orange-500 bg-orange-500/10 text-orange-500' : 'border-structure bg-bg-dark text-text-muted'}`}><ArrowUpTrayIcon className="w-6 h-6 mb-1" /><span className="font-bold">Möbellift</span></button>
                   </div>
+
+                  {logistics.a_parking && (
+                    <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/30 space-y-3">
+                      <span className="text-xs font-bold text-red-500 block">Halteverbotszone (Auszug A) planen</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button type="button" onClick={() => { setOrderMeta({...orderMeta, hvzMethod: 'selbst'}); setLogistics({...logistics, hvzMethod: 'selbst'}); }} className={`py-2 px-3 rounded-xl border text-xs font-bold ${(orderMeta.hvzMethod || 'selbst') === 'selbst' ? 'bg-primary text-white border-primary' : 'bg-bg-dark border-structure text-text-muted'}`}>Selbst aufstellen</button>
+                        <button type="button" onClick={() => { setOrderMeta({...orderMeta, hvzMethod: 'extern'}); setLogistics({...logistics, hvzMethod: 'extern'}); }} className={`py-2 px-3 rounded-xl border text-xs font-bold ${orderMeta.hvzMethod === 'extern' ? 'bg-primary text-white border-primary' : 'bg-bg-dark border-structure text-text-muted'}`}>Externe Firma</button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input type="date" value={orderMeta.halteverbotDate || logistics.hvzDate || ''} onChange={e => { setOrderMeta({...orderMeta, halteverbotDate: e.target.value}); setLogistics({...logistics, hvzDate: e.target.value}); }} className="input-field w-full text-xs" />
+                        <select value={orderMeta.halteverbotTime || ''} onChange={e => { setOrderMeta({...orderMeta, halteverbotTime: e.target.value}); setLogistics({...logistics, hvzTime: e.target.value}); }} className="input-field w-full text-xs">
+                          <option value="">Zeitfenster wählen...</option>
+                          <option value="08:00 - 12:00">08:00 - 12:00 (Vormittag)</option>
+                          <option value="10:00 - 14:00">10:00 - 14:00 (Mittag)</option>
+                          <option value="13:00 - 17:00">13:00 - 17:00 (Nachmittag)</option>
+                          <option value="Ganztägig">Ganztägig</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -462,7 +530,7 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
                           const res = await fetch(`https://api.zippopotam.us/de/${cleanVal}`);
                           if (res.ok) {
                             const data = await res.json();
-                            if (data.places && data.places.length > 0) setLogistics(prev => ({...prev, b_zip: cleanVal, b_city: data.places[0]['place name']}));
+                            if (data.places && data.places.length > 0) setLogistics((prev: any) => ({...prev, b_zip: cleanVal, b_city: data.places[0]['place name']}));
                           }
                         } catch(err) {}
                       }
@@ -485,9 +553,34 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <button type="button" onClick={() => setLogistics({...logistics, b_elevator: !logistics.b_elevator})} className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${logistics.b_elevator ? 'border-primary bg-primary/10 text-primary' : 'border-structure bg-bg-dark text-text-muted'}`}><ArrowsUpDownIcon className="w-6 h-6 mb-1" /><span className="font-bold">Aufzug</span></button>
-                    <button type="button" onClick={() => setLogistics({...logistics, b_parking: !logistics.b_parking})} className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${logistics.b_parking ? 'border-red-500 bg-red-500/10 text-red-500' : 'border-structure bg-bg-dark text-text-muted'}`}><NoSymbolIcon className="w-6 h-6 mb-1" /><span className="font-bold">Halteverbot</span></button>
+                    <button type="button" onClick={() => {
+                      const nextB = !logistics.b_parking;
+                      const nextLoc = logistics.a_parking && nextB ? 'both' : nextB ? 'b' : logistics.a_parking ? 'a' : 'b';
+                      setLogistics({...logistics, b_parking: nextB, hvzLocation: nextLoc});
+                      setOrderMeta({...orderMeta, hvzLocation: nextLoc});
+                    }} className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${logistics.b_parking ? 'border-red-500 bg-red-500/10 text-red-500' : 'border-structure bg-bg-dark text-text-muted'}`}><NoSymbolIcon className="w-6 h-6 mb-1" /><span className="font-bold">Halteverbot</span></button>
                     <button type="button" onClick={() => setLogistics({...logistics, b_furnitureLift: !logistics.b_furnitureLift})} className={`flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all ${logistics.b_furnitureLift ? 'border-orange-500 bg-orange-500/10 text-orange-500' : 'border-structure bg-bg-dark text-text-muted'}`}><ArrowUpTrayIcon className="w-6 h-6 mb-1" /><span className="font-bold">Möbellift</span></button>
                   </div>
+
+                  {logistics.b_parking && (
+                    <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/30 space-y-3">
+                      <span className="text-xs font-bold text-red-500 block">Halteverbotszone ({logistics.a_parking ? 'A & B' : 'Einzug B'}) planen</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button type="button" onClick={() => { setOrderMeta({...orderMeta, hvzMethod: 'selbst'}); setLogistics({...logistics, hvzMethod: 'selbst'}); }} className={`py-2 px-3 rounded-xl border text-xs font-bold ${(orderMeta.hvzMethod || 'selbst') === 'selbst' ? 'bg-primary text-white border-primary' : 'bg-bg-dark border-structure text-text-muted'}`}>Selbst aufstellen</button>
+                        <button type="button" onClick={() => { setOrderMeta({...orderMeta, hvzMethod: 'extern'}); setLogistics({...logistics, hvzMethod: 'extern'}); }} className={`py-2 px-3 rounded-xl border text-xs font-bold ${orderMeta.hvzMethod === 'extern' ? 'bg-primary text-white border-primary' : 'bg-bg-dark border-structure text-text-muted'}`}>Externe Firma</button>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <input type="date" value={orderMeta.halteverbotDate || logistics.hvzDate || ''} onChange={e => { setOrderMeta({...orderMeta, halteverbotDate: e.target.value}); setLogistics({...logistics, hvzDate: e.target.value}); }} className="input-field w-full text-xs" />
+                        <select value={orderMeta.halteverbotTime || ''} onChange={e => { setOrderMeta({...orderMeta, halteverbotTime: e.target.value}); setLogistics({...logistics, hvzTime: e.target.value}); }} className="input-field w-full text-xs">
+                          <option value="">Zeitfenster wählen...</option>
+                          <option value="08:00 - 12:00">08:00 - 12:00 (Vormittag)</option>
+                          <option value="10:00 - 14:00">10:00 - 14:00 (Mittag)</option>
+                          <option value="13:00 - 17:00">13:00 - 17:00 (Nachmittag)</option>
+                          <option value="Ganztägig">Ganztägig</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

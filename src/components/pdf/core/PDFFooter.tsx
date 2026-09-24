@@ -10,12 +10,13 @@ interface PDFFooterProps {
 const styles = StyleSheet.create({
   footerContainer: {
     position: 'absolute',
-    bottom: 18,
+    bottom: 24,
     left: 36,
     right: 36,
     borderTopWidth: 1,
     borderTopColor: PDF_COLORS.border,
-    paddingTop: 6,
+    paddingTop: 8,
+    backgroundColor: '#ffffff',
   },
   columnsRow: {
     flexDirection: 'row',
@@ -25,14 +26,14 @@ const styles = StyleSheet.create({
     width: '24%',
   },
   colTitle: {
-    fontSize: 7.5,
+    fontSize: 8,
     fontFamily: 'Helvetica-Bold',
     color: PDF_COLORS.primary,
     marginBottom: 3,
   },
   colText: {
-    fontSize: 6.8,
-    color: PDF_COLORS.textMuted,
+    fontSize: 7.5,
+    color: '#555555',
     lineHeight: 1.35,
   },
   bottomRow: {
@@ -45,74 +46,75 @@ const styles = StyleSheet.create({
     borderTopColor: PDF_COLORS.borderLight,
   },
   bottomNote: {
-    fontSize: 6.5,
-    color: PDF_COLORS.textLight,
+    fontSize: 7,
+    color: PDF_COLORS.textMuted,
   },
   pageNumber: {
-    fontSize: 7,
+    fontSize: 7.5,
     fontFamily: 'Helvetica-Bold',
     color: PDF_COLORS.textMuted,
-  }
+  },
 });
 
 export const PDFFooter: React.FC<PDFFooterProps> = ({ settings, customNote }) => {
-  const companyName = 'Rothirsch Umzug';
-  const street = settings?.street || 'Haydnstr. 16';
-  const zip = settings?.zip || '44805';
-  const city = settings?.city || 'Bochum';
-  const manager = settings?.manager || 'Tarek Lababidi';
-  
-  const phone = settings?.phone || '+49 177 4652154';
-  const email = settings?.email || 'info@rothirsch-umzug.de';
-  const website = settings?.website || 'www.rothirsch-umzug.de';
-  
-  const bankName = settings?.bankName || 'Sparkasse Bochum';
-  const iban = settings?.iban || 'DE51 4305 0001 0033 4371 12';
-  const bic = settings?.bic || 'WELADED1B0C';
-  
-  const taxId = settings?.taxId || 'DE369077991';
-  const taxNumber = settings?.taxNumber || '350/5143/3272';
+  const companyName = settings?.companyName || '';
+  const street = settings?.street || '';
+  const zip = settings?.zip || '';
+  const city = settings?.city || '';
+  const manager = settings?.manager || '';
+
+  const phone = settings?.phone || '';
+  const email = settings?.email || '';
+  const website = settings?.website || '';
+
+  const bankName = settings?.bankName || '';
+  const iban = settings?.iban || '';
+  const bic = settings?.bic || '';
+
+  const taxId = settings?.taxId || '';
+  const taxNumber = settings?.taxNumber || '';
+  const register = settings?.register || '';
 
   return (
     <View style={styles.footerContainer} fixed>
       <View style={styles.columnsRow}>
-        {/* Col 1: Unternehmen */}
+        {/* Col 1: Unternehmen (Allgemeine Firmendaten) */}
         <View style={styles.col}>
           <Text style={styles.colTitle}>Unternehmen</Text>
-          <Text style={styles.colText}>{companyName}</Text>
-          <Text style={styles.colText}>{street}</Text>
-          <Text style={styles.colText}>{zip} {city}</Text>
-          {manager ? <Text style={styles.colText}>Inh.: {manager}</Text> : null}
+          {companyName ? <Text style={styles.colText}>{companyName}</Text> : null}
+          {street ? <Text style={styles.colText}>{street}</Text> : null}
+          {(zip || city) ? <Text style={styles.colText}>{`${zip} ${city}`.trim()}</Text> : null}
+          {manager ? <Text style={styles.colText}>Inhaber/-in: {manager}</Text> : null}
         </View>
 
         {/* Col 2: Kontakt */}
         <View style={styles.col}>
           <Text style={styles.colTitle}>Kontakt</Text>
-          <Text style={styles.colText}>Tel: {phone}</Text>
-          <Text style={styles.colText}>E-Mail: {email}</Text>
-          <Text style={styles.colText}>Web: {website}</Text>
+          {phone ? <Text style={styles.colText}>Tel: {phone}</Text> : null}
+          {email ? <Text style={styles.colText}>E-Mail: {email}</Text> : null}
+          {website ? <Text style={styles.colText}>Web: {website}</Text> : null}
         </View>
 
         {/* Col 3: Bankverbindung */}
         <View style={styles.col}>
           <Text style={styles.colTitle}>Bankverbindung</Text>
-          <Text style={styles.colText}>{bankName}</Text>
-          <Text style={styles.colText}>IBAN: {iban}</Text>
-          <Text style={styles.colText}>BIC: {bic}</Text>
+          {bankName ? <Text style={styles.colText}>Bank: {bankName}</Text> : null}
+          {iban ? <Text style={styles.colText}>IBAN: {iban}</Text> : null}
+          {bic ? <Text style={styles.colText}>BIC: {bic}</Text> : null}
         </View>
 
         {/* Col 4: Steuern & Register */}
         <View style={styles.col}>
-          <Text style={styles.colTitle}>Steuer & Recht</Text>
+          <Text style={styles.colTitle}>Steuern & Recht</Text>
           {taxId ? <Text style={styles.colText}>USt-IdNr: {taxId}</Text> : null}
-          {taxNumber ? <Text style={styles.colText}>St.-Nr: {taxNumber}</Text> : null}
-          <Text style={styles.colText}>Amtsgericht Bochum</Text>
+          {taxNumber ? <Text style={styles.colText}>Steuer-Nr: {taxNumber}</Text> : null}
+          {register ? <Text style={styles.colText}>{register}</Text> : null}
         </View>
       </View>
 
       <View style={styles.bottomRow}>
         <Text style={styles.bottomNote}>
-          {customNote || `${companyName} • Ihr verlässlicher Umzugspartner`}
+          {customNote || companyName}
         </Text>
         <Text
           style={styles.pageNumber}

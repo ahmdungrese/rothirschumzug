@@ -250,12 +250,12 @@ export const OrderPDF = ({
     introText = introText.replace(/Sehr geehrte Damen und Herren,?/gi, kundeAnredeStr);
   }
 
-  const outroText = (isContract
+  const outroText = isContract
     ? order?.texts?.orderOutro || settings?.texts?.orderOutro || ''
-    : order?.texts?.quoteOutro || settings?.texts?.quoteOutro || '').replace(/Rothirsch Umzüge(\s+und\s+Logistik)?/gi, 'Rothirsch Umzug');
-  const greetingText = (isContract
+    : order?.texts?.quoteOutro || settings?.texts?.quoteOutro || '';
+  const greetingText = isContract
     ? order?.texts?.orderGreeting || settings?.texts?.orderGreeting || ''
-    : order?.texts?.quoteGreeting || settings?.texts?.quoteGreeting || '').replace(/Rothirsch Umzüge(\s+und\s+Logistik)?/gi, 'Rothirsch Umzug');
+    : order?.texts?.quoteGreeting || settings?.texts?.quoteGreeting || '';
 
   const pmSettings =
     settings?.paymentMethods?.find((p: any) => p.name === order?.orderMeta?.paymentMethod) ||
@@ -263,7 +263,7 @@ export const OrderPDF = ({
   const paymentTerms = order?.texts?.paymentTerms || pmSettings?.textQuote || '';
 
   // AGB Splitting into two equal columns
-  const agbFullText = (settings?.texts?.agb || '').replace(/Rothirsch Umzüge(\s+und\s+Logistik)?/gi, 'Rothirsch Umzug');
+  const agbFullText = settings?.texts?.agb || '';
   const midpoint = Math.floor(agbFullText.length / 2);
   const splitIndex = agbFullText.indexOf(' ', midpoint) !== -1 ? agbFullText.indexOf(' ', midpoint) : midpoint;
   const agbLeft = agbFullText.substring(0, splitIndex);
@@ -280,8 +280,8 @@ export const OrderPDF = ({
       {/* ───────────────────────────────────────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
         <PDFWatermark type="symbols" />
-
         <PDFHeader settings={settings} docTitle={docTypeTitle} />
+        <PDFFooter settings={settings} />
 
         {/* Recipient Window & Document Meta Box */}
         <View style={styles.customerDateBox}>
@@ -471,8 +471,6 @@ export const OrderPDF = ({
             </View>
           </View>
         </View>
-
-        <PDFFooter settings={settings} />
       </Page>
 
       {/* ───────────────────────────────────────────────────────────────────────── */}
@@ -481,6 +479,7 @@ export const OrderPDF = ({
       <Page size="A4" style={styles.page}>
         <PDFWatermark type="symbols" />
         <PDFHeader settings={settings} minimal docTitle={isContract ? 'Auftragsdetails & Bestätigung' : 'Angebotsdetails & Bestätigung'} />
+        <PDFFooter settings={settings} />
 
         <Text style={styles.detailsSectionHeader}>Versicherungsschutz</Text>
         <Text style={styles.textBlock}>
@@ -525,16 +524,15 @@ export const OrderPDF = ({
             )}
           </View>
         </View>
-
-        <PDFFooter settings={settings} />
       </Page>
 
       {/* ───────────────────────────────────────────────────────────────────────── */}
       {/* PAGE 3: Allgemeine Geschäftsbedingungen (AGB)                             */}
       {/* ───────────────────────────────────────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
-        <PDFWatermark type="text" text="Rothirsch Umzug" />
+        <PDFWatermark type="text" text={settings?.companyName || 'Rothirsch Umzug'} />
         <PDFHeader settings={settings} minimal docTitle="Allgemeine Geschäftsbedingungen" />
+        <PDFFooter settings={settings} />
 
         <Text style={styles.agbTitle}>Allgemeine Geschäftsbedingungen (AGB)</Text>
 
@@ -564,8 +562,6 @@ export const OrderPDF = ({
             )}
           </View>
         </View>
-
-        <PDFFooter settings={settings} />
       </Page>
 
       {/* ───────────────────────────────────────────────────────────────────────── */}
@@ -575,6 +571,7 @@ export const OrderPDF = ({
         <Page size="A4" style={styles.page}>
           <PDFWatermark type="symbols" />
           <PDFHeader settings={settings} minimal docTitle="Anlage: Umzugsgut / Inventarliste" />
+          <PDFFooter settings={settings} />
 
           <Text style={styles.detailsSectionHeader}>Anlage: Umzugsgut / Inventarliste</Text>
           <View style={styles.table}>
@@ -634,8 +631,6 @@ export const OrderPDF = ({
               </React.Fragment>
             ))}
           </View>
-
-          <PDFFooter settings={settings} />
         </Page>
       )}
     </Document>

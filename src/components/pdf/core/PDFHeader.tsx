@@ -20,12 +20,14 @@ const styles = StyleSheet.create({
   },
   brandLeftBox: {
     justifyContent: 'center',
+    maxWidth: '68%',
   },
   companyName: {
     fontSize: 21,
     fontFamily: 'Helvetica-Bold',
     color: PDF_COLORS.primary,
-    letterSpacing: 1.2,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   blackCircleWrapper: {
     backgroundColor: '#1a1a1a',
@@ -40,7 +42,7 @@ const styles = StyleSheet.create({
     width: 65,
     height: 65,
     objectFit: 'contain',
-    marginTop: -6, // Shifts the word Rothirsch and deer up to optical center
+    marginTop: -6, // Optically centers the deer and word Rothirsch inside the black circle
   },
   dividerLine: {
     borderBottomWidth: 1.2,
@@ -48,11 +50,11 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   senderLine: {
-    fontSize: 7.5,
+    fontSize: 8,
     color: PDF_COLORS.textMuted,
     marginBottom: 12,
   },
-  
+
   // Minimal header for subsequent pages
   headerMinimal: {
     flexDirection: 'row',
@@ -70,26 +72,33 @@ const styles = StyleSheet.create({
   },
   minimalLogoWrapper: {
     backgroundColor: '#1a1a1a',
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
   },
   minimalLogoImage: {
-    width: 18,
-    height: 18,
+    width: 22,
+    height: 22,
     objectFit: 'contain',
-    marginTop: -1.5,
-  }
+    marginTop: -2,
+  },
 });
 
 export const PDFHeader: React.FC<PDFHeaderProps> = ({ settings, minimal = false, docTitle = '' }) => {
-  const companyName = 'Rothirsch Umzug';
-  const street = settings?.street || 'Haydnstr. 16';
-  const zip = settings?.zip || '44805';
-  const city = settings?.city || 'Bochum';
+  // Directly read from Einstellungen -> Basisdaten (Allgemeine Firmendaten)
+  const companyName = settings?.companyName || 'Rothirsch Umzug';
+  const street = settings?.street || '';
+  const zip = settings?.zip || '';
+  const city = settings?.city || '';
+
+  const senderParts = [
+    companyName,
+    street,
+    `${zip} ${city}`.trim(),
+  ].filter(Boolean);
 
   if (minimal) {
     return (
@@ -106,10 +115,10 @@ export const PDFHeader: React.FC<PDFHeaderProps> = ({ settings, minimal = false,
 
   return (
     <View style={styles.headerFull}>
-      {/* Top Row: Company Name only on the LEFT, Centered Black Circle Logo on the RIGHT */}
+      {/* Top Row: Company Name from Einstellungen on the LEFT, Black Circle Logo on the RIGHT */}
       <View style={styles.topRow}>
         <View style={styles.brandLeftBox}>
-          <Text style={styles.companyName}>ROTHIRSCH UMZUG</Text>
+          <Text style={styles.companyName}>{companyName}</Text>
         </View>
 
         <View style={styles.blackCircleWrapper}>
@@ -120,9 +129,9 @@ export const PDFHeader: React.FC<PDFHeaderProps> = ({ settings, minimal = false,
       {/* Red accent line */}
       <View style={styles.dividerLine} />
 
-      {/* DIN 5008 Absenderzeile */}
+      {/* DIN 5008 Absenderzeile directly from Einstellungen -> Basisdaten */}
       <Text style={styles.senderLine}>
-        {companyName} • {street} • {zip} {city}
+        {senderParts.join(' • ')}
       </Text>
     </View>
   );

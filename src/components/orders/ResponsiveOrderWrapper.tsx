@@ -57,7 +57,8 @@ export function ResponsiveOrderWrapper({ orderId }: { orderId?: string }) {
   if (isMobile === null || isInvoice === null) return null;
 
   const isEditInvoiceRoute = typeof window !== 'undefined' && window.location.pathname.includes('/edit-invoice/');
-  const actualOrderId = orderId === 'new' ? undefined : orderId;
+  const rawOrderId = orderId || searchParams?.get('orderId') || undefined;
+  const actualOrderId = (!rawOrderId || rawOrderId === 'new' || rawOrderId === 'undefined') ? undefined : rawOrderId;
   const sourceOrderId = searchParams?.get('sourceOrder') || (isEditInvoiceRoute ? actualOrderId : undefined);
 
   let content = null;

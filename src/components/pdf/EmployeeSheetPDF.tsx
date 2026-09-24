@@ -189,6 +189,7 @@ export const EmployeeSheetPDF = ({
       <Page size="A4" style={styles.page}>
         <PDFWatermark type="symbols" />
         <PDFHeader settings={settings} docTitle="Laufzettel für Mitarbeiter" />
+        <PDFFooter settings={settings} customNote="INTERNES DOKUMENT • Nicht zur Weitergabe an den Kunden bestimmt" />
 
         <View style={styles.titleRow}>
           <Text style={styles.title}>Laufzettel für Mitarbeiter</Text>
@@ -323,8 +324,6 @@ export const EmployeeSheetPDF = ({
             ))}
           </View>
         </View>
-
-        <PDFFooter settings={settings} customNote="INTERNES DOKUMENT • Nicht zur Weitergabe an den Kunden bestimmt" />
       </Page>
     </Document>
   );
