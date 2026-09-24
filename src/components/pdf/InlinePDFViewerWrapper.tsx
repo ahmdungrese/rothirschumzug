@@ -25,7 +25,7 @@ export default function InlinePDFViewerWrapper({ order, customer, type = 'order'
       if(docSnap.exists()) {
         setSettings(docSnap.data());
       } else {
-        setSettings({ companyName: 'Rothirsch Umzüge', city: 'Bochum', street: 'Grillostr. 70', zip: '44799', email: 'info@rothirsch-umzug.de' });
+        setSettings({ companyName: 'Rothirsch Umzug', city: 'Bochum', street: 'Haydnstr. 16', zip: '44805', email: 'info@rothirsch-umzug.de' });
       }
     });
   }, []);

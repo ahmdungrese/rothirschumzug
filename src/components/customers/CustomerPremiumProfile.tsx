@@ -293,6 +293,7 @@ export function CustomerPremiumProfile({
 
   // Dashboard-Style Drawer State for full 4-phase examination
   const [drawerOrder, setDrawerOrder] = useState<any | null>(null);
+  const [drawerInitialPhase, setDrawerInitialPhase] = useState<number | undefined>(undefined);
 
   // Logistics & Route extraction
   const orderLogistics = activeOrder?.logistics || {};
@@ -921,11 +922,11 @@ export function CustomerPremiumProfile({
         </div>
       )}
 
-      {/* Unified Auftrags-Cockpit: Phasen-Steuerung, Empfohlene Aktion & Operative Checkliste */}
+      {/* Streamlined Auftrags-Cockpit: 4-Phasen Stepper, Nächste Aktion & Cockpit/Prüfung Drawer */}
       {activeOrder && (
-        <div className="bg-white dark:bg-slate-900 p-6 md:p-7 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+        <div className="bg-white dark:bg-slate-900 p-5 md:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
           
-          {/* 1. Cockpit Header: Phase, Progress & Phasen-Prüfung Drawer Button */}
+          {/* 1. Cockpit Header: Phase, Progress & Prominent Cockpit & Prüfung Button */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
             <div className="flex items-center gap-3">
               <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ${
@@ -953,7 +954,7 @@ export function CustomerPremiumProfile({
             <div className="flex items-center gap-3 self-end sm:self-auto flex-wrap sm:flex-nowrap">
               {/* Progress Bar */}
               <div className="flex items-center gap-2">
-                <div className="w-24 sm:w-32 bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                <div className="w-20 sm:w-28 bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
                   <div 
                     className="bg-emerald-500 h-2.5 rounded-full transition-all duration-300"
                     style={{ width: `${checklist.length > 0 ? (completedCount / checklist.length) * 100 : 0}%` }}
@@ -964,74 +965,81 @@ export function CustomerPremiumProfile({
                 </span>
               </div>
 
-              {/* Phasen-Prüfung Drawer Button */}
+              {/* Prominent Cockpit & Prüfung (Drawer) Button */}
               <button
                 type="button"
-                onClick={() => setDrawerOrder(activeOrder)}
-                className="px-3.5 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-                title="Detaillierte Phasen-Prüfung im Drawer öffnen"
+                onClick={() => {
+                  setDrawerInitialPhase(currentPhaseInfo.phase);
+                  setDrawerOrder(activeOrder);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-primary dark:hover:bg-[#b51822] text-white text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+                title="Operative Aufgaben, Checkliste und 4-Phasen-Prüfung öffnen"
               >
-                <AdjustmentsHorizontalIcon className="w-4 h-4 text-primary" />
-                <span>Phasen-Prüfung</span>
+                <AdjustmentsHorizontalIcon className="w-4 h-4 text-primary dark:text-white" />
+                <span>Cockpit & Prüfung</span>
               </button>
             </div>
           </div>
 
-          {/* 2. 4-Phasen Stepper (Vollbreite) */}
-          <div className="space-y-2">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {[
-                { num: 1, label: '1. Entwurf' },
-                { num: 2, label: '2. Angebot' },
-                { num: 3, label: '3. Bestätigt' },
-                { num: 4, label: '4. Abrechnung' }
-              ].map((st) => {
-                const isDone = currentPhaseInfo.phase > st.num;
-                const isCurrent = currentPhaseInfo.phase === st.num;
-                return (
-                  <div
-                    key={st.num}
-                    className={`p-3 rounded-2xl border transition-all flex items-center gap-3 ${
-                      isCurrent
-                        ? st.num === 3 
-                          ? 'bg-emerald-500/10 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20 shadow-xs' 
-                          : st.num === 2 
-                            ? 'bg-amber-500/10 border-amber-500 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20 shadow-xs'
-                            : st.num === 4
-                              ? 'bg-purple-500/10 border-purple-500 text-purple-900 dark:text-purple-200 ring-2 ring-purple-500/20 shadow-xs'
-                              : 'bg-blue-500/10 border-blue-500 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20 shadow-xs'
-                        : isDone
-                          ? 'bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/30 text-emerald-700 dark:text-emerald-400'
-                          : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-400'
-                    }`}
-                  >
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-black shadow-xs ${
-                      isDone
-                        ? 'bg-emerald-500 text-white'
-                        : isCurrent
-                          ? st.num === 3 ? 'bg-emerald-500 text-white animate-pulse' : st.num === 2 ? 'bg-amber-500 text-white animate-pulse' : 'bg-primary text-white'
-                          : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
-                    }`}>
-                      {isDone ? <CheckIcon className="w-4 h-4 stroke-[3]" /> : st.num}
-                    </div>
-                    <div className="truncate min-w-0">
-                      <span className="text-xs font-bold block truncate leading-tight">
-                        {st.label}
-                      </span>
-                      <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">
-                        {isDone ? 'Erledigt' : isCurrent ? 'Aktive Phase' : 'Ausstehend'}
-                      </span>
-                    </div>
+          {/* 2. 4-Phasen Stepper (Klickbar -> Öffnet Cockpit-Drawer direkt in der jeweiligen Phase) */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {[
+              { num: 1, label: '1. Entwurf' },
+              { num: 2, label: '2. Angebot' },
+              { num: 3, label: '3. Bestätigt' },
+              { num: 4, label: '4. Abrechnung' }
+            ].map((st) => {
+              const isDone = currentPhaseInfo.phase > st.num;
+              const isCurrent = currentPhaseInfo.phase === st.num;
+              return (
+                <button
+                  key={st.num}
+                  type="button"
+                  onClick={() => {
+                    setDrawerInitialPhase(st.num);
+                    setDrawerOrder(activeOrder);
+                  }}
+                  title={`Klicken, um Phase ${st.num} (${st.label}) im Cockpit & Prüfung zu öffnen`}
+                  className={`p-3 rounded-2xl border text-left transition-all flex items-center gap-3 cursor-pointer hover:scale-[1.01] ${
+                    isCurrent
+                      ? st.num === 3 
+                        ? 'bg-emerald-500/10 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20 shadow-xs' 
+                        : st.num === 2 
+                          ? 'bg-amber-500/10 border-amber-500 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20 shadow-xs'
+                          : st.num === 4
+                            ? 'bg-purple-500/10 border-purple-500 text-purple-900 dark:text-purple-200 ring-2 ring-purple-500/20 shadow-xs'
+                            : 'bg-blue-500/10 border-blue-500 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20 shadow-xs'
+                      : isDone
+                        ? 'bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:border-emerald-500/60'
+                        : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-500 hover:border-slate-400'
+                  }`}
+                >
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-black shadow-xs ${
+                    isDone
+                      ? 'bg-emerald-500 text-white'
+                      : isCurrent
+                        ? st.num === 3 ? 'bg-emerald-500 text-white animate-pulse' : st.num === 2 ? 'bg-amber-500 text-white animate-pulse' : 'bg-primary text-white'
+                        : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
+                  }`}>
+                    {isDone ? <CheckIcon className="w-4 h-4 stroke-[3]" /> : st.num}
                   </div>
-                );
-              })}
-            </div>
+                  <div className="truncate min-w-0">
+                    <span className="text-xs font-bold block truncate leading-tight">
+                      {st.label}
+                    </span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">
+                      {isDone ? 'Erledigt (Prüfen)' : isCurrent ? 'Aktiv (Prüfen)' : 'Offen (Prüfen)'}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
-          {/* 3. Nächste empfohlene Aktion (Volle Breite, kein Abschneiden des roten Buttons) */}
-          <div className="bg-gradient-to-r from-red-500/10 via-amber-500/5 to-slate-50/50 dark:from-red-950/30 dark:via-slate-800/40 dark:to-slate-800/20 p-4 sm:p-5 rounded-2xl border border-red-200/80 dark:border-red-900/40 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
+          {/* 3. Nächste empfohlene Aktion (Volle Breite, sauber eingebetteter roter Button ohne Überlauf) */}
+          <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1 min-w-0 flex-1">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary font-headline">
                   Nächste empfohlene Aktion
                 </span>
@@ -1039,17 +1047,17 @@ export function CustomerPremiumProfile({
                   {nextStep.badge}
                 </span>
               </div>
-              <h4 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white leading-snug">
+              <h4 className="text-sm font-extrabold text-slate-900 dark:text-white leading-snug">
                 {nextStep.title}
               </h4>
               {nextStep.desc && (
-                <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 mt-0.5">
+                <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
                   {nextStep.desc}
                 </p>
               )}
             </div>
 
-            <div className="flex items-center gap-2.5 shrink-0 flex-wrap sm:flex-nowrap">
+            <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
               {nextStep.secondaryBtnText && nextStep.onSecondaryAction && (
                 <button
                   type="button"
@@ -1062,135 +1070,13 @@ export function CustomerPremiumProfile({
               <button
                 type="button"
                 onClick={nextStep.action}
-                className="py-2.5 px-5 rounded-xl bg-primary hover:bg-[#b51822] text-white font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-md shadow-primary/25 cursor-pointer group shrink-0"
+                className="py-2.5 px-5 rounded-xl bg-primary hover:bg-[#b51822] text-white font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-sm shadow-primary/20 cursor-pointer group shrink-0"
               >
                 <span>{nextStep.btnText}</span>
-                <ArrowRightIcon className="w-4 h-4 group-hover:translate-x-1 transition-transform shrink-0" />
+                <ArrowRightIcon className="w-4 h-4 group-hover:translate-x-0.5 transition-transform shrink-0" />
               </button>
             </div>
           </div>
-
-          {/* 4. Operative Aufgaben & Checkliste (Interaktive Chips direkt im Cockpit) */}
-          {checklist.length > 0 && (
-            <div className="space-y-3 pt-2">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 font-headline flex items-center gap-2">
-                  <span>Operative Checkliste ({currentPhaseInfo.phase === 3 ? 'Phase 3: Umzugsvorbereitung' : currentPhaseInfo.phase === 4 ? 'Phase 4: Durchführung & Abrechnung' : `Phase ${currentPhaseInfo.phase}: ${currentPhaseInfo.label}`})</span>
-                  <span className="text-[10px] font-semibold text-slate-400">
-                    ({completedCount}/{checklist.length} aktiv)
-                  </span>
-                </h3>
-                <span className="text-[11px] text-slate-400 hidden sm:inline">
-                  Klick aktiviert / bearbeitet die Aufgabe
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {checklist.map((item) => {
-                  const isDone = item.done;
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => handleChecklistClick(item)}
-                      className={`p-3.5 rounded-2xl border-2 text-left transition-all cursor-pointer select-none group flex flex-col justify-between gap-3 shadow-xs ${
-                        isDone
-                          ? 'bg-emerald-500/10 dark:bg-emerald-950/40 border-emerald-500 text-emerald-950 dark:text-emerald-200 shadow-emerald-500/10'
-                          : item.id === 'signature'
-                            ? 'bg-amber-500/10 border-amber-500 hover:border-amber-600 text-amber-900 dark:text-amber-200'
-                            : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-slate-400 text-slate-700 dark:text-slate-300'
-                      }`}
-                      title={item.missingReason || (isDone ? 'Erledigt (Klicken zum Ändern)' : 'Klicken zum Bearbeiten')}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          {isDone ? (
-                            <div className="w-8 h-8 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                              <CheckIcon className="w-5 h-5 stroke-[3]" />
-                            </div>
-                          ) : item.id === 'signature' ? (
-                            <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-xs">
-                              <PencilSquareIcon className="w-4 h-4" />
-                            </div>
-                          ) : item.id === 'kartons' ? (
-                            <div className="w-8 h-8 rounded-xl bg-orange-100 dark:bg-orange-950/50 text-orange-600 dark:text-orange-400 flex items-center justify-center shrink-0">
-                              <CubeIcon className="w-4 h-4" />
-                            </div>
-                          ) : item.id === 'hvz' ? (
-                            <div className="w-8 h-8 rounded-xl bg-blue-100 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-                              <TruckIcon className="w-4 h-4" />
-                            </div>
-                          ) : item.id === 'moebellift' ? (
-                            <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0">
-                              <BuildingOfficeIcon className="w-4 h-4" />
-                            </div>
-                          ) : item.id === 'team' ? (
-                            <div className="w-8 h-8 rounded-xl bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-                              <UserGroupIcon className="w-4 h-4" />
-                            </div>
-                          ) : (
-                            <div className="w-8 h-8 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-500 flex items-center justify-center shrink-0">
-                              <ClipboardDocumentCheckIcon className="w-4 h-4" />
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <span className={`text-xs font-extrabold block truncate leading-tight ${
-                              isDone ? 'text-emerald-700 dark:text-emerald-300' : ''
-                            }`}>
-                              {item.id === 'kartons' ? 'Umzugskartons' :
-                               item.id === 'hvz' ? 'Halteverbot (HVZ)' :
-                               item.id === 'moebellift' ? 'Möbellift' :
-                               item.id === 'team' ? 'Umzugsteam' :
-                               item.id === 'signature' ? 'Vertragsunterschrift' :
-                               item.id === 'address' ? 'Adressen (A & B)' :
-                               item.id === 'protocol' ? 'Übergabeprotokoll' :
-                               item.id === 'invoice' ? 'Rechnung' :
-                               item.id === 'payment' ? 'Zahlung' :
-                               item.id === 'viewing_date' ? 'Besichtigung' :
-                               item.id === 'data_verified' ? 'Stammdaten' : item.label}
-                            </span>
-                            <span className="text-[10px] text-slate-400 block line-clamp-1">
-                              {item.details || item.label}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Bottom Status Pill */}
-                      <div className="flex items-center justify-between pt-1.5 border-t border-slate-100 dark:border-slate-800/60 mt-1">
-                        <span className={`text-[10px] font-extrabold uppercase tracking-wider flex items-center gap-1 ${
-                          isDone 
-                            ? 'text-emerald-600 dark:text-emerald-400 font-black' 
-                            : item.id === 'signature' 
-                              ? 'text-amber-600 dark:text-amber-400' 
-                              : 'text-slate-400'
-                        }`}>
-                          {isDone ? (
-                            <>
-                              <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-500" />
-                              <span>Erledigt</span>
-                            </>
-                          ) : item.id === 'signature' ? (
-                            <>
-                              <PencilSquareIcon className="w-3.5 h-3.5 text-amber-500" />
-                              <span>Jetzt signieren</span>
-                            </>
-                          ) : (
-                            <span>Offen</span>
-                          )}
-                        </span>
-                        <span className={`text-[10px] font-semibold transition-colors ${
-                          isDone ? 'text-emerald-600/70 hover:text-emerald-600' : 'text-slate-400 group-hover:text-primary'
-                        }`}>
-                          {isDone ? 'Ändern' : 'Aktivieren ➔'}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
         </div>
       )}
@@ -2548,7 +2434,11 @@ export function CustomerPremiumProfile({
         <OrderDetailsDrawer
           order={drawerOrder}
           customer={customer}
-          onClose={() => setDrawerOrder(null)}
+          initialPhase={drawerInitialPhase}
+          onClose={() => {
+            setDrawerOrder(null);
+            setDrawerInitialPhase(undefined);
+          }}
           onRefresh={() => {
             if (onRefresh) onRefresh();
             const updated = orders.find(o => o.id === drawerOrder.id);

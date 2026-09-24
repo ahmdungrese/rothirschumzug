@@ -56,7 +56,7 @@ const styles = StyleSheet.create({
 });
 
 export const PDFFooter: React.FC<PDFFooterProps> = ({ settings, customNote }) => {
-  const companyName = settings?.companyName || 'Rothirsch Umzug';
+  const companyName = 'Rothirsch Umzug';
   const street = settings?.street || 'Haydnstr. 16';
   const zip = settings?.zip || '44805';
   const city = settings?.city || 'Bochum';

@@ -37,11 +37,12 @@ import toast from 'react-hot-toast';
 interface OrderDetailsDrawerProps {
   order: any;
   customer?: any;
+  initialPhase?: number;
   onClose: () => void;
   onRefresh?: () => void;
 }
 
-export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: OrderDetailsDrawerProps) {
+export function OrderDetailsDrawer({ order, customer, initialPhase, onClose, onRefresh }: OrderDetailsDrawerProps) {
   // Determine initial phase from status
   const getInitialPhase = (st: string) => {
     if (st === 'completed' || st?.startsWith('invoice_') || st === 'archived') return 4;
@@ -51,7 +52,13 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
   };
 
   const currentOrderPhase = getInitialPhase(order?.status || 'draft');
-  const [activePhaseTab, setActivePhaseTab] = useState<number>(currentOrderPhase);
+  const [activePhaseTab, setActivePhaseTab] = useState<number>(initialPhase || currentOrderPhase);
+
+  useEffect(() => {
+    if (initialPhase) {
+      setActivePhaseTab(initialPhase);
+    }
+  }, [initialPhase]);
 
   // Modals state
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
@@ -710,217 +717,244 @@ export function OrderDetailsDrawer({ order, customer, onClose, onRefresh }: Orde
 
                 <div className="space-y-3">
                   {/* Task: Kartons */}
-                  <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex flex-col gap-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <input
-                          type="checkbox"
-                          checked={evaluation.checklist.find(c => c.id === 'kartons')?.done || false}
-                          onChange={() => handleToggleTask('kartons_liefern', 'Umzugskartons')}
-                          disabled={isUpdatingTask}
-                          className="w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
-                        />
-                        <div>
-                          <span className="text-xs font-bold text-slate-900 dark:text-white block">
-                            Umzugskartons liefern
-                          </span>
-                          <span className="text-[11px] text-slate-500">
-                            {matSummary.total > 0 ? (
-                              <span className="flex items-center gap-1 flex-wrap">
-                                <CubeIcon className="w-3.5 h-3.5 text-orange-600 inline shrink-0" />
-                                <span>{matSummary.total} Kartons ({matSummary.standard > 0 ? `${matSummary.standard}x Standard` : ''}{matSummary.buecher > 0 ? `, ${matSummary.buecher}x Bücher` : ''}{matSummary.kleider > 0 ? `, ${matSummary.kleider}x Kleider` : ''})</span>
+                  {(() => {
+                    const isKartonsDone = evaluation.checklist.find(c => c.id === 'kartons')?.done || false;
+                    return (
+                      <div className={`p-3.5 rounded-xl border-2 transition-all flex flex-col gap-2.5 ${
+                        isKartonsDone
+                          ? 'bg-emerald-500/10 dark:bg-emerald-950/40 border-emerald-500 shadow-xs'
+                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <input
+                              type="checkbox"
+                              checked={isKartonsDone}
+                              onChange={() => handleToggleTask('kartons_liefern', 'Umzugskartons')}
+                              disabled={isUpdatingTask}
+                              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                            />
+                            <div>
+                              <span className={`text-xs font-bold block ${isKartonsDone ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-900 dark:text-white'}`}>
+                                Umzugskartons liefern {isKartonsDone && '✓'}
                               </span>
-                            ) : (
-                              'Materialbedarf offen'
-                            )}
-                          </span>
-                        </div>
-                      </div>
+                              <span className="text-[11px] text-slate-500">
+                                {matSummary.total > 0 ? (
+                                  <span className="flex items-center gap-1 flex-wrap">
+                                    <CubeIcon className="w-3.5 h-3.5 text-orange-600 inline shrink-0" />
+                                    <span>{matSummary.total} Kartons ({matSummary.standard > 0 ? `${matSummary.standard}x Standard` : ''}{matSummary.buecher > 0 ? `, ${matSummary.buecher}x Bücher` : ''}{matSummary.kleider > 0 ? `, ${matSummary.kleider}x Kleider` : ''})</span>
+                                  </span>
+                                ) : (
+                                  'Materialbedarf offen'
+                                )}
+                              </span>
+                            </div>
+                          </div>
 
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => handleOpenSchedule({ id: 'kartons_liefern', kanbanCategory: 'kartons', name: 'Kartons' })}
-                          className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-                        >
-                          <CalendarDaysIcon className="w-3.5 h-3.5" />
-                          <span>Termin</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-700">
-                      <span>
-                        Lieferung: {order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate || 'Noch nicht terminiert'}
-                        {order.orderMeta?.kartonDeliveryTime ? ` (${order.orderMeta.kartonDeliveryTime} Uhr)` : ''}
-                      </span>
-                      {(order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate) && (
-                        <button
-                          onClick={() => {
-                            const date = order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate;
-                            const time = order.orderMeta?.kartonDeliveryTime || '';
-                            handleDirectWhatsApp(`Guten Tag, Ihre Umzugskartons werden am ${date} ${time ? 'im Zeitfenster ' + time : ''} geliefert.`);
-                          }}
-                          className="text-emerald-600 hover:underline flex items-center gap-1 font-bold"
-                          title="WhatsApp Nachricht senden"
-                        >
-                          <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
-                          <span>WhatsApp</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Task: Halteverbot (HVZ) */}
-                  <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex flex-col gap-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <input
-                          type="checkbox"
-                          checked={evaluation.checklist.find(c => c.id === 'hvz')?.done || false}
-                          onChange={() => handleToggleTask('halteverbot', 'Halteverbotszone')}
-                          disabled={isUpdatingTask}
-                          className="w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
-                        />
-                        <div>
-                          <span className="text-xs font-bold text-slate-900 dark:text-white block">
-                            Halteverbotszone (HVZ)
-                          </span>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                              {order.orderMeta?.hvzMethod === 'extern' ? (
-                                <>
-                                  <BuildingOfficeIcon className="w-3 h-3 text-slate-500" />
-                                  <span>Externe Firma</span>
-                                </>
-                              ) : (
-                                <>
-                                  <TruckIcon className="w-3 h-3 text-primary" />
-                                  <span>Selbst aufstellen</span>
-                                </>
-                              )}
-                            </span>
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary flex items-center gap-1">
-                              {order.orderMeta?.hvzLocation === 'b' ? (
-                                <>
-                                  <HomeIcon className="w-3 h-3" />
-                                  <span>Einzugsort (B)</span>
-                                </>
-                              ) : order.orderMeta?.hvzLocation === 'both' ? (
-                                <>
-                                  <ArrowPathIcon className="w-3 h-3" />
-                                  <span>Beide Orte (A & B)</span>
-                                </>
-                              ) : (
-                                <>
-                                  <BuildingOfficeIcon className="w-3 h-3" />
-                                  <span>Auszugsort (A)</span>
-                                </>
-                              )}
-                            </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleOpenSchedule({ id: 'kartons_liefern', kanbanCategory: 'kartons', name: 'Kartons' })}
+                              className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                            >
+                              <CalendarDaysIcon className="w-3.5 h-3.5" />
+                              <span>Termin</span>
+                            </button>
                           </div>
                         </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-700">
+                          <span>
+                            Lieferung: {order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate || 'Noch nicht terminiert'}
+                            {order.orderMeta?.kartonDeliveryTime ? ` (${order.orderMeta.kartonDeliveryTime} Uhr)` : ''}
+                          </span>
+                          {(order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate) && (
+                            <button
+                              onClick={() => {
+                                const date = order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate;
+                                const time = order.orderMeta?.kartonDeliveryTime || '';
+                                handleDirectWhatsApp(`Guten Tag, Ihre Umzugskartons werden am ${date} ${time ? 'im Zeitfenster ' + time : ''} geliefert.`);
+                              }}
+                              className="text-emerald-600 hover:underline flex items-center gap-1 font-bold"
+                              title="WhatsApp Nachricht senden"
+                            >
+                              <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
+                              <span>WhatsApp</span>
+                            </button>
+                          )}
+                        </div>
                       </div>
+                    );
+                  })()}
 
-                      <button
-                        onClick={() => handleOpenSchedule({ id: 'halteverbot', kanbanCategory: 'halteverbot', name: 'Halteverbot' })}
-                        className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-                      >
-                        <CalendarDaysIcon className="w-3.5 h-3.5" />
-                        <span>Termin planen</span>
-                      </button>
-                    </div>
+                  {/* Task: Halteverbot (HVZ) */}
+                  {(() => {
+                    const isHvzDone = evaluation.checklist.find(c => c.id === 'hvz')?.done || false;
+                    return (
+                      <div className={`p-3.5 rounded-xl border-2 transition-all flex flex-col gap-2.5 ${
+                        isHvzDone
+                          ? 'bg-emerald-500/10 dark:bg-emerald-950/40 border-emerald-500 shadow-xs'
+                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <input
+                              type="checkbox"
+                              checked={isHvzDone}
+                              onChange={() => handleToggleTask('halteverbot', 'Halteverbotszone')}
+                              disabled={isUpdatingTask}
+                              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                            />
+                            <div>
+                              <span className={`text-xs font-bold block ${isHvzDone ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-900 dark:text-white'}`}>
+                                Halteverbotszone (HVZ) {isHvzDone && '✓'}
+                              </span>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                                  {order.orderMeta?.hvzMethod === 'extern' ? (
+                                    <>
+                                      <BuildingOfficeIcon className="w-3 h-3 text-slate-500" />
+                                      <span>Externe Firma</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <TruckIcon className="w-3 h-3 text-primary" />
+                                      <span>Selbst aufstellen</span>
+                                    </>
+                                  )}
+                                </span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary flex items-center gap-1">
+                                  {order.orderMeta?.hvzLocation === 'b' ? (
+                                    <>
+                                      <HomeIcon className="w-3 h-3" />
+                                      <span>Einzugsort (B)</span>
+                                    </>
+                                  ) : order.orderMeta?.hvzLocation === 'both' ? (
+                                    <>
+                                      <ArrowPathIcon className="w-3 h-3" />
+                                      <span>Beide Orte (A & B)</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <BuildingOfficeIcon className="w-3 h-3" />
+                                      <span>Auszugsort (A)</span>
+                                    </>
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
 
-                    {/* Address & Navigation */}
-                    <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-xs flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-slate-600 dark:text-slate-300 truncate flex items-center gap-1">
-                        <MapPinIcon className="w-3.5 h-3.5 text-primary shrink-0" />
-                        <span className="truncate">{order.orderMeta?.hvzLocation === 'b' ? (addressB || 'Einzugsadresse') : (addressA || 'Auszugsadresse')}</span>
-                      </span>
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.orderMeta?.hvzLocation === 'b' ? addressB : addressA)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-primary hover:text-white text-slate-700 dark:text-slate-300 text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors"
-                        title="In Google Maps öffnen"
-                      >
-                        <MapPinIcon className="w-3 h-3" />
-                        <span>Maps</span>
-                      </a>
-                    </div>
+                          <button
+                            onClick={() => handleOpenSchedule({ id: 'halteverbot', kanbanCategory: 'halteverbot', name: 'Halteverbot' })}
+                            className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                          >
+                            <CalendarDaysIcon className="w-3.5 h-3.5" />
+                            <span>Termin planen</span>
+                          </button>
+                        </div>
 
-                    <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-700">
-                      <span>
-                        Aufbau: {order.orderMeta?.halteverbotDate || order.logistics?.hvzDate || 'Noch nicht terminiert'}
-                      </span>
-                      {(order.orderMeta?.halteverbotDate || order.logistics?.hvzDate) && (
-                        <button
-                          onClick={() => {
-                            const date = order.orderMeta?.halteverbotDate || order.logistics?.hvzDate;
-                            handleDirectWhatsApp(`Guten Tag, die Halteverbotszone für Ihren Umzug wird am ${date} vorschriftsmäßig aufgestellt.`);
-                          }}
-                          className="text-emerald-600 hover:underline flex items-center gap-1 font-bold"
-                          title="WhatsApp Nachricht senden"
-                        >
-                          <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
-                          <span>WhatsApp</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                        {/* Address & Navigation */}
+                        <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-xs flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-slate-600 dark:text-slate-300 truncate flex items-center gap-1">
+                            <MapPinIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <span className="truncate">{order.orderMeta?.hvzLocation === 'b' ? (addressB || 'Einzugsadresse') : (addressA || 'Auszugsadresse')}</span>
+                          </span>
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.orderMeta?.hvzLocation === 'b' ? addressB : addressA)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-primary hover:text-white text-slate-700 dark:text-slate-300 text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors"
+                            title="In Google Maps öffnen"
+                          >
+                            <MapPinIcon className="w-3 h-3" />
+                            <span>Maps</span>
+                          </a>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-700">
+                          <span>
+                            Aufbau: {order.orderMeta?.halteverbotDate || order.logistics?.hvzDate || 'Noch nicht terminiert'}
+                          </span>
+                          {(order.orderMeta?.halteverbotDate || order.logistics?.hvzDate) && (
+                            <button
+                              onClick={() => {
+                                const date = order.orderMeta?.halteverbotDate || order.logistics?.hvzDate;
+                                handleDirectWhatsApp(`Guten Tag, die Halteverbotszone für Ihren Umzug wird am ${date} vorschriftsmäßig aufgestellt.`);
+                              }}
+                              className="text-emerald-600 hover:underline flex items-center gap-1 font-bold"
+                              title="WhatsApp Nachricht senden"
+                            >
+                              <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
+                              <span>WhatsApp</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Task: Möbellift */}
-                  <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex flex-col gap-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <input
-                          type="checkbox"
-                          checked={evaluation.checklist.find(c => c.id === 'lift')?.done || false}
-                          onChange={() => handleToggleTask('moebellift_buchen', 'Möbellift')}
-                          disabled={isUpdatingTask}
-                          className="w-4 h-4 rounded text-primary focus:ring-primary cursor-pointer"
-                        />
-                        <div>
-                          <span className="text-xs font-bold text-slate-900 dark:text-white block">
-                            Möbellift disponieren
-                          </span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                            {order.orderMeta?.moebelliftLocation === 'b' ? (
+                  {(() => {
+                    const isLiftDone = evaluation.checklist.find(c => c.id === 'lift')?.done || false;
+                    return (
+                      <div className={`p-3.5 rounded-xl border-2 transition-all flex flex-col gap-2.5 ${
+                        isLiftDone
+                          ? 'bg-emerald-500/10 dark:bg-emerald-950/40 border-emerald-500 shadow-xs'
+                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2.5">
+                            <input
+                              type="checkbox"
+                              checked={isLiftDone}
+                              onChange={() => handleToggleTask('moebellift_buchen', 'Möbellift')}
+                              disabled={isUpdatingTask}
+                              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                            />
+                            <div>
+                              <span className={`text-xs font-bold block ${isLiftDone ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-900 dark:text-white'}`}>
+                                Möbellift disponieren {isLiftDone && '✓'}
+                              </span>
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                                {order.orderMeta?.moebelliftLocation === 'b' ? (
+                                  <>
+                                    <HomeIcon className="w-3 h-3" />
+                                    <span>Einzugsort (B)</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <BuildingOfficeIcon className="w-3 h-3" />
+                                    <span>Auszugsort (A)</span>
+                                  </>
+                                )}
+                              </span>
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => handleOpenSchedule({ id: 'moebellift_buchen', kanbanCategory: 'moebellift', name: 'Möbellift' })}
+                            className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                          >
+                            <CalendarDaysIcon className="w-3.5 h-3.5" />
+                            <span>Termin planen</span>
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-slate-700">
+                          <span>
+                            {order.orderMeta?.moebelliftDate ? (
                               <>
-                                <HomeIcon className="w-3 h-3" />
-                                <span>Einzugsort (B)</span>
+                                Geplant: <strong className="text-slate-900 dark:text-white">{order.orderMeta.moebelliftDate}</strong>
+                                {order.orderMeta?.moebelliftTime && ` • ${order.orderMeta.moebelliftTime} - ${order.orderMeta.moebelliftEndTime || ''} Uhr (${order.orderMeta.moebelliftDuration || '3'} Std.)`}
                               </>
                             ) : (
-                              <>
-                                <BuildingOfficeIcon className="w-3 h-3" />
-                                <span>Auszugsort (A)</span>
-                              </>
+                              'Bedarfsprüfung ausstehend'
                             )}
                           </span>
                         </div>
                       </div>
-
-                      <button
-                        onClick={() => handleOpenSchedule({ id: 'moebellift_buchen', kanbanCategory: 'moebellift', name: 'Möbellift' })}
-                        className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-                      >
-                        <CalendarDaysIcon className="w-3.5 h-3.5" />
-                        <span>Termin planen</span>
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-slate-700">
-                      <span>
-                        {order.orderMeta?.moebelliftDate ? (
-                          <>
-                            Geplant: <strong className="text-slate-900 dark:text-white">{order.orderMeta.moebelliftDate}</strong>
-                            {order.orderMeta?.moebelliftTime && ` • ${order.orderMeta.moebelliftTime} - ${order.orderMeta.moebelliftEndTime || ''} Uhr (${order.orderMeta.moebelliftDuration || '3'} Std.)`}
-                          </>
-                        ) : (
-                          'Bedarfsprüfung ausstehend'
-                        )}
-                      </span>
-                    </div>
-                  </div>
+                    );
+                  })()}
                 </div>
               </div>
 

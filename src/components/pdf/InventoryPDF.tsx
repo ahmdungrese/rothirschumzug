@@ -1,61 +1,66 @@
-import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
-import { COMPANY_DETAILS } from '@/lib/constants';
+import React from 'react';
+import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { PDF_COLORS, commonPdfStyles } from './core/pdfTheme';
+import { PDFHeader } from './core/PDFHeader';
+import { PDFFooter } from './core/PDFFooter';
+import { PDFWatermark } from './core/PDFWatermark';
 
 const styles = StyleSheet.create({
-  page: { padding: 40, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
-  headerContainer: { alignItems: 'flex-end', marginBottom: 20 },
-  logoWrapper: { backgroundColor: '#1a1a1a', width: 120, height: 120, borderRadius: 60, justifyContent: 'center', alignItems: 'center', alignSelf: 'flex-end' },
-  logoTextPrimary: { fontSize: 26, fontFamily: 'Helvetica-Bold', color: '#8F1627', textTransform: 'uppercase', letterSpacing: 2 },
-  companyInfo: { textAlign: 'right', fontSize: 9, color: '#666' },
-  title: { fontSize: 18, fontFamily: 'Helvetica-Bold', marginBottom: 20, color: '#8F1627' },
-  section: { marginBottom: 20 },
-  table: { width: '100%', marginBottom: 20 },
-  tableHeader: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#ccc', paddingBottom: 5, marginBottom: 5, fontFamily: 'Helvetica-Bold' },
-  tableRow: { flexDirection: 'row', paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: '#eee' },
-  col1: { width: '20%' },
-  col2: { width: '80%' },
-  footer: { position: 'absolute', bottom: 30, left: 40, right: 40, textAlign: 'center', fontSize: 8, color: '#999', borderTopWidth: 1, borderTopColor: '#eee', paddingTop: 10 },
+  ...commonPdfStyles,
+  col1: { width: '18%' },
+  col2: { width: '82%' },
 });
 
-export const InventoryPDF = ({ customer, items }: { customer: any, items: any[] }) => (
-  <Document>
-    <Page size="A4" style={styles.page}>
-      <View style={styles.headerContainer}>
-        <View style={styles.logoWrapper}>
-          <Image src="/Rothirsch.png" style={{ height: 80, width: 80, objectFit: 'contain' }} />
-        </View>
-      </View>
+export const InventoryPDF = ({ customer, items, settings }: { customer: any; items: any[]; settings?: any }) => {
+  const isBusiness = customer?.type === 'firma';
+  const streetLine = customer?.billingAddress?.street || customer?.street
+    ? `${customer?.billingAddress?.street || customer?.street} ${customer?.billingAddress?.houseNr || customer?.houseNr || ''}`.trim()
+    : '';
+  const cityLine = `${customer?.billingAddress?.zip || customer?.zip || ''} ${customer?.billingAddress?.city || customer?.city || ''}`.trim();
 
-      <Text style={styles.title}>Umzugsgut / Inventarliste</Text>
+  return (
+    <Document>
+      <Page size="A4" style={styles.page}>
+        <PDFWatermark type="symbols" />
+        <PDFHeader settings={settings} docTitle="Inventarliste" />
 
-      <View style={styles.section}>
-        <Text style={{ fontFamily: 'Helvetica-Bold', fontSize: 11 }}>Kunde:</Text>
-        <Text>{customer?.firstName} {customer?.lastName}</Text>
-        <Text>{customer?.billingAddress?.street}</Text>
-        <Text>{customer?.billingAddress?.zip} {customer?.billingAddress?.city}</Text>
-      </View>
-
-      <View style={styles.table}>
-        <View style={styles.tableHeader}>
-          <Text style={styles.col1}>Menge</Text>
-          <Text style={styles.col2}>Gegenstand</Text>
-        </View>
-        {items?.map((item: any, i: number) => (
-          <View key={i} style={styles.tableRow}>
-            <Text style={styles.col1}>{item.quantity}x</Text>
-            <View style={styles.col2}>
-              <Text>{item.name}</Text>
-              {item.note && item.showNoteInPdf !== false && (
-                <Text style={{ fontSize: 8, color: '#666', marginTop: 2 }}>Notiz: {item.note}</Text>
-              )}
-            </View>
+        <View style={styles.metaGrid}>
+          <View style={styles.addressWindow}>
+            {isBusiness && customer?.lastName && (
+              <Text style={styles.customerNameBold}>{customer.lastName}</Text>
+            )}
+            <Text style={isBusiness ? styles.customerText : styles.customerNameBold}>
+              {isBusiness && customer?.firstName
+                ? `z.Hd. ${customer?.salutation && customer?.salutation !== 'Firma' ? customer.salutation + ' ' : ''}${customer.firstName}`
+                : `${customer?.salutation && customer?.salutation !== 'Firma' ? customer.salutation + ' ' : ''}${customer?.firstName || ''} ${customer?.lastName || ''}`.trim()}
+            </Text>
+            {streetLine ? <Text style={styles.customerText}>{streetLine}</Text> : null}
+            {cityLine ? <Text style={styles.customerText}>{cityLine}</Text> : null}
           </View>
-        ))}
-      </View>
-      
-      <View style={styles.footer}>
-        <Text>{COMPANY_DETAILS.name} | Inventarliste</Text>
-      </View>
-    </Page>
-  </Document>
-);
+        </View>
+
+        <Text style={styles.docTitle}>Umzugsgut / Inventarliste</Text>
+
+        <View style={styles.table}>
+          <View style={styles.tableHeader} fixed>
+            <Text style={[styles.tableHeaderCell, styles.col1]}>Menge</Text>
+            <Text style={[styles.tableHeaderCell, styles.col2]}>Gegenstand & Hinweise</Text>
+          </View>
+          {items?.map((item: any, i: number) => (
+            <View key={i} style={[styles.tableRow, i % 2 === 1 ? styles.tableRowAlt : {}]} wrap={false}>
+              <Text style={[styles.tableCellBold, styles.col1]}>{item.quantity}x</Text>
+              <View style={styles.col2}>
+                <Text style={styles.tableCellBold}>{item.name}</Text>
+                {item.note && item.showNoteInPdf !== false && (
+                  <Text style={{ fontSize: 8.5, color: PDF_COLORS.textMuted, marginTop: 2 }}>Notiz: {item.note}</Text>
+                )}
+              </View>
+            </View>
+          ))}
+        </View>
+
+        <PDFFooter settings={settings} />
+      </Page>
+    </Document>
+  );
+};

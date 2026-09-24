@@ -1,16 +1,16 @@
 export const COMPANY_DETAILS = {
-  name: "Rothirsch Umzüge",
+  name: "Rothirsch Umzug",
   email: "info@rothirsch-umzug.de",
   phone: "+491774652154",
   address: {
-    street: "Grillostr. 70",
-    zip: "44799",
+    street: "Haydnstr. 16",
+    zip: "44805",
     city: "Bochum",
   }
 };
 
 export const AGB_TEXT = [
-  { title: "§ 1 Geltungsbereich", content: "Diese AGB gelten für alle Verträge zwischen Rothirsch Umzüge und dem Kunden. Abweichende Bedingungen gelten nur, wenn wir ihnen schriftlich zustimmen." },
+  { title: "§ 1 Geltungsbereich", content: "Diese AGB gelten für alle Verträge zwischen Rothirsch Umzug und dem Kunden. Abweichende Bedingungen gelten nur, wenn wir ihnen schriftlich zustimmen." },
   { title: "§ 2 Kostenvoranschlag und Abrechnung", content: "Kostenvoranschläge sind unverbindlich. Änderungen und Zusatzleistungen müssen vorab vereinbart werden und werden extra berechnet. Unvorhersehbarer Mehraufwand ist gesondert zu vergüten." },
   { title: "§ 3 Zahlungsmodalitäten", content: "Die Zahlung in bar erfolgt direkt nach Abschluss des Umzugs." },
   { title: "§ 4 Pflichten des Umzugsunternehmens", content: "Das Unternehmen stellt rechtzeitig die vereinbarten Transportmittel und Arbeitskräfte bereit und führt den Auftrag fachgerecht sowie sorgfältig aus. Es darf zuverlässige Subunternehmer einsetzen, solange die Interessen des Kunden gewahrt bleiben." },

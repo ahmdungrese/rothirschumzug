@@ -250,12 +250,12 @@ export const OrderPDF = ({
     introText = introText.replace(/Sehr geehrte Damen und Herren,?/gi, kundeAnredeStr);
   }
 
-  const outroText = isContract
+  const outroText = (isContract
     ? order?.texts?.orderOutro || settings?.texts?.orderOutro || ''
-    : order?.texts?.quoteOutro || settings?.texts?.quoteOutro || '';
-  const greetingText = isContract
+    : order?.texts?.quoteOutro || settings?.texts?.quoteOutro || '').replace(/Rothirsch Umzüge(\s+und\s+Logistik)?/gi, 'Rothirsch Umzug');
+  const greetingText = (isContract
     ? order?.texts?.orderGreeting || settings?.texts?.orderGreeting || ''
-    : order?.texts?.quoteGreeting || settings?.texts?.quoteGreeting || '';
+    : order?.texts?.quoteGreeting || settings?.texts?.quoteGreeting || '').replace(/Rothirsch Umzüge(\s+und\s+Logistik)?/gi, 'Rothirsch Umzug');
 
   const pmSettings =
     settings?.paymentMethods?.find((p: any) => p.name === order?.orderMeta?.paymentMethod) ||
@@ -263,7 +263,7 @@ export const OrderPDF = ({
   const paymentTerms = order?.texts?.paymentTerms || pmSettings?.textQuote || '';
 
   // AGB Splitting into two equal columns
-  const agbFullText = settings?.texts?.agb || '';
+  const agbFullText = (settings?.texts?.agb || '').replace(/Rothirsch Umzüge(\s+und\s+Logistik)?/gi, 'Rothirsch Umzug');
   const midpoint = Math.floor(agbFullText.length / 2);
   const splitIndex = agbFullText.indexOf(' ', midpoint) !== -1 ? agbFullText.indexOf(' ', midpoint) : midpoint;
   const agbLeft = agbFullText.substring(0, splitIndex);
@@ -533,7 +533,7 @@ export const OrderPDF = ({
       {/* PAGE 3: Allgemeine Geschäftsbedingungen (AGB)                             */}
       {/* ───────────────────────────────────────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
-        <PDFWatermark type="text" text={settings?.companyName || 'Rothirsch Umzug'} />
+        <PDFWatermark type="text" text="Rothirsch Umzug" />
         <PDFHeader settings={settings} minimal docTitle="Allgemeine Geschäftsbedingungen" />
 
         <Text style={styles.agbTitle}>Allgemeine Geschäftsbedingungen (AGB)</Text>

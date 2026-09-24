@@ -26,7 +26,7 @@ export default function PDFViewerWrapper({ order, customer, type = 'order' }: { 
         setSettings(docSnap.data());
       } else {
         // Fallback
-        setSettings({ companyName: 'Rothirsch Umzüge', city: 'Bochum', street: 'Grillostr. 70', zip: '44799', email: 'info@rothirsch-umzug.de' });
+        setSettings({ companyName: 'Rothirsch Umzug', city: 'Bochum', street: 'Haydnstr. 16', zip: '44805', email: 'info@rothirsch-umzug.de' });
       }
     });
   }, []);
@@ -46,7 +46,7 @@ export default function PDFViewerWrapper({ order, customer, type = 'order' }: { 
     const customerName = customer?.type === 'firma' ? customer?.lastName : `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim();
     const safeCustomerName = customerName || 'Kunde';
     
-    const company = settings?.companyName || 'Rothirsch Umzüge';
+    const company = settings?.companyName || 'Rothirsch Umzug';
     const address = order?.logistics?.b_street ? `${order.logistics.b_street} ${order.logistics.b_houseNr || ''}`.trim() : 'Unbekannt';
     const orderNum = order?.orderNumber || 'Entwurf';
     

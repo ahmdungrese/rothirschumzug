@@ -195,8 +195,8 @@ export const InvoicePDF = ({
     introGreeting = `Sehr geehrte Frau ${billing.lastName},`;
   }
 
-  const invoiceOutro = settings?.texts?.invoiceOutro || '';
-  const invoiceGreeting = settings?.texts?.invoiceGreeting || '';
+  const invoiceOutro = (settings?.texts?.invoiceOutro || '').replace(/Rothirsch Umzüge(\s+und\s+Logistik)?/gi, 'Rothirsch Umzug');
+  const invoiceGreeting = (settings?.texts?.invoiceGreeting || '').replace(/Rothirsch Umzüge(\s+und\s+Logistik)?/gi, 'Rothirsch Umzug');
 
   const hasRouteInfo = order?.logistics?.a_city || order?.logistics?.b_city;
 
@@ -418,7 +418,7 @@ export const InvoicePDF = ({
               <View style={styles.paymentCard}>
                 <View style={styles.bankRow}>
                   <Text style={{ fontFamily: 'Helvetica-Bold' }}>Kontoinhaber:</Text>
-                  <Text>{settings?.companyName || 'Rothirsch Umzug'}</Text>
+                  <Text>Rothirsch Umzug</Text>
                 </View>
                 <View style={styles.bankRow}>
                   <Text style={{ fontFamily: 'Helvetica-Bold' }}>IBAN:</Text>
