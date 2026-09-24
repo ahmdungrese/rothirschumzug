@@ -14,12 +14,15 @@ export default function PDFDownloadButtonWrapper({ order, customer, type = 'orde
   const [settings, setSettings] = useState<any>(null);
   const { profile } = useAuth();
   
-  let employeeName = profile?.displayName || settings?.manager;
-  if (!employeeName && profile?.email) {
-    const namePart = profile.email.split('@')[0];
-    employeeName = namePart.split(/[\.\-_]/).map((part: string) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
-  }
-  employeeName = employeeName || 'Rothirsch Team';
+  const candidates = [
+    order?.orderMeta?.contactPerson,
+    order?.contactPerson,
+    customer?.contactPerson,
+    settings?.contacts?.[0],
+    settings?.manager,
+    profile?.displayName,
+  ];
+  const employeeName = candidates.find(c => typeof c === 'string' && c.trim().length > 0 && !c.includes('@'))?.trim() || 'Tarek Lababidi';
 
   useEffect(() => {
     getDoc(doc(db, 'system', 'settings')).then(docSnap => {
