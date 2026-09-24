@@ -36,7 +36,6 @@ const styles = StyleSheet.create({
     borderRadius: 45,
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden',
   },
   logoImage: {
     width: 65,
@@ -77,7 +76,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden',
   },
   minimalLogoImage: {
     width: 22,

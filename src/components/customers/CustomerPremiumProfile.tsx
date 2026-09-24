@@ -479,19 +479,37 @@ export function CustomerPremiumProfile({
       return;
     }
 
-    const isConfirmedOrSigned = 
+    const isContractSigned = 
       orderToInvoice.status === 'confirmed' || 
       orderToInvoice.status === 'completed' || 
       orderToInvoice.status?.startsWith('invoice_') ||
-      Boolean(orderToInvoice.signature || orderToInvoice.signedAt || orderToInvoice.customerSignature || orderToInvoice.isContractLocked);
+      Boolean(
+        orderToInvoice.signatureOrder ||
+        orderToInvoice.signature ||
+        orderToInvoice.orderMeta?.signedContractScan ||
+        orderToInvoice.isManuallySigned ||
+        orderToInvoice.contractSigned ||
+        orderToInvoice.signedAt ||
+        orderToInvoice.customerSignature ||
+        orderToInvoice.isContractLocked
+      );
 
-    if (!isConfirmedOrSigned) {
-      // Intercept with warning modal
+    const hasProtocolOrDone = Boolean(
+      orderToInvoice.status === 'completed' ||
+      orderToInvoice.status?.startsWith('invoice_') ||
+      (orderToInvoice.protocols && orderToInvoice.protocols.length > 0) ||
+      orderToInvoice.ticketStates?.protocol ||
+      orderToInvoice.checklistDone?.protocol ||
+      logisticsEval?.isComplete
+    );
+
+    if (!isContractSigned || !hasProtocolOrDone) {
+      // Intercept with warning modal ("Möchten Sie wirklich eine Rechnung erstellen, obwohl der Auftrag noch nicht abgeschlossen ist?")
       setUnconfirmedInvoiceOrder(orderToInvoice);
       return;
     }
 
-    // Proceed directly if confirmed or signed
+    // Proceed directly if contract is signed and tasks/protocol are completed
     router.push(`/dashboard/customers/${customer.id}/edit-invoice/${orderToInvoice.id}`);
   };
 
@@ -2087,7 +2105,7 @@ export function CustomerPremiumProfile({
         )}
       </section>
 
-      {/* STEP 1 PRIORITY: Unconfirmed Invoice Warning Confirmation Modal */}
+      {/* STEP 1 PRIORITY: Unconfirmed / Incomplete Order Invoice Warning Confirmation Modal */}
       {unconfirmedInvoiceOrder && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-6">
@@ -2100,23 +2118,23 @@ export function CustomerPremiumProfile({
                   Sicherheitsprüfung
                 </span>
                 <h3 className="font-headline font-bold text-lg text-slate-900 dark:text-white mt-1">
-                  Angebot noch nicht bestätigt
+                  Rechnung vorzeitig erstellen?
                 </h3>
               </div>
             </div>
 
             <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 space-y-2">
               <p className="font-semibold text-sm">
-                Der Kunde hat dieses Angebot noch nicht bestätigt oder digital signiert.
+                Möchten Sie wirklich eine Rechnung erstellen, obwohl der Vertrag bzw. die vorherigen Aufgaben noch nicht vollständig abgeschlossen sind?
               </p>
               <p className="text-amber-800/80 dark:text-amber-300/80 leading-relaxed">
-                Möchten Sie trotzdem fortfahren und eine Rechnung erstellen? Normalerweise wird die Rechnung erst nach unterschriebenem Auftrag oder durchgeführtem Umzug generiert.
+                Normalerweise wird die Rechnung erst nach unterschriebenem Auftrag, erledigten Logistik-Aufgaben und durchgeführtem Umzug (Abnahmeprotokoll) generiert.
               </p>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 text-xs space-y-1">
               <div className="flex justify-between">
-                <span className="text-slate-400">Betroffenes Angebot:</span>
+                <span className="text-slate-400">Betroffener Auftrag:</span>
                 <span className="font-bold text-slate-800 dark:text-slate-200">
                   #{unconfirmedInvoiceOrder.orderNumber || unconfirmedInvoiceOrder.id.slice(-5).toUpperCase()}
                 </span>
@@ -2138,7 +2156,7 @@ export function CustomerPremiumProfile({
                 Abbrechen
               </button>
 
-              {onOpenSignatureModal && (
+              {onOpenSignatureModal && !(unconfirmedInvoiceOrder.signatureOrder || unconfirmedInvoiceOrder.orderMeta?.signedContractScan || unconfirmedInvoiceOrder.isManuallySigned || unconfirmedInvoiceOrder.contractSigned) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -2149,7 +2167,7 @@ export function CustomerPremiumProfile({
                   className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors flex items-center justify-center gap-1.5"
                 >
                   <CheckCircleIcon className="w-4 h-4" />
-                  <span>Zuerst digital signieren</span>
+                  <span>Zuerst digital / per Foto signieren</span>
                 </button>
               )}
 

@@ -22,16 +22,20 @@ import {
   CheckIcon,
   BuildingOfficeIcon,
   HomeIcon,
-  ArrowPathIcon
+  ArrowPathIcon,
+  EyeIcon,
+  UserIcon
 } from '@heroicons/react/24/outline';
+import { useRouter } from 'next/navigation';
 import { evaluateOrderLogistics } from '@/lib/orderValidation';
 import { toggleTaskCompletion } from '@/lib/taskStateController';
 import { TaskScheduleModal } from '@/components/logistics/TaskScheduleModal';
 import { SignatureModal } from '@/components/orders/SignatureModal';
 import { ProtocolModal } from '@/components/customers/ProtocolModal';
 import { MessageSenderModal } from '@/components/customers/MessageSenderModal';
+import { PdfModal } from '@/components/ui/PdfModal';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 
 interface OrderDetailsDrawerProps {
@@ -43,6 +47,7 @@ interface OrderDetailsDrawerProps {
 }
 
 export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase, onClose, onRefresh }: OrderDetailsDrawerProps) {
+  const router = useRouter();
   const [order, setOrder] = useState<any>(initialOrder);
 
   // Sync when initialOrder prop changes
@@ -66,7 +71,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
   // Determine initial phase from status
   const getInitialPhase = (st: string, ord: any) => {
     if (st === 'completed' || st?.startsWith('invoice_') || st === 'archived') return 4;
-    if (st === 'confirmed' || ord?.isManuallySigned || ord?.contractSigned || ord?.signatureOrder) return 3;
+    if (st === 'confirmed' || ord?.isManuallySigned || ord?.contractSigned || ord?.signatureOrder || ord?.orderMeta?.signedContractScan) return 3;
     if (st === 'quote' || st === 'verhandlung' || Boolean(ord?.orderMeta?.viewingDate || ord?.viewingDate)) return 2;
     return 1;
   };
@@ -89,6 +94,12 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
   const [defaultTemplateName, setDefaultTemplateName] = useState<string>('');
   const [isUpdatingTask, setIsUpdatingTask] = useState(false);
   const [internalCustomer, setInternalCustomer] = useState<any>(customer || null);
+  const [pdfModalOpen, setPdfModalOpen] = useState(false);
+  const [pdfModalType, setPdfModalType] = useState<'order' | 'invoice' | 'protocol'>('order');
+  const [earlyInvoiceWarningOpen, setEarlyInvoiceWarningOpen] = useState(false);
+  const [scanPreviewOpen, setScanPreviewOpen] = useState(false);
+  const [isUploadingScan, setIsUploadingScan] = useState(false);
+  const scanInputRef = React.useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (customer) {
@@ -150,12 +161,115 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
   const floorB = order.logistics?.b_floor || order.logistics?.to?.floor || '';
 
   const targetCustomerId = (internalCustomer?.id || customer?.id || order?.customerId || '').trim();
+  const customerProfileUrl = (targetCustomerId && targetCustomerId !== 'undefined')
+    ? `/dashboard/customers/${targetCustomerId}`
+    : `/dashboard/customers?search=${encodeURIComponent(custName)}`;
   const editOrderUrl = (targetCustomerId && targetCustomerId !== 'undefined')
     ? `/dashboard/customers/${targetCustomerId}/edit-order/${order.id}`
     : `/dashboard/orders/new?orderId=${order.id}`;
   const editInvoiceUrl = (targetCustomerId && targetCustomerId !== 'undefined')
     ? `/dashboard/customers/${targetCustomerId}/edit-invoice/${order.id}`
     : `/dashboard/orders/new?orderId=${order.id}&type=invoice`;
+
+  // Smart Invoice Readiness Check
+  const isContractSigned = Boolean(
+    order.signatureOrder ||
+    order.signature ||
+    order.isManuallySigned ||
+    order.contractSigned ||
+    order.status === 'confirmed' ||
+    order.status === 'completed' ||
+    order.orderMeta?.signedContractScan
+  );
+  const hasProtocol = Boolean(
+    (order.protocols && order.protocols.length > 0) ||
+    order.ticketStates?.protocol ||
+    order.checklistDone?.protocol ||
+    order.status === 'completed'
+  );
+  const isReadyForInvoice = Boolean(order.invoiceNumber) || (isContractSigned && (hasProtocol || evaluation.isComplete || order.status === 'completed'));
+
+  const handleInvoiceClick = () => {
+    if (isReadyForInvoice) {
+      router.push(editInvoiceUrl);
+    } else {
+      setEarlyInvoiceWarningOpen(true);
+    }
+  };
+
+  // Direct Upload of Signed Contract Photo / Scan in Phase 2
+  const handleDirectScanUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !order?.id) return;
+    setIsUploadingScan(true);
+
+    const saveScanToFirestore = async (dataUrl: string) => {
+      try {
+        const todayStr = new Date().toLocaleDateString('de-DE');
+        const updatePayload: any = {
+          'orderMeta.signedContractScan': dataUrl,
+          'orderMeta.signedContractScanName': file.name,
+          'orderMeta.signedContractScanDate': todayStr,
+          'orderMeta.signatureMethod': 'scan_upload',
+          signatureOrder: dataUrl,
+          signatureOrderDateString: todayStr,
+          signatureOrderPlace: order?.logistics?.a_city || 'Per Foto/Scan',
+          contractSigned: true,
+          isManuallySigned: true,
+          signedAt: serverTimestamp(),
+          'ticketStates.signature': true,
+          'checklistDone.signature': true,
+        };
+        if (order.status !== 'completed' && !order.status?.startsWith('invoice_')) {
+          updatePayload.status = 'confirmed';
+        }
+        await updateDoc(doc(db, 'orders', order.id), updatePayload);
+        toast.success('Unterschriebenes Angebot (Foto/Scan) hochgeladen & Auftrag bestätigt!');
+        if (onRefresh) onRefresh();
+      } catch (err) {
+        console.error('Fehler beim Hochladen des Vertrags-Scans:', err);
+        toast.error('Fehler beim Speichern des Fotos/Scans');
+      } finally {
+        setIsUploadingScan(false);
+      }
+    };
+
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 1200;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL('image/jpeg', 0.78);
+          saveScanToFirestore(compressed);
+        };
+        img.src = ev.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        saveScanToFirestore(ev.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const formatScheduleDate = (dateRaw?: string, timeRaw?: string) => {
     if (!dateRaw || dateRaw === 'requested') return '';
@@ -263,9 +377,18 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                    order.status === 'quote' ? 'In Verhandlung' : 'Neu / Entwurf'}
                 </span>
               </div>
-              <h2 className="text-xl font-bold font-headline text-slate-900 dark:text-white">
-                {custName}
-              </h2>
+              <Link
+                href={customerProfileUrl}
+                onClick={onClose}
+                className="group inline-flex items-center gap-2 text-xl font-bold font-headline text-slate-900 dark:text-white hover:text-primary dark:hover:text-primary transition-colors"
+                title="Kundenakte öffnen"
+              >
+                <span>{custName}</span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-200/70 dark:bg-slate-800 group-hover:bg-primary group-hover:text-white text-slate-600 dark:text-slate-300 text-[10px] font-bold transition-all">
+                  <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
+                  <span>Kundenakte</span>
+                </span>
+              </Link>
             </div>
 
             <button 
@@ -308,18 +431,50 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                 title="E-Mail schreiben"
               >
                 <EnvelopeIcon className="w-4 h-4 text-blue-500" />
-                <span className="truncate max-w-[150px]">{custEmail}</span>
+                <span className="truncate max-w-[140px]">{custEmail}</span>
               </a>
             )}
 
-            <Link
-              href={editOrderUrl}
-              className="ml-auto px-3.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
-              title="Angebot, Umzugsliste & Kalkulation im Editor bearbeiten"
-            >
-              <PencilSquareIcon className="w-4 h-4" />
-              <span>Angebot bearbeiten</span>
-            </Link>
+            <div className="ml-auto flex flex-wrap items-center gap-1.5">
+              {/* PDF Vorschau Button next to Editor */}
+              <button
+                type="button"
+                onClick={() => {
+                  setPdfModalType('order');
+                  setPdfModalOpen(true);
+                }}
+                className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Angebot / Auftrag als PDF anzeigen & herunterladen"
+              >
+                <DocumentTextIcon className="w-4 h-4 text-primary" />
+                <span>PDF anzeigen</span>
+              </button>
+
+              {/* Editor (Angebot bearbeiten) */}
+              <Link
+                href={editOrderUrl}
+                className="px-3 py-1.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+                title="Angebot, Umzugsliste & Kalkulation im Editor bearbeiten"
+              >
+                <PencilSquareIcon className="w-4 h-4" />
+                <span>Angebot bearbeiten</span>
+              </Link>
+
+              {/* Smart Invoice Button in Header */}
+              <button
+                type="button"
+                onClick={handleInvoiceClick}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  isReadyForInvoice
+                    ? 'bg-[#D91E2A] hover:bg-[#b51822] text-white shadow-xs'
+                    : 'bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700'
+                }`}
+                title={isReadyForInvoice ? 'Rechnung öffnen / erstellen' : 'Auftrag noch nicht abgeschlossen – Klicken für vorzeitige Rechnung'}
+              >
+                <CurrencyEuroIcon className="w-4 h-4" />
+                <span>{order.invoiceNumber ? `Rechnung (${order.invoiceNumber})` : 'Rechnung'}</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -575,26 +730,37 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                 </p>
               </div>
 
-              {/* Digital Signature Card */}
+              {/* Digital Signature & Signed Photo Upload Card */}
               {(() => {
                 const isSigned = Boolean(
                   order.signatureOrder ||
                   order.signature ||
                   order.isManuallySigned ||
                   order.contractSigned ||
-                  order.status === 'confirmed'
+                  order.status === 'confirmed' ||
+                  order.orderMeta?.signedContractScan
                 );
+                const hasUploadedScan = Boolean(order.orderMeta?.signedContractScan);
                 return (
                   <div className={`panel p-4 border-2 transition-all space-y-3 ${
                     isSigned
                       ? 'border-emerald-500 bg-emerald-500/10 dark:bg-emerald-950/30'
                       : 'border-primary/30'
                   }`}>
-                    <div className="flex items-center justify-between">
+                    {/* Hidden File Input for Direct Photo/Scan Upload */}
+                    <input
+                      ref={scanInputRef}
+                      type="file"
+                      accept="image/*,application/pdf"
+                      onChange={handleDirectScanUpload}
+                      className="hidden"
+                    />
+
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-2">
                         <DocumentCheckIcon className={`w-5 h-5 ${isSigned ? 'text-emerald-600' : 'text-primary'}`} />
                         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white font-headline">
-                          Vertragsbestätigung & Digitale Unterschrift
+                          Vertragsbestätigung & Unterschrift
                         </h4>
                       </div>
                       {isSigned ? (
@@ -609,45 +775,83 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                     </div>
 
                     {isSigned ? (
-                      <div className="p-3 rounded-xl bg-white/80 dark:bg-slate-800 flex items-center justify-between gap-2">
+                      <div className="p-3 rounded-xl bg-white/80 dark:bg-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div>
                           <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                            {order.signatureOrderPlace
-                              ? `${order.signatureOrderPlace}, ${order.signatureOrderDateString}`
-                              : 'Vertrag bestätigt (Phase 3 freigeschaltet)'}
+                            {hasUploadedScan
+                              ? `Unterschriebenes Foto / Scan hinterlegt (${order.orderMeta?.signedContractScanDate || 'Bestätigt'})`
+                              : order.signatureOrderPlace
+                                ? `${order.signatureOrderPlace}, ${order.signatureOrderDateString}`
+                                : 'Vertrag bestätigt (Phase 3 freigeschaltet)'}
                           </p>
                           <p className="text-[10px] text-slate-500">
-                            {order.signatureOrder ? 'Unterschrift im PDF eingebettet' : 'Manuell / Digital bestätigt'}
+                            {hasUploadedScan
+                              ? `Datei: ${order.orderMeta?.signedContractScanName || 'Unterschriebenes_Angebot.jpg'}`
+                              : order.signatureOrder
+                                ? 'Digitale Unterschrift im PDF eingebettet'
+                                : 'Manuell bestätigt (WhatsApp / E-Mail)'}
                           </p>
                         </div>
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {(hasUploadedScan || order.signatureOrder) && (
+                            <button
+                              type="button"
+                              onClick={() => setScanPreviewOpen(true)}
+                              className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center gap-1 cursor-pointer"
+                            >
+                              <EyeIcon className="w-3.5 h-3.5" />
+                              <span>Nachweis ansehen</span>
+                            </button>
+                          )}
                           <button
-                            onClick={() => setSignatureModalOpen(true)}
-                            className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            type="button"
+                            onClick={() => scanInputRef.current?.click()}
+                            disabled={isUploadingScan}
+                            className="px-2.5 py-1.5 text-xs font-bold rounded-lg border border-emerald-500/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors flex items-center gap-1 cursor-pointer"
                           >
-                            Unterschrift öffnen
+                            <span className="material-symbols-outlined text-sm">add_a_photo</span>
+                            <span>{hasUploadedScan ? 'Foto ändern' : 'Foto/Scan anhängen'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSignatureModalOpen(true)}
+                            className="px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                          >
+                            Signatur-Pad
                           </button>
                         </div>
                       </div>
                     ) : (
                       <div className="space-y-2.5">
                         <p className="text-xs text-slate-600 dark:text-slate-400">
-                          Lass den Kunden hier direkt auf deinem Display unterschreiben oder bestätige die Zusage. Der Auftrag wechselt sofort in Phase 3 (Bestätigt)!
+                          Wähle, wie der Kunde das Angebot bestätigt hat: Direkt auf dem Display unterschreiben, ein vom Kunden unterschriebenes Foto/Dokument hochladen oder manuell bestätigen.
                         </p>
-                        <div className="flex flex-col sm:flex-row gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                           <button
+                            type="button"
                             onClick={() => setSignatureModalOpen(true)}
-                            className="flex-1 py-2.5 px-4 bg-gradient-to-r from-amber-600 to-amber-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow hover:brightness-110 transition-all font-headline cursor-pointer"
+                            className="py-2.5 px-3 bg-gradient-to-r from-amber-600 to-amber-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow hover:brightness-110 transition-all font-headline cursor-pointer"
                           >
-                            <PencilSquareIcon className="w-4 h-4" />
-                            <span>Auftrag jetzt digital unterschreiben</span>
+                            <PencilSquareIcon className="w-4 h-4 shrink-0" />
+                            <span>Digital signieren</span>
                           </button>
                           <button
+                            type="button"
+                            onClick={() => scanInputRef.current?.click()}
+                            disabled={isUploadingScan}
+                            className="py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow transition-all cursor-pointer"
+                            title="Foto oder Scan des vom Kunden unterschriebenen Angebots hochladen"
+                          >
+                            <span className="material-symbols-outlined text-base">add_a_photo</span>
+                            <span>{isUploadingScan ? 'Lädt...' : 'Foto / Scan hochladen'}</span>
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleToggleTask('signature', 'Vertragsbestätigung')}
                             disabled={isUpdatingTask}
-                            className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                            className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                           >
-                            <CheckIcon className="w-4 h-4" />
+                            <CheckIcon className="w-4 h-4 shrink-0" />
                             <span>Manuell bestätigen</span>
                           </button>
                         </div>
@@ -1171,20 +1375,32 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                   </span>
                 </button>
 
-                <Link
-                  href={editInvoiceUrl}
-                  className="p-4 rounded-2xl bg-[#D91E2A] text-white flex flex-col items-center text-center gap-2 shadow-md hover:bg-[#b51822] transition-all group font-headline"
+                <button
+                  type="button"
+                  onClick={handleInvoiceClick}
+                  className={`p-4 rounded-2xl flex flex-col items-center text-center gap-2 shadow-sm transition-all group font-headline cursor-pointer ${
+                    isReadyForInvoice
+                      ? 'bg-[#D91E2A] text-white hover:bg-[#b51822] shadow-md'
+                      : 'bg-slate-200 dark:bg-slate-800/90 text-slate-600 dark:text-slate-300 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-amber-500'
+                  }`}
                 >
                   <span className="material-symbols-outlined text-3xl group-hover:scale-110 transition-transform">
                     receipt_long
                   </span>
-                  <span className="text-xs font-bold">
-                    {order.invoiceNumber ? `Rechnung (${order.invoiceNumber}) bearbeiten` : 'Rechnung erstellen'}
+                  <span className="text-xs font-bold flex items-center gap-1.5">
+                    <span>{order.invoiceNumber ? `Rechnung (${order.invoiceNumber}) bearbeiten` : 'Rechnung erstellen'}</span>
+                    {!isReadyForInvoice && (
+                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                        Vorzeitig
+                      </span>
+                    )}
                   </span>
-                  <span className="text-[10px] text-white/80">
-                    1-Klick Abrechnung mit allen Leistungen
+                  <span className={`text-[10px] ${isReadyForInvoice ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'}`}>
+                    {isReadyForInvoice
+                      ? '1-Klick Abrechnung mit allen Leistungen'
+                      : 'Auftrag noch offen – Klicken für vorzeitige Erstellung'}
                   </span>
-                </Link>
+                </button>
               </div>
 
               {/* Vorlagen Quick Actions for Phase 4 */}
@@ -1250,7 +1466,6 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           order={order}
           onClose={() => setSignatureModalOpen(false)}
           onSigned={async () => {
-            // Update order status to confirmed if it was quote or draft
             try {
               if (order.status !== 'confirmed') {
                 await updateDoc(doc(db, 'orders', order.id), {
@@ -1284,6 +1499,135 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           defaultTemplateName={defaultTemplateName}
           onClose={() => setMessageModalOpen(false)}
         />
+      )}
+
+      {pdfModalOpen && (
+        <PdfModal
+          order={order}
+          customer={internalCustomer || order.billingAddress || { firstName: custName, lastName: '' }}
+          type={pdfModalType}
+          onClose={() => setPdfModalOpen(false)}
+        />
+      )}
+
+      {/* Smart Warning Modal when clicking gray "Rechnung erstellen" before contract/move is finished */}
+      {earlyInvoiceWarningOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-11 h-11 rounded-2xl bg-amber-500/15 text-amber-600 flex items-center justify-center shrink-0">
+                <ExclamationTriangleIcon className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold font-headline text-slate-900 dark:text-white">
+                  Rechnung vorzeitig erstellen?
+                </h3>
+                <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+                  Möchten Sie wirklich eine Rechnung erstellen, obwohl der Vertrag bzw. die vorherigen Aufgaben noch nicht vollständig abgeschlossen sind?
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 space-y-1.5 text-xs">
+              <p className="font-bold text-amber-900 dark:text-amber-300">Noch offene Punkte:</p>
+              {!isContractSigned && (
+                <p className="text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
+                  <span>•</span>
+                  <span>Vertragsbestätigung / Kundenunterschrift fehlt noch (Phase 2)</span>
+                </p>
+              )}
+              {!evaluation.isComplete && (
+                <p className="text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
+                  <span>•</span>
+                  <span>Operative Logistik-Aufgaben noch nicht alle erledigt (Phase 3)</span>
+                </p>
+              )}
+              {!hasProtocol && (
+                <p className="text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
+                  <span>•</span>
+                  <span>Übergabe- / Abnahmeprotokoll wurde noch nicht hinterlegt (Phase 4)</span>
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setEarlyInvoiceWarningOpen(false)}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEarlyInvoiceWarningOpen(false);
+                  router.push(editInvoiceUrl);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-[#D91E2A] hover:bg-[#b51822] text-white text-xs font-bold shadow-md transition-colors cursor-pointer"
+              >
+                Trotzdem Rechnung erstellen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Modal to view uploaded signed contract photo/scan or digital signature */}
+      {scanPreviewOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 max-w-2xl w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div>
+                <h3 className="text-sm font-bold font-headline text-slate-900 dark:text-white">
+                  Unterschriebener Vertragsnachweis ({orderNum})
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  {order.orderMeta?.signedContractScanName || 'Gespeicherte Kundenunterschrift / Scan'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setScanPreviewOpen(false)}
+                className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="max-h-[65vh] overflow-auto flex items-center justify-center bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-4">
+              {(order.orderMeta?.signedContractScan || order.signatureOrder) ? (
+                <img
+                  src={order.orderMeta?.signedContractScan || order.signatureOrder}
+                  alt="Unterschriebener Nachweis"
+                  className="max-h-[58vh] object-contain rounded-xl bg-white shadow-sm"
+                />
+              ) : (
+                <p className="text-xs text-slate-500">Kein Bild vorhanden.</p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setScanPreviewOpen(false);
+                  scanInputRef.current?.click();
+                }}
+                className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                Neues Foto / Scan hochladen
+              </button>
+              <button
+                type="button"
+                onClick={() => setScanPreviewOpen(false)}
+                className="px-5 py-2 rounded-xl bg-primary text-white text-xs font-bold cursor-pointer"
+              >
+                Schließen
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
