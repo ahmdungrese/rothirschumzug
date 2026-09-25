@@ -9,9 +9,9 @@
 :root.light,
 :root.light-mode {
   color-scheme: light;
-  --color-primary:            #6E8F65;
-  --color-primary-hover:      #5C7B54;
-  --color-brand-primary:      #6E8F65;
+  --color-primary:            #6E8F64;
+  --color-primary-hover:      #5C7A53;
+  --color-brand-primary:      #6E8F64;
 
   --color-background-dark:    #F8FAFC;
   --color-background-panel:   #FFFFFF;
@@ -55,9 +55,9 @@
 :root.dark,
 :root.dark-mode {
   color-scheme: dark;
-  --color-primary:            #76986C;
-  --color-primary-hover:      #64855B;
-  --color-brand-primary:      #76986C;
+  --color-primary:            #789A6E;
+  --color-primary-hover:      #65855B;
+  --color-brand-primary:      #789A6E;
   
   --color-background-dark:    #0B0F15;
   --color-background-panel:   #111720;
@@ -201,8 +201,8 @@ body {
 }
 
 .sidebar-active {
-  background: linear-gradient(90deg, rgba(110, 143, 101, 0.14) 0%, transparent 100%);
-  border-left: 4px solid var(--color-primary) !important;
+  background: linear-gradient(90deg, rgba(110, 143, 100, 0.16) 0%, transparent 100%);
+  border-left: 4px solid #6E8F64 !important;
 }
 
 /* ============================================
@@ -215,9 +215,9 @@ body {
 .custom-scrollbar { scrollbar-width: thin; scrollbar-color: var(--lm-scrollbar) transparent; }
 
 @keyframes target-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(110, 143, 101, 0.7); border-color: var(--color-primary); }
-  50% { box-shadow: 0 0 0 10px rgba(110, 143, 101, 0); border-color: var(--color-primary); }
-  100% { box-shadow: 0 0 0 0 rgba(110, 143, 101, 0); border-color: var(--color-primary); }
+  0% { box-shadow: 0 0 0 0 rgba(110, 143, 100, 0.7); border-color: var(--color-primary); }
+  50% { box-shadow: 0 0 0 10px rgba(110, 143, 100, 0); border-color: var(--color-primary); }
+  100% { box-shadow: 0 0 0 0 rgba(110, 143, 100, 0); border-color: var(--color-primary); }
 }
 .highlight-pulse {
   animation: target-pulse 1.2s ease-out 3;

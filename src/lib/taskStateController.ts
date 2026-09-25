@@ -284,6 +284,11 @@ export async function updateTaskSchedule(
       updates['orderMeta.kartonDeliveryTime'] = timeStr;
       updates['logistics.boxDeliveryDate'] = dateStr;
       updates['logistics.boxDeliveryTime'] = timeStr;
+      updates['ticketStates.kartons_liefern'] = true;
+      updates['checklistDone.kartons'] = true;
+      updates['checklistDone.kartons_liefern'] = true;
+      updates['logistics.boxesDelivered'] = true;
+      updates['logisticsState.kartons_geliefert'] = true;
       if (extras?.notes) updates['orderMeta.kartonNotes'] = extras.notes;
       break;
 
@@ -293,6 +298,12 @@ export async function updateTaskSchedule(
       updates['orderMeta.halteverbotTime'] = timeStr;
       updates['logistics.hvzDate'] = dateStr;
       updates['logistics.hvzTime'] = timeStr;
+      updates['ticketStates.halteverbot'] = true;
+      updates['checklistDone.hvz'] = true;
+      updates['checklistDone.halteverbot'] = true;
+      updates['logistics.hvzConfirmed'] = true;
+      updates['logistics.hvzStatus'] = 'confirmed';
+      updates['logisticsState.hvz_aufgestellt'] = true;
       if (extras?.location) {
         updates['orderMeta.hvzLocation'] = extras.location;
         updates['logistics.hvzLocation'] = extras.location;
@@ -318,6 +329,11 @@ export async function updateTaskSchedule(
       updates['orderMeta.moebelliftTime'] = timeStr;
       updates['logistics.moebelliftDate'] = dateStr;
       updates['logistics.moebelliftTime'] = timeStr;
+      updates['ticketStates.moebellift_buchen'] = true;
+      updates['checklistDone.moebellift'] = true;
+      updates['checklistDone.moebellift_buchen'] = true;
+      updates['logistics.liftReserved'] = true;
+      updates['logistics.liftStatus'] = 'confirmed';
       if (extras?.duration) updates['orderMeta.moebelliftDuration'] = extras.duration;
       if (extras?.endTime) updates['orderMeta.moebelliftEndTime'] = extras.endTime;
       if (extras?.location) {

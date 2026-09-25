@@ -13,18 +13,12 @@ import {
   ClockIcon,
   MagnifyingGlassIcon,
   MapPinIcon,
-  ArrowPathIcon,
   ExclamationCircleIcon,
   ChatBubbleLeftRightIcon,
-  BuildingOfficeIcon,
-  TruckIcon,
-  HomeIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   Squares2X2Icon,
-  QueueListIcon,
-  CubeIcon,
-  DocumentTextIcon
+  QueueListIcon
 } from '@heroicons/react/24/outline';
 import { generateTickets, SystemTicket } from '@/lib/ticketEngine';
 import { toggleTaskCompletion } from '@/lib/taskStateController';
@@ -46,8 +40,8 @@ export default function LogisticsPage() {
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'viewing' | 'kartons' | 'halteverbot' | 'moebellift' | 'rechnung'>('all');
   // Search query
   const [searchQuery, setSearchQuery] = useState('');
-  // View Mode: 'compact' (Compact Symbol Cards with Accordion) vs 'grouped' (Bundled by Customer/Order)
-  const [viewMode, setViewMode] = useState<'compact' | 'grouped'>('compact');
+  // View Mode: 'grouped' (Pro Kunde - STANDARD) vs 'compact' (Einzelne Symbol-Karten - 2nd Option)
+  const [viewMode, setViewMode] = useState<'grouped' | 'compact'>('grouped');
   // Track expanded cards/details by key
   const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
 
@@ -148,17 +142,14 @@ export default function LogisticsPage() {
   // Filter based on statusTab, category, and search query
   const filteredTasks = useMemo(() => {
     return logisticsTasks.filter(t => {
-      // 1. Status Filter (Offen vs Erledigt)
       const matchesStatus = statusTab === 'offen' ? !t.done : t.done;
       if (!matchesStatus) return false;
 
-      // 2. Category Filter
       if (categoryFilter !== 'all') {
         if (categoryFilter === 'viewing' && t.id !== 'viewing_requested') return false;
         if (categoryFilter !== 'viewing' && t.kanbanCategory !== categoryFilter) return false;
       }
 
-      // 3. Search Filter
       if (searchQuery.trim()) {
         const queryStr = searchQuery.toLowerCase();
         const parentOrder = orders.find(o => o.id === t.orderId);
@@ -184,7 +175,7 @@ export default function LogisticsPage() {
     });
   }, [filteredTasks]);
 
-  // Group tasks by orderId for the 'grouped' view mode
+  // Group tasks by orderId for the 'grouped' (Pro Kunde) Standard view mode
   const groupedOrders = useMemo(() => {
     const map = new Map<string, { order: any; customer: any; custName: string; tasks: SystemTicket[] }>();
     sortedTasks.forEach(todo => {
@@ -293,22 +284,33 @@ export default function LogisticsPage() {
       });
     }
 
+    const breakdownParts: string[] = [];
+    if (standard > 0) breakdownParts.push(`${standard}x Standard`);
+    if (buecher > 0) breakdownParts.push(`${buecher}x Bücher`);
+    if (kleider > 0) breakdownParts.push(`${kleider}x Kleider`);
+
     return {
       total: standard + buecher + kleider,
       standard,
       buecher,
       kleider,
       seidenpapier,
-      klebeband
+      klebeband,
+      breakdownText: breakdownParts.join(' • ')
     };
   };
 
-  // Symbol & Badge helper for each category (Zero Red, clean icons & concise labels)
+  // Symbol & Badge helper for each category (Zero Red, complete info preserved)
   const getCategoryMeta = (todo: SystemTicket, parentOrder: any) => {
+    const addressA = [parentOrder?.logistics?.a_street, parentOrder?.logistics?.a_city].filter(Boolean).join(', ');
+    const addressB = [parentOrder?.logistics?.b_street, parentOrder?.logistics?.b_city].filter(Boolean).join(', ');
+
     if (todo.id === 'viewing_requested') {
       return {
         label: 'Besichtigung',
         shortInfo: parentOrder?.orderMeta?.viewingType || 'Vor-Ort',
+        detailSubtext: addressA || 'Besichtigungsadresse im Auftrag',
+        mapAddress: addressA,
         symbol: 'chair',
         color: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/25',
         iconBg: 'bg-purple-500/15 text-purple-600 dark:text-purple-400'
@@ -320,6 +322,8 @@ export default function LogisticsPage() {
         return {
           label: 'Kartons',
           shortInfo: mat.total > 0 ? `${mat.total} Stk.` : 'Material',
+          detailSubtext: mat.breakdownText || 'Kartons laut Angebot liefern',
+          mapAddress: addressA,
           symbol: 'inventory_2',
           color: 'bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/25',
           iconBg: 'bg-orange-500/15 text-orange-600 dark:text-orange-400'
@@ -327,20 +331,29 @@ export default function LogisticsPage() {
       }
       case 'halteverbot': {
         const hvzLoc = parentOrder?.orderMeta?.hvzLocation || (parentOrder?.logistics?.hvz_b && !parentOrder?.logistics?.hvz_a ? 'b' : parentOrder?.logistics?.hvz_a && parentOrder?.logistics?.hvz_b ? 'both' : 'a');
-        const locLabel = hvzLoc === 'both' ? 'A & B' : hvzLoc === 'b' ? 'Ort B' : 'Ort A';
+        const hvzMethod = parentOrder?.orderMeta?.hvzMethod || (parentOrder?.logistics?.hvz_external ? 'extern' : 'selbst');
+        const locLabel = hvzLoc === 'both' ? 'A & B' : hvzLoc === 'b' ? 'Einzug B' : 'Auszug A';
+        const methodLabel = hvzMethod === 'extern' ? 'Extern' : 'Selbst (Rothirsch)';
+        const hvzAddr = hvzLoc === 'b' ? (addressB || 'Einzugsadresse') : (addressA || 'Auszugsadresse');
         return {
           label: 'Halteverbot',
           shortInfo: `HVZ (${locLabel})`,
+          detailSubtext: `${methodLabel} • ${hvzAddr}`,
+          mapAddress: hvzAddr,
           symbol: 'local_parking',
           color: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25',
           iconBg: 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
         };
       }
       case 'moebellift': {
+        const liftLoc = parentOrder?.orderMeta?.moebelliftLocation || 'a';
         const liftDur = parentOrder?.orderMeta?.moebelliftDuration || '3';
+        const liftAddr = liftLoc === 'b' ? (addressB || 'Einzugsadresse') : (addressA || 'Auszugsadresse');
         return {
           label: 'Möbellift',
-          shortInfo: `${liftDur} Std.`,
+          shortInfo: `${liftDur} Std. (${liftLoc === 'b' ? 'Ort B' : 'Ort A'})`,
+          detailSubtext: liftAddr,
+          mapAddress: liftAddr,
           symbol: 'elevator',
           color: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/25',
           iconBg: 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
@@ -350,14 +363,18 @@ export default function LogisticsPage() {
         return {
           label: 'Rechnung',
           shortInfo: 'Abrechnung',
+          detailSubtext: todo.title,
+          mapAddress: addressA,
           symbol: 'receipt_long',
-          color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25',
-          iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+          color: 'bg-[#6E8F64]/12 text-[#435E3A] dark:text-[#B5D1AC] border-[#6E8F64]/30',
+          iconBg: 'bg-[#6E8F64]/15 text-[#527048] dark:text-[#A8C69F]'
         };
       default:
         return {
           label: 'Logistik',
           shortInfo: 'Aufgabe',
+          detailSubtext: todo.title,
+          mapAddress: addressA,
           symbol: 'task_alt',
           color: 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700',
           iconBg: 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
@@ -406,27 +423,45 @@ export default function LogisticsPage() {
     };
   };
 
+  // Helper to send task-aware WhatsApp message
+  const triggerTaskWhatsApp = (todo: SystemTicket, parentOrder: any, custPhone: string, custName: string, scheduled: any, e: React.MouseEvent) => {
+    const isViewing = todo.id === 'viewing_requested';
+    const isKarton = todo.id === 'kartons_liefern';
+    const isHV = todo.id === 'halteverbot';
+
+    if (isViewing) {
+      const timeText = parentOrder?.orderMeta?.viewingTime ? ` um ${parentOrder.orderMeta.viewingTime} Uhr` : '';
+      handleDirectWhatsApp(custPhone, `Hallo ${custName}, ich bin pünktlich auf dem Weg zu Ihnen für unseren Besichtigungstermin${timeText}. Bis gleich!`, e);
+    } else if (isKarton && scheduled) {
+      handleDirectWhatsApp(custPhone, `Guten Tag ${custName}, Ihre Umzugskartons werden am ${scheduled.date} ${scheduled.time ? 'im Zeitfenster ' + scheduled.time : ''} geliefert. Viele Grüße, Rothirsch Umzüge`, e);
+    } else if (isHV && scheduled) {
+      handleDirectWhatsApp(custPhone, `Guten Tag ${custName}, die Halteverbotszone für Ihren Umzug wird am ${scheduled.date} aufgebaut. Viele Grüße, Rothirsch Umzüge`, e);
+    } else {
+      handleDirectWhatsApp(custPhone, undefined, e);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#6E8F64]"></div>
       </div>
     );
   }
 
   return (
     <div className="w-full max-w-full px-4 md:px-8 space-y-5 animate-in fade-in duration-300 pb-16 min-h-screen">
-      {/* Clean Header & Search Bar (Zero Red — Emerald & Slate Palette) */}
+      {/* Clean Header & Search Bar (Light Olive-Sage Green #6E8F64 — Zero Red) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900/80 px-4 py-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="flex items-center justify-between sm:justify-start gap-3">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="w-2.5 h-2.5 rounded-full bg-[#6E8F64] animate-pulse" />
             <h1 className="text-base sm:text-xl font-extrabold font-headline text-slate-900 dark:text-white">
               Logistik-Einsatzplan
             </h1>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/25">
+            <span className="text-[11px] font-bold text-[#4A6642] dark:text-[#B5D1AC] bg-[#6E8F64]/15 px-2.5 py-0.5 rounded-full border border-[#6E8F64]/30">
               {openCount} Offen
             </span>
             {completedCount > 0 && (
@@ -438,33 +473,33 @@ export default function LogisticsPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* View Mode Toggle: Einzelkarten (Compact Symbols) vs Nach Kunde bündeln */}
+          {/* View Mode Toggle: 1. Pro Kunde (STANDARD) | 2. Symbole (Einzeln) */}
           <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0">
+            <button
+              type="button"
+              onClick={() => setViewMode('grouped')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                viewMode === 'grouped'
+                  ? 'bg-[#6E8F64] text-white shadow-xs'
+                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+              }`}
+              title="Standard: Aufgaben pro Kunde gebündelt anzeigen"
+            >
+              <QueueListIcon className="w-3.5 h-3.5" />
+              <span>Pro Kunde ({groupedOrders.length})</span>
+            </button>
             <button
               type="button"
               onClick={() => setViewMode('compact')}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                 viewMode === 'compact'
-                  ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-xs'
+                  ? 'bg-[#6E8F64] text-white shadow-xs'
                   : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
               }`}
-              title="Kompakte Symbol-Karten"
+              title="Zweitansicht: Einzelne Symbol-Karten"
             >
               <Squares2X2Icon className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Symbole</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('grouped')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                viewMode === 'grouped'
-                  ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
-              }`}
-              title="Aufgaben pro Kunde zusammenfassen"
-            >
-              <QueueListIcon className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Pro Kunde ({groupedOrders.length})</span>
+              <span>Symbole ({sortedTasks.length})</span>
             </button>
           </div>
 
@@ -476,13 +511,13 @@ export default function LogisticsPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Kunde, Stadt, Auftragsnr..."
-              className="w-full pl-9 pr-4 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 placeholder:text-slate-400"
+              className="w-full pl-9 pr-4 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#6E8F64] placeholder:text-slate-400"
             />
           </div>
         </div>
       </div>
 
-      {/* Main Status & Category Controls (Segmented Pill Slider — Emerald/Slate, No Red) */}
+      {/* Main Status & Category Controls (Light Olive-Sage Green #6E8F64) */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
         {/* Status Switcher: Offene vs Erledigte Aufgaben */}
         <div className="inline-flex p-1 rounded-2xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 shadow-xs w-full sm:w-auto shrink-0">
@@ -490,7 +525,7 @@ export default function LogisticsPage() {
             onClick={() => setStatusTab('offen')}
             className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold font-headline transition-all cursor-pointer ${
               statusTab === 'offen'
-                ? 'bg-emerald-600 text-white shadow-xs'
+                ? 'bg-[#6E8F64] text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -506,7 +541,7 @@ export default function LogisticsPage() {
             onClick={() => setStatusTab('erledigt')}
             className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-bold font-headline transition-all cursor-pointer ${
               statusTab === 'erledigt'
-                ? 'bg-slate-800 dark:bg-slate-700 text-white shadow-xs'
+                ? 'bg-slate-700 text-white shadow-xs'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
@@ -522,12 +557,12 @@ export default function LogisticsPage() {
         {/* Category Filter Pills with Symbols */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
           {[
-            { id: 'all', label: 'Alle', count: categoryCounts.all, dot: 'bg-emerald-500' },
+            { id: 'all', label: 'Alle', count: categoryCounts.all, dot: 'bg-[#6E8F64]' },
             { id: 'kartons', label: 'Kartons', count: categoryCounts.kartons, dot: 'bg-orange-500' },
             { id: 'halteverbot', label: 'Halteverbot', count: categoryCounts.halteverbot, dot: 'bg-amber-500' },
             { id: 'moebellift', label: 'Möbellift', count: categoryCounts.moebellift, dot: 'bg-blue-500' },
             { id: 'viewing', label: 'Besichtigung', count: categoryCounts.viewing, dot: 'bg-purple-500' },
-            { id: 'rechnung', label: 'Rechnungen', count: categoryCounts.rechnung, dot: 'bg-emerald-500' }
+            { id: 'rechnung', label: 'Rechnungen', count: categoryCounts.rechnung, dot: 'bg-[#6E8F64]' }
           ].map(pill => {
             const isSelected = categoryFilter === pill.id;
             return (
@@ -536,8 +571,8 @@ export default function LogisticsPage() {
                 onClick={() => setCategoryFilter(pill.id as any)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold font-headline whitespace-nowrap transition-all border shrink-0 cursor-pointer ${
                   isSelected
-                    ? 'bg-emerald-600 text-white border-transparent shadow-xs'
-                    : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-emerald-500/40'
+                    ? 'bg-[#6E8F64] text-white border-transparent shadow-xs'
+                    : 'bg-white dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-[#6E8F64]/40'
                 }`}
               >
                 <span className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : pill.dot}`} />
@@ -558,7 +593,7 @@ export default function LogisticsPage() {
       {/* Empty State */}
       {sortedTasks.length === 0 ? (
         <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-3xl p-12 text-center space-y-3">
-          <div className="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto text-emerald-600">
+          <div className="w-12 h-12 rounded-full bg-[#6E8F64]/15 flex items-center justify-center mx-auto text-[#6E8F64]">
             <CheckIcon className="w-6 h-6" />
           </div>
           <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
@@ -572,7 +607,7 @@ export default function LogisticsPage() {
         </div>
       ) : viewMode === 'grouped' ? (
         /* ========================================================================= */
-        /* VIEW MODE 2: GROUPED BY CUSTOMER / ORDER (Zero Redundancy, Ultra-Clean)   */
+        /* STANDARD VIEW MODE: PRO KUNDE (All customer tasks bundled, 100% content!) */
         /* ========================================================================= */
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {groupedOrders.map(({ key, order: parentOrder, customer, custName, tasks }) => {
@@ -597,7 +632,7 @@ export default function LogisticsPage() {
                     <div className="flex items-center gap-2">
                       <Link
                         href={parentOrder?.customerId ? `/dashboard/customers/${parentOrder.customerId}` : `/dashboard/orders`}
-                        className="font-headline font-bold text-sm sm:text-base text-slate-900 dark:text-white hover:text-emerald-600 transition-colors truncate"
+                        className="font-headline font-bold text-sm sm:text-base text-slate-900 dark:text-white hover:text-[#6E8F64] transition-colors truncate"
                       >
                         {custName}
                       </Link>
@@ -619,7 +654,7 @@ export default function LogisticsPage() {
                         href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressA)}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-500/15 hover:text-emerald-600 transition-all"
+                        className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-[#6E8F64]/15 hover:text-[#6E8F64] transition-all"
                         title={`Navigation: ${addressA}`}
                       >
                         <MapPinIcon className="w-4 h-4" />
@@ -629,7 +664,7 @@ export default function LogisticsPage() {
                       <button
                         type="button"
                         onClick={(e) => handleDirectWhatsApp(custPhone, undefined, e)}
-                        className="p-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 hover:bg-emerald-100 transition-all cursor-pointer"
+                        className="p-1.5 rounded-xl bg-[#6E8F64]/15 text-[#4A6642] dark:text-[#B5D1AC] hover:bg-[#6E8F64] hover:text-white transition-all cursor-pointer"
                         title={`WhatsApp an ${custName}`}
                       >
                         <ChatBubbleLeftRightIcon className="w-4 h-4" />
@@ -638,7 +673,7 @@ export default function LogisticsPage() {
                     {parentOrder?.customerId && (
                       <Link
                         href={`/dashboard/customers/${parentOrder.customerId}`}
-                        className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-emerald-600 hover:bg-emerald-500/10 transition-all"
+                        className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-[#6E8F64] hover:bg-[#6E8F64]/15 transition-all"
                         title="Kundenakte öffnen"
                       >
                         <UserIcon className="w-4 h-4" />
@@ -647,9 +682,11 @@ export default function LogisticsPage() {
                   </div>
                 </div>
 
-                {/* Compact Symbol Rows for each Task of this Customer */}
+                {/* Rich Symbol Rows for each Task of this Customer (Zero Lost Info!) */}
                 <div className="space-y-2">
                   {tasks.map(todo => {
+                    const rowKey = `grp_${todo.id}_${todo.orderId}`;
+                    const isRowExpanded = !!expandedCards[rowKey];
                     const catMeta = getCategoryMeta(todo, parentOrder);
                     const scheduled = getScheduledDateInfo(todo, parentOrder);
                     const isViewing = todo.id === 'viewing_requested';
@@ -658,73 +695,144 @@ export default function LogisticsPage() {
                     return (
                       <div
                         key={todo.id}
-                        className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50"
+                        className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50 space-y-2"
                       >
-                        {/* Left: Symbol + Category + Short Info */}
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${catMeta.iconBg}`}>
-                            <span className="material-symbols-outlined text-base">{catMeta.symbol}</span>
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-xs font-bold text-slate-900 dark:text-white">
-                                {catMeta.label}
-                              </span>
-                              <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold border ${catMeta.color}`}>
-                                {catMeta.shortInfo}
-                              </span>
+                        <div className="flex items-center justify-between gap-2">
+                          {/* Left: Symbol + Category + Inline Detail Summary */}
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${catMeta.iconBg}`}>
+                              <span className="material-symbols-outlined text-base">{catMeta.symbol}</span>
                             </div>
-                            {scheduled && (
-                              <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1 mt-0.5">
-                                <CalendarDaysIcon className="w-3 h-3" />
-                                {scheduled.date} {scheduled.time && `• ${scheduled.time}`}
-                              </span>
-                            )}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                  {catMeta.label}
+                                </span>
+                                <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold border ${catMeta.color}`}>
+                                  {catMeta.shortInfo}
+                                </span>
+                                {scheduled && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => openScheduleModal(todo, parentOrder, e)}
+                                    className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-bold bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] border border-[#6E8F64]/30 hover:bg-[#6E8F64]/25 cursor-pointer"
+                                    title="Termin ändern"
+                                  >
+                                    <CalendarDaysIcon className="w-3 h-3" />
+                                    <span>{scheduled.date}{scheduled.time ? ` • ${scheduled.time}` : ''}</span>
+                                  </button>
+                                )}
+                              </div>
+                              {/* Subtitle showing exact breakdown/address so NO content is ever lost */}
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                                {catMeta.detailSubtext}
+                              </p>
+                            </div>
                           </div>
-                        </div>
 
-                        {/* Right: Symbol Action Buttons + Green Primary Action */}
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {isLogisticsSchedulable && (
+                          {/* Right: Symbol Action Buttons + Light Olive-Sage Green Primary Action */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            {/* 📅 Termin planen/ändern */}
+                            {isLogisticsSchedulable && (
+                              <button
+                                type="button"
+                                onClick={(e) => openScheduleModal(todo, parentOrder, e)}
+                                className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
+                                  scheduled
+                                    ? 'bg-[#6E8F64]/15 border-[#6E8F64]/35 text-[#435E3A] dark:text-[#B5D1AC]'
+                                    : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:text-[#6E8F64] hover:border-[#6E8F64]/40'
+                                }`}
+                                title={scheduled ? `Termin ändern (${scheduled.date})` : 'Termin & Zeitfenster planen'}
+                              >
+                                <CalendarDaysIcon className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {/* 📍 Task-specific Maps link */}
+                            {catMeta.mapAddress && (
+                              <a
+                                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(catMeta.mapAddress)}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="p-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-[#6E8F64] hover:border-[#6E8F64]/40 transition-all"
+                                title={`In Google Maps öffnen: ${catMeta.mapAddress}`}
+                              >
+                                <MapPinIcon className="w-4 h-4" />
+                              </a>
+                            )}
+
+                            {/* 💬 Task-specific WhatsApp message (Unterwegs / Kartons / HVZ) */}
+                            {custPhone && (
+                              <button
+                                type="button"
+                                onClick={(e) => triggerTaskWhatsApp(todo, parentOrder, custPhone, custName, scheduled, e)}
+                                className="p-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#527048] dark:text-[#B5D1AC] hover:bg-[#6E8F64] hover:text-white transition-all cursor-pointer"
+                                title={isViewing ? 'WhatsApp: "Ich bin unterwegs" senden' : 'WhatsApp-Terminbestätigung senden'}
+                              >
+                                <ChatBubbleLeftRightIcon className="w-4 h-4" />
+                              </button>
+                            )}
+
+                            {/* ⌄ Expand full task info */}
                             <button
                               type="button"
-                              onClick={(e) => openScheduleModal(todo, parentOrder, e)}
-                              className={`p-2 rounded-xl border transition-all cursor-pointer ${
-                                scheduled
-                                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
-                                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:text-emerald-600 hover:border-emerald-500/40'
-                              }`}
-                              title={scheduled ? `Termin ändern (${scheduled.date})` : 'Termin planen'}
+                              onClick={(e) => toggleExpandCard(rowKey, e)}
+                              className="p-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-all cursor-pointer"
+                              title="Vollständige Details ein-/ausblenden"
                             >
-                              <CalendarDaysIcon className="w-4 h-4" />
+                              {isRowExpanded ? <ChevronUpIcon className="w-3.5 h-3.5" /> : <ChevronDownIcon className="w-3.5 h-3.5" />}
                             </button>
-                          )}
 
-                          {isViewing && parentOrder?.customerId && !todo.done && (
-                            <Link
-                              href={`/dashboard/customers/${parentOrder.customerId}/edit-order/${parentOrder.id}?step=4`}
-                              className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 shadow-xs transition-all"
-                              title="Besichtigung starten (Umzugsliste)"
+                            {/* 🪑 Besichtigung starten (Light Olive-Sage Green) */}
+                            {isViewing && parentOrder?.customerId && !todo.done && (
+                              <Link
+                                href={`/dashboard/customers/${parentOrder.customerId}/edit-order/${parentOrder.id}?step=4`}
+                                className="px-2.5 py-1.5 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-[11px] font-bold flex items-center gap-1 shadow-xs transition-all"
+                                title="Direkt zu Schritt 4 (Umzugsliste & Möbel) springen"
+                              >
+                                <span className="material-symbols-outlined text-xs">chair</span>
+                                <span className="hidden sm:inline">Besichtigung starten</span>
+                              </Link>
+                            )}
+
+                            {/* ✓ Erledigt markieren (Light Olive-Sage Green) */}
+                            <button
+                              type="button"
+                              onClick={(e) => handleToggleTask(todo, e)}
+                              className={`px-3 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                                todo.done
+                                  ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300'
+                                  : isViewing && parentOrder?.customerId
+                                    ? 'bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] border border-[#6E8F64]/35 hover:bg-[#6E8F64] hover:text-white'
+                                    : 'bg-[#6E8F64] hover:bg-[#5C7A53] text-white shadow-xs shadow-[#6E8F64]/20'
+                              }`}
+                              title={todo.done ? 'Wiedereröffnen' : 'Als erledigt markieren'}
                             >
-                              <span className="material-symbols-outlined text-xs">chair</span>
-                              <span className="hidden sm:inline">Besichtigung starten</span>
-                            </Link>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={(e) => handleToggleTask(todo, e)}
-                            className={`px-3 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
-                              todo.done
-                                ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300'
-                                : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs shadow-emerald-600/20'
-                            }`}
-                            title={todo.done ? 'Wiedereröffnen' : 'Als erledigt markieren'}
-                          >
-                            <CheckIcon className="w-3.5 h-3.5" />
-                            <span>{todo.done ? 'Offen' : 'Erledigt'}</span>
-                          </button>
+                              <CheckIcon className="w-3.5 h-3.5" />
+                              <span>{todo.done ? 'Offen' : 'Erledigt'}</span>
+                            </button>
+                          </div>
                         </div>
+
+                        {/* Collapsible full details inside Pro Kunde row */}
+                        {isRowExpanded && (
+                          <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/50 text-[11px] text-slate-600 dark:text-slate-300 flex flex-col sm:flex-row sm:items-center justify-between gap-2 animate-in fade-in duration-150">
+                            <div>
+                              <span className="font-bold text-slate-800 dark:text-slate-200">{todo.title}</span>
+                              <p className="text-slate-500 mt-0.5">{catMeta.detailSubtext}</p>
+                            </div>
+                            {isLogisticsSchedulable && (
+                              <button
+                                type="button"
+                                onClick={(e) => openScheduleModal(todo, parentOrder, e)}
+                                className="px-2.5 py-1 rounded-lg bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] font-bold text-[10px] self-start sm:self-auto shrink-0 cursor-pointer"
+                              >
+                                {scheduled ? `Termin ändern (${scheduled.date} ${scheduled.time})` : '+ Datum & Zeitfenster festlegen'}
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -735,7 +843,7 @@ export default function LogisticsPage() {
         </div>
       ) : (
         /* ========================================================================= */
-        /* VIEW MODE 1 (DEFAULT): COMPACT SYMBOL CARDS WITH COLLAPSIBLE DETAILS      */
+        /* OPTION 2: COMPACT SYMBOL CARDS WITH COLLAPSIBLE DETAILS                   */
         /* ========================================================================= */
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {sortedTasks.map((todo) => {
@@ -746,9 +854,6 @@ export default function LogisticsPage() {
             const customer = parentOrder ? customers[parentOrder.customerId] : null;
             const custPhone = customer?.phone || parentOrder?.phone || parentOrder?.customerPhone || '';
             const custName = todo.customerName || (customer ? `${customer.firstName || ''} ${customer.lastName || ''}`.trim() : 'Kunde');
-
-            const addressA = [parentOrder?.logistics?.a_street, parentOrder?.logistics?.a_city].filter(Boolean).join(', ');
-            const addressB = [parentOrder?.logistics?.b_street, parentOrder?.logistics?.b_city].filter(Boolean).join(', ');
 
             const catMeta = getCategoryMeta(todo, parentOrder);
             const scheduled = getScheduledDateInfo(todo, parentOrder);
@@ -761,23 +866,7 @@ export default function LogisticsPage() {
               : 'Route offen';
 
             const isLogisticsSchedulable = todo.id === 'kartons_liefern' || todo.id === 'halteverbot' || todo.id === 'moebellift_buchen' || todo.id === 'viewing_requested';
-            const isKarton = todo.id === 'kartons_liefern';
-            const isHV = todo.id === 'halteverbot';
-            const isLift = todo.id === 'moebellift_buchen';
             const isViewing = todo.id === 'viewing_requested';
-
-            const matSummary = isKarton ? getMaterialsSummary(parentOrder) : null;
-
-            const hvzLoc = parentOrder?.orderMeta?.hvzLocation || (parentOrder?.logistics?.hvz_b && !parentOrder?.logistics?.hvz_a ? 'b' : parentOrder?.logistics?.hvz_a && parentOrder?.logistics?.hvz_b ? 'both' : 'a');
-            const hvzMethod = parentOrder?.orderMeta?.hvzMethod || (parentOrder?.logistics?.hvz_external ? 'extern' : 'selbst');
-            const hvzAddress = hvzLoc === 'b' ? (addressB || 'Einzugsadresse') : (addressA || 'Auszugsadresse');
-
-            const liftLoc = parentOrder?.orderMeta?.moebelliftLocation || 'a';
-            const liftAddress = liftLoc === 'b' ? (addressB || 'Einzugsadresse') : (addressA || 'Auszugsadresse');
-            const liftDuration = parentOrder?.orderMeta?.moebelliftDuration || '3';
-            const liftEndTime = parentOrder?.orderMeta?.moebelliftEndTime || '';
-
-            const targetMapAddress = isHV ? hvzAddress : isLift ? liftAddress : addressA;
 
             return (
               <div
@@ -787,26 +876,23 @@ export default function LogisticsPage() {
                     ? 'border-slate-200 dark:border-slate-800 opacity-75 hover:opacity-100'
                     : todo.dueDateStatus === 'overdue'
                       ? 'border-amber-400/80 dark:border-amber-500/50'
-                      : 'border-slate-200/90 dark:border-slate-800 hover:border-emerald-500/40'
+                      : 'border-slate-200/90 dark:border-slate-800 hover:border-[#6E8F64]/50'
                 }`}
               >
-                {/* 1. COMPACT TOP BAR: Symbol Badge + Scheduled Pill + Order Number */}
                 <div className="space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      {/* Category Symbol Pill */}
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border ${catMeta.color}`}>
                         <span className="material-symbols-outlined text-sm">{catMeta.symbol}</span>
                         <span>{catMeta.label}</span>
                         <span className="opacity-75">• {catMeta.shortInfo}</span>
                       </span>
 
-                      {/* Scheduled Date Badge or Fällig Indicator */}
                       {scheduled ? (
                         <button
                           type="button"
                           onClick={(e) => openScheduleModal(todo, parentOrder, e)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-bold bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] border border-[#6E8F64]/30 hover:bg-[#6E8F64]/25 transition-colors cursor-pointer"
                           title="Termin ändern"
                         >
                           <CalendarDaysIcon className="w-3 h-3" />
@@ -825,12 +911,12 @@ export default function LogisticsPage() {
                     </span>
                   </div>
 
-                  {/* 2. CUSTOMER ROW + SYMBOL TOOLBAR (Replaces bulky boxes!) */}
+                  {/* Customer & Quick Symbol Bar */}
                   <div className="flex items-center justify-between gap-2 pt-1">
                     <div className="min-w-0">
                       <Link
                         href={todo.customerId ? `/dashboard/customers/${todo.customerId}` : `/dashboard/orders`}
-                        className="font-headline font-bold text-sm sm:text-base text-slate-900 dark:text-white hover:text-emerald-600 transition-colors block truncate"
+                        className="font-headline font-bold text-sm sm:text-base text-slate-900 dark:text-white hover:text-[#6E8F64] transition-colors block truncate"
                       >
                         {custName}
                       </Link>
@@ -840,19 +926,20 @@ export default function LogisticsPage() {
                         <span>•</span>
                         <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0">{moveDate}</span>
                       </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-1">
+                        {catMeta.detailSubtext}
+                      </p>
                     </div>
 
-                    {/* Quick Action Symbol Toolbar (Symbole) */}
                     <div className="flex items-center gap-1 shrink-0">
-                      {/* 📅 Termin Symbol */}
                       {isLogisticsSchedulable && (
                         <button
                           type="button"
                           onClick={(e) => openScheduleModal(todo, parentOrder, e)}
                           className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
                             scheduled
-                              ? 'bg-emerald-50 dark:bg-emerald-950/50 border-emerald-500/30 text-emerald-600'
-                              : 'bg-slate-100 dark:bg-slate-800 border-transparent text-slate-500 hover:text-emerald-600 hover:bg-emerald-500/10'
+                              ? 'bg-[#6E8F64]/15 border-[#6E8F64]/35 text-[#435E3A] dark:text-[#B5D1AC]'
+                              : 'bg-slate-100 dark:bg-slate-800 border-transparent text-slate-500 hover:text-[#6E8F64] hover:bg-[#6E8F64]/15'
                           }`}
                           title={scheduled ? 'Termin ändern' : 'Datum & Zeitfenster planen'}
                         >
@@ -860,118 +947,65 @@ export default function LogisticsPage() {
                         </button>
                       )}
 
-                      {/* 📍 Maps Symbol */}
-                      {targetMapAddress && (
+                      {catMeta.mapAddress && (
                         <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(targetMapAddress)}`}
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(catMeta.mapAddress)}`}
                           target="_blank"
                           rel="noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-emerald-600 hover:bg-emerald-500/10 transition-all"
-                          title={`In Google Maps öffnen: ${targetMapAddress}`}
+                          className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-[#6E8F64] hover:bg-[#6E8F64]/15 transition-all"
+                          title={`In Google Maps öffnen: ${catMeta.mapAddress}`}
                         >
                           <MapPinIcon className="w-4 h-4" />
                         </a>
                       )}
 
-                      {/* 💬 WhatsApp Symbol */}
                       {custPhone && (
                         <button
                           type="button"
-                          onClick={(e) => {
-                            if (isViewing) {
-                              const timeText = parentOrder?.orderMeta?.viewingTime ? ` um ${parentOrder.orderMeta.viewingTime} Uhr` : '';
-                              handleDirectWhatsApp(custPhone, `Hallo ${custName}, ich bin pünktlich auf dem Weg zu Ihnen für unseren Besichtigungstermin${timeText}. Bis gleich!`, e);
-                            } else if (isKarton && scheduled) {
-                              handleDirectWhatsApp(custPhone, `Guten Tag ${custName}, Ihre Umzugskartons werden am ${scheduled.date} ${scheduled.time ? 'im Zeitfenster ' + scheduled.time : ''} geliefert. Viele Grüße, Rothirsch Umzüge`, e);
-                            } else {
-                              handleDirectWhatsApp(custPhone, undefined, e);
-                            }
-                          }}
-                          className="p-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 hover:bg-emerald-100 transition-all cursor-pointer"
+                          onClick={(e) => triggerTaskWhatsApp(todo, parentOrder, custPhone, custName, scheduled, e)}
+                          className="p-1.5 rounded-xl bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] hover:bg-[#6E8F64] hover:text-white transition-all cursor-pointer"
                           title={`WhatsApp an ${custName} senden`}
                         >
                           <ChatBubbleLeftRightIcon className="w-4 h-4" />
                         </button>
                       )}
 
-                      {/* ⌄ Accordion Toggle Symbol (Details ein-/ausblenden) */}
                       <button
                         type="button"
                         onClick={(e) => toggleExpandCard(cardKey, e)}
                         className={`p-1.5 rounded-xl transition-all cursor-pointer ${
                           isExpanded
-                            ? 'bg-emerald-600 text-white'
+                            ? 'bg-[#6E8F64] text-white'
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white'
                         }`}
                         title={isExpanded ? 'Details zuklappen' : 'Details aufklappen'}
                       >
-                        {isExpanded ? (
-                          <ChevronUpIcon className="w-4 h-4" />
-                        ) : (
-                          <ChevronDownIcon className="w-4 h-4" />
-                        )}
+                        {isExpanded ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
                       </button>
                     </div>
                   </div>
 
-                  {/* 3. COLLAPSIBLE DETAILS DRAWER (Only visible when user clicks ⌄) */}
                   {isExpanded && (
-                    <div className="pt-2.5 mt-2 border-t border-slate-100 dark:border-slate-800 space-y-2 text-xs animate-in fade-in duration-150">
-                      <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                    <div className="pt-2.5 mt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-xs animate-in fade-in duration-150">
+                      <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">
                         {todo.title}
                       </p>
-
-                      {isKarton && matSummary && (
-                        <div className="p-2.5 rounded-xl bg-orange-50/60 dark:bg-orange-950/20 border border-orange-200/50 dark:border-orange-900/40 text-[11px] text-slate-700 dark:text-slate-300">
-                          <span className="font-bold block">Material-Aufschlüsselung ({matSummary.total} Stk.):</span>
-                          <span>
-                            {matSummary.standard > 0 ? `${matSummary.standard}x Standard ` : ''}
-                            {matSummary.buecher > 0 ? `• ${matSummary.buecher}x Bücher ` : ''}
-                            {matSummary.kleider > 0 ? `• ${matSummary.kleider}x Kleider` : ''}
-                            {matSummary.total === 0 ? 'Noch keine Kartons im Angebot eingetragen' : ''}
-                          </span>
-                        </div>
-                      )}
-
-                      {isHV && (
-                        <div className="p-2.5 rounded-xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/50 dark:border-amber-900/40 text-[11px] space-y-1">
-                          <div className="flex items-center justify-between font-bold text-slate-700 dark:text-slate-200">
-                            <span>Aufstellung: {hvzMethod === 'extern' ? 'Externe Firma' : 'Selbst (Rothirsch)'}</span>
-                            <span>Ort: {hvzLoc === 'b' ? 'Einzug (B)' : hvzLoc === 'both' ? 'Beide (A & B)' : 'Auszug (A)'}</span>
-                          </div>
-                          {hvzAddress && <p className="text-slate-500 truncate">📍 {hvzAddress}</p>}
-                        </div>
-                      )}
-
-                      {isLift && (
-                        <div className="p-2.5 rounded-xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/50 dark:border-blue-900/40 text-[11px] space-y-1">
-                          <div className="flex items-center justify-between font-bold text-slate-700 dark:text-slate-200">
-                            <span>Ort: {liftLoc === 'b' ? 'Einzug (B)' : 'Auszug (A)'}</span>
-                            <span>{parentOrder?.orderMeta?.moebelliftTime ? `${parentOrder.orderMeta.moebelliftTime} - ${liftEndTime} (${liftDuration} Std.)` : `Dauer: ${liftDuration} Std.`}</span>
-                          </div>
-                          {liftAddress && <p className="text-slate-500 truncate">📍 {liftAddress}</p>}
-                        </div>
-                      )}
-
-                      {isViewing && addressA && (
-                        <div className="p-2.5 rounded-xl bg-purple-50/60 dark:bg-purple-950/20 border border-purple-200/50 dark:border-purple-900/40 text-[11px] text-slate-700 dark:text-slate-300">
-                          <span className="font-bold block">{parentOrder?.orderMeta?.viewingType || 'Vor-Ort Besichtigung'}</span>
-                          <span className="truncate block">📍 {addressA}</span>
-                        </div>
-                      )}
+                      <p className="text-[11px] text-slate-500">
+                        {catMeta.detailSubtext}
+                      </p>
                     </div>
                   )}
                 </div>
 
-                {/* 4. CARD BOTTOM: GREEN PRIMARY BUTTONS ("Besichtigung starten" & "Als erledigt markieren") */}
+                {/* Card Bottom: Light Olive-Sage Green Action Buttons */}
                 <div className="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
                   {!todo.done ? (
                     <>
                       {isViewing && parentOrder?.customerId && (
                         <Link
                           href={`/dashboard/customers/${parentOrder.customerId}/edit-order/${parentOrder.id}?step=4`}
-                          className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs shadow-emerald-600/20 transition-all"
+                          className="flex-1 py-2 px-3 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs shadow-[#6E8F64]/20 transition-all"
                           title="Direkt zu Schritt 4 (Umzugsliste & Möbel) springen"
                         >
                           <span className="material-symbols-outlined text-sm">chair</span>
@@ -984,8 +1018,8 @@ export default function LogisticsPage() {
                         onClick={(e) => handleToggleTask(todo, e)}
                         className={`${
                           isViewing && parentOrder?.customerId
-                            ? 'px-3 py-2 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 hover:bg-emerald-600 hover:text-white'
-                            : 'w-full py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs shadow-emerald-600/20'
+                            ? 'px-3 py-2 bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] border border-[#6E8F64]/35 hover:bg-[#6E8F64] hover:text-white'
+                            : 'w-full py-2 px-4 bg-[#6E8F64] hover:bg-[#5C7A53] text-white shadow-xs shadow-[#6E8F64]/20'
                         } rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 group active:scale-95 cursor-pointer`}
                       >
                         <CheckIcon className="w-4 h-4 transition-transform group-hover:scale-110" />
@@ -994,7 +1028,7 @@ export default function LogisticsPage() {
                     </>
                   ) : (
                     <div className="w-full flex items-center justify-between">
-                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                      <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#6E8F64]">
                         <CheckIcon className="w-4 h-4" />
                         <span>Erledigt</span>
                       </span>
@@ -1021,9 +1055,7 @@ export default function LogisticsPage() {
           onClose={() => setIsModalOpen(false)}
           todo={modalTodo}
           parentOrder={modalOrder}
-          onSaved={() => {
-            // Realtime listener in Firestore automatically re-triggers snapshot
-          }}
+          onSaved={() => {}}
         />
       )}
     </div>

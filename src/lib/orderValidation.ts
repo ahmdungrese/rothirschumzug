@@ -204,6 +204,13 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
   else if (phase === 3) {
     // 1. Umzugskartons / Verpackungsmaterial
     const isBoxesDone = isTaskCompleted(order, 'kartons');
+    const needsBoxes = Boolean(
+      totalBoxes > 0 ||
+      logistics?.boxDeliveryDate ||
+      order?.orderMeta?.kartonDeliveryDate ||
+      services?.packservice ||
+      isBoxesDone
+    );
     const boxBreakdown = [
       standardBoxes > 0 ? `${standardBoxes}x Standard` : '',
       buecherBoxes > 0 ? `${buecherBoxes}x Bücher` : '',
@@ -217,10 +224,10 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
     checklist.push({
       id: 'kartons',
       label: boxLabel,
-      done: isBoxesDone,
+      done: needsBoxes ? isBoxesDone : true,
       type: 'kartons',
       isAutomated: false,
-      missingReason: !isBoxesDone ? 'Verpackungsmaterial ist gebucht, aber noch nicht ausgeliefert.' : undefined,
+      missingReason: (!isBoxesDone && needsBoxes) ? 'Verpackungsmaterial ist gebucht, aber noch nicht ausgeliefert.' : undefined,
       date: logistics?.boxDeliveryDate || order?.orderMeta?.kartonDeliveryDate,
       details: boxBreakdown || (totalBoxes > 0 ? `${totalBoxes} Kartons` : undefined)
     });
@@ -235,6 +242,8 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
       logistics?.needHVZ || 
       hasHVZService || 
       services?.halteverbot ||
+      logistics?.hvzDate ||
+      order?.orderMeta?.halteverbotDate ||
       order?.servicesList?.some((s: any) => (s.name || '').toLowerCase().includes('halteverbot'))
     );
     const isHVZDone = isTaskCompleted(order, 'hvz');
@@ -245,7 +254,7 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
         : needsHVZ 
           ? 'HVZ Halteverbot beantragen (Gebucht)' 
           : 'HVZ Halteverbot einrichten (Optional)',
-      done: isHVZDone,
+      done: needsHVZ ? isHVZDone : true,
       type: 'hvz',
       isAutomated: false,
       missingReason: (!isHVZDone && needsHVZ) ? 'Halteverbotszone ist gebucht, aber noch nicht bestätigt.' : undefined,
@@ -266,12 +275,14 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
       logistics?.needLift || 
       hasLiftService || 
       services?.moebellift || 
+      order?.orderMeta?.moebelliftDate ||
+      logistics?.moebelliftDate ||
       (floorA > 0 && highFloorWithoutElevatorA) || 
       (floorB > 0 && highFloorWithoutElevatorB)
     );
 
-    if (needsLift || isTaskCompleted(order, 'moebellift')) {
-      const isLiftDone = isTaskCompleted(order, 'moebellift');
+    const isLiftDone = isTaskCompleted(order, 'moebellift');
+    if (needsLift || isLiftDone) {
       checklist.push({
         id: 'moebellift',
         label: isLiftDone ? 'Möbellift reserviert' : 'Möbellift reservieren (Erforderlich)',
@@ -279,20 +290,9 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
         type: 'moebellift',
         isAutomated: false,
         missingReason: !isLiftDone ? 'Möbellift wird benötigt, ist aber noch nicht reserviert.' : undefined,
-        date: order?.orderMeta?.moebelliftDate
+        date: order?.orderMeta?.moebelliftDate || logistics?.moebelliftDate
       });
     }
-
-    // 4. Umzugsteam Zuteilung
-    const isTeamDone = isTaskCompleted(order, 'team');
-    checklist.push({
-      id: 'team',
-      label: isTeamDone ? 'Umzugsteam disponiert' : 'Umzugsteam / Mitarbeiter zuteilen',
-      done: isTeamDone,
-      type: 'team',
-      isAutomated: false,
-      missingReason: !isTeamDone ? 'Dem Auftrag wurden noch keine Mitarbeiter zugeteilt.' : undefined
-    });
   }
 
   // =========================================================================

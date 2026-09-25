@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, Svg, Path, Rect, G, Circle } from '@react-pdf/r
 interface PDFWatermarkProps {
   type?: 'symbols' | 'text';
   text?: string;
+  softRows?: number[];
 }
 
 // Exact vector contours of the official Rothirsch logo (House behind + Rothirsch deer in front)
@@ -41,7 +42,11 @@ const styles = StyleSheet.create({
   },
 });
 
-export const PDFWatermark: React.FC<PDFWatermarkProps> = ({ type = 'symbols', text = 'Rothirsch Umzug' }) => {
+export const PDFWatermark: React.FC<PDFWatermarkProps> = ({
+  type = 'symbols',
+  text = 'Rothirsch Umzug',
+  softRows = [],
+}) => {
   if (type === 'text') {
     return (
       <View style={styles.textContainer} fixed>
@@ -50,96 +55,125 @@ export const PDFWatermark: React.FC<PDFWatermarkProps> = ({ type = 'symbols', te
     );
   }
 
-  // Dichtes 6x9 Zellengitter (54 Zellen) exakt zwischen Kopfzeile und Fußzeile
+  // Dichtes 6x9 Zellengitter (54 Zellen) sicher unterhalb der Kopfzeile/Absenderzeile bis vor die Fußzeile
   const COLS = [48, 138, 228, 318, 408, 498];
-  const ROWS = [140, 210, 280, 350, 420, 490, 560, 630, 700];
+  const ROWS = [154, 220, 286, 352, 418, 484, 550, 616, 682];
 
   // Geometrische Skalierungs-Variation: Groß, Mittel, Klein
-  // IMPORTANT: Use solid pre-blended Bordeaux tints (#F3E3E6, #F6E9EB, #F8EFF1) instead of SVG opacity
-  // to prevent @react-pdf/pdfkit from leaking graphics state opacity to PDFHeader and PDFFooter!
+  // Für erklärende Textbereiche (softRows, z.B. Versicherungsschutz, Zahlungsbedingungen, Beauftragung)
+  // werden die Symbole deutlich sanfter und weniger intensiv (#FAF3F5 / #FBF6F7) sowie feiner gezeichnet,
+  // damit der Fließtext darüber glasklar lesbar bleibt, ohne weiße Boxen über den Text legen zu müssen.
   const getScaleAndColor = (rowIdx: number, colIdx: number) => {
+    const isSoft = softRows.includes(rowIdx);
     const pattern = (rowIdx + colIdx) % 3;
     if (pattern === 0) {
-      return { scale: 0.58, strokeColor: '#F3E3E6' }; // Groß
+      return {
+        scale: 0.58,
+        strokeColor: isSoft ? '#FAF2F4' : '#F3E3E6', // Groß
+        strokeFactor: isSoft ? 0.65 : 1,
+      };
     } else if (pattern === 1) {
-      return { scale: 0.32, strokeColor: '#F8EFF1' }; // Klein
+      return {
+        scale: 0.32,
+        strokeColor: isSoft ? '#FCF8F9' : '#F8EFF1', // Klein
+        strokeFactor: isSoft ? 0.65 : 1,
+      };
     } else {
-      return { scale: 0.44, strokeColor: '#F6E9EB' }; // Mittel
+      return {
+        scale: 0.44,
+        strokeColor: isSoft ? '#FBF5F7' : '#F6E9EB', // Mittel
+        strokeFactor: isSoft ? 0.65 : 1,
+      };
     }
   };
 
-  const renderCellIcon = (iconIndex: number, x: number, y: number, scale: number, strokeColor: string, key: string) => {
+  const renderCellIcon = (
+    iconIndex: number,
+    x: number,
+    y: number,
+    scale: number,
+    strokeColor: string,
+    strokeFactor: number,
+    key: string
+  ) => {
+    const sw25 = 2.5 * strokeFactor;
+    const sw22 = 2.2 * strokeFactor;
+    const sw20 = 2.0 * strokeFactor;
+    const sw18 = 1.8 * strokeFactor;
+    const sw30 = 3.0 * strokeFactor;
+    const sw35 = 3.5 * strokeFactor;
+
     switch (iconIndex) {
       case 0:
         // 1. Umzugskarton 3D
         return (
           <G key={key} transform={`translate(${x - 40 * scale}, ${y - 42 * scale}) scale(${scale})`}>
-            <Path d="M40 5 L75 22 L75 65 L40 82 L5 65 L5 22 Z" fill="none" stroke={strokeColor} strokeWidth={2.5} />
-            <Path d="M40 5 L40 82" stroke={strokeColor} strokeWidth={2} />
-            <Path d="M5 22 L40 40 L75 22" fill="none" stroke={strokeColor} strokeWidth={2} />
-            <Path d="M40 5 L40 40" stroke={strokeColor} strokeWidth={3.5} />
+            <Path d="M40 5 L75 22 L75 65 L40 82 L5 65 L5 22 Z" fill="none" stroke={strokeColor} strokeWidth={sw25} />
+            <Path d="M40 5 L40 82" stroke={strokeColor} strokeWidth={sw20} />
+            <Path d="M5 22 L40 40 L75 22" fill="none" stroke={strokeColor} strokeWidth={sw20} />
+            <Path d="M40 5 L40 40" stroke={strokeColor} strokeWidth={sw35} />
           </G>
         );
       case 1:
         // 2. Moderner Umzugs-LKW
         return (
           <G key={key} transform={`translate(${x - 55 * scale}, ${y - 30 * scale}) scale(${scale})`}>
-            <Rect x="5" y="10" width="68" height="40" rx="2" fill="none" stroke={strokeColor} strokeWidth={2.5} />
-            <Path d="M73 22 L89 22 L100 35 L100 50 L73 50 Z" fill="none" stroke={strokeColor} strokeWidth={2.5} />
-            <Path d="M77 25 L87 25 L95 35 L77 35 Z" fill="none" stroke={strokeColor} strokeWidth={1.8} />
-            <Circle cx="24" cy="50" r="6.8" fill="none" stroke={strokeColor} strokeWidth={2.5} />
-            <Circle cx="84" cy="50" r="6.8" fill="none" stroke={strokeColor} strokeWidth={2.5} />
+            <Rect x="5" y="10" width="68" height="40" rx="2" fill="none" stroke={strokeColor} strokeWidth={sw25} />
+            <Path d="M73 22 L89 22 L100 35 L100 50 L73 50 Z" fill="none" stroke={strokeColor} strokeWidth={sw25} />
+            <Path d="M77 25 L87 25 L95 35 L77 35 Z" fill="none" stroke={strokeColor} strokeWidth={sw18} />
+            <Circle cx="24" cy="50" r="6.8" fill="none" stroke={strokeColor} strokeWidth={sw25} />
+            <Circle cx="84" cy="50" r="6.8" fill="none" stroke={strokeColor} strokeWidth={sw25} />
           </G>
         );
       case 2:
         // 3. Sackkarre / Handkarre mit Karton
         return (
           <G key={key} transform={`translate(${x - 22 * scale}, ${y - 38 * scale}) scale(${scale})`}>
-            <Path d="M15 10 L15 65 L40 65" fill="none" stroke={strokeColor} strokeWidth={2.5} />
-            <Path d="M10 12 L15 10" stroke={strokeColor} strokeWidth={2.5} />
-            <Circle cx="15" cy="65" r="7" fill="none" stroke={strokeColor} strokeWidth={2.5} />
-            <Rect x="20" y="35" width="28" height="25" rx="1.5" fill="none" stroke={strokeColor} strokeWidth={2} />
+            <Path d="M15 10 L15 65 L40 65" fill="none" stroke={strokeColor} strokeWidth={sw25} />
+            <Path d="M10 12 L15 10" stroke={strokeColor} strokeWidth={sw25} />
+            <Circle cx="15" cy="65" r="7" fill="none" stroke={strokeColor} strokeWidth={sw25} />
+            <Rect x="20" y="35" width="28" height="25" rx="1.5" fill="none" stroke={strokeColor} strokeWidth={sw20} />
           </G>
         );
       case 3:
         // 4. Kartonstapel (2 Boxen)
         return (
           <G key={key} transform={`translate(${x - 35 * scale}, ${y - 38 * scale}) scale(${scale})`}>
-            <Rect x="10" y="35" width="55" height="35" rx="2" fill="none" stroke={strokeColor} strokeWidth={2.5} />
-            <Path d="M10 44 L65 44" stroke={strokeColor} strokeWidth={1.8} />
-            <Rect x="18" y="5" width="40" height="30" rx="2" fill="none" stroke={strokeColor} strokeWidth={2.5} />
-            <Path d="M18 13 L58 13" stroke={strokeColor} strokeWidth={1.8} />
+            <Rect x="10" y="35" width="55" height="35" rx="2" fill="none" stroke={strokeColor} strokeWidth={sw25} />
+            <Path d="M10 44 L65 44" stroke={strokeColor} strokeWidth={sw18} />
+            <Rect x="18" y="5" width="40" height="30" rx="2" fill="none" stroke={strokeColor} strokeWidth={sw25} />
+            <Path d="M18 13 L58 13" stroke={strokeColor} strokeWidth={sw18} />
           </G>
         );
       case 4:
         // 5. Möbel / Moderner Sessel
         return (
           <G key={key} transform={`translate(${x - 35 * scale}, ${y - 35 * scale}) scale(${scale})`}>
-            <Path d="M15 15 C15 8, 55 8, 55 15 L55 38 L15 38 Z" fill="none" stroke={strokeColor} strokeWidth={2.5} />
-            <Rect x="10" y="38" width="50" height="15" rx="3" fill="none" stroke={strokeColor} strokeWidth={2.2} />
-            <Path d="M10 26 L10 53 M60 26 L60 53" stroke={strokeColor} strokeWidth={3} />
-            <Path d="M16 53 L13 65 M54 53 L57 65" stroke={strokeColor} strokeWidth={2.5} />
+            <Path d="M15 15 C15 8, 55 8, 55 15 L55 38 L15 38 Z" fill="none" stroke={strokeColor} strokeWidth={sw25} />
+            <Rect x="10" y="38" width="50" height="15" rx="3" fill="none" stroke={strokeColor} strokeWidth={sw22} />
+            <Path d="M10 26 L10 53 M60 26 L60 53" stroke={strokeColor} strokeWidth={sw30} />
+            <Path d="M16 53 L13 65 M54 53 L57 65" stroke={strokeColor} strokeWidth={sw25} />
           </G>
         );
       case 5:
         // 6. Zerbrechlich / Glas-Symbol (Fragile)
         return (
           <G key={key} transform={`translate(${x - 28 * scale}, ${y - 30 * scale}) scale(${scale})`}>
-            <Path d="M20 10 C20 30, 45 30, 45 10 Z" fill="none" stroke={strokeColor} strokeWidth={2.5} />
-            <Path d="M32.5 30 L32.5 50" stroke={strokeColor} strokeWidth={2.5} />
-            <Path d="M22 50 L43 50" stroke={strokeColor} strokeWidth={2.5} />
-            <Path d="M28 10 L30 18 L26 23" fill="none" stroke={strokeColor} strokeWidth={1.8} />
+            <Path d="M20 10 C20 30, 45 30, 45 10 Z" fill="none" stroke={strokeColor} strokeWidth={sw25} />
+            <Path d="M32.5 30 L32.5 50" stroke={strokeColor} strokeWidth={sw25} />
+            <Path d="M22 50 L43 50" stroke={strokeColor} strokeWidth={sw25} />
+            <Path d="M28 10 L30 18 L26 23" fill="none" stroke={strokeColor} strokeWidth={sw18} />
           </G>
         );
       case 6:
         // 7. Auftrags-Klemmbrett / Checkliste
         return (
           <G key={key} transform={`translate(${x - 30 * scale}, ${y - 35 * scale}) scale(${scale})`}>
-            <Rect x="10" y="10" width="45" height="60" rx="3" fill="none" stroke={strokeColor} strokeWidth={2.5} />
-            <Rect x="22" y="5" width="20" height="9" rx="1.5" fill="none" stroke={strokeColor} strokeWidth={2} />
-            <Path d="M18 25 L22 29 L30 21 M35 25 L48 25" stroke={strokeColor} strokeWidth={2} fill="none" />
-            <Path d="M18 40 L22 44 L30 36 M35 40 L48 40" stroke={strokeColor} strokeWidth={2} fill="none" />
-            <Path d="M18 55 L22 59 L30 51 M35 55 L48 55" stroke={strokeColor} strokeWidth={2} fill="none" />
+            <Rect x="10" y="10" width="45" height="60" rx="3" fill="none" stroke={strokeColor} strokeWidth={sw25} />
+            <Rect x="22" y="5" width="20" height="9" rx="1.5" fill="none" stroke={strokeColor} strokeWidth={sw20} />
+            <Path d="M18 25 L22 29 L30 21 M35 25 L48 25" stroke={strokeColor} strokeWidth={sw20} fill="none" />
+            <Path d="M18 40 L22 44 L30 36 M35 40 L48 40" stroke={strokeColor} strokeWidth={sw20} fill="none" />
+            <Path d="M18 55 L22 59 L30 51 M35 55 L48 55" stroke={strokeColor} strokeWidth={sw20} fill="none" />
           </G>
         );
       case 7: {
@@ -152,7 +186,7 @@ export const PDFWatermark: React.FC<PDFWatermarkProps> = ({ type = 'symbols', te
               d={ROTHIRSCH_HOUSE_OUTLINE_PATH}
               fill="#FFFFFF"
               stroke={strokeColor}
-              strokeWidth={2.5}
+              strokeWidth={sw25}
               strokeLinejoin="round"
             />
             {/* 2. Weißer Trennungs-Halo (Abstand zwischen Haus und Hirsch wie im Original-Logo) */}
@@ -180,8 +214,8 @@ export const PDFWatermark: React.FC<PDFWatermarkProps> = ({ type = 'symbols', te
         {ROWS.map((y, rowIdx) =>
           COLS.map((x, colIdx) => {
             const cellIndex = (rowIdx * COLS.length + colIdx) % 8;
-            const { scale, strokeColor } = getScaleAndColor(rowIdx, colIdx);
-            return renderCellIcon(cellIndex, x, y, scale, strokeColor, `grid-${rowIdx}-${colIdx}`);
+            const { scale, strokeColor, strokeFactor } = getScaleAndColor(rowIdx, colIdx);
+            return renderCellIcon(cellIndex, x, y, scale, strokeColor, strokeFactor, `grid-${rowIdx}-${colIdx}`);
           })
         )}
       </Svg>

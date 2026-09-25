@@ -28,7 +28,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/navigation';
 import { evaluateOrderLogistics } from '@/lib/orderValidation';
-import { toggleTaskCompletion } from '@/lib/taskStateController';
+import { toggleTaskCompletion, isTaskCompleted } from '@/lib/taskStateController';
 import { TaskScheduleModal } from '@/components/logistics/TaskScheduleModal';
 import { SignatureModal } from '@/components/orders/SignatureModal';
 import { ProtocolModal } from '@/components/customers/ProtocolModal';
@@ -50,12 +50,12 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
   const router = useRouter();
   const [order, setOrder] = useState<any>(initialOrder);
 
-  // Sync when initialOrder prop changes
+  // Sync when switching to a different order ID (keep live onSnapshot as single source of truth for current order)
   useEffect(() => {
-    if (initialOrder) {
+    if (initialOrder?.id && initialOrder.id !== order?.id) {
       setOrder(initialOrder);
     }
-  }, [initialOrder]);
+  }, [initialOrder?.id]);
 
   // Real-time Firestore listener so any date/status change in TaskScheduleModal or SignatureModal updates immediately
   useEffect(() => {
@@ -309,13 +309,47 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
     return { standard, buecher, kleider, total: standard + buecher + kleider };
   })();
 
-  // Handle task toggling via state controller
+  // Handle task toggling via state controller with immediate optimistic local update
   const handleToggleTask = async (taskId: string, label: string) => {
     if (isUpdatingTask) return;
     setIsUpdatingTask(true);
     try {
       const res = await toggleTaskCompletion(order, taskId);
-      toast.success(res.newState ? `${label} als erledigt markiert` : `${label} wiedereröffnet`);
+      const nextDone = res.newState;
+      setOrder((prev: any) => {
+        if (!prev) return prev;
+        const nextTicketStates = { ...(prev.ticketStates || {}) };
+        const nextChecklistDone = { ...(prev.checklistDone || {}) };
+        const nextLogistics = { ...(prev.logistics || {}) };
+        if (taskId === 'moebellift_buchen' || taskId === 'moebellift') {
+          nextTicketStates.moebellift_buchen = nextDone;
+          nextChecklistDone.moebellift = nextDone;
+          nextChecklistDone.moebellift_buchen = nextDone;
+          nextLogistics.liftReserved = nextDone;
+          nextLogistics.liftStatus = nextDone ? 'confirmed' : 'pending';
+        } else if (taskId === 'halteverbot' || taskId === 'hvz') {
+          nextTicketStates.halteverbot = nextDone;
+          nextChecklistDone.hvz = nextDone;
+          nextChecklistDone.halteverbot = nextDone;
+          nextLogistics.hvzConfirmed = nextDone;
+          nextLogistics.hvzStatus = nextDone ? 'confirmed' : 'pending';
+        } else if (taskId === 'kartons_liefern' || taskId === 'kartons') {
+          nextTicketStates.kartons_liefern = nextDone;
+          nextChecklistDone.kartons = nextDone;
+          nextChecklistDone.kartons_liefern = nextDone;
+          nextLogistics.boxesDelivered = nextDone;
+        } else {
+          nextTicketStates[taskId] = nextDone;
+          nextChecklistDone[taskId] = nextDone;
+        }
+        return {
+          ...prev,
+          ticketStates: nextTicketStates,
+          checklistDone: nextChecklistDone,
+          logistics: nextLogistics,
+        };
+      });
+      toast.success(nextDone ? `${label} als erledigt markiert ✓` : `${label} wiedereröffnet`);
       if (onRefresh) onRefresh();
     } catch (e) {
       console.error(e);
@@ -878,10 +912,10 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                       </div>
                     )}
 
-                    <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-900/40 flex items-center gap-2">
+                    <div className="pt-2 border-t border-[#6E8F64]/25 flex items-center gap-2">
                       <Link
                         href={`${editOrderUrl}${editOrderUrl.includes('?') ? '&' : '?'}step=4`}
-                        className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                        className="flex-1 py-2 px-3 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors"
                       >
                         <span className="material-symbols-outlined text-sm">chair</span>
                         <span>Besichtigung starten (Umzugsliste)</span>
@@ -893,7 +927,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                             const timeText = order.orderMeta?.viewingTime ? ` (${order.orderMeta.viewingTime})` : '';
                             handleDirectWhatsApp(`Hallo ${custName}, ich bin pünktlich auf dem Weg zu Ihnen für unseren Besichtigungstermin${timeText}. Bis gleich!`);
                           }}
-                          className="px-3 py-2 rounded-xl bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 hover:bg-emerald-800 transition-colors"
+                          className="px-3 py-2 rounded-xl bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] hover:bg-[#6E8F64] hover:text-white border border-[#6E8F64]/35 text-xs font-bold flex items-center gap-1 transition-colors"
                           title="Ich bin unterwegs senden"
                         >
                           <ChatBubbleLeftRightIcon className="w-4 h-4" />
@@ -909,7 +943,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                     </p>
                     <Link
                       href={`${editOrderUrl}${editOrderUrl.includes('?') ? '&' : '?'}step=4`}
-                      className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+                      className="w-full py-2 px-3 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs"
                     >
                       <span className="material-symbols-outlined text-sm">chair</span>
                       <span>Besichtigung starten (Umzugsliste)</span>
@@ -992,26 +1026,70 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           {/* ========================================================================= */}
           {/* PHASE 3: BESTÄTIGT / LOGISTIK-CHECKLISTE & VORBEREITUNG */}
           {/* ========================================================================= */}
-          {activePhaseTab === 3 && (
+          {activePhaseTab === 3 && (() => {
+            const isKartonsDone = isTaskCompleted(order, 'kartons');
+            const isHvzDone = isTaskCompleted(order, 'hvz');
+            const isLiftDone = isTaskCompleted(order, 'moebellift');
+
+            const needsKartons = Boolean(
+              matSummary.total > 0 ||
+              order.logistics?.boxDeliveryDate ||
+              order.orderMeta?.kartonDeliveryDate ||
+              isKartonsDone
+            );
+            const hasHVZService = Array.isArray(order.services) && order.services.some((s: any) =>
+              (s.name || '').toLowerCase().includes('halteverbot') || (s.name || '').toLowerCase().includes('hvz')
+            );
+            const needsHvz = Boolean(
+              order.logistics?.a_parking ||
+              order.logistics?.b_parking ||
+              order.logistics?.needHVZ ||
+              hasHVZService ||
+              order.services?.halteverbot ||
+              order.logistics?.hvzDate ||
+              order.orderMeta?.halteverbotDate ||
+              isHvzDone
+            );
+            const hasLiftService = Array.isArray(order.services) && order.services.some((s: any) =>
+              (s.name || '').toLowerCase().includes('möbellift') || (s.name || '').toLowerCase().includes('moebellift') || (s.name || '').toLowerCase().includes('lift')
+            );
+            const needsLift = Boolean(
+              order.logistics?.a_furnitureLift ||
+              order.logistics?.b_furnitureLift ||
+              order.logistics?.needLift ||
+              hasLiftService ||
+              order.services?.moebellift ||
+              order.orderMeta?.moebelliftDate ||
+              order.logistics?.moebelliftDate ||
+              isLiftDone
+            );
+
+            const isPhase3Ready =
+              (!needsKartons || isKartonsDone) &&
+              (!needsHvz || isHvzDone) &&
+              (!needsLift || isLiftDone) &&
+              (isKartonsDone || isHvzDone || isLiftDone || (!needsKartons && !needsHvz && !needsLift));
+
+            return (
             <div className="space-y-6">
               {/* Readiness Banner */}
               <div className={`p-4 rounded-2xl border ${
-                evaluation.isComplete
+                isPhase3Ready
                   ? 'bg-emerald-50/80 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300'
                   : 'bg-amber-50/80 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-300'
               }`}>
                 <div className="flex items-center gap-2 mb-1">
                   <span className="material-symbols-outlined text-lg">
-                    {evaluation.isComplete ? 'verified' : 'warning'}
+                    {isPhase3Ready ? 'verified' : 'warning'}
                   </span>
                   <h3 className="text-sm font-bold font-headline">
-                    {evaluation.isComplete ? 'Logistik vollständig bereit!' : 'Logistik-Vorbereitung unvollständig'}
+                    {isPhase3Ready ? 'Logistik vollständig bereit!' : 'Logistik-Vorbereitung unvollständig'}
                   </h3>
                 </div>
                 <p className="text-xs opacity-90">
-                  {evaluation.isComplete 
+                  {isPhase3Ready 
                     ? 'Alle Termine und Vorbereitungen für den Umzugstag sind abgeschlossen.'
-                    : 'Bitte plane die Termine für Kartons, Halteverbotszone und weise das Team zu.'}
+                    : 'Bitte plane die Termine für Kartons, Halteverbotszone oder Möbellift und hake die erledigten Aufgaben ab.'}
                 </p>
               </div>
 
@@ -1024,7 +1102,6 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                 <div className="space-y-3">
                   {/* Task: Kartons */}
                   {(() => {
-                    const isKartonsDone = evaluation.checklist.find(c => c.id === 'kartons')?.done || false;
                     return (
                       <div className={`p-3.5 rounded-xl border-2 transition-all flex flex-col gap-2.5 ${
                         isKartonsDone
@@ -1092,7 +1169,6 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
                   {/* Task: Halteverbot (HVZ) */}
                   {(() => {
-                    const isHvzDone = evaluation.checklist.find(c => c.id === 'hvz')?.done || false;
                     const resolvedHvzMethod = order.orderMeta?.hvzMethod || order.logistics?.hvzMethod || 'selbst';
                     const resolvedHvzLoc = order.orderMeta?.hvzLocation || order.logistics?.hvzLocation || 
                       (order.logistics?.a_parking && order.logistics?.b_parking ? 'both' : order.logistics?.b_parking ? 'b' : 'a');
@@ -1202,7 +1278,6 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
                   {/* Task: Möbellift */}
                   {(() => {
-                    const isLiftDone = evaluation.checklist.find(c => c.id === 'lift')?.done || false;
                     const resolvedLiftLoc = order.orderMeta?.moebelliftLocation || order.logistics?.moebelliftLocation || (order.logistics?.b_furnitureLift && !order.logistics?.a_furnitureLift ? 'b' : 'a');
                     return (
                       <div className={`p-3.5 rounded-xl border-2 transition-all flex flex-col gap-2.5 ${
@@ -1305,7 +1380,8 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                 </div>
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* ========================================================================= */}
           {/* PHASE 4: ABGESCHLOSSEN / PROTOKOLL & RECHNUNG */}

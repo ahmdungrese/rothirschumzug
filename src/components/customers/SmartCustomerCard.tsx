@@ -31,7 +31,7 @@ export function SmartCustomerCard({ customer, latestOrder }: { customer: any, la
   let dynBtnText = "+ Angebot erstellen";
   let dynBtnIcon = <PlusIcon className="w-4 h-4" />;
   let dynBtnHref = `/dashboard/customers/${customer.id}/new-order`;
-  let dynBtnStyle = "bg-primary hover:bg-[#b51822] text-white";
+  let dynBtnStyle = "bg-[#6E8F64] hover:bg-[#5C7A53] text-white";
 
   if (latestOrder) {
     const st = latestOrder.status;
@@ -41,14 +41,14 @@ export function SmartCustomerCard({ customer, latestOrder }: { customer: any, la
       phaseNumber = 4;
       if (st === 'invoice_overdue') {
         statusText = "4. Mahnung / Überfällig";
-        statusBadge = "bg-red-500/20 text-red-400 border-red-500/40 animate-pulse font-bold";
+        statusBadge = "bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/40 animate-pulse font-bold";
         dynBtnText = "Zahlung prüfen";
         dynBtnIcon = <BanknotesIcon className="w-4 h-4" />;
         dynBtnHref = `/dashboard/customers/${customer.id}`;
-        dynBtnStyle = "bg-red-600 hover:bg-red-700 text-white";
+        dynBtnStyle = "bg-amber-600 hover:bg-amber-700 text-white";
       } else if (st === 'invoice_paid') {
         statusText = "4. Bezahlt & Erledigt";
-        statusBadge = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+        statusBadge = "bg-[#6E8F64]/15 text-[#4A6642] dark:text-[#A8C69F] border-[#6E8F64]/30";
         dynBtnText = "Rechnung ansehen";
         dynBtnIcon = <DocumentCheckIcon className="w-4 h-4" />;
         dynBtnHref = `/dashboard/customers/${customer.id}?action=view-pdf&orderId=${latestOrder.id}`;
@@ -72,11 +72,11 @@ export function SmartCustomerCard({ customer, latestOrder }: { customer: any, la
     } else if (st === 'confirmed' || latestOrder.signature || latestOrder.orderMeta?.customerSignature) {
       phaseNumber = 3;
       statusText = "3. Auftrag bestätigt";
-      statusBadge = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+      statusBadge = "bg-[#6E8F64]/15 text-[#4A6642] dark:text-[#A8C69F] border-[#6E8F64]/30";
       dynBtnText = "Logistik & Cockpit";
       dynBtnIcon = <TruckIcon className="w-4 h-4" />;
       dynBtnHref = `/dashboard/customers/${customer.id}`;
-      dynBtnStyle = "bg-emerald-600 hover:bg-emerald-700 text-white";
+      dynBtnStyle = "bg-[#6E8F64] hover:bg-[#5C7A53] text-white";
     } else if (st === 'quote' || st === 'clarification') {
       phaseNumber = 2;
       statusText = st === 'clarification' ? "2. In Klärung" : "2. Angebot versendet";

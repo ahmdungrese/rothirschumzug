@@ -11,6 +11,8 @@ interface PDFHeaderProps {
 const styles = StyleSheet.create({
   headerFull: {
     marginBottom: 8,
+    backgroundColor: '#ffffff',
+    paddingBottom: 2,
   },
   topRow: {
     flexDirection: 'row',
@@ -51,7 +53,8 @@ const styles = StyleSheet.create({
   senderLine: {
     fontSize: 8,
     color: PDF_COLORS.textMuted,
-    marginBottom: 12,
+    marginBottom: 10,
+    backgroundColor: '#ffffff',
   },
 
   // Minimal header for subsequent pages
@@ -63,6 +66,7 @@ const styles = StyleSheet.create({
     borderBottomColor: PDF_COLORS.border,
     paddingBottom: 6,
     marginBottom: 14,
+    backgroundColor: '#ffffff',
   },
   companyNameMini: {
     fontSize: 10,

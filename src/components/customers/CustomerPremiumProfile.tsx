@@ -829,7 +829,7 @@ export function CustomerPremiumProfile({
             {activeOrder && (
               <Link
                 href={`/dashboard/customers/${customer.id}/edit-order/${activeOrder.id}`}
-                className="px-5 py-2.5 rounded-full font-bold text-xs bg-[#D91E2A] hover:bg-[#b51822] text-white shadow-md shadow-[#D91E2A]/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-5 py-2.5 rounded-full font-bold text-xs bg-[#6E8F64] hover:bg-[#5C7A53] text-white shadow-sm shadow-[#6E8F64]/20 transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 <DocumentTextIcon className="w-4 h-4" />
                 <span>Angebot bearbeiten</span>
@@ -838,7 +838,7 @@ export function CustomerPremiumProfile({
 
             <Link
               href={`/dashboard/customers/${customer.id}/new-order`}
-              className="py-2.5 px-5 rounded-full font-bold text-xs bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+              className="py-2.5 px-5 rounded-full font-bold text-xs bg-[#6E8F64]/15 hover:bg-[#6E8F64] text-[#435E3A] dark:text-[#B5D1AC] hover:text-white border border-[#6E8F64]/35 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
               <span>+ Neues Angebot</span>
             </Link>
@@ -1014,10 +1014,10 @@ export function CustomerPremiumProfile({
                   setDrawerInitialPhase(currentPhaseInfo.phase);
                   setDrawerOrder(activeOrder);
                 }}
-                className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-primary dark:hover:bg-[#b51822] text-white text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm"
+                className="px-4 py-2.5 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm shadow-[#6E8F64]/20"
                 title="Operative Aufgaben, Checkliste und 4-Phasen-Prüfung öffnen"
               >
-                <AdjustmentsHorizontalIcon className="w-4 h-4 text-primary dark:text-white" />
+                <AdjustmentsHorizontalIcon className="w-4 h-4 text-white" />
                 <span>Cockpit & Prüfung</span>
               </button>
             </div>
@@ -1045,22 +1045,22 @@ export function CustomerPremiumProfile({
                   className={`p-3 rounded-2xl border text-left transition-all flex items-center gap-3 cursor-pointer hover:scale-[1.01] ${
                     isCurrent
                       ? st.num === 3 
-                        ? 'bg-emerald-500/10 border-emerald-500 text-emerald-900 dark:text-emerald-200 ring-2 ring-emerald-500/20 shadow-xs' 
+                        ? 'bg-[#6E8F64]/12 border-[#6E8F64] text-[#3B5233] dark:text-[#B5D1AC] ring-2 ring-[#6E8F64]/20 shadow-xs' 
                         : st.num === 2 
                           ? 'bg-amber-500/10 border-amber-500 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20 shadow-xs'
                           : st.num === 4
                             ? 'bg-purple-500/10 border-purple-500 text-purple-900 dark:text-purple-200 ring-2 ring-purple-500/20 shadow-xs'
                             : 'bg-blue-500/10 border-blue-500 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20 shadow-xs'
                       : isDone
-                        ? 'bg-emerald-500/5 dark:bg-emerald-950/20 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:border-emerald-500/60'
+                        ? 'bg-[#6E8F64]/8 dark:bg-[#6E8F64]/15 border-[#6E8F64]/30 text-[#4A6642] dark:text-[#A8C69F] hover:border-[#6E8F64]/60'
                         : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-500 hover:border-slate-400'
                   }`}
                 >
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-black shadow-xs ${
                     isDone
-                      ? 'bg-emerald-500 text-white'
+                      ? 'bg-[#6E8F64] text-white'
                       : isCurrent
-                        ? st.num === 3 ? 'bg-emerald-500 text-white animate-pulse' : st.num === 2 ? 'bg-amber-500 text-white animate-pulse' : 'bg-primary text-white'
+                        ? st.num === 3 ? 'bg-[#6E8F64] text-white animate-pulse' : st.num === 2 ? 'bg-amber-500 text-white animate-pulse' : 'bg-[#6E8F64] text-white'
                         : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
                   }`}>
                     {isDone ? <CheckIcon className="w-4 h-4 stroke-[3]" /> : st.num}
@@ -1078,14 +1078,14 @@ export function CustomerPremiumProfile({
             })}
           </div>
 
-          {/* 3. Nächste empfohlene Aktion (Volle Breite, sauber eingebetteter roter Button ohne Überlauf) */}
+          {/* 3. Nächste empfohlene Aktion */}
           <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1 min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-primary font-headline">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#6E8F64] font-headline">
                   Nächste empfohlene Aktion
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#6E8F64]/15 text-[#4A6642] dark:text-[#A8C69F] border border-[#6E8F64]/30">
                   {nextStep.badge}
                 </span>
               </div>
@@ -1112,7 +1112,7 @@ export function CustomerPremiumProfile({
               <button
                 type="button"
                 onClick={nextStep.action}
-                className="py-2.5 px-5 rounded-xl bg-primary hover:bg-[#b51822] text-white font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-sm shadow-primary/20 cursor-pointer group shrink-0"
+                className="py-2.5 px-5 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-sm shadow-[#6E8F64]/20 cursor-pointer group shrink-0"
               >
                 <span>{nextStep.btnText}</span>
                 <ArrowRightIcon className="w-4 h-4 group-hover:translate-x-0.5 transition-transform shrink-0" />

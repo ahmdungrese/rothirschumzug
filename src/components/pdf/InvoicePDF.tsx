@@ -17,6 +17,10 @@ const styles = StyleSheet.create({
   customerBox: {
     width: '52%',
     paddingRight: 10,
+    backgroundColor: '#ffffff',
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    borderRadius: 4,
   },
   customerName: {
     fontSize: 10.5,
@@ -32,6 +36,7 @@ const styles = StyleSheet.create({
   
   docInfoBox: {
     width: '44%',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: PDF_COLORS.border,
     borderRadius: 4,
@@ -79,6 +84,7 @@ const styles = StyleSheet.create({
   },
   
   routeCard: {
+    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: PDF_COLORS.border,
     borderLeftWidth: 3,
@@ -133,6 +139,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   paymentCard: {
+    backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: PDF_COLORS.border,
     borderRadius: 4,
@@ -204,7 +211,7 @@ export const InvoicePDF = ({
   return (
     <Document title={docTitle}>
       <Page size="A4" style={styles.page}>
-        <PDFWatermark type="symbols" />
+        <PDFWatermark type="symbols" softRows={[1, 2, 6, 7, 8]} />
         <PDFHeader settings={settings} docTitle={isStorno ? 'Stornorechnung' : 'Rechnung'} />
         <PDFFooter settings={settings} />
 
