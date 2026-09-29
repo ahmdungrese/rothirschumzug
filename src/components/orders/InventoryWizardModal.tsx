@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useModalBackHandler } from "@/hooks/useModalBackHandler";
 import { 
   XMarkIcon, 
   PlusIcon, 
@@ -141,6 +142,16 @@ const getAvailableServices = (name: string): ('assembly' | 'connection')[] => {
 
 export function InventoryWizardModal({ isOpen, onClose, inventory, setInventory, initialRoomId }: InventoryWizardModalProps) {
   const [step, setStep] = useState<1 | 2>(1);
+
+  // If in step 2, back button goes to step 1. If in step 1, back button closes modal.
+  useModalBackHandler(isOpen, () => {
+    if (step === 2) {
+      setStep(1);
+    } else {
+      onClose();
+    }
+  }, 'inventory-wizard-modal');
+
   const [roomCounts, setRoomCounts] = useState<Record<string, number>>({});
   
   const [localInventory, setLocalInventory] = useState<InventoryItem[]>([]);

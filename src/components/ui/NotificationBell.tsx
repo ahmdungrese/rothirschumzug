@@ -150,7 +150,7 @@ export function NotificationBell() {
   }, []);
 
   const getIcon = (type: string, urgency: string) => {
-    const color = urgency === 'high' ? 'text-red-500' : 'text-orange-400';
+    const color = urgency === 'high' ? 'text-amber-500' : 'text-orange-400';
     switch (type) {
       case 'staff': return <UsersIcon className={`w-5 h-5 ${color}`} />;
       case 'vehicle': return <TruckIcon className={`w-5 h-5 ${color}`} />;
@@ -171,8 +171,8 @@ export function NotificationBell() {
         <BellIcon className="w-6 h-6" />
         {notifications.length > 0 && (
           <span className="absolute top-1 right-1 flex h-4 w-4">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500 text-[9px] items-center justify-center text-white font-bold">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#6E8F64] opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-4 w-4 bg-[#6E8F64] text-[9px] items-center justify-center text-white font-bold">
               {notifications.length}
             </span>
           </span>

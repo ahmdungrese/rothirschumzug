@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { toast } from 'react-hot-toast';
 import { useAuth } from "@/context/AuthContext";
 import { logActivity } from "@/lib/activityLogger";
+import { useModalBackHandler } from "@/hooks/useModalBackHandler";
 
 export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
   const [type, setType] = useState<"privat" | "firma">("privat");
@@ -22,6 +23,19 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const { profile } = useAuth();
+
+  const handleSafeClose = () => {
+    const hasData = Boolean(lastName.trim() || firstName.trim() || phone.trim() || email.trim() || street.trim());
+    if (hasData) {
+      if (window.confirm("Möchten Sie das Anlegen des Kunden wirklich abbrechen? Eingegebene Daten gehen verloren.")) {
+        onClose();
+      }
+    } else {
+      onClose();
+    }
+  };
+
+  useModalBackHandler(true, handleSafeClose, 'quick-create-customer');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -222,7 +236,7 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="pt-4 flex gap-3">
-        <button type="button" onClick={onClose} className="btn-secondary flex-1">
+        <button type="button" onClick={handleSafeClose} className="btn-secondary flex-1">
           Abbrechen
         </button>
         <button type="submit" disabled={isSubmitting} className="btn-primary flex-1">

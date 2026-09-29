@@ -654,29 +654,29 @@ export default function LogisticsPage() {
                         href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressA)}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-[#6E8F64]/15 hover:text-[#6E8F64] transition-all"
+                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-[#6E8F64]/15 hover:text-[#6E8F64] transition-all shrink-0"
                         title={`Navigation: ${addressA}`}
                       >
-                        <MapPinIcon className="w-4 h-4" />
+                        <MapPinIcon className="w-3.5 h-3.5" />
                       </a>
                     )}
                     {custPhone && (
                       <button
                         type="button"
                         onClick={(e) => handleDirectWhatsApp(custPhone, undefined, e)}
-                        className="p-1.5 rounded-xl bg-[#6E8F64]/15 text-[#4A6642] dark:text-[#B5D1AC] hover:bg-[#6E8F64] hover:text-white transition-all cursor-pointer"
+                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#6E8F64]/15 text-[#4A6642] dark:text-[#B5D1AC] hover:bg-[#6E8F64] hover:text-white transition-all cursor-pointer shrink-0"
                         title={`WhatsApp an ${custName}`}
                       >
-                        <ChatBubbleLeftRightIcon className="w-4 h-4" />
+                        <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
                       </button>
                     )}
                     {parentOrder?.customerId && (
                       <Link
                         href={`/dashboard/customers/${parentOrder.customerId}`}
-                        className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-[#6E8F64] hover:bg-[#6E8F64]/15 transition-all"
+                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-[#6E8F64] hover:bg-[#6E8F64]/15 transition-all shrink-0"
                         title="Kundenakte öffnen"
                       >
-                        <UserIcon className="w-4 h-4" />
+                        <UserIcon className="w-3.5 h-3.5" />
                       </Link>
                     )}
                   </div>
@@ -697,11 +697,11 @@ export default function LogisticsPage() {
                         key={todo.id}
                         className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50 space-y-2"
                       >
-                        <div className="flex items-center justify-between gap-2">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                           {/* Left: Symbol + Category + Inline Detail Summary */}
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${catMeta.iconBg}`}>
-                              <span className="material-symbols-outlined text-base">{catMeta.symbol}</span>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${catMeta.iconBg}`}>
+                              <span className="material-symbols-outlined text-[15px] leading-none select-none">{catMeta.symbol}</span>
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
@@ -731,76 +731,76 @@ export default function LogisticsPage() {
                           </div>
 
                           {/* Right: Symbol Action Buttons + Light Olive-Sage Green Primary Action */}
-                          <div className="flex items-center gap-1 shrink-0">
-                            {/* 📅 Termin planen/ändern */}
+                          <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                            {/* Termin planen/andern */}
                             {isLogisticsSchedulable && (
                               <button
                                 type="button"
                                 onClick={(e) => openScheduleModal(todo, parentOrder, e)}
-                                className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
+                                className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all cursor-pointer shrink-0 ${
                                   scheduled
                                     ? 'bg-[#6E8F64]/15 border-[#6E8F64]/35 text-[#435E3A] dark:text-[#B5D1AC]'
                                     : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-500 hover:text-[#6E8F64] hover:border-[#6E8F64]/40'
                                 }`}
                                 title={scheduled ? `Termin ändern (${scheduled.date})` : 'Termin & Zeitfenster planen'}
                               >
-                                <CalendarDaysIcon className="w-4 h-4" />
+                                <CalendarDaysIcon className="w-3.5 h-3.5" />
                               </button>
                             )}
 
-                            {/* 📍 Task-specific Maps link */}
+                            {/* Task-specific Maps link */}
                             {catMeta.mapAddress && (
                               <a
                                 href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(catMeta.mapAddress)}`}
                                 target="_blank"
                                 rel="noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="p-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-[#6E8F64] hover:border-[#6E8F64]/40 transition-all"
+                                className="w-7 h-7 flex items-center justify-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-[#6E8F64] hover:border-[#6E8F64]/40 transition-all shrink-0"
                                 title={`In Google Maps öffnen: ${catMeta.mapAddress}`}
                               >
-                                <MapPinIcon className="w-4 h-4" />
+                                <MapPinIcon className="w-3.5 h-3.5" />
                               </a>
                             )}
 
-                            {/* 💬 Task-specific WhatsApp message (Unterwegs / Kartons / HVZ) */}
+                            {/* Task-specific WhatsApp message */}
                             {custPhone && (
                               <button
                                 type="button"
                                 onClick={(e) => triggerTaskWhatsApp(todo, parentOrder, custPhone, custName, scheduled, e)}
-                                className="p-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#527048] dark:text-[#B5D1AC] hover:bg-[#6E8F64] hover:text-white transition-all cursor-pointer"
+                                className="w-7 h-7 flex items-center justify-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#527048] dark:text-[#B5D1AC] hover:bg-[#6E8F64] hover:text-white transition-all cursor-pointer shrink-0"
                                 title={isViewing ? 'WhatsApp: "Ich bin unterwegs" senden' : 'WhatsApp-Terminbestätigung senden'}
                               >
-                                <ChatBubbleLeftRightIcon className="w-4 h-4" />
+                                <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
                               </button>
                             )}
 
-                            {/* ⌄ Expand full task info */}
+                            {/* Expand full task info */}
                             <button
                               type="button"
                               onClick={(e) => toggleExpandCard(rowKey, e)}
-                              className="p-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-all cursor-pointer"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-all cursor-pointer shrink-0"
                               title="Vollständige Details ein-/ausblenden"
                             >
-                              {isRowExpanded ? <ChevronUpIcon className="w-3.5 h-3.5" /> : <ChevronDownIcon className="w-3.5 h-3.5" />}
+                              {isRowExpanded ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />}
                             </button>
 
-                            {/* 🪑 Besichtigung starten (Light Olive-Sage Green) */}
+                            {/* Besichtigung starten */}
                             {isViewing && parentOrder?.customerId && !todo.done && (
                               <Link
                                 href={`/dashboard/customers/${parentOrder.customerId}/edit-order/${parentOrder.id}?step=4`}
-                                className="px-2.5 py-1.5 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-[11px] font-bold flex items-center gap-1 shadow-xs transition-all"
+                                className="h-7 px-2 rounded-lg bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-[11px] font-bold flex items-center gap-1 shadow-xs transition-all shrink-0"
                                 title="Direkt zu Schritt 4 (Umzugsliste & Möbel) springen"
                               >
-                                <span className="material-symbols-outlined text-xs">chair</span>
+                                <span className="material-symbols-outlined text-[13px] leading-none select-none">chair</span>
                                 <span className="hidden sm:inline">Besichtigung starten</span>
                               </Link>
                             )}
 
-                            {/* ✓ Erledigt markieren (Light Olive-Sage Green) */}
+                            {/* Erledigt markieren */}
                             <button
                               type="button"
                               onClick={(e) => handleToggleTask(todo, e)}
-                              className={`px-3 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                              className={`h-7 px-2.5 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shrink-0 ${
                                 todo.done
                                   ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300'
                                   : isViewing && parentOrder?.customerId
@@ -936,14 +936,14 @@ export default function LogisticsPage() {
                         <button
                           type="button"
                           onClick={(e) => openScheduleModal(todo, parentOrder, e)}
-                          className={`p-1.5 rounded-xl border transition-all cursor-pointer ${
+                          className={`w-7 h-7 flex items-center justify-center rounded-lg border transition-all cursor-pointer shrink-0 ${
                             scheduled
                               ? 'bg-[#6E8F64]/15 border-[#6E8F64]/35 text-[#435E3A] dark:text-[#B5D1AC]'
                               : 'bg-slate-100 dark:bg-slate-800 border-transparent text-slate-500 hover:text-[#6E8F64] hover:bg-[#6E8F64]/15'
                           }`}
                           title={scheduled ? 'Termin ändern' : 'Datum & Zeitfenster planen'}
                         >
-                          <CalendarDaysIcon className="w-4 h-4" />
+                          <CalendarDaysIcon className="w-3.5 h-3.5" />
                         </button>
                       )}
 
@@ -953,10 +953,10 @@ export default function LogisticsPage() {
                           target="_blank"
                           rel="noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-[#6E8F64] hover:bg-[#6E8F64]/15 transition-all"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-[#6E8F64] hover:bg-[#6E8F64]/15 transition-all shrink-0"
                           title={`In Google Maps öffnen: ${catMeta.mapAddress}`}
                         >
-                          <MapPinIcon className="w-4 h-4" />
+                          <MapPinIcon className="w-3.5 h-3.5" />
                         </a>
                       )}
 
@@ -964,24 +964,24 @@ export default function LogisticsPage() {
                         <button
                           type="button"
                           onClick={(e) => triggerTaskWhatsApp(todo, parentOrder, custPhone, custName, scheduled, e)}
-                          className="p-1.5 rounded-xl bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] hover:bg-[#6E8F64] hover:text-white transition-all cursor-pointer"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] hover:bg-[#6E8F64] hover:text-white transition-all cursor-pointer shrink-0"
                           title={`WhatsApp an ${custName} senden`}
                         >
-                          <ChatBubbleLeftRightIcon className="w-4 h-4" />
+                          <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
                         </button>
                       )}
 
                       <button
                         type="button"
                         onClick={(e) => toggleExpandCard(cardKey, e)}
-                        className={`p-1.5 rounded-xl transition-all cursor-pointer ${
+                        className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all cursor-pointer shrink-0 ${
                           isExpanded
                             ? 'bg-[#6E8F64] text-white'
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-900 dark:hover:text-white'
                         }`}
                         title={isExpanded ? 'Details zuklappen' : 'Details aufklappen'}
                       >
-                        {isExpanded ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
+                        {isExpanded ? <ChevronUpIcon className="w-3.5 h-3.5" /> : <ChevronDownIcon className="w-3.5 h-3.5" />}
                       </button>
                     </div>
                   </div>

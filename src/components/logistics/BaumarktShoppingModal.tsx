@@ -11,6 +11,7 @@ import {
   ClipboardDocumentIcon
 } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 
 interface BaumarktShoppingModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ interface ShoppingItem {
 }
 
 export function BaumarktShoppingModal({ isOpen, onClose, order }: BaumarktShoppingModalProps) {
+  useModalBackHandler(isOpen, onClose, 'shopping-modal');
   // Aggregate initial materials from order
   const initialItems = useMemo<ShoppingItem[]>(() => {
     if (!order) return [];

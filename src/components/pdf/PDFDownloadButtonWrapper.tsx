@@ -66,7 +66,12 @@ export default function PDFDownloadButtonWrapper({ order, customer, type = 'orde
     const address = order?.logistics?.b_street ? `${order.logistics.b_street} ${order.logistics.b_houseNr || ''}`.trim() : 'Unbekannt';
 
     if (type === 'employee') return `Laufzettel - ${suffix} - ${address}.pdf`;
-    if (type === 'invoice') return `Rechnung ${order?.invoiceNumber || orderNum} - ${suffix}.pdf`;
+    if (type === 'invoice') {
+      const isKorr = Boolean(order?.isKorrektur || order?.isCorrection);
+      const isStorno = Boolean(order?.isStorno);
+      const prefix = isStorno ? 'Stornorechnung' : (isKorr ? 'Korrekturrechnung' : 'Rechnung');
+      return `${prefix} ${order?.invoiceNumber || orderNum} - ${suffix}.pdf`;
+    }
     if (type === 'contract') return `Auftragsbestätigung ${order?.contractNumber || orderNum} - ${suffix}.pdf`;
     if (type === 'protocol') return `Protokoll ${order?.contractNumber || orderNum} - ${suffix}.pdf`;
     return `Angebot ${orderNum} - ${suffix}.pdf`;

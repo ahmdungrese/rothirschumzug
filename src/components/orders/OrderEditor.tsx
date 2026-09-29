@@ -14,6 +14,7 @@ import { calculateRoute } from '@/lib/routeCalculator';
 import { changeOrderStatus } from '@/lib/orderStateMachine';
 import { calculateOrderTotals } from '@/lib/financeHelpers';
 import { InventoryWizardModal, ROOM_TYPES } from './InventoryWizardModal';
+import { FLOOR_OPTIONS } from '@/lib/constants';
 
 const getPropertyIcon = (type: string) => {
   const t = (type || '').toLowerCase();
@@ -35,6 +36,7 @@ const getCategoryIcon = (category: string) => {
 };
 
 const STANDARD_SERVICES_A = [
+  { id: 'kartonlieferung', name: 'Kartonlieferung vorab', price: 65, unit: 'pauschal', icon: 'inventory_2', defaultDesc: 'Anlieferung von Umzugskartons und Packmaterial vor dem Umzugstermin.' },
   { id: 'moebelabbau', name: 'Möbelabbau', price: 150, unit: 'pauschal', icon: 'tools_ladder', defaultDesc: 'Fachgerechter Abbau von Schränken, Betten und Regalen.' },
   { id: 'kueche_abbau', name: 'Abbau von Küche', price: 280, unit: 'pauschal', icon: 'countertops', defaultDesc: 'Abbau der Einbauküche inkl. Elektrogeräte und fachgerechte Trennung der Wasseranschlüsse.' },
   { id: 'packservice_ein', name: 'Einpackservice', price: 190, unit: 'pauschal', icon: 'inventory_2', defaultDesc: 'Einpacken des gesamten Hausrats in bereitgestellte Kartons inkl. Polstermaterial.' },
@@ -131,9 +133,16 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     viewingDate: '',
     viewingTime: '',
     hvzMethod: 'selbst',
+    hvzMethodA: 'selbst',
+    hvzMethodB: 'selbst',
     hvzLocation: 'a',
     halteverbotDate: '',
     halteverbotTime: '',
+    halteverbotDateA: '',
+    halteverbotTimeA: '',
+    halteverbotDateB: '',
+    halteverbotTimeB: '',
+    hvzSameAsA: false,
     kartonDeliveryDate: '',
     kartonDeliveryTime: '',
     moebelliftDate: '',
@@ -143,16 +152,18 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
   // 2. Adressen
   const [logistics, setLogistics] = useState<any>({
-    a_street: '', a_houseNr: '', a_zip: '', a_city: '', a_floor: '', a_distance: 0, a_type: '', a_elevator: false, a_parking: false, a_furnitureLift: false,
-    b_street: '', b_houseNr: '', b_zip: '', b_city: '', b_floor: '', b_distance: 0, b_type: '', b_elevator: false, b_parking: false, b_furnitureLift: false,
+    a_street: '', a_houseNr: '', a_zip: '', a_city: '', a_floor: 'Erdgeschoss', a_distance: 0, a_type: '', a_elevator: false, a_parking: false, a_furnitureLift: false,
+    b_street: '', b_houseNr: '', b_zip: '', b_city: '', b_floor: 'Erdgeschoss', b_distance: 0, b_type: '', b_elevator: false, b_parking: false, b_furnitureLift: false,
+    hvzDateA: '', hvzTimeA: '', hvzDateB: '', hvzTimeB: '', hvzSameAsA: false
   });
 
   // 3. Leistungen
   const [isFlatRate, setIsFlatRate] = useState(true);
   const [flatRateNet, setFlatRateNet] = useState(0);
-  const [services, setServices] = useState<{ id: string, name: string, quantity: number, unitPrice: number, unit: string, note?: string }[]>([]);
+  const [services, setServices] = useState<{ id: string, name: string, quantity: number, unitPrice: number, unit: string, note?: string, location?: 'a' | 'b' | 'both' }[]>([]);
   const [catalogSearch, setCatalogSearch] = useState('');
   const [activeCategoryTab, setActiveCategoryTab] = useState('Alle');
+  const [invoicedWarning, setInvoicedWarning] = useState<string | null>(null);
   
   // 4. MwSt Rechner
   const [calcInput, setCalcInput] = useState({ gross: 0, net: 0, tax: 0 });
@@ -197,8 +208,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     const existing = services.find(s => s.id === srv.id || (s.name||'').toLowerCase() === (srv.name||'').toLowerCase());
     if (existing) {
       setServices(prev => prev.filter(s => s.id !== existing.id));
-      if (srv.id === 'hvz_a') setLogistics(l => ({ ...l, a_parking: false }));
-      if (srv.id === 'hvz_b') setLogistics(l => ({ ...l, b_parking: false }));
+      if (srv.id === 'hvz_a') setLogistics((l: any) => ({ ...l, a_parking: false }));
+      if (srv.id === 'hvz_b') setLogistics((l: any) => ({ ...l, b_parking: false }));
     } else {
       setServices(prev => [...prev, {
         id: srv.id,
@@ -207,8 +218,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         unitPrice: srv.price,
         unit: srv.unit
       }]);
-      if (srv.id === 'hvz_a') setLogistics(l => ({ ...l, a_parking: true }));
-      if (srv.id === 'hvz_b') setLogistics(l => ({ ...l, b_parking: true }));
+      if (srv.id === 'hvz_a') setLogistics((l: any) => ({ ...l, a_parking: true }));
+      if (srv.id === 'hvz_b') setLogistics((l: any) => ({ ...l, b_parking: true }));
     }
   };
 
@@ -334,6 +345,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           if (data.customerId && data.customerId !== 'undefined') {
             setLoadedCustomerId(data.customerId);
           }
+          if (data.invoiceNumber || data.status?.startsWith('invoice_') || (data.invoiceHistory && data.invoiceHistory.length > 0)) {
+            setInvoicedWarning(data.invoiceNumber || 'Rechnung vorhanden');
+          }
           setOrderStatus(data.status || 'draft');
           setOrderMeta((prev: any) => ({
             ...prev,
@@ -346,9 +360,16 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             viewingDate: data.orderMeta?.viewingDate || data.viewingDate || '',
             viewingTime: data.orderMeta?.viewingTime || data.logistics?.viewingTime || '',
             hvzMethod: data.orderMeta?.hvzMethod || data.logistics?.hvzMethod || 'selbst',
+            hvzMethodA: data.orderMeta?.hvzMethodA || data.orderMeta?.hvzMethod || data.logistics?.hvzMethodA || data.logistics?.hvzMethod || 'selbst',
+            hvzMethodB: data.orderMeta?.hvzMethodB || data.logistics?.hvzMethodB || 'selbst',
             hvzLocation: data.orderMeta?.hvzLocation || data.logistics?.hvzLocation || (data.logistics?.a_parking && data.logistics?.b_parking ? 'both' : data.logistics?.b_parking ? 'b' : 'a'),
             halteverbotDate: data.orderMeta?.halteverbotDate || data.logistics?.hvzDate || '',
             halteverbotTime: data.orderMeta?.halteverbotTime || data.logistics?.hvzTime || '',
+            halteverbotDateA: data.orderMeta?.halteverbotDateA || data.orderMeta?.halteverbotDate || data.logistics?.hvzDateA || data.logistics?.hvzDate || '',
+            halteverbotTimeA: data.orderMeta?.halteverbotTimeA || data.orderMeta?.halteverbotTime || data.logistics?.hvzTimeA || data.logistics?.hvzTime || '',
+            halteverbotDateB: data.orderMeta?.halteverbotDateB || data.logistics?.hvzDateB || '',
+            halteverbotTimeB: data.orderMeta?.halteverbotTimeB || data.logistics?.hvzTimeB || '',
+            hvzSameAsA: Boolean(data.orderMeta?.hvzSameAsA ?? data.logistics?.hvzSameAsA),
             kartonDeliveryDate: data.orderMeta?.kartonDeliveryDate || data.logistics?.boxDeliveryDate || '',
             kartonDeliveryTime: data.orderMeta?.kartonDeliveryTime || data.logistics?.boxDeliveryTime || '',
             moebelliftDate: data.orderMeta?.moebelliftDate || data.logistics?.moebelliftDate || '',
@@ -361,7 +382,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             a_houseNr: data.logistics?.a_houseNr || data.logistics?.from?.houseNumber || '',
             a_zip: data.logistics?.a_zip || data.logistics?.from?.postalCode || '',
             a_city: data.logistics?.a_city || data.logistics?.from?.city || '',
-            a_floor: data.logistics?.a_floor || data.logistics?.from?.floor || '',
+            a_floor: data.logistics?.a_floor || data.logistics?.from?.floor || 'Erdgeschoss',
             a_distance: data.logistics?.a_distance || 0,
             a_type: data.logistics?.a_type || '',
             a_elevator: data.logistics?.a_elevator || false,
@@ -371,16 +392,25 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             b_houseNr: data.logistics?.b_houseNr || data.logistics?.to?.houseNumber || '',
             b_zip: data.logistics?.b_zip || data.logistics?.to?.postalCode || '',
             b_city: data.logistics?.b_city || data.logistics?.to?.city || '',
-            b_floor: data.logistics?.b_floor || data.logistics?.to?.floor || '',
+            b_floor: data.logistics?.b_floor || data.logistics?.to?.floor || 'Erdgeschoss',
             b_distance: data.logistics?.b_distance || 0,
             b_type: data.logistics?.b_type || '',
             b_elevator: data.logistics?.b_elevator || false,
             b_parking: data.logistics?.b_parking || false,
             b_furnitureLift: data.logistics?.b_furnitureLift || false,
+            hvzDateA: data.logistics?.hvzDateA || data.logistics?.hvzDate || data.orderMeta?.halteverbotDateA || data.orderMeta?.halteverbotDate || '',
+            hvzTimeA: data.logistics?.hvzTimeA || data.logistics?.hvzTime || data.orderMeta?.halteverbotTimeA || data.orderMeta?.halteverbotTime || '',
+            hvzDateB: data.logistics?.hvzDateB || data.orderMeta?.halteverbotDateB || '',
+            hvzTimeB: data.logistics?.hvzTimeB || data.orderMeta?.halteverbotTimeB || '',
+            hvzSameAsA: Boolean(data.logistics?.hvzSameAsA ?? data.orderMeta?.hvzSameAsA),
           }));
           setIsFlatRate(data.isFlatRate !== undefined ? data.isFlatRate : true);
           setFlatRateNet(data.flatRateNet || 0);
-          setServices(data.services || []);
+          setServices((data.services || []).map((s: any) => ({
+            ...s,
+            note: s.note || s.description || '',
+            location: s.location || 'both'
+          })));
           setInventory(data.inventory || []);
           setAppendInventoryToPDF(data.appendInventoryToPDF || false);
           setChecklist(data.checklist || []);
@@ -480,7 +510,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
   const copyCustomerAddress = (target: 'a' | 'b') => {
     if (customerData.street || customerData.zip) {
-      setLogistics(prev => ({
+      setLogistics((prev: any) => ({
         ...prev,
         [`${target}_street`]: customerData.street,
         [`${target}_houseNr`]: customerData.houseNr,
@@ -597,13 +627,24 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         });
       }
 
-      let finalStatus = status;
+      let finalStatus: string = status;
       // Prevent downgrading the order status to draft when simply saving.
       // If generateQuote is true, status is already passed as 'quote' or changed later.
       // If it's an invoice, status is 'invoice_open'.
       if (orderId && orderStatus && orderStatus !== 'draft' && status === 'draft') {
         finalStatus = orderStatus as any;
       }
+
+      const finalOrderMeta = {
+        ...orderMeta,
+        halteverbotDate: orderMeta.halteverbotDateA || orderMeta.halteverbotDate || logistics.hvzDateA || logistics.hvzDate || '',
+        halteverbotTime: orderMeta.halteverbotTimeA || orderMeta.halteverbotTime || logistics.hvzTimeA || logistics.hvzTime || ''
+      };
+      const finalLogistics = {
+        ...logistics,
+        hvzDate: logistics.hvzDateA || logistics.hvzDate || finalOrderMeta.halteverbotDate || '',
+        hvzTime: logistics.hvzTimeA || logistics.hvzTime || finalOrderMeta.halteverbotTime || ''
+      };
 
       const payload = {
         customerId: finalCustomerId,
@@ -622,9 +663,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         },
         customerSource: customerData.source || 'Direktanfrage',
         status: finalStatus,
-        orderMeta,
-        logistics,
-        viewingDate: orderMeta.viewingDate || '', // Expose on root level for calendar
+        orderMeta: finalOrderMeta,
+        logistics: finalLogistics,
+        viewingDate: finalOrderMeta.viewingDate || '', // Expose on root level for calendar
         isFlatRate,
         flatRateNet,
         services,
@@ -644,11 +685,11 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         await updateDoc(doc(db, 'orders', orderId), payload);
         await logActivity(profile?.uid || 'unknown', cleanCreatorName, 'UPDATE_ORDER', `Angebot/Auftrag aktualisiert für Kunde ${payload.customerName}`);
         
-        if (generateQuote) {
+        if (generateQuote || finalStatus === 'quote' || finalStatus === 'confirmed') {
           try {
-            await changeOrderStatus(orderId, 'quote', { userId: profile?.uid });
+            await changeOrderStatus(orderId, (finalStatus === 'draft' ? 'quote' : finalStatus) as any, { userId: profile?.uid });
           } catch (err: any) {
-            toast.error(err.message || "Fehler bei der Angebotserstellung.");
+            console.error("Fehler bei der Angebotsstatus-Aktualisierung:", err);
           }
         }
       } else {
@@ -659,11 +700,11 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         });
         await logActivity(profile?.uid || 'unknown', cleanCreatorName, 'CREATE_ORDER', `Angebot erstellt für Kunde ${payload.customerName}`);
         
-        if (generateQuote) {
+        if (generateQuote || finalStatus === 'quote' || finalStatus === 'confirmed') {
           try {
-            await changeOrderStatus(docRef.id, 'quote', { userId: profile?.uid });
+            await changeOrderStatus(docRef.id, (finalStatus === 'draft' ? 'quote' : finalStatus) as any, { userId: profile?.uid });
           } catch (err: any) {
-            toast.error(err.message || "Fehler bei der Angebotserstellung.");
+            console.error("Fehler bei der Angebotsstatus-Aktualisierung:", err);
           }
         }
       }
@@ -772,6 +813,21 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           </p>
         </div>
       </div>
+      {/* Invoiced Warning Banner */}
+      {invoicedWarning && (
+        <div className="mb-6 p-4 rounded-2xl bg-blue-500/10 border border-blue-500/30 flex items-start gap-3">
+          <span className="material-symbols-outlined text-blue-400 text-2xl shrink-0 mt-0.5">receipt_long</span>
+          <div>
+            <p className="text-xs font-bold text-blue-400 uppercase tracking-wider">
+              Angebot wurde bereits abgerechnet ({invoicedWarning})
+            </p>
+            <p className="text-xs text-text-muted mt-0.5">
+              Achtung: Nachträgliche Änderungen am Angebot aktualisieren eine bereits erstellte Rechnung ({invoicedWarning}) nicht automatisch!
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Contract Locked Warning Banner */}
       {isContractLocked && (
         <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-4">
@@ -1157,14 +1213,14 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               <label className="block text-xs text-text-muted mb-1">PLZ</label>
               <input id="input-a_zip" type="text" value={logistics.a_zip} onChange={async (e) => {
                   const val = e.target.value;
-                  setLogistics(prev => ({...prev, a_zip: val}));
+                  setLogistics((prev: any) => ({...prev, a_zip: val}));
                   if (val.length === 5) {
                     try {
                       const res = await fetch(`https://api.zippopotam.us/de/${val}`);
                       if (res.ok) {
                         const data = await res.json();
                         if (data.places && data.places.length > 0) {
-                          setLogistics(prev => ({...prev, a_zip: val, a_city: data.places[0]['place name']}));
+                          setLogistics((prev: any) => ({...prev, a_zip: val, a_city: data.places[0]['place name']}));
                         }
                       }
                     } catch(err) {}
@@ -1173,8 +1229,32 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             </div>
             <div className="col-span-3"><label className="block text-xs text-text-muted mb-1">Ort</label><input id="input-a_city" type="text" value={logistics.a_city} onChange={e => setLogistics({...logistics, a_city: e.target.value})} className="input-field w-full" /></div>
             
-            <div id="highlight-floorA" className="col-span-2 transition-all rounded-lg"><label className="block text-xs text-text-muted mb-1">Etage</label><input id="input-a_floor" type="text" list="floors" value={logistics.a_floor} onChange={e => setLogistics({...logistics, a_floor: e.target.value})} className="input-field w-full" placeholder="Auswählen oder tippen..." /></div>
-            <div className="col-span-2"><label className="block text-xs text-text-muted mb-1">Laufweg (m)</label><input type="number" min="0" value={logistics.a_distance === 0 ? '' : logistics.a_distance} onChange={e => setLogistics({...logistics, a_distance: e.target.value === '' ? 0 : parseInt(e.target.value)})} className="input-field w-full" placeholder="Unter 10 Meter" /></div>
+            <div id="highlight-floorA" className="col-span-2 transition-all rounded-lg">
+              <label className="block text-xs text-text-muted mb-1">Etage</label>
+              <select
+                id="input-a_floor"
+                value={logistics.a_floor || 'Erdgeschoss'}
+                onChange={e => setLogistics({...logistics, a_floor: e.target.value})}
+                className="input-field w-full"
+              >
+                {FLOOR_OPTIONS.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs text-text-muted mb-1">Laufweg (m)</label>
+              <input
+                type="number"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                min="0"
+                value={logistics.a_distance === 0 ? '' : logistics.a_distance}
+                onChange={e => setLogistics({...logistics, a_distance: e.target.value === '' ? 0 : parseInt(e.target.value) || 0})}
+                className="input-field w-full"
+                placeholder="Unter 10 Meter"
+              />
+            </div>
             
             <div className="col-span-4">
               <label className="block text-xs text-text-muted mb-2">Immobilienart</label>
@@ -1242,8 +1322,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                           const d = new Date(orderMeta.movingDateFrom.split('T')[0]);
                           d.setDate(d.getDate() - 4);
                           const dStr = d.toISOString().split('T')[0];
-                          setOrderMeta({ ...orderMeta, halteverbotDate: dStr });
-                          setLogistics({ ...logistics, hvzDate: dStr });
+                          setOrderMeta((prev: any) => ({ ...prev, halteverbotDateA: dStr, halteverbotDate: dStr }));
+                          setLogistics((prev: any) => ({ ...prev, hvzDateA: dStr, hvzDate: dStr }));
                         }}
                         className="text-[10px] font-bold px-2 py-0.5 rounded bg-primary/15 text-primary hover:bg-primary hover:text-white transition-colors"
                       >
@@ -1256,11 +1336,11 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                     <button
                       type="button"
                       onClick={() => {
-                        setOrderMeta({ ...orderMeta, hvzMethod: 'selbst' });
-                        setLogistics({ ...logistics, hvzMethod: 'selbst' });
+                        setOrderMeta((prev: any) => ({ ...prev, hvzMethodA: 'selbst', hvzMethod: 'selbst' }));
+                        setLogistics((prev: any) => ({ ...prev, hvzMethodA: 'selbst', hvzMethod: 'selbst' }));
                       }}
                       className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                        (orderMeta.hvzMethod || 'selbst') === 'selbst'
+                        (orderMeta.hvzMethodA || orderMeta.hvzMethod || 'selbst') === 'selbst'
                           ? 'bg-primary text-white border-primary shadow-xs'
                           : 'bg-bg-panel border-structure text-text-muted hover:text-text-main'
                       }`}
@@ -1271,11 +1351,11 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                     <button
                       type="button"
                       onClick={() => {
-                        setOrderMeta({ ...orderMeta, hvzMethod: 'extern' });
-                        setLogistics({ ...logistics, hvzMethod: 'extern' });
+                        setOrderMeta((prev: any) => ({ ...prev, hvzMethodA: 'extern', hvzMethod: 'extern' }));
+                        setLogistics((prev: any) => ({ ...prev, hvzMethodA: 'extern', hvzMethod: 'extern' }));
                       }}
                       className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                        orderMeta.hvzMethod === 'extern'
+                        (orderMeta.hvzMethodA || orderMeta.hvzMethod) === 'extern'
                           ? 'bg-primary text-white border-primary shadow-xs'
                           : 'bg-bg-panel border-structure text-text-muted hover:text-text-main'
                       }`}
@@ -1287,24 +1367,26 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-[10px] text-text-muted font-bold uppercase mb-1">Aufstelldatum</label>
+                      <label className="block text-[10px] text-text-muted font-bold uppercase mb-1">Aufstelldatum (A)</label>
                       <input
                         type="date"
-                        value={orderMeta.halteverbotDate || logistics.hvzDate || ''}
+                        value={orderMeta.halteverbotDateA || orderMeta.halteverbotDate || logistics.hvzDateA || logistics.hvzDate || ''}
                         onChange={e => {
-                          setOrderMeta({ ...orderMeta, halteverbotDate: e.target.value });
-                          setLogistics({ ...logistics, hvzDate: e.target.value });
+                          const val = e.target.value;
+                          setOrderMeta((prev: any) => ({ ...prev, halteverbotDateA: val, halteverbotDate: val }));
+                          setLogistics((prev: any) => ({ ...prev, hvzDateA: val, hvzDate: val }));
                         }}
                         className="input-field w-full text-xs"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] text-text-muted font-bold uppercase mb-1">Uhrzeit / Zeitfenster</label>
+                      <label className="block text-[10px] text-text-muted font-bold uppercase mb-1">Uhrzeit / Zeitfenster (A)</label>
                       <select
-                        value={orderMeta.halteverbotTime || ''}
+                        value={orderMeta.halteverbotTimeA || orderMeta.halteverbotTime || logistics.hvzTimeA || logistics.hvzTime || ''}
                         onChange={e => {
-                          setOrderMeta({ ...orderMeta, halteverbotTime: e.target.value });
-                          setLogistics({ ...logistics, hvzTime: e.target.value });
+                          const val = e.target.value;
+                          setOrderMeta((prev: any) => ({ ...prev, halteverbotTimeA: val, halteverbotTime: val }));
+                          setLogistics((prev: any) => ({ ...prev, hvzTimeA: val, hvzTime: val }));
                         }}
                         className="input-field w-full text-xs"
                       >
@@ -1353,8 +1435,32 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             </div>
             <div className="col-span-3"><label className="block text-xs text-text-muted mb-1">Ort</label><input id="input-b_city" type="text" value={logistics.b_city} onChange={e => setLogistics({...logistics, b_city: e.target.value})} className="input-field w-full" /></div>
             
-            <div id="highlight-floorB" className="col-span-2 transition-all rounded-lg"><label className="block text-xs text-text-muted mb-1">Etage</label><input id="input-b_floor" type="text" list="floors" value={logistics.b_floor} onChange={e => setLogistics({...logistics, b_floor: e.target.value})} className="input-field w-full" placeholder="Auswählen oder tippen..." /></div>
-            <div className="col-span-2"><label className="block text-xs text-text-muted mb-1">Laufweg (m)</label><input type="number" min="0" value={logistics.b_distance === 0 ? '' : logistics.b_distance} onChange={e => setLogistics({...logistics, b_distance: e.target.value === '' ? 0 : parseInt(e.target.value)})} className="input-field w-full" placeholder="Unter 10 Meter" /></div>
+            <div id="highlight-floorB" className="col-span-2 transition-all rounded-lg">
+              <label className="block text-xs text-text-muted mb-1">Etage</label>
+              <select
+                id="input-b_floor"
+                value={logistics.b_floor || 'Erdgeschoss'}
+                onChange={e => setLogistics({...logistics, b_floor: e.target.value})}
+                className="input-field w-full"
+              >
+                {FLOOR_OPTIONS.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+            <div className="col-span-2">
+              <label className="block text-xs text-text-muted mb-1">Laufweg (m)</label>
+              <input
+                type="number"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                min="0"
+                value={logistics.b_distance === 0 ? '' : logistics.b_distance}
+                onChange={e => setLogistics({...logistics, b_distance: e.target.value === '' ? 0 : parseInt(e.target.value) || 0})}
+                className="input-field w-full"
+                placeholder="Unter 10 Meter"
+              />
+            </div>
             
             <div className="col-span-4">
               <label className="block text-xs text-text-muted mb-2">Immobilienart</label>
@@ -1413,7 +1519,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-primary flex items-center gap-1.5">
                       <NoSymbolIcon className="w-4 h-4" />
-                      <span>Halteverbotszone ({logistics.a_parking ? 'Auszug A & Einzug B' : 'Einzug B'}) planen</span>
+                      <span>Halteverbotszone (Einzug B) planen</span>
                     </span>
                     {orderMeta.movingDateFrom && (
                       <button
@@ -1422,8 +1528,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                           const d = new Date(orderMeta.movingDateFrom.split('T')[0]);
                           d.setDate(d.getDate() - 4);
                           const dStr = d.toISOString().split('T')[0];
-                          setOrderMeta({ ...orderMeta, halteverbotDate: dStr });
-                          setLogistics({ ...logistics, hvzDate: dStr });
+                          setOrderMeta((prev: any) => ({ ...prev, halteverbotDateB: dStr }));
+                          setLogistics((prev: any) => ({ ...prev, hvzDateB: dStr }));
                         }}
                         className="text-[10px] font-bold px-2 py-0.5 rounded bg-primary/15 text-primary hover:bg-primary hover:text-white transition-colors"
                       >
@@ -1432,70 +1538,104 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                     )}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOrderMeta({ ...orderMeta, hvzMethod: 'selbst' });
-                        setLogistics({ ...logistics, hvzMethod: 'selbst' });
-                      }}
-                      className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                        (orderMeta.hvzMethod || 'selbst') === 'selbst'
-                          ? 'bg-primary text-white border-primary shadow-xs'
-                          : 'bg-bg-panel border-structure text-text-muted hover:text-text-main'
-                      }`}
-                    >
-                      <TruckIcon className="w-4 h-4" />
-                      <span>Selbst aufstellen</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOrderMeta({ ...orderMeta, hvzMethod: 'extern' });
-                        setLogistics({ ...logistics, hvzMethod: 'extern' });
-                      }}
-                      className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
-                        orderMeta.hvzMethod === 'extern'
-                          ? 'bg-primary text-white border-primary shadow-xs'
-                          : 'bg-bg-panel border-structure text-text-muted hover:text-text-main'
-                      }`}
-                    >
-                      <BuildingOffice2Icon className="w-4 h-4" />
-                      <span>Externe Firma</span>
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[10px] text-text-muted font-bold uppercase mb-1">Aufstelldatum</label>
+                  {/* Sync with A Checkbox */}
+                  {logistics.a_parking && (
+                    <label className="flex items-center gap-2 p-2 rounded-lg bg-bg-dark/80 border border-structure cursor-pointer text-xs">
                       <input
-                        type="date"
-                        value={orderMeta.halteverbotDate || logistics.hvzDate || ''}
+                        type="checkbox"
+                        checked={Boolean(orderMeta.hvzSameAsA)}
                         onChange={e => {
-                          setOrderMeta({ ...orderMeta, halteverbotDate: e.target.value });
-                          setLogistics({ ...logistics, hvzDate: e.target.value });
+                          const isSame = e.target.checked;
+                          setOrderMeta((prev: any) => ({
+                            ...prev,
+                            hvzSameAsA: isSame,
+                            halteverbotDateB: isSame ? (prev.halteverbotDateA || prev.halteverbotDate) : prev.halteverbotDateB,
+                            halteverbotTimeB: isSame ? (prev.halteverbotTimeA || prev.halteverbotTime) : prev.halteverbotTimeB,
+                            hvzMethodB: isSame ? (prev.hvzMethodA || prev.hvzMethod) : prev.hvzMethodB
+                          }));
+                          setLogistics((prev: any) => ({
+                            ...prev,
+                            hvzSameAsA: isSame,
+                            hvzDateB: isSame ? (prev.hvzDateA || prev.hvzDate) : prev.hvzDateB,
+                            hvzTimeB: isSame ? (prev.hvzTimeA || prev.hvzTime) : prev.hvzTimeB
+                          }));
                         }}
-                        className="input-field w-full text-xs"
+                        className="accent-primary w-4 h-4"
                       />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] text-text-muted font-bold uppercase mb-1">Uhrzeit / Zeitfenster</label>
-                      <select
-                        value={orderMeta.halteverbotTime || ''}
-                        onChange={e => {
-                          setOrderMeta({ ...orderMeta, halteverbotTime: e.target.value });
-                          setLogistics({ ...logistics, hvzTime: e.target.value });
-                        }}
-                        className="input-field w-full text-xs"
-                      >
-                        <option value="">Zeitfenster wählen...</option>
-                        <option value="08:00 - 12:00">08:00 - 12:00 (Vormittag)</option>
-                        <option value="10:00 - 14:00">10:00 - 14:00 (Mittag)</option>
-                        <option value="13:00 - 17:00">13:00 - 17:00 (Nachmittag)</option>
-                        <option value="Ganztägig">Ganztägig (Flexibel)</option>
-                      </select>
-                    </div>
-                  </div>
+                      <span className="font-semibold text-text-main">Gleicher Termin wie Beladestelle (A)</span>
+                    </label>
+                  )}
+
+                  {!orderMeta.hvzSameAsA && (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOrderMeta((prev: any) => ({ ...prev, hvzMethodB: 'selbst' }));
+                            setLogistics((prev: any) => ({ ...prev, hvzMethodB: 'selbst' }));
+                          }}
+                          className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                            (orderMeta.hvzMethodB || 'selbst') === 'selbst'
+                              ? 'bg-primary text-white border-primary shadow-xs'
+                              : 'bg-bg-panel border-structure text-text-muted hover:text-text-main'
+                          }`}
+                        >
+                          <TruckIcon className="w-4 h-4" />
+                          <span>Selbst aufstellen</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOrderMeta((prev: any) => ({ ...prev, hvzMethodB: 'extern' }));
+                            setLogistics((prev: any) => ({ ...prev, hvzMethodB: 'extern' }));
+                          }}
+                          className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                            orderMeta.hvzMethodB === 'extern'
+                              ? 'bg-primary text-white border-primary shadow-xs'
+                              : 'bg-bg-panel border-structure text-text-muted hover:text-text-main'
+                          }`}
+                        >
+                          <BuildingOffice2Icon className="w-4 h-4" />
+                          <span>Externe Firma</span>
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[10px] text-text-muted font-bold uppercase mb-1">Aufstelldatum (B)</label>
+                          <input
+                            type="date"
+                            value={orderMeta.halteverbotDateB || logistics.hvzDateB || ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setOrderMeta((prev: any) => ({ ...prev, halteverbotDateB: val }));
+                              setLogistics((prev: any) => ({ ...prev, hvzDateB: val }));
+                            }}
+                            className="input-field w-full text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] text-text-muted font-bold uppercase mb-1">Uhrzeit / Zeitfenster (B)</label>
+                          <select
+                            value={orderMeta.halteverbotTimeB || logistics.hvzTimeB || ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setOrderMeta((prev: any) => ({ ...prev, halteverbotTimeB: val }));
+                              setLogistics((prev: any) => ({ ...prev, hvzTimeB: val }));
+                            }}
+                            className="input-field w-full text-xs"
+                          >
+                            <option value="">Zeitfenster wählen...</option>
+                            <option value="08:00 - 12:00">08:00 - 12:00 (Vormittag)</option>
+                            <option value="10:00 - 14:00">10:00 - 14:00 (Mittag)</option>
+                            <option value="13:00 - 17:00">13:00 - 17:00 (Nachmittag)</option>
+                            <option value="Ganztägig">Ganztägig (Flexibel)</option>
+                          </select>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -1858,6 +1998,38 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                                 className="text-[10px] text-text-muted bg-black/10 focus:bg-black/20 focus:outline-none rounded px-2 py-1 w-full resize-y min-h-[36px]"
                                 rows={1}
                               />
+                              <div className="flex items-center gap-1.5 pt-0.5">
+                                <span className="text-[10px] font-bold text-text-muted uppercase">Ort:</span>
+                                <div className="inline-flex rounded-lg p-0.5 bg-structure/40 border border-white/5">
+                                  <button
+                                    type="button"
+                                    onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, location: 'a' } : s))}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${
+                                      svc.location === 'a' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main'
+                                    }`}
+                                  >
+                                    A (Beladung)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, location: 'b' } : s))}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${
+                                      svc.location === 'b' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main'
+                                    }`}
+                                  >
+                                    B (Entladung)
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, location: 'both' } : s))}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${
+                                      !svc.location || svc.location === 'both' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main'
+                                    }`}
+                                  >
+                                    Beide
+                                  </button>
+                                </div>
+                              </div>
                             </td>
                             <td className="p-2.5 text-center pt-3">
                               <div className="inline-flex items-center gap-1 bg-structure/40 rounded-lg px-1.5 py-0.5">
@@ -2635,7 +2807,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 {/* Action 1: Save */}
                 <button
                   type="button"
-                  onClick={() => saveOrder(isInvoice ? 'invoice_open' : 'draft', false)}
+                  onClick={() => saveOrder(isInvoice ? 'invoice_open' : 'quote', true)}
                   disabled={isSaving}
                   className="group flex flex-col items-center justify-center gap-3 p-6 bg-bg-card rounded-2xl border border-structure hover:border-primary transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 text-center"
                 >
@@ -2773,7 +2945,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 ) : (
                   <span className="material-symbols-outlined text-base">check_circle</span>
                 )}
-                <span>Umzug buchen 🚀</span>
+                <span>Umzug buchen</span>
               </button>
             )}
           </div>

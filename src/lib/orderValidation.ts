@@ -76,11 +76,11 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
   if (Array.isArray(order?.services)) {
     order.services.forEach((s: any) => countBox(s.name, s.quantity || 1));
   }
-  if (Array.isArray(order?.inventory)) {
-    order.inventory.forEach((i: any) => countBox(i.name, i.quantity || 1));
-  }
   if (Array.isArray(order?.materials)) {
     order.materials.forEach((m: any) => countBox(m.name || 'Packmittel', m.quantity || 1));
+  }
+  if (Array.isArray(order?.logistics?.materials)) {
+    order.logistics.materials.forEach((m: any) => countBox(m.name || m.type || 'Packmittel', m.quantity || m.count || 1));
   }
   const totalBoxes = standardBoxes + buecherBoxes + kleiderBoxes;
   const materialsSummary = {
@@ -202,35 +202,42 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
   // (KEINE Adressen! Keine Besichtigung! Nur operative Vorbereitung für Umzugstag)
   // =========================================================================
   else if (phase === 3) {
-    // 1. Umzugskartons / Verpackungsmaterial
-    const isBoxesDone = isTaskCompleted(order, 'kartons');
-    const needsBoxes = Boolean(
+    // 1. Umzugskartons / Verpackungsmaterial (NUR wenn im Angebot gebucht)
+    const hasExplicitKartonService = Array.isArray(order?.services) && order.services.some((s: any) => {
+      const n = (s.name || '').toLowerCase();
+      return n.includes('karton') || n.includes('packmaterial') || n.includes('box');
+    });
+    const hasKartonDelivery = Boolean(
+      hasExplicitKartonService ||
+      (order?.logistics?.materials && order.logistics.materials.length > 0) ||
       totalBoxes > 0 ||
       logistics?.boxDeliveryDate ||
-      order?.orderMeta?.kartonDeliveryDate ||
-      services?.packservice ||
-      isBoxesDone
+      order?.orderMeta?.kartonDeliveryDate
     );
-    const boxBreakdown = [
-      standardBoxes > 0 ? `${standardBoxes}x Standard` : '',
-      buecherBoxes > 0 ? `${buecherBoxes}x Bücher` : '',
-      kleiderBoxes > 0 ? `${kleiderBoxes}x Kleider` : ''
-    ].filter(Boolean).join(', ');
 
-    const boxLabel = isBoxesDone
-      ? (totalBoxes > 0 ? `Kartons geliefert (${totalBoxes} Stk.)` : 'Kartons ausgeliefert')
-      : (totalBoxes > 0 ? `Umzugskartons liefern (${totalBoxes} Stk.${boxBreakdown ? `: ${boxBreakdown}` : ''})` : 'Umzugskartons liefern');
+    if (hasKartonDelivery) {
+      const isBoxesDone = isTaskCompleted(order, 'kartons');
+      const boxBreakdown = [
+        standardBoxes > 0 ? `${standardBoxes}x Standard` : '',
+        buecherBoxes > 0 ? `${buecherBoxes}x Bücher` : '',
+        kleiderBoxes > 0 ? `${kleiderBoxes}x Kleider` : ''
+      ].filter(Boolean).join(', ');
 
-    checklist.push({
-      id: 'kartons',
-      label: boxLabel,
-      done: needsBoxes ? isBoxesDone : true,
-      type: 'kartons',
-      isAutomated: false,
-      missingReason: (!isBoxesDone && needsBoxes) ? 'Verpackungsmaterial ist gebucht, aber noch nicht ausgeliefert.' : undefined,
-      date: logistics?.boxDeliveryDate || order?.orderMeta?.kartonDeliveryDate,
-      details: boxBreakdown || (totalBoxes > 0 ? `${totalBoxes} Kartons` : undefined)
-    });
+      const boxLabel = isBoxesDone
+        ? (totalBoxes > 0 ? `Kartons geliefert (${totalBoxes} Stk.)` : 'Kartons ausgeliefert')
+        : (totalBoxes > 0 ? `Umzugskartons liefern (${totalBoxes} Stk.${boxBreakdown ? `: ${boxBreakdown}` : ''})` : 'Umzugskartons liefern');
+
+      checklist.push({
+        id: 'kartons',
+        label: boxLabel,
+        done: isBoxesDone,
+        type: 'kartons',
+        isAutomated: false,
+        missingReason: !isBoxesDone ? 'Verpackungsmaterial ist gebucht, aber noch nicht ausgeliefert.' : undefined,
+        date: logistics?.boxDeliveryDate || order?.orderMeta?.kartonDeliveryDate,
+        details: boxBreakdown || (totalBoxes > 0 ? `${totalBoxes} Kartons` : undefined)
+      });
+    }
 
     // 2. HVZ Halteverbotszone
     const hasHVZService = Array.isArray(order?.services) && order.services.some((s: any) => 

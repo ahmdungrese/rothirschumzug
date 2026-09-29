@@ -12,6 +12,8 @@ import {
   XMarkIcon,
   MagnifyingGlassIcon,
   TruckIcon,
+  HomeIcon,
+  ArchiveBoxIcon,
   Squares2X2Icon,
   QueueListIcon
 } from '@heroicons/react/24/outline';
@@ -585,22 +587,25 @@ export default function CalendarPage() {
                         )}
                       </div>
 
-                      {/* Mini Symbol Workload Indicators */}
+                      {/* Mini Workload Indicators (Clean Heroicons - Zero Emojis) */}
                       {filteredEvents.length > 0 && (
                         <div className="flex items-center gap-1 text-[10px] font-bold">
                           {movesCount > 0 && (
-                            <span className="px-1.5 py-0.2 rounded-md bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC]" title={`${movesCount} Umzüge`}>
-                              🚚{movesCount}
+                            <span className="px-1.5 py-0.5 rounded-md bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] flex items-center gap-0.5" title={`${movesCount} Umzüge`}>
+                              <TruckIcon className="w-3 h-3 shrink-0" />
+                              <span>{movesCount}</span>
                             </span>
                           )}
                           {viewingsCount > 0 && (
-                            <span className="px-1.5 py-0.2 rounded-md bg-purple-500/15 text-purple-700 dark:text-purple-300" title={`${viewingsCount} Besichtigungen`}>
-                              🏠{viewingsCount}
+                            <span className="px-1.5 py-0.5 rounded-md bg-purple-500/15 text-purple-700 dark:text-purple-300 flex items-center gap-0.5" title={`${viewingsCount} Besichtigungen`}>
+                              <HomeIcon className="w-3 h-3 shrink-0" />
+                              <span>{viewingsCount}</span>
                             </span>
                           )}
                           {logisticsCount > 0 && (
-                            <span className="px-1.5 py-0.2 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300" title={`${logisticsCount} Logistik-Aufgaben`}>
-                              📦{logisticsCount}
+                            <span className="px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 flex items-center gap-0.5" title={`${logisticsCount} Logistik-Aufgaben`}>
+                              <ArchiveBoxIcon className="w-3 h-3 shrink-0" />
+                              <span>{logisticsCount}</span>
                             </span>
                           )}
                         </div>

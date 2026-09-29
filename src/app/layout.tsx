@@ -46,7 +46,7 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
-        <meta name="theme-color" content="#D91E2A" />
+        <meta name="theme-color" content="#6E8F64" />
         <link
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
@@ -67,7 +67,7 @@ export default function RootLayout({
             },
             success: {
               iconTheme: {
-                primary: '#10b981',
+                primary: '#6E8F64',
                 secondary: '#fff',
               },
             },

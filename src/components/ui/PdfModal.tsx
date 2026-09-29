@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 
 interface PdfModalProps {
   order: any;
@@ -15,6 +16,7 @@ interface PdfModalProps {
 }
 
 export function PdfModal({ order, customer, type, onClose, forceLiveQuote = false }: PdfModalProps) {
+  useModalBackHandler(true, onClose, 'pdf-modal');
   const [settings, setSettings] = useState<any>(null);
 
   useEffect(() => {

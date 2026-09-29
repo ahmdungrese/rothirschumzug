@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase';
 import { doc, collection, addDoc, updateDoc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { XMarkIcon, ExclamationTriangleIcon, DocumentCheckIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
+import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 
 interface StornoModalProps {
   invoice: any;
@@ -13,6 +14,7 @@ interface StornoModalProps {
 }
 
 export function StornoModal({ invoice, onClose, onSuccess }: StornoModalProps) {
+  useModalBackHandler(Boolean(invoice), onClose, 'storno-modal');
   const [reason, setReason] = useState('Rechnungskorrektur / Falsche Positionen');
   const [customReason, setCustomReason] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -27,7 +29,7 @@ export function StornoModal({ invoice, onClose, onSuccess }: StornoModalProps) {
     const finalReason = reason === 'Sonstiges' ? (customReason || 'Rechnung storniert') : reason;
 
     try {
-      const stornoNumber = `ST-${invoiceNum.replace(/^RE-/, '')}`;
+      const stornoNumber = `ST-${invoiceNum.replace(/^(RE-|R-)/, '')}`;
       
       const stornoPayload: any = {
         type: 'invoice',

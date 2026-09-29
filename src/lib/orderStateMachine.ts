@@ -140,27 +140,60 @@ export async function changeOrderStatus(
 
     // 3. NUMBER GENERATION & WRITES
     if ((targetStatus === 'invoice_open' || targetStatus === 'invoice_paid') && !order.invoiceNumber) {
-      let nextInvoiceNumber = 1000;
+      let nextInvoiceNumber = 1771;
       if (settingsDoc.exists() && settingsDoc.data().nextInvoiceNumber) {
-        nextInvoiceNumber = settingsDoc.data().nextInvoiceNumber;
+        nextInvoiceNumber = Math.max(1771, settingsDoc.data().nextInvoiceNumber);
       }
-      transaction.update(settingsRef, { nextInvoiceNumber: increment(1) });
-      updatePayload.invoiceNumber = `RE-${new Date().getFullYear()}-${nextInvoiceNumber.toString().padStart(3, '0')}`;
+      transaction.update(settingsRef, { nextInvoiceNumber: nextInvoiceNumber + 1 });
+      updatePayload.invoiceNumber = `R-${nextInvoiceNumber}`;
       updatePayload.invoiceDate = new Date().toISOString();
     }
 
     if (['quote', 'confirmed', 'completed'].includes(targetStatus) && !order.orderNumber && !updatePayload.orderNumber) {
-      let nextQuoteNumber = 1000;
+      let nextQuoteNumber = 1771;
       if (settingsDoc.exists() && settingsDoc.data().nextQuoteNumber) {
-        nextQuoteNumber = settingsDoc.data().nextQuoteNumber;
+        nextQuoteNumber = Math.max(1771, settingsDoc.data().nextQuoteNumber);
       }
-      transaction.update(settingsRef, { nextQuoteNumber: increment(1) });
-      updatePayload.orderNumber = `ANG-${new Date().getFullYear()}-${nextQuoteNumber.toString().padStart(3, '0')}`;
+      transaction.update(settingsRef, { nextQuoteNumber: nextQuoteNumber + 1 });
+      updatePayload.orderNumber = `AN-${nextQuoteNumber}`;
     }
 
     transaction.update(orderRef, updatePayload);
 
     return { ...order, ...updatePayload, version: currentVersion + 1 };
+  });
+}
+
+/**
+ * Ensures an order has an authoritative AN-XXX orderNumber.
+ * If missing, generates the next available number from settings transactionally.
+ */
+export async function ensureOrderNumber(orderId: string): Promise<string> {
+  return await runTransaction(db, async (transaction) => {
+    const orderRef = doc(db, 'orders', orderId);
+    const orderDoc = await transaction.get(orderRef);
+    if (!orderDoc.exists()) throw new Error("Auftrag nicht gefunden.");
+
+    const orderData = orderDoc.data();
+    if (orderData.orderNumber) {
+      return orderData.orderNumber;
+    }
+
+    const settingsRef = doc(db, 'system', 'settings');
+    const settingsDoc = await transaction.get(settingsRef);
+    let nextQuoteNumber = 1771;
+    if (settingsDoc.exists() && settingsDoc.data().nextQuoteNumber) {
+      nextQuoteNumber = Math.max(1771, settingsDoc.data().nextQuoteNumber);
+    }
+
+    const newOrderNumber = `AN-${nextQuoteNumber}`;
+    transaction.update(settingsRef, { nextQuoteNumber: nextQuoteNumber + 1 });
+    transaction.update(orderRef, {
+      orderNumber: newOrderNumber,
+      updatedAt: serverTimestamp()
+    });
+
+    return newOrderNumber;
   });
 }
 

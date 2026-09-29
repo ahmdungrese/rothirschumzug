@@ -167,7 +167,11 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
       addTicket('move_past_due', 'Umzug liegt in der Vergangenheit! Bitte auf "Umzug durchgeführt" setzen.', 4, 'warning', 'general', `/dashboard/customers/${order.customerId}`, { status: 'overdue', text: 'ÜBERFÄLLIG' }, false);
     }
 
-    if (hasServiceLike(['karton', 'box', 'kartons'])) {
+    const hasKartonService = hasServiceLike(['karton', 'box', 'kartons', 'packmaterial']) || 
+      (Array.isArray(order.logistics?.materials) && order.logistics.materials.some((m: any) => (m.name || m.type || '').toLowerCase().includes('karton') && (m.quantity || m.count || 0) > 0)) ||
+      Boolean(order.orderMeta?.kartonDeliveryDate);
+
+    if (hasKartonService) {
       // Check for custom carton delivery date first, else calculate relative (due: 28 days before, overdue: 23 days before)
       const customKartonStatus = calculateTargetDateStatus(order.orderMeta?.kartonDeliveryDate);
       const relativeKartonStatus = calculateDueDateStatus(daysToMove, 28, 23);

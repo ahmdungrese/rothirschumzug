@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { calculateOrderTotals, calculateTotalPaid, calculateOpenAmount } from '@/lib/financeHelpers';
 import { evaluateOrderLogistics } from '@/lib/orderValidation';
 import { toggleTaskCompletion, updateTaskSchedule, isTaskCompleted } from '@/lib/taskStateController';
+import { ensureOrderNumber } from '@/lib/orderStateMachine';
 import { updateDoc, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
@@ -46,6 +47,7 @@ import {
 import { StornoModal } from '@/components/finances/StornoModal';
 import { OrderDetailsDrawer } from '@/components/dashboard/OrderDetailsDrawer';
 import { TaskScheduleModal } from '@/components/logistics/TaskScheduleModal';
+import { generateTickets } from '@/lib/ticketEngine';
 
 const DEFAULT_COMMUNICATION_TEMPLATES = [
   {
@@ -276,6 +278,10 @@ export function CustomerPremiumProfile({
 
   const invoiceNumberDisplay = activeOrder?.invoiceNumber || linkedInvoice?.invoiceNumber || null;
 
+  // Pre-invoice open tasks check modal state
+  const [preInvoiceOpenTasks, setPreInvoiceOpenTasks] = useState<{ order: any; tasks: any[] } | null>(null);
+  const [isAutoClosingTasks, setIsAutoClosingTasks] = useState(false);
+
   // Unconfirmed invoice warning modal state
   const [unconfirmedInvoiceOrder, setUnconfirmedInvoiceOrder] = useState<any>(null);
 
@@ -304,6 +310,15 @@ export function CustomerPremiumProfile({
       if (updated) setDrawerOrder(updated);
     }
   }, [orders]);
+
+  // Self-heal: ensure confirmed or quote orders automatically receive an authoritative AN-XXX orderNumber
+  useEffect(() => {
+    if (activeOrder?.id && (activeOrder.status === 'confirmed' || activeOrder.status === 'quote') && !activeOrder.orderNumber) {
+      ensureOrderNumber(activeOrder.id).then(() => {
+        if (onRefresh) onRefresh();
+      }).catch(console.error);
+    }
+  }, [activeOrder?.id, activeOrder?.status, activeOrder?.orderNumber, onRefresh]);
 
   const formatCustomerDate = (dateRaw?: string, timeRaw?: string) => {
     if (!dateRaw || dateRaw === 'requested') return '';
@@ -474,9 +489,21 @@ export function CustomerPremiumProfile({
     );
 
     if (existingInv || orderToInvoice.invoiceNumber) {
-      toast.info(`Rechnung ${orderToInvoice.invoiceNumber || existingInv?.invoiceNumber || ''} existiert bereits.`);
+      toast(`Rechnung ${orderToInvoice.invoiceNumber || existingInv?.invoiceNumber || ''} existiert bereits.`);
       onViewPdf(existingInv || orderToInvoice, 'invoice');
       return;
+    }
+
+    // Pre-flight check for open logistics tasks (viewing, kartons, HVZ, moebellift)
+    try {
+      const tickets = generateTickets(orderToInvoice, customer);
+      const openLogisticsTasks = tickets.filter(t => !t.done && ['viewing_requested', 'kartons_liefern', 'halteverbot', 'moebellift_buchen'].includes(t.id));
+      if (openLogisticsTasks.length > 0) {
+        setPreInvoiceOpenTasks({ order: orderToInvoice, tasks: openLogisticsTasks });
+        return;
+      }
+    } catch (err) {
+      console.error('Error generating pre-flight tickets:', err);
     }
 
     const isContractSigned = 
@@ -511,6 +538,33 @@ export function CustomerPremiumProfile({
 
     // Proceed directly if contract is signed and tasks/protocol are completed
     router.push(`/dashboard/customers/${customer.id}/edit-invoice/${orderToInvoice.id}`);
+  };
+
+  const handleAutoCloseTasksAndInvoice = async () => {
+    if (!preInvoiceOpenTasks) return;
+    const { order, tasks } = preInvoiceOpenTasks;
+    setIsAutoClosingTasks(true);
+    try {
+      for (const t of tasks) {
+        await toggleTaskCompletion(order.id, t.id, true);
+      }
+      toast.success(`${tasks.length} offene Aufgaben automatisch als erledigt markiert.`);
+      setPreInvoiceOpenTasks(null);
+      if (onRefresh) onRefresh();
+      router.push(`/dashboard/customers/${customer.id}/edit-invoice/${order.id}`);
+    } catch (err) {
+      console.error('Error auto-completing tasks:', err);
+      toast.error('Fehler beim Aktualisieren der Aufgaben.');
+    } finally {
+      setIsAutoClosingTasks(false);
+    }
+  };
+
+  const handleProceedWithoutClosingTasks = () => {
+    if (!preInvoiceOpenTasks) return;
+    const { order } = preInvoiceOpenTasks;
+    setPreInvoiceOpenTasks(null);
+    router.push(`/dashboard/customers/${customer.id}/edit-invoice/${order.id}`);
   };
 
   // Payment interception guard: Invoices must exist before recording payments
@@ -2073,7 +2127,7 @@ export function CustomerPremiumProfile({
                           title={`Rechnung ${ordInvoiceNum || ''} als PDF anzeigen`}
                         >
                           <DocumentCheckIcon className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                          <span>Rechnung {ordInvoiceNum ? `(${ordInvoiceNum})` : 'ansehen'}</span>
+                          <span>{(ordLinkedInv?.isKorrektur || ord.isKorrektur) ? 'Korrekturrechnung' : 'Rechnung'} {ordInvoiceNum ? `(${ordInvoiceNum})` : 'ansehen'}</span>
                         </button>
                         {!ord.isStorno && ord.status !== 'invoice_cancelled' && ord.status !== 'canceled' && (
                           <button
@@ -2104,6 +2158,80 @@ export function CustomerPremiumProfile({
           </div>
         )}
       </section>
+
+      {/* PRE-FLIGHT CHECK MODAL: Open Logistics Tasks before Invoicing */}
+      {preInvoiceOpenTasks && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-6">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <ExclamationTriangleIcon className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                  Vorflug-Prüfung (Pre-Flight Check)
+                </span>
+                <h3 className="font-headline font-bold text-lg text-slate-900 dark:text-white mt-1">
+                  Offene Aufgaben / Termine vorhanden
+                </h3>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 space-y-2">
+              <p className="font-semibold text-sm">
+                Es gibt noch offene Aufgaben / Termine für diesen Kunden.
+              </p>
+              <p className="text-amber-800/80 dark:text-amber-300/80 leading-relaxed">
+                Möchten Sie diese Aufgaben vor der Rechnungserstellung automatisch als erledigt markieren oder unverändert fortfahren?
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 text-xs space-y-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                Offene Punkte ({preInvoiceOpenTasks.tasks.length}):
+              </span>
+              <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                {preInvoiceOpenTasks.tasks.map(t => (
+                  <div key={t.id} className="flex items-center gap-2 p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{t.title}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setPreInvoiceOpenTasks(null)}
+                disabled={isAutoClosingTasks}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Abbrechen
+              </button>
+
+              <button
+                type="button"
+                onClick={handleProceedWithoutClosingTasks}
+                disabled={isAutoClosingTasks}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                Trotzdem zur Rechnung
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAutoCloseTasksAndInvoice}
+                disabled={isAutoClosingTasks}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-bold bg-[#6E8F64] hover:bg-[#5C7A53] text-white shadow-md shadow-[#6E8F64]/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <CheckCircleIcon className="w-4 h-4" />
+                <span>{isAutoClosingTasks ? 'Schließe Aufgaben...' : 'Aufgaben schließen & Rechnung'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* STEP 1 PRIORITY: Unconfirmed / Incomplete Order Invoice Warning Confirmation Modal */}
       {unconfirmedInvoiceOrder && (

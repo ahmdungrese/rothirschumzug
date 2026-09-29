@@ -10,9 +10,8 @@ interface PDFHeaderProps {
 
 const styles = StyleSheet.create({
   headerFull: {
-    marginBottom: 8,
     backgroundColor: '#ffffff',
-    paddingBottom: 2,
+    paddingBottom: 14,
   },
   topRow: {
     flexDirection: 'row',
@@ -53,7 +52,6 @@ const styles = StyleSheet.create({
   senderLine: {
     fontSize: 8,
     color: PDF_COLORS.textMuted,
-    marginBottom: 10,
     backgroundColor: '#ffffff',
   },
 

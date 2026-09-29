@@ -79,12 +79,12 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
                 href={item.href}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
                   isActive 
-                    ? 'sidebar-active text-[#D91E2A] dark:text-red-400 font-bold shadow-sm' 
+                    ? 'sidebar-active text-[#527048] dark:text-[#A8C69F] font-bold shadow-sm' 
                     : 'text-text-muted hover:bg-structure/60 hover:text-text-main font-medium'
                 }`}
                 onClick={() => setIsOpen(false)}
               >
-                <item.icon className={`w-5 h-5 ${isActive ? 'text-[#D91E2A] dark:text-red-400' : ''}`} />
+                <item.icon className={`w-5 h-5 ${isActive ? 'text-[#6E8F64] dark:text-[#A8C69F]' : ''}`} />
                 <span className="font-display text-sm">{item.name}</span>
               </Link>
             );
@@ -94,7 +94,7 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
         {/* System Version Footer */}
         <div className="p-3.5 border-t border-structure bg-bg-dark/50 flex items-center justify-between text-xs text-text-muted">
           <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="w-2 h-2 rounded-full bg-[#6E8F64] animate-pulse" />
             <span className="font-semibold text-[11px] text-text-main">Rothirsch ERP</span>
           </div>
           <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold border border-primary/20 text-[10px] font-mono">

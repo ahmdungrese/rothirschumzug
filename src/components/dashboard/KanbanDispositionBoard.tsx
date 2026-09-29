@@ -7,6 +7,30 @@ import { KanbanOrderCard } from './KanbanOrderCard';
 import { OrderDetailsDrawer } from './OrderDetailsDrawer';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 
+function getDaysUntilMove(order: any): number | null {
+  const rawDate = order.orderMeta?.movingDateFrom || order.movingDate || order.logistics?.movingDate;
+  if (!rawDate) return null;
+  const d = new Date(rawDate);
+  if (isNaN(d.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  d.setHours(0, 0, 0, 0);
+  return Math.round((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function getViewingUrgency(order: any): 'upcoming' | 'overdue' | 'none' {
+  const v = order.orderMeta?.viewingDate || order.viewingDate;
+  if (!v || v === 'erledigt_fotos') return 'none';
+  const d = new Date(v.split('T')[0]);
+  if (isNaN(d.getTime())) return 'none';
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  d.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) return 'overdue';
+  return 'upcoming';
+}
+
 export function KanbanDispositionBoard() {
   const [orders, setOrders] = useState<any[]>([]);
   const [customers, setCustomers] = useState<Record<string, any>>({});
@@ -58,8 +82,15 @@ export function KanbanDispositionBoard() {
     });
   }, [orders, customers, searchQuery, sourceFilter]);
 
-  // Intelligent sorting per column
-  const { columnNeu, columnVerhandlung, columnBestaetigt, columnAbgeschlossen } = useMemo(() => {
+  // Intelligent logical sorting per column
+  const { 
+    columnNeu, 
+    columnVerhandlung, 
+    upcomingBestaetigt,
+    pastBestaetigt,
+    columnBestaetigt, 
+    columnAbgeschlossen 
+  } = useMemo(() => {
     // 1. Column Abgeschlossen
     const colAbgeschlossen = filteredOrders.filter(o => 
       o.status === 'completed' || (o.status && o.status.startsWith('invoice_')) || o.status === 'archived'
@@ -76,18 +107,36 @@ export function KanbanDispositionBoard() {
       return dateB - dateA;
     });
 
-    // 2. Column Bestätigt
+    // 2. Column Bestätigt: Separate upcoming moves vs past moves
     const colBestaetigt = filteredOrders.filter(o => o.status === 'confirmed');
-    // Sort: STRICTLY CHRONOLOGICAL by movingDateFrom (earliest move date first)
-    colBestaetigt.sort((a, b) => {
-      const dateA = a.orderMeta?.movingDateFrom || a.movingDate || '';
-      const dateB = b.orderMeta?.movingDateFrom || b.movingDate || '';
-      if (dateA && !dateB) return -1;
-      if (!dateA && dateB) return 1;
-      if (dateA && dateB) {
-        return new Date(dateA).getTime() - new Date(dateB).getTime();
+    const upcoming: any[] = [];
+    const past: any[] = [];
+
+    colBestaetigt.forEach(o => {
+      const diff = getDaysUntilMove(o);
+      if (diff !== null && diff < 0) {
+        past.push(o);
+      } else {
+        upcoming.push(o);
       }
+    });
+
+    // Upcoming: Strictly chronological by movingDateFrom (earliest move date first)
+    upcoming.sort((a, b) => {
+      const diffA = getDaysUntilMove(a);
+      const diffB = getDaysUntilMove(b);
+      if (diffA !== null && diffB !== null) return diffA - diffB;
+      if (diffA !== null && diffB === null) return -1;
+      if (diffA === null && diffB !== null) return 1;
       return (b.updatedAt?.toMillis?.() || 0) - (a.updatedAt?.toMillis?.() || 0);
+    });
+
+    // Past moves: most recent past move first
+    past.sort((a, b) => {
+      const diffA = getDaysUntilMove(a);
+      const diffB = getDaysUntilMove(b);
+      if (diffA !== null && diffB !== null) return diffB - diffA;
+      return 0;
     });
 
     // 3. Column In Verhandlung
@@ -98,18 +147,15 @@ export function KanbanDispositionBoard() {
       o.status !== 'archived' &&
       (o.status === 'quote' || o.status === 'verhandlung' || Boolean(o.orderMeta?.viewingDate || o.viewingDate))
     );
+    
     // Sort: Upcoming viewing date first, then moving date urgency
     colVerhandlung.sort((a, b) => {
-      const viewA = a.orderMeta?.viewingDate || a.viewingDate || '';
-      const viewB = b.orderMeta?.viewingDate || b.viewingDate || '';
-      const hasViewA = Boolean(viewA && viewA !== 'erledigt_fotos');
-      const hasViewB = Boolean(viewB && viewB !== 'erledigt_fotos');
-
-      if (hasViewA && !hasViewB) return -1;
-      if (!hasViewA && hasViewB) return 1;
-      if (hasViewA && hasViewB) {
-        return new Date(viewA.split('T')[0]).getTime() - new Date(viewB.split('T')[0]).getTime();
-      }
+      const urgA = getViewingUrgency(a);
+      const urgB = getViewingUrgency(b);
+      if (urgA === 'upcoming' && urgB !== 'upcoming') return -1;
+      if (urgA !== 'upcoming' && urgB === 'upcoming') return 1;
+      if (urgA === 'overdue' && urgB === 'none') return -1;
+      if (urgA === 'none' && urgB === 'overdue') return 1;
 
       const moveA = a.orderMeta?.movingDateFrom || a.movingDate || '';
       const moveB = b.orderMeta?.movingDateFrom || b.movingDate || '';
@@ -125,7 +171,6 @@ export function KanbanDispositionBoard() {
       !colBestaetigt.includes(o) &&
       !colVerhandlung.includes(o)
     );
-    // Sort: Earliest moving date urgency, then newest inquiry
     colNeu.sort((a, b) => {
       const moveA = a.orderMeta?.movingDateFrom || a.movingDate || '';
       const moveB = b.orderMeta?.movingDateFrom || b.movingDate || '';
@@ -142,6 +187,8 @@ export function KanbanDispositionBoard() {
     return {
       columnNeu: colNeu,
       columnVerhandlung: colVerhandlung,
+      upcomingBestaetigt: upcoming,
+      pastBestaetigt: past,
       columnBestaetigt: colBestaetigt,
       columnAbgeschlossen: colAbgeschlossen,
     };
@@ -165,7 +212,7 @@ export function KanbanDispositionBoard() {
 
   return (
     <div className="space-y-4">
-      {/* Ultra-Slim Search & Filter Bar (Replaces bulky Einsatzzentrale banner to maximize screen space) */}
+      {/* Ultra-Slim Search Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900/80 px-4 py-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="flex items-center gap-2">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -219,7 +266,7 @@ export function KanbanDispositionBoard() {
         })}
       </div>
 
-      {/* 4 Kanban Columns with Mobile Accordion Mode */}
+      {/* 4 Kanban Columns */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start">
         {/* Column 1: Neu */}
         <div className={`bg-slate-100/70 dark:bg-slate-900/50 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex-col transition-all duration-300 md:min-h-[500px] ${
@@ -292,17 +339,17 @@ export function KanbanDispositionBoard() {
         </div>
 
         {/* Column 3: Bestätigt */}
-        <div className={`bg-emerald-50/50 dark:bg-emerald-950/15 p-3.5 rounded-2xl border border-emerald-200/70 dark:border-emerald-900/30 flex-col transition-all duration-300 md:min-h-[500px] ${
+        <div className={`bg-[#6E8F64]/8 dark:bg-[#6E8F64]/12 p-3.5 rounded-2xl border border-[#6E8F64]/30 dark:border-[#6E8F64]/25 flex-col transition-all duration-300 md:min-h-[500px] ${
           activeMobileCol === 'bestaetigt' ? 'flex' : 'hidden md:flex'
         }`}>
           <div className="w-full flex items-center justify-between px-1 select-none mb-3">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+              <span className="w-2.5 h-2.5 rounded-full bg-[#6E8F64] shrink-0" />
               <h3 className="text-xs font-bold uppercase tracking-wider font-headline text-slate-800 dark:text-slate-200">
                 3. Bestätigt
               </h3>
             </div>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white dark:bg-slate-800 text-emerald-800 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white dark:bg-slate-800 text-[#435E3A] dark:text-[#B5D1AC] border border-[#6E8F64]/30">
               {columnBestaetigt.length}
             </span>
           </div>
@@ -313,15 +360,36 @@ export function KanbanDispositionBoard() {
                 Keine bestätigten Umzüge
               </div>
             ) : (
-              columnBestaetigt.map(order => (
-                <KanbanOrderCard
-                  key={order.id}
-                  order={order}
-                  customer={customers[order.customerId]}
-                  columnId="bestaetigt"
-                  onSelect={(ord) => setSelectedOrderForDrawer(ord)}
-                />
-              ))
+              <>
+                {/* Upcoming moves sorted by date urgency */}
+                {upcomingBestaetigt.map(order => (
+                  <KanbanOrderCard
+                    key={order.id}
+                    order={order}
+                    customer={customers[order.customerId]}
+                    columnId="bestaetigt"
+                    onSelect={(ord) => setSelectedOrderForDrawer(ord)}
+                  />
+                ))}
+
+                {/* Past moves kept cleanly at the bottom without any number badge */}
+                {pastBestaetigt.length > 0 && (
+                  <div className="pt-3 border-t border-dashed border-slate-300 dark:border-slate-700/80 space-y-2">
+                    <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-1">
+                      Vorbei
+                    </div>
+                    {pastBestaetigt.map(order => (
+                      <KanbanOrderCard
+                        key={order.id}
+                        order={order}
+                        customer={customers[order.customerId]}
+                        columnId="bestaetigt"
+                        onSelect={(ord) => setSelectedOrderForDrawer(ord)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

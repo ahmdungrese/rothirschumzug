@@ -23,3 +23,22 @@ export const AGB_TEXT = [
   { title: "§ 11 Gerichtsstand und anwendbares Recht", content: "Es gilt deutsches Recht. Gerichtsstand ist der Sitz des Unternehmens, sofern der Kunde Kaufmann ist oder keinen allgemeinen Gerichtsstand in Deutschland hat." },
   { title: "§ 12 Salvatorische Klausel", content: "Unwirksame Bestimmungen berühren die Gültigkeit der übrigen AGB nicht." }
 ];
+
+export const FLOOR_OPTIONS = [
+  'Erdgeschoss',
+  'Hochparterre',
+  '1. OG',
+  '2. OG',
+  '3. OG',
+  '4. OG',
+  '5. OG',
+  '6. OG',
+  '7. OG',
+  '8. OG',
+  '9. OG',
+  '10. OG+',
+  'Dachgeschoss',
+  'Keller / Tiefparterre',
+  'Gewerbe / Lager'
+];
+

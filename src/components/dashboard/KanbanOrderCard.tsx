@@ -31,7 +31,7 @@ export function KanbanOrderCard({ order, customer, columnId, onSelect }: KanbanO
     moveDate.setHours(0, 0, 0, 0);
 
     const diffDays = Math.round((moveDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    if (diffDays === 0) return { label: 'Heute', color: 'bg-red-500 text-white' };
+    if (diffDays === 0) return { label: 'Heute', color: 'bg-[#6E8F64] text-white' };
     if (diffDays === 1) return { label: 'Morgen', color: 'bg-orange-500 text-white' };
     if (diffDays > 1 && diffDays <= 7) return { label: `in ${diffDays} Tg.`, color: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' };
     if (diffDays < 0) return { label: `vor ${Math.abs(diffDays)} Tg.`, color: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' };
@@ -46,8 +46,8 @@ export function KanbanOrderCard({ order, customer, columnId, onSelect }: KanbanO
   let statusText = 'Neu';
 
   if (columnId === 'neu') {
-    borderLeftColor = 'border-l-primary';
-    statusDotColor = 'bg-primary';
+    borderLeftColor = 'border-l-[#6E8F64]';
+    statusDotColor = 'bg-[#6E8F64]';
     statusText = evaluation.leadSource || 'Neu';
   } else if (columnId === 'verhandlung') {
     borderLeftColor = 'border-l-amber-500';
@@ -56,8 +56,8 @@ export function KanbanOrderCard({ order, customer, columnId, onSelect }: KanbanO
     statusText = hasViewing ? 'Besichtigung' : 'In Verhandlung';
   } else if (columnId === 'bestaetigt') {
     if (evaluation.isComplete) {
-      borderLeftColor = 'border-l-emerald-500';
-      statusDotColor = 'bg-emerald-500';
+      borderLeftColor = 'border-l-[#6E8F64]';
+      statusDotColor = 'bg-[#6E8F64]';
       statusText = 'Bereit';
     } else {
       borderLeftColor = 'border-l-amber-500';
@@ -67,7 +67,7 @@ export function KanbanOrderCard({ order, customer, columnId, onSelect }: KanbanO
   } else if (columnId === 'abgeschlossen') {
     const hasInvoice = Boolean(order.invoiceNumber || (order.status && order.status.startsWith('invoice_')));
     borderLeftColor = 'border-l-slate-400';
-    statusDotColor = hasInvoice ? 'bg-emerald-500' : 'bg-amber-500';
+    statusDotColor = hasInvoice ? 'bg-[#6E8F64]' : 'bg-amber-500';
     statusText = hasInvoice ? 'Abgerechnet' : 'Rechnung offen';
   }
 
@@ -78,10 +78,10 @@ export function KanbanOrderCard({ order, customer, columnId, onSelect }: KanbanO
     >
       {/* 1. Header: Customer Name & Order Number */}
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h4 className="font-bold text-sm text-slate-900 dark:text-white font-headline group-hover:text-primary transition-colors truncate">
+        <h4 className="font-bold text-sm text-slate-900 dark:text-white font-headline group-hover:text-[#6E8F64] transition-colors truncate">
           {custName}
         </h4>
-        <span className="text-[10px] font-bold text-primary dark:text-red-400 font-headline shrink-0">
+        <span className="text-[10px] font-bold text-[#6E8F64] dark:text-[#A8C69F] font-headline shrink-0">
           {orderNum}
         </span>
       </div>

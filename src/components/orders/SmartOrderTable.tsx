@@ -95,13 +95,16 @@ export function SmartOrderTable({
               const isCanceled = order.status === 'canceled' || order.status === 'invoice_cancelled';
               const openAmount = calculateOpenAmount(order);
               const isInvoice = order.type === 'invoice' || order.status?.startsWith('invoice');
+              const isInvoiced = !isInvoice && Boolean(order.invoiceNumber || (order.invoiceHistory && order.invoiceHistory.length > 0));
               const displayNumber = order.invoiceNumber || order.orderNumber || '-';
               const isMovingSoon = !isInvoice && order.logistics?.movingDate && new Date(order.logistics.movingDate).getTime() < Date.now() + 7 * 24 * 60 * 60 * 1000;
 
               return (
                 <tr 
                   key={order.id} 
-                  className="hover:bg-white/[0.04] transition-colors group"
+                  className={`transition-colors group ${
+                    isInvoiced ? 'opacity-70 dark:opacity-65 bg-slate-500/5 hover:bg-slate-500/10' : 'hover:bg-white/[0.04]'
+                  }`}
                 >
                   {/* Kunde / Details */}
                   <td className="px-6 py-4">
@@ -147,7 +150,13 @@ export function SmartOrderTable({
                   {/* Status */}
                   <td className="px-6 py-4">
                     <div className="flex flex-col items-start gap-1.5">
-                      <StatusBadge status={order.status} payments={order.payments} totals={{ gross: grossTotal }} />
+                      {isInvoiced ? (
+                        <span className="px-2.5 py-1 bg-slate-500/15 text-slate-500 dark:text-slate-400 rounded-md text-xs font-bold uppercase tracking-wider border border-slate-500/30">
+                          Abgerechnet
+                        </span>
+                      ) : (
+                        <StatusBadge status={order.status} payments={order.payments} totals={{ gross: grossTotal }} />
+                      )}
                       {isMovingSoon && (
                         <span className="text-[10px] text-orange-400 flex items-center gap-1 font-bold bg-orange-500/10 px-2 py-0.5 rounded-md border border-orange-500/20">
                           <TruckIcon className="w-3 h-3" /> Umzug bald
@@ -162,7 +171,7 @@ export function SmartOrderTable({
                       € {grossTotal.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                     {isInvoice && openAmount > 0 && !isCanceled && (
-                      <div className="text-xs text-red-400 font-bold mt-1">
+                      <div className="text-xs text-amber-500 font-bold mt-1">
                         Offen: € {openAmount.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     )}
@@ -197,7 +206,7 @@ export function SmartOrderTable({
                           type={isInvoice ? 'invoice' : (['confirmed', 'completed'].includes(order.status) ? 'contract' : 'order')}
                           iconOnly={true}
                           customIcon={<DocumentArrowDownIcon className="w-5 h-5" />}
-                          className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-colors flex justify-center items-center w-full"
+                          className="p-2.5 bg-[#6E8F64]/15 hover:bg-[#6E8F64]/25 text-[#6E8F64] rounded-lg transition-colors flex justify-center items-center w-full"
                         />
                       </div>
 

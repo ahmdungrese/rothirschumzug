@@ -6,8 +6,10 @@ import { XMarkIcon, TruckIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import { CounterInput } from '@/components/ui/CounterInput';
 import { changeOrderStatus } from '@/lib/orderStateMachine';
+import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 
 export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose: () => void, onSuccess?: () => void }) {
+  useModalBackHandler(Boolean(order), onClose, 'dispo-modal');
   const [movingDate, setMovingDate] = useState('');
   const [movingTime, setMovingTime] = useState('');
   const [helpers, setHelpers] = useState(2);

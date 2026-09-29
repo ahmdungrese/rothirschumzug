@@ -168,10 +168,25 @@ export function SmartCustomerCard({ customer, latestOrder }: { customer: any, la
               const movingDateRaw = latestOrder?.orderMeta?.movingDateFrom || latestOrder?.movingDate || latestOrder?.logistics?.movingDate;
               if (!movingDateRaw) return null;
               try {
+                const d = new Date(movingDateRaw);
+                if (isNaN(d.getTime())) return null;
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const target = new Date(d);
+                target.setHours(0, 0, 0, 0);
+                const diffDays = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                let pill = null;
+                if (diffDays === 0) pill = <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#6E8F64] text-white">Heute</span>;
+                else if (diffDays === 1) pill = <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-orange-500 text-white">Morgen</span>;
+                else if (diffDays > 1 && diffDays <= 7) pill = <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300">in {diffDays} Tg.</span>;
+
                 return (
-                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300">
-                    <CalendarIcon className="w-3.5 h-3.5 text-primary shrink-0" />
-                    <span>Umzug: {new Date(movingDateRaw).toLocaleDateString('de-DE')}</span>
+                  <div className="flex items-center justify-between gap-1.5 text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                    <div className="flex items-center gap-1.5">
+                      <CalendarIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+                      <span>Umzug: {d.toLocaleDateString('de-DE')}</span>
+                    </div>
+                    {pill}
                   </div>
                 );
               } catch {

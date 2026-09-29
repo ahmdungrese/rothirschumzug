@@ -21,6 +21,9 @@ import {
   CalendarIcon,
   TrashIcon,
   PlusIcon,
+  PlusCircleIcon,
+  MagnifyingGlassIcon,
+  ExclamationTriangleIcon,
   ArrowsUpDownIcon,
   NoSymbolIcon,
   ArrowUpTrayIcon,
@@ -30,6 +33,7 @@ import {
   BuildingLibraryIcon
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
+import { FLOOR_OPTIONS } from '@/lib/constants';
 
 const getPropertyIcon = (type: string) => {
   const t = (type || '').toLowerCase();
@@ -70,7 +74,11 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
   // 2. Termine
   const [orderMeta, setOrderMeta] = useState<any>({
     movingDateFrom: '', movingDateTo: '', validUntil: '', manager: '', paymentMethod: '', viewingDate: '', viewingTime: '',
-    hvzMethod: 'selbst', hvzLocation: 'a', halteverbotDate: '', halteverbotTime: ''
+    hvzMethod: 'selbst', hvzMethodA: 'selbst', hvzMethodB: 'selbst', hvzLocation: 'a',
+    halteverbotDate: '', halteverbotTime: '',
+    halteverbotDateA: '', halteverbotTimeA: '',
+    halteverbotDateB: '', halteverbotTimeB: '',
+    hvzSameAsA: false
   });
   const [showBisDate, setShowBisDate] = useState(false);
   useEffect(() => { if (orderMeta.movingDateTo) setShowBisDate(true); }, [orderMeta.movingDateTo]);
@@ -79,6 +87,7 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
   const [logistics, setLogistics] = useState<any>({
     a_type: 'Wohnung', a_street: '', a_houseNr: '', a_zip: '', a_city: '', a_floor: 'Erdgeschoss', a_elevator: false, a_parking: false, a_furnitureLift: false, a_distance: 0,
     b_type: 'Wohnung', b_street: '', b_houseNr: '', b_zip: '', b_city: '', b_floor: 'Erdgeschoss', b_elevator: false, b_parking: false, b_furnitureLift: false, b_distance: 0,
+    hvzDateA: '', hvzTimeA: '', hvzDateB: '', hvzTimeB: '', hvzSameAsA: false
   });
 
   // 4. Inventar
@@ -89,7 +98,156 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
   // 5. Leistungen & Preise
   const [isFlatRate, setIsFlatRate] = useState(true);
   const [flatRateNet, setFlatRateNet] = useState(0);
-  const [services, setServices] = useState<{ id: string, name: string, quantity: number, unitPrice: number, unit: string }[]>([]);
+  const [services, setServices] = useState<{
+    id: string;
+    name: string;
+    note?: string;
+    quantity: number;
+    unitPrice: number;
+    unit: string;
+    location?: 'a' | 'b' | 'both';
+  }[]>([]);
+
+  // --- DRAFT AUTO-SAVE & RECOVERY ---
+  const draftKey = `rothirsch_draft_${orderId || 'new'}`;
+  const [existingDraft, setExistingDraft] = useState<any>(null);
+
+  // Check for saved local draft on mount (for new offers)
+  useEffect(() => {
+    if (typeof window === 'undefined' || orderId) return;
+    try {
+      const saved = localStorage.getItem(draftKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.customer?.lastName || parsed?.inventory?.length > 0 || parsed?.customer?.phone) {
+          setExistingDraft(parsed);
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }, [draftKey, orderId]);
+
+  // Auto-save draft to localStorage whenever fields change (debounced 1s)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hasData = Boolean(
+      customer.lastName?.trim() ||
+      customer.phone?.trim() ||
+      customer.street?.trim() ||
+      inventory.length > 0
+    );
+    if (!hasData) return;
+
+    const timer = setTimeout(() => {
+      try {
+        const draft = {
+          customer,
+          orderMeta,
+          logistics,
+          inventory,
+          services,
+          isFlatRate,
+          flatRateNet,
+          texts,
+          savedAt: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
+        };
+        localStorage.setItem(draftKey, JSON.stringify(draft));
+      } catch {
+        // Ignore
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [customer, orderMeta, logistics, inventory, services, isFlatRate, flatRateNet, texts, draftKey]);
+
+  // --- MULTI-STEP HISTORY & SAFE CANCEL ---
+  const stepRef = useRef(step);
+  stepRef.current = step;
+
+  const goToStep = (nextStep: number) => {
+    if (nextStep > stepRef.current) {
+      if (typeof window !== 'undefined') {
+        window.history.pushState({ wizardStep: nextStep }, '');
+      }
+    }
+    setStep(nextStep);
+  };
+
+  const handleSafeCancel = () => {
+    const isDirty = Boolean(
+      customer.lastName?.trim() ||
+      customer.phone?.trim() ||
+      customer.street?.trim() ||
+      inventory.length > 0
+    );
+
+    if (isDirty) {
+      const confirmLeave = window.confirm(
+        "Möchten Sie die Besichtigung / das Angebot wirklich abbrechen? Eingegebene Daten bleiben lokal als Entwurf gesichert."
+      );
+      if (!confirmLeave) return false;
+    }
+
+    if (onClose) {
+      onClose();
+    } else if (urlCustomerId) {
+      router.push(`/dashboard/customers/${urlCustomerId}`);
+    } else {
+      if (typeof window !== 'undefined' && document.referrer && document.referrer.includes(window.location.origin)) {
+        router.back();
+      } else {
+        router.push('/dashboard');
+      }
+    }
+    return true;
+  };
+
+  // Intercept mobile hardware back button / swipe-back gesture
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = (e: PopStateEvent) => {
+      if (stepRef.current > 1) {
+        // Step back inside wizard without leaving the page
+        setStep(prev => Math.max(1, prev - 1));
+      } else {
+        const isDirty = Boolean(
+          customer.lastName?.trim() ||
+          customer.phone?.trim() ||
+          customer.street?.trim() ||
+          inventory.length > 0
+        );
+        if (isDirty) {
+          const confirmLeave = window.confirm(
+            "Möchten Sie die Eingabe wirklich verlassen? Nicht gespeicherte Änderungen bleiben als lokaler Entwurf gesichert."
+          );
+          if (!confirmLeave) {
+            window.history.pushState({ wizardStep: 1 }, '');
+            return;
+          }
+        }
+        if (onClose) {
+          onClose();
+        } else if (urlCustomerId) {
+          router.push(`/dashboard/customers/${urlCustomerId}`);
+        } else {
+          router.push('/dashboard');
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [onClose, urlCustomerId, router, customer, inventory]);
+
+  // Catalog Modal State
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [selectedCatalogCategory, setSelectedCatalogCategory] = useState<string>('all');
+  const [invoicedWarning, setInvoicedWarning] = useState<string | null>(null);
 
   // 6. Texte & Checkliste
   const [texts, setTexts] = useState({ quoteIntro: '', paymentTerms: '', quoteOutro: '' });
@@ -105,7 +263,7 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
           const days = parseInt(s.quoteValidDays) || 14;
           const validDate = new Date();
           validDate.setDate(validDate.getDate() + days);
-          setOrderMeta(prev => ({ 
+          setOrderMeta((prev: any) => ({ 
             ...prev, manager: s.contacts?.[0] || '', paymentMethod: s.paymentMethods?.[0]?.name || '', validUntil: validDate.toISOString().split('T')[0]
           }));
           setTexts({ quoteIntro: s.texts?.quoteIntro || '', paymentTerms: s.paymentMethods?.[0]?.textQuote || '', quoteOutro: s.texts?.quoteGreeting || '' });
@@ -118,29 +276,60 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
         if (docSnap.exists()) {
           const data = docSnap.data();
           if (data.billingAddress) {
-            setCustomer(prev => ({ ...prev, ...data.billingAddress, source: data.customerSource || '' }));
+            setCustomer((prev: any) => ({ ...prev, ...data.billingAddress, source: data.customerSource || '' }));
           }
-          if (data.orderMeta) setOrderMeta(prev => ({ ...prev, ...data.orderMeta }));
-          if (data.logistics) setLogistics(prev => ({ ...prev, ...data.logistics }));
+          if (data.orderMeta) {
+            setOrderMeta((prev: any) => ({
+              ...prev,
+              ...data.orderMeta,
+              halteverbotDateA: data.orderMeta.halteverbotDateA || data.orderMeta.halteverbotDate || data.logistics?.hvzDateA || data.logistics?.hvzDate || '',
+              halteverbotTimeA: data.orderMeta.halteverbotTimeA || data.orderMeta.halteverbotTime || data.logistics?.hvzTimeA || data.logistics?.hvzTime || '',
+              halteverbotDateB: data.orderMeta.halteverbotDateB || data.logistics?.hvzDateB || '',
+              halteverbotTimeB: data.orderMeta.halteverbotTimeB || data.logistics?.hvzTimeB || '',
+              hvzSameAsA: Boolean(data.orderMeta.hvzSameAsA ?? data.logistics?.hvzSameAsA)
+            }));
+          }
+          if (data.logistics) {
+            setLogistics((prev: any) => ({
+              ...prev,
+              ...data.logistics,
+              hvzDateA: data.logistics.hvzDateA || data.logistics.hvzDate || data.orderMeta?.halteverbotDateA || data.orderMeta?.halteverbotDate || '',
+              hvzTimeA: data.logistics.hvzTimeA || data.logistics.hvzTime || data.orderMeta?.halteverbotTimeA || data.orderMeta?.halteverbotTime || '',
+              hvzDateB: data.logistics.hvzDateB || data.orderMeta?.halteverbotDateB || '',
+              hvzTimeB: data.logistics.hvzTimeB || data.orderMeta?.halteverbotTimeB || '',
+              hvzSameAsA: Boolean(data.logistics.hvzSameAsA ?? data.orderMeta?.hvzSameAsA)
+            }));
+          }
           if (data.inventory) setInventory(data.inventory.map((i:any) => ({ ...i, room: i.room || 'Flur/Keller' })));
           
           setIsFlatRate(data.isFlatRate !== undefined ? data.isFlatRate : true);
           setFlatRateNet(data.flatRateNet || 0);
-          if (data.services) setServices(data.services);
-          if (data.texts) setTexts(prev => ({ ...prev, ...data.texts }));
+          if (data.services) {
+            setServices(data.services.map((s: any) => ({
+              ...s,
+              note: s.note || s.description || '',
+              location: s.location || 'both'
+            })));
+          }
+          if (data.texts) setTexts((prev: any) => ({ ...prev, ...data.texts }));
           if (data.checklist) setChecklist(data.checklist);
           if (data.appendInventoryToPDF !== undefined) setAppendInventoryToPDF(data.appendInventoryToPDF);
+
+          // Check if invoice already created for this offer
+          if (data.invoiceNumber || data.status?.startsWith('invoice_') || (data.invoiceHistory && data.invoiceHistory.length > 0)) {
+            setInvoicedWarning(data.invoiceNumber || 'Rechnung vorhanden');
+          }
         }
       });
     } else if (urlCustomerId) {
       getDoc(doc(db, 'customers', urlCustomerId)).then(docSnap => {
         if (docSnap.exists()) {
           const c = docSnap.data();
-          setCustomer(prev => ({
+          setCustomer((prev: any) => ({
             ...prev, type: c.type || 'privat', salutation: c.salutation || '', firstName: c.firstName || '', lastName: c.lastName || '', phone: c.phone || '', email: c.email || '', source: c.source || '',
             street: c.street || '', houseNr: c.houseNr || '', zip: c.zip || '', city: c.city || ''
           }));
-          setLogistics(prev => ({
+          setLogistics((prev: any) => ({
             ...prev, a_street: c.street || '', a_houseNr: c.houseNr || '', a_zip: c.zip || '', a_city: c.city || ''
           }));
         }
@@ -164,8 +353,43 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
 
   const getItemQuantity = (room: string, itemName: string) => inventory.find(i => i.name === itemName && i.room === room)?.quantity || 0;
 
+  const catalogCategories = React.useMemo(() => {
+    if (!settings?.catalog) return [];
+    const cats: string[] = settings.catalog.map((c: any) => c.category).filter(Boolean);
+    return Array.from(new Set(cats));
+  }, [settings]);
+
+  const allCatalogItems = React.useMemo(() => {
+    if (!settings?.catalog) return [];
+    return settings.catalog.flatMap((cat: any) => 
+      (cat.items || []).map((item: any) => ({ ...item, category: cat.category || 'Allgemein' }))
+    );
+  }, [settings]);
+
+  const filteredCatalogItems = React.useMemo(() => {
+    return allCatalogItems.filter((item: any) => {
+      const matchCat = selectedCatalogCategory === 'all' || item.category === selectedCatalogCategory;
+      const matchSearch = !catalogSearch.trim() || 
+        (item.name || '').toLowerCase().includes(catalogSearch.toLowerCase()) ||
+        (item.description || '').toLowerCase().includes(catalogSearch.toLowerCase());
+      return matchCat && matchSearch;
+    });
+  }, [allCatalogItems, selectedCatalogCategory, catalogSearch]);
+
   const addServiceFromCatalog = (item: any) => {
-    setServices([...services, { id: Date.now().toString(), name: item.name, quantity: 1, unitPrice: item.price || 0, unit: item.unit || 'Stk' }]);
+    setServices(prev => [
+      ...prev,
+      {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 4),
+        name: item.name,
+        note: item.description || item.defaultDesc || '',
+        quantity: item.quantity || 1,
+        unitPrice: item.price || item.defaultPrice || 0,
+        unit: item.unit || 'Stk.',
+        location: 'both'
+      }
+    ]);
+    toast.success(`"${item.name}" hinzugefügt`, { duration: 1500 });
   };
 
   const totals = React.useMemo(() => {
@@ -215,13 +439,40 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
         });
       }
 
+      const dateA = orderMeta.halteverbotDateA || orderMeta.halteverbotDate || logistics.hvzDateA || logistics.hvzDate || '';
+      const timeA = orderMeta.halteverbotTimeA || orderMeta.halteverbotTime || logistics.hvzTimeA || logistics.hvzTime || '';
+      const dateB = orderMeta.hvzSameAsA ? dateA : (orderMeta.halteverbotDateB || logistics.hvzDateB || '');
+      const timeB = orderMeta.hvzSameAsA ? timeA : (orderMeta.halteverbotTimeB || logistics.hvzTimeB || '');
+
+      const finalOrderMeta = {
+        ...orderMeta,
+        halteverbotDate: dateA || dateB,
+        halteverbotTime: timeA || timeB,
+        halteverbotDateA: dateA,
+        halteverbotTimeA: timeA,
+        halteverbotDateB: dateB,
+        halteverbotTimeB: timeB,
+        hvzSameAsA: Boolean(orderMeta.hvzSameAsA)
+      };
+
+      const finalLogistics = {
+        ...logistics,
+        hvzDate: dateA || dateB,
+        hvzTime: timeA || timeB,
+        hvzDateA: dateA,
+        hvzTimeA: timeA,
+        hvzDateB: dateB,
+        hvzTimeB: timeB,
+        hvzSameAsA: Boolean(orderMeta.hvzSameAsA)
+      };
+
       const payload: any = {
         customerId: finalCustomerId,
         customerName: customer.type === 'firma' ? customer.lastName : `${customer.firstName} ${customer.lastName}`.trim(),
         billingAddress: customer,
         customerSource: customer.source || 'Unbekannt',
-        logistics,
-        orderMeta,
+        logistics: finalLogistics,
+        orderMeta: finalOrderMeta,
         viewingDate: orderMeta.viewingDate || '',
         inventory: inventory.map(i => ({ ...i, showNoteInPdf: true })),
         appendInventoryToPDF,
@@ -245,17 +496,25 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
         toast.success("Besichtigung erfolgreich und sicher aktualisiert!", { id: toastId });
       } else {
         payload.status = 'draft';
-        payload.orderNumber = settings?.nextQuoteNumber ? `ANG-${new Date().getFullYear()}-${settings.nextQuoteNumber}` : `ANG-${Date.now()}`;
+        const rawQuote = settings?.nextQuoteNumber || 1771;
+        const nextQuote = Math.max(1771, rawQuote);
+        payload.orderNumber = `AN-${nextQuote}`;
         payload.createdAt = serverTimestamp();
         payload.createdBy = profile?.displayName || 'Außendienst';
         
         await addDoc(collection(db, 'orders'), payload);
-        if (settings?.nextQuoteNumber) {
-          await updateDoc(doc(db, 'system', 'settings'), { nextQuoteNumber: settings.nextQuoteNumber + 1 });
-        }
+        await updateDoc(doc(db, 'system', 'settings'), { nextQuoteNumber: nextQuote + 1 });
         toast.success("Besichtigung erfolgreich und sicher gespeichert!", { id: toastId });
       }
       
+      try {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(draftKey);
+        }
+      } catch {
+        // Ignore
+      }
+
       if (onClose) onClose();
       else router.push(`/dashboard/customers/${finalCustomerId}`);
     } catch (e) {
@@ -290,13 +549,77 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
             </button>
           ))}
         </div>
-        {onClose && <button onClick={onClose} className="mt-auto hidden md:flex items-center gap-2 text-text-muted hover:text-red-400 p-3 rounded-xl transition-colors"><XMarkIcon className="w-5 h-5" /> Schließen</button>}
+        {onClose && <button type="button" onClick={handleSafeCancel} className="mt-auto hidden md:flex items-center gap-2 text-text-muted hover:text-red-400 p-3 rounded-xl transition-colors cursor-pointer"><XMarkIcon className="w-5 h-5" /> Schließen</button>}
       </div>
 
       <div className="flex-1 overflow-y-auto bg-transparent relative flex flex-col custom-scrollbar">
-        {onClose && <button onClick={onClose} className="md:hidden absolute top-4 right-4 z-10 p-2 bg-structure/50 rounded-full text-text-main"><XMarkIcon className="w-5 h-5" /></button>}
+        {onClose && <button type="button" onClick={handleSafeCancel} className="md:hidden absolute top-4 right-4 z-10 p-2 bg-structure/50 rounded-full text-text-main cursor-pointer"><XMarkIcon className="w-5 h-5" /></button>}
 
         <div className="p-4 md:p-8 lg:p-12 max-w-4xl mx-auto w-full flex-1">
+          {existingDraft && (
+            <div className="mb-6 p-4 rounded-2xl bg-amber-500/15 border-2 border-amber-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-300 shadow-md">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-500 shrink-0">
+                  <ClipboardDocumentListIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-text-main">
+                    Ungespeicherter Entwurf gefunden {existingDraft.savedAt ? `(um ${existingDraft.savedAt} Uhr gesichert)` : ''}
+                  </div>
+                  <div className="text-[11px] text-text-muted mt-0.5">
+                    Kunde: {existingDraft.customer?.firstName} {existingDraft.customer?.lastName || 'Ohne Nachname'} • {existingDraft.inventory?.length || 0} Möbelstücke/Kartons
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (existingDraft.customer) setCustomer(existingDraft.customer);
+                    if (existingDraft.orderMeta) setOrderMeta(existingDraft.orderMeta);
+                    if (existingDraft.logistics) setLogistics(existingDraft.logistics);
+                    if (existingDraft.inventory) setInventory(existingDraft.inventory);
+                    if (existingDraft.services) setServices(existingDraft.services);
+                    if (existingDraft.texts) setTexts(existingDraft.texts);
+                    if (existingDraft.isFlatRate !== undefined) setIsFlatRate(existingDraft.isFlatRate);
+                    if (existingDraft.flatRateNet !== undefined) setFlatRateNet(existingDraft.flatRateNet);
+                    setExistingDraft(null);
+                    toast.success("Entwurf erfolgreich wiederhergestellt!");
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-primary text-white text-xs font-bold shadow-xs hover:brightness-110 transition-all cursor-pointer"
+                >
+                  Entwurf laden
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      localStorage.removeItem(draftKey);
+                    } catch {}
+                    setExistingDraft(null);
+                    toast("Entwurf verworfen.", { icon: '🗑️' });
+                  }}
+                  className="px-3 py-2 rounded-xl bg-structure/50 hover:bg-structure text-text-muted hover:text-text-main text-xs font-medium transition-colors cursor-pointer"
+                >
+                  Verwerfen
+                </button>
+              </div>
+            </div>
+          )}
+
+          {invoicedWarning && (
+            <div className="p-4 mb-6 rounded-2xl bg-amber-500/15 border-2 border-amber-500/40 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-3 shadow-md animate-in fade-in">
+              <ExclamationTriangleIcon className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <div className="font-bold text-sm text-amber-800 dark:text-amber-300">
+                  Achtung: Angebot bereits abgerechnet ({invoicedWarning})
+                </div>
+                <p className="mt-0.5 text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
+                  Für diesen Auftrag wurde bereits eine Rechnung erstellt. Nachträgliche Änderungen hier im Angebot wirken sich <strong>nicht automatisch</strong> auf die bestehende Rechnung aus!
+                </p>
+              </div>
+            </div>
+          )}
           {step === 1 && (
             <div className="space-y-6 animate-in fade-in zoom-in-95 duration-300 glass-panel p-6 m-4 md:m-0 rounded-2xl">
               <h1 className="text-2xl font-bold text-text-main mb-6 border-b border-white/10 pb-4">Kunde & Rechnungsadresse</h1>
@@ -468,7 +791,36 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
                     }} className="input-field w-full text-lg py-3" /></div>
                     <div className="col-span-3"><label className="block text-sm text-text-muted mb-2">Ort</label><input type="text" value={logistics.a_city} onChange={e => setLogistics({...logistics, a_city: e.target.value})} className="input-field w-full text-lg py-3" /></div>
                   </div>
-                  <div id="highlight-floorA"><label className="block text-sm text-text-muted mb-2">Etage (A)</label><input type="text" list="floors" value={logistics.a_floor} onChange={e => setLogistics({...logistics, a_floor: e.target.value})} className="input-field w-full text-lg py-3" placeholder="Auswählen oder tippen..." /></div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
+                    <div id="highlight-floorA">
+                      <label className="block text-sm text-text-muted mb-2 font-medium">Etage (A)</label>
+                      <select
+                        value={logistics.a_floor || 'Erdgeschoss'}
+                        onChange={e => setLogistics({...logistics, a_floor: e.target.value})}
+                        className="input-field w-full text-base py-3"
+                      >
+                        {logistics.a_floor && !FLOOR_OPTIONS.includes(logistics.a_floor) && (
+                          <option value={logistics.a_floor}>{logistics.a_floor}</option>
+                        )}
+                        {FLOOR_OPTIONS.map(fl => (
+                          <option key={fl} value={fl}>{fl}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-text-muted mb-2 font-medium">Laufweg (A in m)</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        min="0"
+                        placeholder="z.B. 10 (Meter)"
+                        value={logistics.a_distance === 0 ? '' : logistics.a_distance}
+                        onChange={e => setLogistics({...logistics, a_distance: e.target.value === '' ? 0 : parseInt(e.target.value) || 0})}
+                        className="input-field w-full text-base py-3"
+                      />
+                    </div>
+                  </div>
                   
                   <div>
                     <label className="block text-sm text-text-muted mb-2">Immobilienart (A)</label>
@@ -495,14 +847,46 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
 
                   {logistics.a_parking && (
                     <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/30 space-y-3">
-                      <span className="text-xs font-bold text-red-500 block">Halteverbotszone (Auszug A) planen</span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-red-500 block">Halteverbotszone (Auszug A) planen</span>
+                        <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider">Beladestelle (A)</span>
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
-                        <button type="button" onClick={() => { setOrderMeta({...orderMeta, hvzMethod: 'selbst'}); setLogistics({...logistics, hvzMethod: 'selbst'}); }} className={`py-2 px-3 rounded-xl border text-xs font-bold ${(orderMeta.hvzMethod || 'selbst') === 'selbst' ? 'bg-primary text-white border-primary' : 'bg-bg-dark border-structure text-text-muted'}`}>Selbst aufstellen</button>
-                        <button type="button" onClick={() => { setOrderMeta({...orderMeta, hvzMethod: 'extern'}); setLogistics({...logistics, hvzMethod: 'extern'}); }} className={`py-2 px-3 rounded-xl border text-xs font-bold ${orderMeta.hvzMethod === 'extern' ? 'bg-primary text-white border-primary' : 'bg-bg-dark border-structure text-text-muted'}`}>Externe Firma</button>
+                        <button type="button" onClick={() => { setOrderMeta({...orderMeta, hvzMethodA: 'selbst', hvzMethod: 'selbst'}); setLogistics({...logistics, hvzMethodA: 'selbst', hvzMethod: 'selbst'}); }} className={`py-2 px-3 rounded-xl border text-xs font-bold ${(orderMeta.hvzMethodA || orderMeta.hvzMethod || 'selbst') === 'selbst' ? 'bg-primary text-white border-primary' : 'bg-bg-dark border-structure text-text-muted'}`}>Selbst aufstellen</button>
+                        <button type="button" onClick={() => { setOrderMeta({...orderMeta, hvzMethodA: 'extern', hvzMethod: 'extern'}); setLogistics({...logistics, hvzMethodA: 'extern', hvzMethod: 'extern'}); }} className={`py-2 px-3 rounded-xl border text-xs font-bold ${(orderMeta.hvzMethodA || orderMeta.hvzMethod) === 'extern' ? 'bg-primary text-white border-primary' : 'bg-bg-dark border-structure text-text-muted'}`}>Externe Firma</button>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <input type="date" value={orderMeta.halteverbotDate || logistics.hvzDate || ''} onChange={e => { setOrderMeta({...orderMeta, halteverbotDate: e.target.value}); setLogistics({...logistics, hvzDate: e.target.value}); }} className="input-field w-full text-xs" />
-                        <select value={orderMeta.halteverbotTime || ''} onChange={e => { setOrderMeta({...orderMeta, halteverbotTime: e.target.value}); setLogistics({...logistics, hvzTime: e.target.value}); }} className="input-field w-full text-xs">
+                        <input 
+                          type="date" 
+                          value={orderMeta.halteverbotDateA || orderMeta.halteverbotDate || logistics.hvzDateA || logistics.hvzDate || ''} 
+                          onChange={e => { 
+                            const val = e.target.value;
+                            const nextMeta = { ...orderMeta, halteverbotDateA: val, halteverbotDate: val };
+                            const nextLog = { ...logistics, hvzDateA: val, hvzDate: val };
+                            if (orderMeta.hvzSameAsA) {
+                              nextMeta.halteverbotDateB = val;
+                              nextLog.hvzDateB = val;
+                            }
+                            setOrderMeta(nextMeta); 
+                            setLogistics(nextLog); 
+                          }} 
+                          className="input-field w-full text-xs" 
+                        />
+                        <select 
+                          value={orderMeta.halteverbotTimeA || orderMeta.halteverbotTime || logistics.hvzTimeA || logistics.hvzTime || ''} 
+                          onChange={e => { 
+                            const val = e.target.value;
+                            const nextMeta = { ...orderMeta, halteverbotTimeA: val, halteverbotTime: val };
+                            const nextLog = { ...logistics, hvzTimeA: val, hvzTime: val };
+                            if (orderMeta.hvzSameAsA) {
+                              nextMeta.halteverbotTimeB = val;
+                              nextLog.hvzTimeB = val;
+                            }
+                            setOrderMeta(nextMeta); 
+                            setLogistics(nextLog); 
+                          }} 
+                          className="input-field w-full text-xs"
+                        >
                           <option value="">Zeitfenster wählen...</option>
                           <option value="08:00 - 12:00">08:00 - 12:00 (Vormittag)</option>
                           <option value="10:00 - 14:00">10:00 - 14:00 (Mittag)</option>
@@ -537,7 +921,36 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
                     }} className="input-field w-full text-lg py-3" /></div>
                     <div className="col-span-3"><label className="block text-sm text-text-muted mb-2">Ort</label><input type="text" value={logistics.b_city} onChange={e => setLogistics({...logistics, b_city: e.target.value})} className="input-field w-full text-lg py-3" /></div>
                   </div>
-                  <div id="highlight-floorB"><label className="block text-sm text-text-muted mb-2">Etage (B)</label><input type="text" list="floors" value={logistics.b_floor} onChange={e => setLogistics({...logistics, b_floor: e.target.value})} className="input-field w-full text-lg py-3" placeholder="Auswählen oder tippen..." /></div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-2">
+                    <div id="highlight-floorB">
+                      <label className="block text-sm text-text-muted mb-2 font-medium">Etage (B)</label>
+                      <select
+                        value={logistics.b_floor || 'Erdgeschoss'}
+                        onChange={e => setLogistics({...logistics, b_floor: e.target.value})}
+                        className="input-field w-full text-base py-3"
+                      >
+                        {logistics.b_floor && !FLOOR_OPTIONS.includes(logistics.b_floor) && (
+                          <option value={logistics.b_floor}>{logistics.b_floor}</option>
+                        )}
+                        {FLOOR_OPTIONS.map(fl => (
+                          <option key={fl} value={fl}>{fl}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-text-muted mb-2 font-medium">Laufweg (B in m)</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        min="0"
+                        placeholder="z.B. 10 (Meter)"
+                        value={logistics.b_distance === 0 ? '' : logistics.b_distance}
+                        onChange={e => setLogistics({...logistics, b_distance: e.target.value === '' ? 0 : parseInt(e.target.value) || 0})}
+                        className="input-field w-full text-base py-3"
+                      />
+                    </div>
+                  </div>
                   
                   <div>
                     <label className="block text-sm text-text-muted mb-2">Immobilienart (B)</label>
@@ -564,14 +977,58 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
 
                   {logistics.b_parking && (
                     <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/30 space-y-3">
-                      <span className="text-xs font-bold text-red-500 block">Halteverbotszone ({logistics.a_parking ? 'A & B' : 'Einzug B'}) planen</span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-red-500 block">Halteverbotszone (Einzug B) planen</span>
+                        <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider">Entladestelle (B)</span>
+                      </div>
+
+                      {/* Quick Checkbox: Gleicher Termin wie Beladestelle (A) */}
+                      {logistics.a_parking && (
+                        <label className="flex items-center gap-2.5 p-2.5 bg-structure/30 rounded-xl cursor-pointer text-xs text-text-main font-medium border border-structure/60 hover:bg-structure/50 transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(orderMeta.hvzSameAsA)}
+                            onChange={e => {
+                              const checked = e.target.checked;
+                              const dateA = orderMeta.halteverbotDateA || orderMeta.halteverbotDate || logistics.hvzDate || '';
+                              const timeA = orderMeta.halteverbotTimeA || orderMeta.halteverbotTime || logistics.hvzTime || '';
+                              setOrderMeta({
+                                ...orderMeta,
+                                hvzSameAsA: checked,
+                                halteverbotDateB: checked ? dateA : (orderMeta.halteverbotDateB || ''),
+                                halteverbotTimeB: checked ? timeA : (orderMeta.halteverbotTimeB || '')
+                              });
+                              setLogistics({
+                                ...logistics,
+                                hvzSameAsA: checked,
+                                hvzDateB: checked ? dateA : (logistics.hvzDateB || ''),
+                                hvzTimeB: checked ? timeA : (logistics.hvzTimeB || '')
+                              });
+                            }}
+                            className="accent-primary w-4 h-4 rounded cursor-pointer"
+                          />
+                          <span className="font-semibold">Gleicher Termin wie Beladestelle (A)</span>
+                        </label>
+                      )}
+
                       <div className="grid grid-cols-2 gap-2">
-                        <button type="button" onClick={() => { setOrderMeta({...orderMeta, hvzMethod: 'selbst'}); setLogistics({...logistics, hvzMethod: 'selbst'}); }} className={`py-2 px-3 rounded-xl border text-xs font-bold ${(orderMeta.hvzMethod || 'selbst') === 'selbst' ? 'bg-primary text-white border-primary' : 'bg-bg-dark border-structure text-text-muted'}`}>Selbst aufstellen</button>
-                        <button type="button" onClick={() => { setOrderMeta({...orderMeta, hvzMethod: 'extern'}); setLogistics({...logistics, hvzMethod: 'extern'}); }} className={`py-2 px-3 rounded-xl border text-xs font-bold ${orderMeta.hvzMethod === 'extern' ? 'bg-primary text-white border-primary' : 'bg-bg-dark border-structure text-text-muted'}`}>Externe Firma</button>
+                        <button type="button" onClick={() => { setOrderMeta({...orderMeta, hvzMethodB: 'selbst', hvzMethod: 'selbst'}); setLogistics({...logistics, hvzMethodB: 'selbst', hvzMethod: 'selbst'}); }} className={`py-2 px-3 rounded-xl border text-xs font-bold ${(orderMeta.hvzMethodB || orderMeta.hvzMethod || 'selbst') === 'selbst' ? 'bg-primary text-white border-primary' : 'bg-bg-dark border-structure text-text-muted'}`}>Selbst aufstellen</button>
+                        <button type="button" onClick={() => { setOrderMeta({...orderMeta, hvzMethodB: 'extern', hvzMethod: 'extern'}); setLogistics({...logistics, hvzMethodB: 'extern', hvzMethod: 'extern'}); }} className={`py-2 px-3 rounded-xl border text-xs font-bold ${(orderMeta.hvzMethodB || orderMeta.hvzMethod) === 'extern' ? 'bg-primary text-white border-primary' : 'bg-bg-dark border-structure text-text-muted'}`}>Externe Firma</button>
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <input type="date" value={orderMeta.halteverbotDate || logistics.hvzDate || ''} onChange={e => { setOrderMeta({...orderMeta, halteverbotDate: e.target.value}); setLogistics({...logistics, hvzDate: e.target.value}); }} className="input-field w-full text-xs" />
-                        <select value={orderMeta.halteverbotTime || ''} onChange={e => { setOrderMeta({...orderMeta, halteverbotTime: e.target.value}); setLogistics({...logistics, hvzTime: e.target.value}); }} className="input-field w-full text-xs">
+                        <input 
+                          type="date" 
+                          disabled={Boolean(orderMeta.hvzSameAsA && logistics.a_parking)}
+                          value={orderMeta.halteverbotDateB || logistics.hvzDateB || ''} 
+                          onChange={e => { setOrderMeta({...orderMeta, halteverbotDateB: e.target.value}); setLogistics({...logistics, hvzDateB: e.target.value}); }} 
+                          className="input-field w-full text-xs disabled:opacity-50" 
+                        />
+                        <select 
+                          disabled={Boolean(orderMeta.hvzSameAsA && logistics.a_parking)}
+                          value={orderMeta.halteverbotTimeB || logistics.hvzTimeB || ''} 
+                          onChange={e => { setOrderMeta({...orderMeta, halteverbotTimeB: e.target.value}); setLogistics({...logistics, hvzTimeB: e.target.value}); }} 
+                          className="input-field w-full text-xs disabled:opacity-50"
+                        >
                           <option value="">Zeitfenster wählen...</option>
                           <option value="08:00 - 12:00">08:00 - 12:00 (Vormittag)</option>
                           <option value="10:00 - 14:00">10:00 - 14:00 (Mittag)</option>
@@ -635,51 +1092,361 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
                 )}
               </div>
 
-              <div className="bg-bg-panel border border-structure rounded-2xl overflow-hidden shadow-lg">
-                <div className="p-4 bg-bg-dark border-b border-structure flex justify-between items-center">
-                  <h3 className="font-bold text-text-main">Positionen</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-bold text-text-main text-lg">
+                    Positionen <span className="text-sm font-normal text-text-muted">({services.length})</span>
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowCatalogModal(true)}
+                      className="btn-primary py-2 px-3.5 text-xs font-bold flex items-center gap-1.5 shadow-md shadow-primary/20 shrink-0"
+                    >
+                      <ClipboardDocumentListIcon className="w-4 h-4" />
+                      Aus Katalog wählen
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setServices([...services, { id: Date.now().toString(), name: 'Neue Leistung', quantity: 1, unitPrice: 0, unit: 'Pausch.', note: '', location: 'both' }])}
+                      className="btn-secondary py-2 px-2.5 text-xs flex items-center gap-1 hover:border-primary/50 text-text-muted hover:text-text-main shrink-0"
+                    >
+                      <PlusIcon className="w-4 h-4" />
+                      Manuell
+                    </button>
+                  </div>
                 </div>
-                
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead>
-                      <tr className="text-text-muted border-b border-structure bg-bg-dark/50">
-                        <th className="p-3 w-8">#</th>
-                        <th className="p-3">Beschreibung</th>
-                        <th className="p-3 w-20">Menge</th>
-                        <th className="p-3 w-20">Einh.</th>
-                        {!isFlatRate && <th className="p-3 w-24 text-right">EP (€)</th>}
-                        <th className="p-3 w-10"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {services.map((svc, idx) => (
-                        <tr key={svc.id} className="border-b border-structure/30">
-                          <td className="p-3 text-text-muted">{idx + 1}</td>
-                          <td className="p-3"><input type="text" value={svc.name} onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s))} className="bg-transparent border-b border-dashed border-structure/50 focus:border-primary w-full text-text-main outline-none py-1" /></td>
-                          <td className="p-3"><input type="number" value={svc.quantity} onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: parseFloat(e.target.value) || 0 } : s))} className="input-field py-1 px-2 w-full text-center" /></td>
-                          <td className="p-3"><input type="text" value={svc.unit} onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, unit: e.target.value } : s))} className="input-field py-1 px-2 w-full text-center" /></td>
-                          {!isFlatRate && <td className="p-3 text-right"><input type="number" value={svc.unitPrice} onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, unitPrice: parseFloat(e.target.value) || 0 } : s))} className="input-field py-1 px-2 w-full text-right" /></td>}
-                          <td className="p-3 text-right"><button onClick={() => setServices(services.filter(s => s.id !== svc.id))} className="text-text-muted hover:text-red-400 p-1"><TrashIcon className="w-5 h-5" /></button></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div className="p-4 bg-bg-dark flex justify-between items-center border-t border-structure">
-                  <button onClick={() => setServices([...services, { id: Date.now().toString(), name: 'Neue Leistung', quantity: 1, unitPrice: 0, unit: 'Pausch.' }])} className="text-primary hover:underline font-medium text-sm flex items-center gap-1"><PlusIcon className="w-4 h-4" /> Leistung hinzufügen</button>
-                </div>
+
+                {services.length === 0 ? (
+                  <div className="bg-bg-panel border-2 border-dashed border-structure rounded-2xl p-8 text-center space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
+                      <ClipboardDocumentListIcon className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm text-text-main">Noch keine Leistungen hinzugefügt</p>
+                      <p className="text-xs text-text-muted mt-1">Wähle Standardleistungen aus dem Katalog oder erfasse eigene Positionen.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowCatalogModal(true)}
+                      className="btn-primary py-2.5 px-5 text-xs font-bold inline-flex items-center gap-2 shadow-md mx-auto"
+                    >
+                      <ClipboardDocumentListIcon className="w-4 h-4" />
+                      Katalog öffnen
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3.5">
+                    {services.map((svc, idx) => (
+                      <div key={svc.id} className="bg-bg-panel border border-structure/80 rounded-2xl p-4 shadow-sm space-y-3">
+                        {/* Title & Delete */}
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-xs font-bold text-text-muted bg-structure/50 px-2 py-0.5 rounded shrink-0 mt-0.5">
+                            #{idx + 1}
+                          </span>
+                          <input
+                            type="text"
+                            value={svc.name}
+                            onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s))}
+                            placeholder="Bezeichnung der Leistung..."
+                            className="flex-1 font-bold text-sm text-text-main bg-transparent border-b border-dashed border-structure/60 focus:border-primary pb-1 outline-none transition-colors"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setServices(services.filter(s => s.id !== svc.id))}
+                            className="p-1.5 text-text-muted hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors shrink-0"
+                            title="Löschen"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Note / Description */}
+                        <div>
+                          <textarea
+                            value={svc.note || ''}
+                            onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, note: e.target.value } : s))}
+                            placeholder="Optionale Notiz / Beschreibung für das Angebot..."
+                            className="w-full text-xs text-text-main bg-bg-dark border border-structure/60 rounded-xl p-2.5 focus:border-primary outline-none transition-colors resize-y min-h-[46px]"
+                            rows={2}
+                          />
+                        </div>
+
+                        {/* Location Pills */}
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-text-muted mb-1.5">
+                            Ausführungsort
+                          </label>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, location: 'a' } : s))}
+                              className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold text-center border transition-all ${
+                                svc.location === 'a'
+                                  ? 'bg-primary text-white border-primary shadow-sm'
+                                  : 'bg-bg-dark border-structure/60 text-text-muted hover:text-text-main'
+                              }`}
+                            >
+                              Beladung (A)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, location: 'b' } : s))}
+                              className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold text-center border transition-all ${
+                                svc.location === 'b'
+                                  ? 'bg-primary text-white border-primary shadow-sm'
+                                  : 'bg-bg-dark border-structure/60 text-text-muted hover:text-text-main'
+                              }`}
+                            >
+                              Entladung (B)
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, location: 'both' } : s))}
+                              className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold text-center border transition-all ${
+                                !svc.location || svc.location === 'both'
+                                  ? 'bg-primary text-white border-primary shadow-sm'
+                                  : 'bg-bg-dark border-structure/60 text-text-muted hover:text-text-main'
+                              }`}
+                            >
+                              Beide
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Quantity, Unit, Unit Price */}
+                        <div className="flex items-center gap-3 pt-2 border-t border-structure/40 flex-wrap">
+                          {/* Stepper Quantity */}
+                          <div className="flex items-center gap-1.5">
+                            <label className="text-[11px] text-text-muted font-medium">Menge:</label>
+                            <div className="flex items-center bg-bg-dark border border-structure rounded-lg overflow-hidden">
+                              <button
+                                type="button"
+                                onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: Math.max(0, (s.quantity || 1) - 1) } : s))}
+                                className="w-7 h-7 flex items-center justify-center text-text-muted hover:text-text-main hover:bg-white/5 active:scale-95 text-xs font-bold"
+                              >
+                                -
+                              </button>
+                              <input
+                                type="number"
+                                value={svc.quantity}
+                                onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: parseFloat(e.target.value) || 0 } : s))}
+                                className="w-10 text-center bg-transparent text-xs font-bold text-text-main outline-none"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: (s.quantity || 0) + 1 } : s))}
+                                className="w-7 h-7 flex items-center justify-center text-text-muted hover:text-text-main hover:bg-white/5 active:scale-95 text-xs font-bold"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Unit */}
+                          <div className="flex items-center gap-1.5">
+                            <label className="text-[11px] text-text-muted font-medium">Einheit:</label>
+                            <input
+                              type="text"
+                              value={svc.unit}
+                              onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, unit: e.target.value } : s))}
+                              className="w-16 px-2 py-1 bg-bg-dark border border-structure rounded-lg text-xs text-center text-text-main"
+                              placeholder="Stk."
+                            />
+                          </div>
+
+                          {/* Price (if !isFlatRate) */}
+                          {!isFlatRate && (
+                            <div className="flex items-center gap-1.5 ml-auto">
+                              <label className="text-[11px] text-text-muted font-medium">EP (€):</label>
+                              <input
+                                type="number"
+                                value={svc.unitPrice}
+                                onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, unitPrice: parseFloat(e.target.value) || 0 } : s))}
+                                className="w-20 px-2 py-1 bg-bg-dark border border-structure rounded-lg text-xs text-right font-bold text-primary"
+                                placeholder="0.00"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
+              {/* Quick Catalog Bar */}
               {settings?.catalog && settings.catalog.length > 0 && (
-                <div className="bg-bg-dark border border-structure p-4 rounded-xl mt-4">
-                  <h4 className="text-sm font-bold text-text-muted uppercase tracking-wider mb-3">Aus Katalog übernehmen</h4>
+                <div className="bg-bg-dark border border-structure p-4 rounded-xl">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <h4 className="text-xs font-bold text-text-muted uppercase tracking-wider">Häufige Leistungen</h4>
+                    <button
+                      type="button"
+                      onClick={() => setShowCatalogModal(true)}
+                      className="text-xs text-primary hover:underline font-semibold"
+                    >
+                      Alle anzeigen
+                    </button>
+                  </div>
                   <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
-                    {settings.catalog.map((cat:any) => cat.items.map((item:any, i:number) => (
-                      <button key={i} onClick={() => addServiceFromCatalog(item)} className="shrink-0 bg-structure/30 hover:bg-primary/20 text-text-main px-3 py-1.5 rounded-lg text-sm border border-structure hover:border-primary/50 transition-colors whitespace-nowrap">
+                    {allCatalogItems.slice(0, 10).map((item: any, i: number) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => addServiceFromCatalog(item)}
+                        className="shrink-0 bg-structure/30 hover:bg-primary/20 text-text-main px-3 py-1.5 rounded-lg text-xs border border-structure hover:border-primary/50 transition-colors whitespace-nowrap"
+                      >
                         + {item.name}
                       </button>
-                    )))}
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Catalog Modal */}
+              {showCatalogModal && (
+                <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+                  <div className="bg-bg-panel border border-structure rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+                    {/* Modal Header */}
+                    <div className="p-4 border-b border-structure bg-bg-dark flex items-center justify-between shrink-0">
+                      <div>
+                        <h3 className="font-bold text-base text-text-main flex items-center gap-2">
+                          <ClipboardDocumentListIcon className="w-5 h-5 text-primary" />
+                          Leistungskatalog
+                        </h3>
+                        <p className="text-xs text-text-muted">Klicke auf eine Leistung, um sie zum Angebot hinzuzufügen</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowCatalogModal(false)}
+                        className="p-1.5 text-text-muted hover:text-white rounded-lg hover:bg-white/10"
+                      >
+                        <XMarkIcon className="w-5 h-5" />
+                      </button>
+                    </div>
+
+                    {/* Search & Filter */}
+                    <div className="p-3 border-b border-structure bg-bg-dark/50 space-y-2.5 shrink-0">
+                      <div className="relative">
+                        <MagnifyingGlassIcon className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={catalogSearch}
+                          onChange={e => setCatalogSearch(e.target.value)}
+                          placeholder="Leistung suchen (z.B. Karton, Klavier, Montage)..."
+                          className="input-field w-full pl-9 pr-8 py-2 text-xs"
+                          autoFocus
+                        />
+                        {catalogSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setCatalogSearch('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-white text-xs"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Categories Chips */}
+                      {catalogCategories.length > 0 && (
+                        <div className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedCatalogCategory('all')}
+                            className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+                              selectedCatalogCategory === 'all'
+                                ? 'bg-primary text-white shadow-sm'
+                                : 'bg-structure/40 text-text-muted hover:bg-structure'
+                            }`}
+                          >
+                            Alle ({allCatalogItems.length})
+                          </button>
+                          {catalogCategories.map((cat: string) => {
+                            const count = allCatalogItems.filter((i: any) => i.category === cat).length;
+                            return (
+                              <button
+                                key={cat}
+                                type="button"
+                                onClick={() => setSelectedCatalogCategory(cat)}
+                                className={`px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+                                  selectedCatalogCategory === cat
+                                    ? 'bg-primary text-white shadow-sm'
+                                    : 'bg-structure/40 text-text-muted hover:bg-structure'
+                                }`}
+                              >
+                                {cat} ({count})
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Catalog Items List */}
+                    <div className="p-3 overflow-y-auto flex-1 custom-scrollbar space-y-2">
+                      {filteredCatalogItems.length === 0 ? (
+                        <div className="p-8 text-center text-text-muted text-xs">
+                          Keine Leistungen gefunden.
+                        </div>
+                      ) : (
+                        filteredCatalogItems.map((item: any, idx: number) => {
+                          const alreadyInList = services.some(s => s.name.toLowerCase() === item.name.toLowerCase());
+                          return (
+                            <div
+                              key={idx}
+                              onClick={() => addServiceFromCatalog(item)}
+                              className="p-3 rounded-xl border border-structure/70 bg-bg-dark/60 hover:bg-primary/10 hover:border-primary/50 transition-all cursor-pointer flex items-center justify-between gap-3 active:scale-[0.99]"
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-xs text-text-main truncate">{item.name}</span>
+                                  {alreadyInList && (
+                                    <span className="text-[10px] bg-green-500/20 text-green-400 font-bold px-1.5 py-0.5 rounded">
+                                      bereits drin
+                                    </span>
+                                  )}
+                                </div>
+                                {item.description && (
+                                  <p className="text-[11px] text-text-muted line-clamp-1 mt-0.5">{item.description}</p>
+                                )}
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-[10px] text-text-muted bg-structure/40 px-2 py-0.5 rounded">
+                                    {item.category}
+                                  </span>
+                                  {(item.price || item.defaultPrice) > 0 && (
+                                    <span className="text-[10px] font-bold text-primary">
+                                      {(item.price || item.defaultPrice).toFixed(2)} € {item.unit ? `/ ${item.unit}` : ''}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); addServiceFromCatalog(item); }}
+                                className="w-8 h-8 rounded-lg bg-primary/20 text-primary hover:bg-primary hover:text-white flex items-center justify-center shrink-0 transition-colors font-bold text-sm"
+                              >
+                                +
+                              </button>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {/* Modal Footer */}
+                    <div className="p-3 border-t border-structure bg-bg-dark flex justify-between items-center shrink-0">
+                      <span className="text-xs text-text-muted font-medium">
+                        {services.length} Leistung(en) im Angebot
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowCatalogModal(false)}
+                        className="btn-primary py-2 px-5 text-xs font-bold"
+                      >
+                        Fertig
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -748,15 +1515,15 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
           style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}
         >
           <div className="flex justify-between gap-2 w-full">
-            <button onClick={() => { if(onClose) onClose(); else if(urlCustomerId) router.push(`/dashboard/customers/${urlCustomerId}`); else router.push('/dashboard/orders'); }} disabled={isSaving} className="btn-secondary text-xs flex-1 py-2">Abbrechen</button>
-            <button onClick={saveOrder} disabled={isSaving} className="btn-secondary text-xs flex-1 py-2">{isSaving ? 'Speichert...' : 'Speichern'}</button>
+            <button type="button" onClick={handleSafeCancel} disabled={isSaving} className="btn-secondary text-xs flex-1 py-2 cursor-pointer">Abbrechen</button>
+            <button type="button" onClick={saveOrder} disabled={isSaving} className="btn-secondary text-xs flex-1 py-2 cursor-pointer">{isSaving ? 'Speichert...' : 'Speichern'}</button>
           </div>
           <div className="flex justify-between gap-2 w-full">
-            <button onClick={() => setStep(Math.max(1, step - 1))} disabled={step === 1} className={`btn-secondary py-3 px-4 flex items-center gap-2 text-sm flex-1 justify-center ${step === 1 ? 'opacity-0 pointer-events-none' : ''}`}><ChevronLeftIcon className="w-5 h-5" /> Zurück</button>
+            <button type="button" onClick={() => setStep(Math.max(1, step - 1))} disabled={step === 1} className={`btn-secondary py-3 px-4 flex items-center gap-2 text-sm flex-1 justify-center cursor-pointer ${step === 1 ? 'opacity-0 pointer-events-none' : ''}`}><ChevronLeftIcon className="w-5 h-5" /> Zurück</button>
             {step < 7 ? (
-              <button onClick={() => setStep(step + 1)} className="btn-primary py-3 px-4 flex items-center gap-2 text-sm shadow-lg flex-1 justify-center">Weiter <ChevronRightIcon className="w-5 h-5" /></button>
+              <button type="button" onClick={() => goToStep(step + 1)} className="btn-primary py-3 px-4 flex items-center gap-2 text-sm shadow-lg flex-1 justify-center cursor-pointer">Weiter <ChevronRightIcon className="w-5 h-5" /></button>
             ) : (
-              <button onClick={saveOrder} disabled={isSaving} className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-green-600/30 flex items-center gap-2 text-sm transition-all flex-1 justify-center">{isSaving ? 'Speichert...' : <><CheckCircleIcon className="w-5 h-5" /> Abschließen</>}</button>
+              <button type="button" onClick={saveOrder} disabled={isSaving} className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-green-600/30 flex items-center gap-2 text-sm transition-all flex-1 justify-center cursor-pointer">{isSaving ? 'Speichert...' : <><CheckCircleIcon className="w-5 h-5" /> Abschließen</>}</button>
             )}
           </div>
         </div>
@@ -764,15 +1531,15 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
         {/* Desktop Sticky Bar */}
         <div className="hidden md:flex p-4 bg-bg-panel border-t border-structure justify-between items-center shrink-0 sticky bottom-0 z-20 w-full">
           <div className="flex gap-4">
-            <button onClick={() => { if(onClose) onClose(); else if(urlCustomerId) router.push(`/dashboard/customers/${urlCustomerId}`); else router.push('/dashboard/orders'); }} disabled={isSaving} className="btn-secondary py-3 px-6 flex items-center gap-2 text-lg">Abbrechen</button>
-            <button onClick={saveOrder} disabled={isSaving} className="btn-secondary py-3 px-6 flex items-center gap-2 text-lg">{isSaving ? 'Speichert...' : 'Speichern'}</button>
+            <button type="button" onClick={handleSafeCancel} disabled={isSaving} className="btn-secondary py-3 px-6 flex items-center gap-2 text-lg cursor-pointer">Abbrechen</button>
+            <button type="button" onClick={saveOrder} disabled={isSaving} className="btn-secondary py-3 px-6 flex items-center gap-2 text-lg cursor-pointer">{isSaving ? 'Speichert...' : 'Speichern'}</button>
           </div>
           <div className="flex gap-4">
-            <button onClick={() => setStep(Math.max(1, step - 1))} disabled={step === 1} className={`btn-secondary py-3 px-6 flex items-center gap-2 text-lg ${step === 1 ? 'opacity-0 pointer-events-none' : ''}`}><ChevronLeftIcon className="w-5 h-5" /> Zurück</button>
+            <button type="button" onClick={() => setStep(Math.max(1, step - 1))} disabled={step === 1} className={`btn-secondary py-3 px-6 flex items-center gap-2 text-lg cursor-pointer ${step === 1 ? 'opacity-0 pointer-events-none' : ''}`}><ChevronLeftIcon className="w-5 h-5" /> Zurück</button>
             {step < 7 ? (
-              <button onClick={() => setStep(step + 1)} className="btn-primary py-3 px-8 flex items-center gap-2 text-lg shadow-lg">Weiter <ChevronRightIcon className="w-5 h-5" /></button>
+              <button type="button" onClick={() => goToStep(step + 1)} className="btn-primary py-3 px-8 flex items-center gap-2 text-lg shadow-lg cursor-pointer">Weiter <ChevronRightIcon className="w-5 h-5" /></button>
             ) : (
-              <button onClick={saveOrder} disabled={isSaving} className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-green-600/30 flex items-center gap-2 text-lg transition-all">{isSaving ? 'Speichert...' : <><CheckCircleIcon className="w-6 h-6" /> Besichtigung abschließen</>}</button>
+              <button type="button" onClick={saveOrder} disabled={isSaving} className="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-green-600/30 flex items-center gap-2 text-lg transition-all cursor-pointer">{isSaving ? 'Speichert...' : <><CheckCircleIcon className="w-6 h-6" /> Besichtigung abschließen</>}</button>
             )}
           </div>
         </div>

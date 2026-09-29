@@ -1,5 +1,7 @@
 "use client";
+import React from "react";
 import { XMarkIcon } from "@heroicons/react/24/outline";
+import { useModalBackHandler } from "@/hooks/useModalBackHandler";
 
 interface SlideOverProps {
   isOpen: boolean;
@@ -9,6 +11,8 @@ interface SlideOverProps {
 }
 
 export function SlideOver({ isOpen, onClose, title, children }: SlideOverProps) {
+  useModalBackHandler(isOpen, onClose, 'slideover');
+
   if (!isOpen) return null;
 
   return (
@@ -23,7 +27,12 @@ export function SlideOver({ isOpen, onClose, title, children }: SlideOverProps) 
       `}>
         <div className="flex items-center justify-between p-6 border-b border-structure bg-bg-dark/50">
           <h2 className="text-xl font-semibold text-text-main tracking-tight">{title}</h2>
-          <button onClick={onClose} className="text-text-muted hover:text-text-main hover:bg-structure p-2 rounded-full transition-colors">
+          <button 
+            type="button"
+            onClick={onClose} 
+            className="text-text-muted hover:text-text-main hover:bg-structure p-2 rounded-full transition-colors cursor-pointer"
+            title="Schließen"
+          >
             <XMarkIcon className="w-6 h-6" />
           </button>
         </div>

@@ -174,6 +174,7 @@ export const InvoicePDF = ({
 }) => {
   const isFlat = order?.isFlatRate;
   const isStorno = order?.isStorno;
+  const isKorrektur = Boolean(order?.isKorrektur || order?.isCorrection);
   const billing = order?.customerData || order?.billingAddress || customer;
 
   // Zahlungskonditionen & Fälligkeit
@@ -188,6 +189,8 @@ export const InvoicePDF = ({
 
   const docTitle = isStorno
     ? `Stornorechnung ${order?.invoiceNumber || order?.orderNumber || 'Entwurf'} - ${billing?.lastName || 'Kunde'}`
+    : isKorrektur
+    ? `Korrekturrechnung ${order?.invoiceNumber || order?.orderNumber || 'Entwurf'} - ${billing?.lastName || 'Kunde'}`
     : `Rechnung ${order?.invoiceNumber || order?.orderNumber || 'Entwurf'} - ${billing?.lastName || 'Kunde'}`;
 
   // Personalisierte Anrede
@@ -212,7 +215,7 @@ export const InvoicePDF = ({
     <Document title={docTitle}>
       <Page size="A4" style={styles.page}>
         <PDFWatermark type="symbols" softRows={[1, 2, 6, 7, 8]} />
-        <PDFHeader settings={settings} docTitle={isStorno ? 'Stornorechnung' : 'Rechnung'} />
+        <PDFHeader settings={settings} docTitle={isStorno ? 'Stornorechnung' : (isKorrektur ? 'Korrekturrechnung' : 'Rechnung')} />
         <PDFFooter settings={settings} />
 
         {/* Recipient Window & Document Meta Box */}
@@ -268,17 +271,26 @@ export const InvoicePDF = ({
                 Storno zu Rechnung: {order?.stornoFor || 'Ursprungsrechnung'}
               </Text>
             )}
+            {isKorrektur && (
+              <Text style={styles.stornoBadge}>
+                Korrektur zu Rechnung: {order?.correctionFor || 'Ursprüngliche Rechnung'}
+              </Text>
+            )}
           </View>
         </View>
 
         {/* Document Title with generous spacing */}
-        <Text style={styles.mainTitle}>{isStorno ? 'STORNORECHNUNG' : 'RECHNUNG'}</Text>
+        <Text style={styles.mainTitle}>{isStorno ? 'STORNORECHNUNG' : (isKorrektur ? 'KORREKTURRECHNUNG' : 'RECHNUNG')}</Text>
         
         {/* Intro text */}
         <Text style={styles.introText}>
           {introGreeting}{'\n'}
           {isStorno
             ? `hiermit stornieren wir die Rechnung ${order?.stornoFor || ''}. Der unten ausgewiesene Betrag wird Ihrem Konto gutgeschrieben bzw. gleicht unsere Forderung aus.`
+            : isKorrektur
+            ? (order?.texts?.invoiceIntro ||
+                `hiermit erhalten Sie die Korrekturrechnung zu der stornierten Rechnung ${order?.correctionFor || ''}. Für unsere erbrachten Leistungen stellen wir Ihnen folgenden Betrag in Rechnung:`
+              ).replace(/\{\{Kunde_Anrede\}\}/g, introGreeting.replace(',', ''))
             : (order?.texts?.invoiceIntro ||
                 settings?.texts?.invoiceIntro ||
                 'vielen Dank für Ihren Auftrag. Für unsere erbrachten Leistungen stellen wir Ihnen folgenden Betrag in Rechnung:')

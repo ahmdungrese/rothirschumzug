@@ -13,8 +13,10 @@ import {
 } from '@heroicons/react/24/outline';
 import { changeOrderStatus } from '@/lib/orderStateMachine';
 import { calculateOrderTotals, calculateOpenAmount, calculateTotalPaid } from '@/lib/financeHelpers';
+import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 
 export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpdate, onClose }: { order: any, allOrders?: any[], freeInvoices?: any[], onUpdate: () => void, onClose: () => void }) {
+  useModalBackHandler(true, onClose, 'payment-manager');
   const targetCol = order._collection || 'orders';
 
   // 1. Find matching counterpart invoice or order

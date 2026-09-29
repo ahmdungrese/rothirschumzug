@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase';
 import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
 import { PencilIcon, CalendarIcon, MapPinIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 
 interface SignatureModalProps {
   order: any;
@@ -25,6 +26,7 @@ export function SignatureModal({
   description = "Bitte unterschreiben Sie hier auf dem Display, um den Auftrag verbindlich zu bestätigen. Diese Unterschrift gilt für den Auftrag sowie die AGB.",
   buttonText = "Verbindlich unterschreiben"
 }: SignatureModalProps) {
+  useModalBackHandler(true, onClose, 'signature-modal');
   const sigPad = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [mode, setMode] = useState<'pad' | 'upload'>('pad');
@@ -157,6 +159,15 @@ export function SignatureModal({
       }
       
       await updateDoc(doc(db, 'orders', order.id), updateData);
+
+      if (signatureKey === 'signatureOrder' && !order.orderNumber) {
+        try {
+          const { ensureOrderNumber } = await import('@/lib/orderStateMachine');
+          await ensureOrderNumber(order.id);
+        } catch (numErr) {
+          console.error("Fehler beim Zuweisen der Angebotsnummer:", numErr);
+        }
+      }
       
       onSigned(signatureKey, signatureDataUrl, place.trim(), dateStr.trim());
       toast.success(mode === 'upload' ? "Unterschriebenes Angebot erfolgreich gespeichert!" : "Erfolgreich unterschrieben!");

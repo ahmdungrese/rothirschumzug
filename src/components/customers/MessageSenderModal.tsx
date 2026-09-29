@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast';
 import { pdf } from '@react-pdf/renderer';
 import { OrderPDF } from '../pdf/OrderPDF';
 import { InvoicePDF } from '../pdf/InvoicePDF';
+import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 
 const DEFAULT_COMMUNICATION_TEMPLATES = [
   {
@@ -82,6 +83,7 @@ export function MessageSenderModal({
   defaultTemplateName?: string;
   onClose: () => void 
 }) {
+  useModalBackHandler(true, onClose, 'message-sender-modal');
   const [templates, setTemplates] = useState<any[]>(DEFAULT_COMMUNICATION_TEMPLATES);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [subject, setSubject] = useState('');

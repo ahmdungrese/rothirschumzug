@@ -23,6 +23,7 @@ import { EmployeeSheetPDF } from '@/components/pdf/EmployeeSheetPDF';
 import { generateTickets } from '@/lib/ticketEngine';
 import { toggleTaskCompletion, isTaskCompleted } from '@/lib/taskStateController';
 import Link from 'next/link';
+import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 
 export function DispoModal({ 
   dateStr, 
@@ -35,6 +36,7 @@ export function DispoModal({
   settings: any; 
   onClose: () => void 
 }) {
+  useModalBackHandler(Boolean(dateStr), onClose, 'calendar-dispo-modal');
   const { profile } = useAuth();
   const [activeSection, setActiveSection] = useState<'all' | 'moves' | 'viewings' | 'logistics'>('all');
 
@@ -203,7 +205,7 @@ export function DispoModal({
                 Tages-Planung & Ressourcen
               </h2>
             </div>
-            <p className="text-sm font-bold text-[#D91E2A] mt-1 font-headline">
+            <p className="text-sm font-bold text-[#6E8F64] mt-1 font-headline">
               {displayDate}
             </p>
             
@@ -253,7 +255,7 @@ export function DispoModal({
             onClick={() => setActiveSection('moves')}
             className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 font-headline ${
               activeSection === 'moves'
-                ? 'bg-[#D91E2A] text-white shadow-xs'
+                ? 'bg-[#6E8F64] text-white shadow-xs'
                 : 'text-text-muted hover:text-text-main bg-structure/40'
             }`}
           >
@@ -294,7 +296,7 @@ export function DispoModal({
             <div>
               <div className="flex items-center justify-between mb-3 border-b border-structure pb-2">
                 <h3 className="text-xs uppercase tracking-wider font-bold text-text-muted font-headline flex items-center gap-1.5">
-                  <TruckIcon className="w-4 h-4 text-[#D91E2A]" />
+                  <TruckIcon className="w-4 h-4 text-[#6E8F64]" />
                   1. Umzüge & Fuhrpark ({dayOrders.length})
                 </h3>
               </div>
@@ -322,7 +324,7 @@ export function DispoModal({
                               {order.customerId ? (
                                 <Link 
                                   href={`/dashboard/customers/${order.customerId}`}
-                                  className="text-lg font-bold text-text-main hover:text-[#D91E2A] transition-colors font-headline flex items-center gap-1"
+                                  className="text-lg font-bold text-text-main hover:text-[#6E8F64] transition-colors font-headline flex items-center gap-1"
                                 >
                                   {order.customerName}
                                   <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5 opacity-60" />
@@ -332,7 +334,7 @@ export function DispoModal({
                                   {order.customerName}
                                 </h4>
                               )}
-                              <span className="text-[10px] font-bold text-[#D91E2A] px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 font-headline">
+                              <span className="text-[10px] font-bold text-[#6E8F64] px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 font-headline">
                                 {orderNum}
                               </span>
                             </div>

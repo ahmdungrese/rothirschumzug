@@ -70,7 +70,7 @@ function RowActions({ customer, latestOrder, btnUrl }: { customer: any; latestOr
 
           {latestOrder ? (
             <div className="group flex items-center px-4 py-2 text-sm text-text-main hover:bg-white/5 cursor-pointer">
-              <div className="mr-3 h-5 w-5 flex items-center justify-center text-red-400">
+              <div className="mr-3 h-5 w-5 flex items-center justify-center text-[#6E8F64]">
                 <PDFDownloadButton 
                   order={latestOrder} 
                   customer={customer} 
@@ -197,19 +197,19 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                     break;
                   case 'confirmed':
                     statusText = "Auftrag bestätigt";
-                    statusBadge = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+                    statusBadge = "bg-[#6E8F64]/15 text-[#4A6642] dark:text-[#A8C69F] border-[#6E8F64]/30";
                     btnText = "Akte öffnen";
                     btnIcon = <CheckBadgeIcon className="w-4 h-4" />;
                     btnUrl = `/dashboard/customers/${customer.id}`;
-                    btnStyle = "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20";
+                    btnStyle = "bg-[#6E8F64] hover:bg-[#5C7A53] text-white shadow-sm shadow-[#6E8F64]/20";
                     break;
                   case 'completed':
                     statusText = "Umzug abgeschlossen";
-                    statusBadge = "bg-green-500/10 text-green-400 border-green-500/20";
+                    statusBadge = "bg-[#6E8F64]/15 text-[#4A6642] dark:text-[#A8C69F] border-[#6E8F64]/30";
                     btnText = "Rechnung schreiben";
                     btnIcon = <DocumentTextIcon className="w-4 h-4" />;
                     btnUrl = `/dashboard/customers/${customer.id}/new-order?type=invoice`;
-                    btnStyle = "btn-secondary text-green-400 border-green-500/30 hover:bg-green-500/10";
+                    btnStyle = "btn-secondary text-[#6E8F64] border-[#6E8F64]/35 hover:bg-[#6E8F64]/10";
                     break;
                   case 'invoice_open':
                   case 'invoice_overdue':
@@ -302,10 +302,23 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                       const movingDateRaw = latestOrder?.orderMeta?.movingDateFrom || latestOrder?.movingDate || latestOrder?.logistics?.movingDate;
                       if (!movingDateRaw) return <span className="text-sm text-text-muted italic opacity-50">-</span>;
                       try {
+                        const d = new Date(movingDateRaw);
+                        if (isNaN(d.getTime())) return <span className="text-sm text-text-muted">{movingDateRaw}</span>;
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        const target = new Date(d);
+                        target.setHours(0, 0, 0, 0);
+                        const diffDays = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                        let pill = null;
+                        if (diffDays === 0) pill = <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-[#6E8F64] text-white">Heute</span>;
+                        else if (diffDays === 1) pill = <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-orange-500 text-white">Morgen</span>;
+                        else if (diffDays > 1 && diffDays <= 7) pill = <span className="px-1.5 py-0.2 rounded-full text-[9px] font-bold bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300">in {diffDays} Tg.</span>;
+
                         return (
-                          <div className="flex items-center gap-1.5 text-sm font-semibold text-text-main">
-                            <CalendarDaysIcon className="w-4 h-4 text-primary" />
-                            {new Date(movingDateRaw).toLocaleDateString('de-DE')}
+                          <div className="flex items-center gap-1.5 text-sm font-semibold text-text-main flex-wrap">
+                            <CalendarDaysIcon className="w-4 h-4 text-primary shrink-0" />
+                            <span>{d.toLocaleDateString('de-DE')}</span>
+                            {pill}
                           </div>
                         );
                       } catch {

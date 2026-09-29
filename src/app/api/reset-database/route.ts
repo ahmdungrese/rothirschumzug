@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
              // Fallback für Batch-Delete
              const querySnap = await colRef.get();
              const batch = adminDb.batch();
-             querySnap.docs.forEach(doc => batch.delete(doc.ref));
+             querySnap.docs.forEach((doc: any) => batch.delete(doc.ref));
              await batch.commit();
           }
           results.deletedDocs[colName] = count;

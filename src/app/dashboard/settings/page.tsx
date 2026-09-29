@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon, CalendarIcon, LinkIcon, EnvelopeIcon, ExclamationTriangleIcon, CreditCardIcon, ListBulletIcon } from '@heroicons/react/24/outline';
+import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon, CalendarIcon, LinkIcon, EnvelopeIcon, ExclamationTriangleIcon, CreditCardIcon, ListBulletIcon, HashtagIcon } from '@heroicons/react/24/outline';
 import { TeamAccessManager } from '@/components/settings/TeamAccessManager';
 import { ActivityLogViewer } from '@/components/settings/ActivityLogViewer';
 import { toast } from 'react-hot-toast';
@@ -11,6 +11,7 @@ import { ResetDatabaseModal } from '@/components/settings/ResetDatabaseModal';
 
 const TABS = [
   { id: 'basisdaten', name: 'Basisdaten', icon: BuildingOfficeIcon },
+  { id: 'nummern', name: 'Nummernkreise', icon: HashtagIcon },
   { id: 'ressourcen', name: 'Team & Zugänge', icon: UsersIcon },
   { id: 'ansprechpartner', name: 'CRM & Kontakte', icon: UsersIcon },
   { id: 'immobilien', name: 'Immobilienarten', icon: BuildingOfficeIcon },
@@ -19,7 +20,7 @@ const TABS = [
   { id: 'texte', name: 'Textbausteine & AGB', icon: DocumentTextIcon },
   { id: 'vorlagen', name: 'Nachrichten-Vorlagen', icon: DocumentTextIcon },
   { id: 'protokolle', name: 'Protokolle & Vorlagen', icon: DocumentTextIcon },
-  { id: 'system', name: 'System & Finanzen', icon: ServerStackIcon },
+  { id: 'system', name: 'System & Steuern', icon: ServerStackIcon },
   { id: 'integration', name: 'Kalender (Outlook)', icon: CalendarIcon },
 ];
 
@@ -237,6 +238,8 @@ export default function SettingsPage() {
       if (!data.customerSources) data.customerSources = ['Google Suche', 'Check24', 'Empfehlung', 'Eigene Website', 'Kleinanzeigen', 'Direkter Anruf'];
       if (!data.employees) data.employees = ['Ali', 'Thomas', 'Klaus', 'Mustafa'];
       if (!data.vehicles) data.vehicles = ['LKW 7,5t (Eigener)', 'Sixt Koffer 3,5t (A)', 'Sixt Koffer 3,5t (B)'];
+      if (data.nextQuoteNumber === undefined || data.nextQuoteNumber < 1771) data.nextQuoteNumber = 1771;
+      if (data.nextInvoiceNumber === undefined || data.nextInvoiceNumber < 1771) data.nextInvoiceNumber = 1771;
       if (data.nextOrderNumber === undefined) data.nextOrderNumber = 1;
       if (!data.texts.orderIntro) {
         data.texts.orderIntro = 'Sehr geehrte Damen und Herren,\nvielen Dank für Ihre Unterschrift. Hiermit bestätigen wir Ihren Auftrag verbindlich.';
@@ -275,9 +278,12 @@ export default function SettingsPage() {
     setIsSaving(true);
     setSaveStatus('saving');
     try {
-      // 1. Zähler-Schutz: Höchste verwendete Nummern abfragen
+      // 1. Zähler-Schutz: Höchste verwendete Nummern abfragen (aus orders UND invoices)
       const { collection, getDocs } = await import('firebase/firestore');
-      const ordersSnap = await getDocs(collection(db, 'orders'));
+      const [ordersSnap, invoicesSnap] = await Promise.all([
+        getDocs(collection(db, 'orders')),
+        getDocs(collection(db, 'invoices'))
+      ]);
       
       let maxQuote = 0;
       let maxInvoice = 0;
@@ -285,31 +291,36 @@ export default function SettingsPage() {
       ordersSnap.forEach(doc => {
         const d = doc.data();
         if (d.orderNumber && typeof d.orderNumber === 'string') {
-          // Format: ANG-2026-006 -> extract 6
+          // Format: AN-1771 or ANG-2026-006 -> extract number
           const parts = d.orderNumber.split('-');
-          if (parts.length === 3) {
-            const num = parseInt(parts[2], 10);
-            if (!isNaN(num) && num > maxQuote) maxQuote = num;
-          }
+          const num = parseInt(parts[parts.length - 1], 10);
+          if (!isNaN(num) && num > maxQuote) maxQuote = num;
         }
         if (d.invoiceNumber && typeof d.invoiceNumber === 'string') {
-          // Format: RE-2026-011 -> extract 11
+          // Format: R-1771 or RE-2026-011 -> extract number
           const parts = d.invoiceNumber.split('-');
-          if (parts.length === 3) {
-            const num = parseInt(parts[2], 10);
-            if (!isNaN(num) && num > maxInvoice) maxInvoice = num;
-          }
+          const num = parseInt(parts[parts.length - 1], 10);
+          if (!isNaN(num) && num > maxInvoice) maxInvoice = num;
+        }
+      });
+
+      invoicesSnap.forEach(doc => {
+        const d = doc.data();
+        if (d.invoiceNumber && typeof d.invoiceNumber === 'string') {
+          const parts = d.invoiceNumber.split('-');
+          const num = parseInt(parts[parts.length - 1], 10);
+          if (!isNaN(num) && num > maxInvoice) maxInvoice = num;
         }
       });
 
       if (settings.nextQuoteNumber <= maxQuote) {
-        alert(`Fehler: Es existiert bereits ein Angebot mit der Nummer ANG-${new Date().getFullYear()}-${maxQuote.toString().padStart(3, '0')}. Der Zähler für Angebote darf nicht unter ${maxQuote + 1} gesetzt werden.`);
+        alert(`Fehler: Es existiert bereits ein Angebot mit der Nummer AN-${maxQuote}. Der Zähler für Angebote darf nicht unter ${maxQuote + 1} gesetzt werden.`);
         setSaveStatus('error');
         setIsSaving(false);
         return;
       }
       if (settings.nextInvoiceNumber <= maxInvoice) {
-        alert(`Fehler: Es existiert bereits eine Rechnung mit der Nummer RE-${new Date().getFullYear()}-${maxInvoice.toString().padStart(3, '0')}. Der Zähler für Rechnungen darf nicht unter ${maxInvoice + 1} gesetzt werden.`);
+        alert(`Fehler: Es existiert bereits eine Rechnung mit der Nummer R-${maxInvoice}. Der Zähler für Rechnungen darf nicht unter ${maxInvoice + 1} gesetzt werden.`);
         setSaveStatus('error');
         setIsSaving(false);
         return;
@@ -576,6 +587,131 @@ export default function SettingsPage() {
                 <div>
                   <label className="block text-sm font-medium text-text-muted mb-1">BIC</label>
                   <input type="text" value={settings.bic} onChange={e => handleChange('bic', e.target.value)} className="input-field w-full" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: Nummernkreise & Zähler */}
+          {activeTab === 'nummern' && (
+            <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+              <div className="border-b border-structure pb-4 mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                <div>
+                  <h2 className="text-xl font-bold text-text-main flex items-center gap-2">
+                    <HashtagIcon className="w-6 h-6 text-primary" />
+                    Nummernkreise & Startnummern
+                  </h2>
+                  <p className="text-sm text-text-muted mt-0.5">
+                    Hier kannst du die Startnummern für Angebote und Rechnungen frei wählen und anpassen. Die Nummern werden automatisch fortlaufend hochgezählt.
+                  </p>
+                </div>
+                <button 
+                  onClick={saveSettings} 
+                  disabled={isSaving} 
+                  className="btn-primary py-2 px-5 text-sm shadow-md cursor-pointer"
+                >
+                  {isSaving ? 'Speichert...' : 'Startnummern speichern'}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 1. Angebotsnummern (AN-...) */}
+                <div className="bg-bg-dark p-6 rounded-2xl border border-structure space-y-4 shadow-sm hover:border-primary/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold text-lg font-headline">
+                        AN
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-text-main text-base">Angebote (Angebotsnummer)</h3>
+                        <p className="text-xs text-text-muted">Format: AN-[Nummer]</p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono">
+                      Vorschau: AN-{settings.nextQuoteNumber || 1771}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-text-muted uppercase mb-1.5">
+                      Nächste Angebotsnummer (Startwert)
+                    </label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      value={settings.nextQuoteNumber || 1771} 
+                      onChange={e => handleChange('nextQuoteNumber', Math.max(1, parseInt(e.target.value, 10) || 1))} 
+                      className="input-field w-full bg-bg-panel text-xl font-bold font-mono py-2.5" 
+                    />
+                    <p className="text-xs text-text-muted mt-2">
+                      Das nächste erstellte Angebot erhält die Nummer <strong className="text-text-main font-mono">AN-{settings.nextQuoteNumber || 1771}</strong>.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 2. Rechnungsnummern (R-...) */}
+                <div className="bg-bg-dark p-6 rounded-2xl border border-structure space-y-4 shadow-sm hover:border-emerald-500/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold text-lg font-headline">
+                        R
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-text-main text-base">Rechnungen (Rechnungsnummer)</h3>
+                        <p className="text-xs text-text-muted">Format: R-[Nummer]</p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+                      Vorschau: R-{settings.nextInvoiceNumber || 1771}
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-text-muted uppercase mb-1.5">
+                      Nächste Rechnungsnummer (Startwert)
+                    </label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      value={settings.nextInvoiceNumber || 1771} 
+                      onChange={e => handleChange('nextInvoiceNumber', Math.max(1, parseInt(e.target.value, 10) || 1))} 
+                      className="input-field w-full bg-bg-panel text-xl font-bold font-mono py-2.5" 
+                    />
+                    <p className="text-xs text-text-muted mt-2">
+                      Die nächste ausgestellte Rechnung erhält die Nummer <strong className="text-text-main font-mono">R-{settings.nextInvoiceNumber || 1771}</strong>.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 3. Auftragsbestätigung (Vertragsnummer) */}
+                <div className="bg-bg-dark p-6 rounded-2xl border border-structure space-y-4 shadow-sm md:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-11 h-11 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center font-bold text-lg font-headline">
+                        #
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-text-main text-base">Auftragsbestätigungen (Vertragsnummer)</h3>
+                        <p className="text-xs text-text-muted">Interne fortlaufende Auftragsnummer bei Vertragsabschluss</p>
+                      </div>
+                    </div>
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 font-mono">
+                      Vorschau: #{settings.nextOrderNumber || 1}
+                    </span>
+                  </div>
+
+                  <div className="max-w-md">
+                    <label className="block text-xs font-semibold text-text-muted uppercase mb-1.5">
+                      Nächste Auftragsnummer (Startwert)
+                    </label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      value={settings.nextOrderNumber || 1} 
+                      onChange={e => handleChange('nextOrderNumber', Math.max(1, parseInt(e.target.value, 10) || 1))} 
+                      className="input-field w-full bg-bg-panel text-xl font-bold font-mono py-2.5" 
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1115,7 +1251,7 @@ export default function SettingsPage() {
                         <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
                         <h3 className="text-lg font-bold text-red-400 mb-2 flex items-center gap-2">
                           <ExclamationTriangleIcon className="w-5 h-5" />
-                          ⚠️ Entwickler-Bereich
+                          Entwickler-Bereich
                         </h3>
                         <p className="text-sm text-text-muted mb-6 max-w-2xl">
                           Löscht unwiderruflich alle Kunden, Aufträge und Rechnungen. Nur für die Testphase. Nummernkreise werden auf 1 zurückgesetzt.

@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { XMarkIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
+import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 
 export function ClaimModal({ 
   customerId, 
@@ -16,6 +17,7 @@ export function ClaimModal({
   orderId?: string;
   onClose: () => void;
 }) {
+  useModalBackHandler(true, onClose, 'claim-modal');
   const [description, setDescription] = useState('');
   const [insuranceId, setInsuranceId] = useState('');
   const [isSaving, setIsSaving] = useState(false);

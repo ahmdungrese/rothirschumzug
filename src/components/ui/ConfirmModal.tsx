@@ -1,4 +1,5 @@
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -21,6 +22,8 @@ export function ConfirmModal({
   onCancel,
   isDestructive = true
 }: ConfirmModalProps) {
+  useModalBackHandler(isOpen, onCancel, 'confirm-modal');
+
   if (!isOpen) return null;
 
   return (

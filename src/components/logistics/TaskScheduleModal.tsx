@@ -8,10 +8,13 @@ import {
   ChatBubbleLeftRightIcon,
   CheckIcon,
   MapPinIcon,
-  TruckIcon
+  TruckIcon,
+  BuildingOfficeIcon,
+  HomeIcon
 } from '@heroicons/react/24/outline';
 import { updateTaskSchedule } from '@/lib/taskStateController';
 import toast from 'react-hot-toast';
+import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 
 interface TaskScheduleModalProps {
   isOpen: boolean;
@@ -28,6 +31,8 @@ export function TaskScheduleModal({
   parentOrder,
   onSaved
 }: TaskScheduleModalProps) {
+  useModalBackHandler(isOpen, onClose, 'task-schedule-modal');
+
   if (!isOpen || !todo || !parentOrder) return null;
 
   const isKarton = todo.id === 'kartons_liefern' || todo.kanbanCategory === 'kartons';
@@ -236,7 +241,10 @@ export function TaskScheduleModal({
                   }`}
                 >
                   <div className="text-xs font-bold flex items-center justify-between">
-                    <span>🏢 Auszugsort (A)</span>
+                    <span className="flex items-center gap-1.5">
+                      <BuildingOfficeIcon className="w-4 h-4 text-primary shrink-0" />
+                      <span>Auszugsort (A)</span>
+                    </span>
                     {location === 'a' && <CheckIcon className="w-4 h-4 text-primary" />}
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1 truncate">
@@ -254,7 +262,10 @@ export function TaskScheduleModal({
                   }`}
                 >
                   <div className="text-xs font-bold flex items-center justify-between">
-                    <span>🏠 Einzugsort (B)</span>
+                    <span className="flex items-center gap-1.5">
+                      <HomeIcon className="w-4 h-4 text-primary shrink-0" />
+                      <span>Einzugsort (B)</span>
+                    </span>
                     {location === 'b' && <CheckIcon className="w-4 h-4 text-primary" />}
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1 truncate">

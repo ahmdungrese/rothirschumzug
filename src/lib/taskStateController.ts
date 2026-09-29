@@ -246,6 +246,15 @@ export async function toggleTaskCompletion(
 
   await updateDoc(orderRef, updates);
 
+  if ((taskId === 'signature' || taskId === 'angebot_confirmed') && nextDone && !order.orderNumber) {
+    try {
+      const { ensureOrderNumber } = await import('@/lib/orderStateMachine');
+      await ensureOrderNumber(order.id);
+    } catch (err) {
+      console.error("Fehler beim Erzeugen der Angebotsnummer in toggleTaskCompletion:", err);
+    }
+  }
+
   return {
     success: true,
     newState: nextDone

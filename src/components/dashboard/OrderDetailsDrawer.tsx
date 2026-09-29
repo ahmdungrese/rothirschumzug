@@ -37,6 +37,7 @@ import { PdfModal } from '@/components/ui/PdfModal';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 
 interface OrderDetailsDrawerProps {
   order: any;
@@ -49,6 +50,9 @@ interface OrderDetailsDrawerProps {
 export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase, onClose, onRefresh }: OrderDetailsDrawerProps) {
   const router = useRouter();
   const [order, setOrder] = useState<any>(initialOrder);
+
+  // Close drawer gracefully on mobile back button / swipe gesture
+  useModalBackHandler(Boolean(initialOrder), onClose, 'order-drawer');
 
   // Sync when switching to a different order ID (keep live onSnapshot as single source of truth for current order)
   useEffect(() => {

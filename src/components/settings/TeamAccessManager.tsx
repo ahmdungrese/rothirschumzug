@@ -5,6 +5,7 @@ import { collection, query, onSnapshot, doc, setDoc, updateDoc, serverTimestamp 
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { toast } from "react-hot-toast";
+import { CheckIcon, XMarkIcon } from "@heroicons/react/24/outline";
 
 // Create secondary app to prevent logging out the admin
 const createSecondaryApp = () => {
@@ -132,9 +133,9 @@ export function TeamAccessManager() {
             <div>
               <label className="block text-sm text-text-muted mb-1">Rolle (Rechte)</label>
               <select value={role} onChange={e => setRole(e.target.value as any)} className="input-field bg-bg-dark">
-                <option value="office">💻 Büroassistent (Kunden, Angebote)</option>
-                <option value="teamlead">🚚 Teamleiter (Laufzettel & Kalender)</option>
-                <option value="admin">👑 Admin (Voller Zugriff)</option>
+                <option value="office">Büroassistent (Kunden, Angebote)</option>
+                <option value="teamlead">Teamleiter (Laufzettel & Kalender)</option>
+                <option value="admin">Admin (Voller Zugriff)</option>
               </select>
             </div>
             {role === 'office' && (
@@ -187,8 +188,8 @@ export function TeamAccessManager() {
                         autoFocus
                         onKeyDown={(e) => e.key === 'Enter' && handleUpdateName(member.uid)}
                       />
-                      <button onClick={() => handleUpdateName(member.uid)} className="text-green-400 hover:bg-green-400/10 p-1 rounded">✔</button>
-                      <button onClick={() => setEditingUid(null)} className="text-red-400 hover:bg-red-400/10 p-1 rounded">✖</button>
+                      <button onClick={() => handleUpdateName(member.uid)} className="text-[#6E8F64] hover:bg-[#6E8F64]/10 p-1 rounded" title="Speichern"><CheckIcon className="w-4 h-4" /></button>
+                      <button onClick={() => setEditingUid(null)} className="text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 p-1 rounded" title="Abbrechen"><XMarkIcon className="w-4 h-4" /></button>
                     </div>
                   ) : (
                     member.displayName || 'Unbekannt'
@@ -196,12 +197,12 @@ export function TeamAccessManager() {
                 </td>
                 <td className="p-4 text-text-muted">{member.loginId || member.email}</td>
                 <td className="p-4">
-                  <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                    member.role === 'admin' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                  <span className={`px-2.5 py-1 rounded-md text-xs font-semibold ${
+                    member.role === 'admin' ? 'bg-[#6E8F64]/20 text-[#435E3A] dark:text-[#A8C69F] border border-[#6E8F64]/30' :
                     member.role === 'office' ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30' :
-                    'bg-green-500/20 text-green-400 border border-green-500/30'
+                    'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                   }`}>
-                    {member.role === 'admin' ? '👑 Admin' : member.role === 'office' ? '💻 Büro' : '🚚 Teamleiter'}
+                    {member.role === 'admin' ? 'Admin' : member.role === 'office' ? 'Büro' : 'Teamleiter'}
                   </span>
                 </td>
                 <td className="p-4 text-right">

@@ -17,6 +17,7 @@ import {
   ArrowTopRightOnSquareIcon
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
+import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 
 interface ProtocolModalProps {
   order: any;
@@ -76,6 +77,7 @@ const PRESET_SNIPPETS = [
 ];
 
 export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: ProtocolModalProps) {
+  useModalBackHandler(true, onClose, 'protocol-modal');
   const existingProtocols = order?.protocols || [];
   const [activeTab, setActiveTab] = useState<'create' | 'list'>('create');
   const [type, setType] = useState('Abnahme ohne Mängel (Standard)');
