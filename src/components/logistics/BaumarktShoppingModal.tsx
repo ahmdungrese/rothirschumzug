@@ -128,9 +128,9 @@ export function BaumarktShoppingModal({ isOpen, onClose, order }: BaumarktShoppi
   const generateShoppingText = () => {
     const cust = order.customerName || 'Kunde';
     const orderNum = order.orderNumber || (order.id ? `#${order.id.slice(-5).toUpperCase()}` : '');
-    let text = `🛒 Baumarkt-Einkaufszettel für ${orderNum} (${cust}):\n\n`;
+    let text = `Baumarkt-Einkaufszettel für ${orderNum} (${cust}):\n\n`;
     items.forEach(item => {
-      text += `${item.checked ? '✅' : '⬜'} ${item.quantity}x ${item.name} (${item.unit})\n`;
+      text += `${item.checked ? '[X]' : '[ ]'} ${item.quantity}x ${item.name} (${item.unit})\n`;
     });
     text += `\nRothirsch Logistik`;
     return text;

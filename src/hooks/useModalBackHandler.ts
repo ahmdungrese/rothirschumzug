@@ -3,66 +3,30 @@
 import { useEffect, useRef } from 'react';
 
 /**
- * Universal hook for mobile and desktop browser back-button handling in Modals, Drawers, and Overlays.
- * 
- * Behavior:
- * 1. When a modal opens, it pushes a state to history so the browser recognizes the modal as a layer.
- * 2. When the user taps the mobile phone hardware back button, browser back button, or swipe-back gesture:
- *    the popstate event fires, closing the modal without leaving the current page.
- * 3. When the modal is closed programmatically (via (X) button, Backdrop, Cancel, or Submit),
- *    it cleans up the pushed history entry so navigation remains completely natural.
+ * Universal safe hook for keyboard (Escape key) dismissal in Modals, Drawers, and Overlays.
+ * Note: Does NOT manipulate window.history to prevent conflicts with Next.js router and React StrictMode
+ * which previously caused all modals to self-close immediately upon opening.
  */
 export function useModalBackHandler(
   isOpen: boolean,
   onClose: () => void,
   modalId: string = 'app-modal'
 ) {
-  const isPushedRef = useRef(false);
-  const isClosingByPopstateRef = useRef(false);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !isOpen) return;
 
-    if (isOpen) {
-      if (!isPushedRef.current) {
-        window.history.pushState({ modalId, open: true }, '');
-        isPushedRef.current = true;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCloseRef.current();
       }
+    };
 
-      const handlePopState = (e: PopStateEvent) => {
-        if (isPushedRef.current) {
-          isClosingByPopstateRef.current = true;
-          isPushedRef.current = false;
-          onCloseRef.current();
-        }
-      };
-
-      window.addEventListener('popstate', handlePopState);
-
-      return () => {
-        window.removeEventListener('popstate', handlePopState);
-        if (isPushedRef.current && !isClosingByPopstateRef.current) {
-          isPushedRef.current = false;
-          try {
-            window.history.back();
-          } catch {
-            // Ignore
-          }
-        }
-        isClosingByPopstateRef.current = false;
-      };
-    } else {
-      if (isPushedRef.current && !isClosingByPopstateRef.current) {
-        isPushedRef.current = false;
-        try {
-          window.history.back();
-        } catch {
-          // Ignore
-        }
-      }
-      isClosingByPopstateRef.current = false;
-    }
-  }, [isOpen, modalId]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
 }

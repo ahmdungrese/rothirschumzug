@@ -108,6 +108,14 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
     location?: 'a' | 'b' | 'both';
   }[]>([]);
 
+  // 6. Texte & Checkliste
+  const [texts, setTexts] = useState({ quoteIntro: '', paymentTerms: '', quoteOutro: '' });
+  const [checklist, setChecklist] = useState<{ id: string, text: string, done: boolean }[]>([]);
+  const [showCatalogModal, setShowCatalogModal] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [selectedCatalogCategory, setSelectedCatalogCategory] = useState<string>('all');
+  const [invoicedWarning, setInvoicedWarning] = useState<string | null>(null);
+
   // --- DRAFT AUTO-SAVE & RECOVERY ---
   const draftKey = `rothirsch_draft_${orderId || 'new'}`;
   const [existingDraft, setExistingDraft] = useState<any>(null);
@@ -242,16 +250,6 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
       window.removeEventListener('popstate', handlePopState);
     };
   }, [onClose, urlCustomerId, router, customer, inventory]);
-
-  // Catalog Modal State
-  const [showCatalogModal, setShowCatalogModal] = useState(false);
-  const [catalogSearch, setCatalogSearch] = useState('');
-  const [selectedCatalogCategory, setSelectedCatalogCategory] = useState<string>('all');
-  const [invoicedWarning, setInvoicedWarning] = useState<string | null>(null);
-
-  // 6. Texte & Checkliste
-  const [texts, setTexts] = useState({ quoteIntro: '', paymentTerms: '', quoteOutro: '' });
-  const [checklist, setChecklist] = useState<{ id: string, text: string, done: boolean }[]>([]);
 
   // LOAD DATA
   useEffect(() => {
@@ -496,8 +494,8 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
         toast.success("Besichtigung erfolgreich und sicher aktualisiert!", { id: toastId });
       } else {
         payload.status = 'draft';
-        const rawQuote = settings?.nextQuoteNumber || 1771;
-        const nextQuote = Math.max(1771, rawQuote);
+        const rawQuote = settings?.nextQuoteNumber !== undefined ? Number(settings.nextQuoteNumber) : 1771;
+        const nextQuote = Math.max(1, rawQuote || 1771);
         payload.orderNumber = `AN-${nextQuote}`;
         payload.createdAt = serverTimestamp();
         payload.createdBy = profile?.displayName || 'Außendienst';
@@ -597,7 +595,7 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
                       localStorage.removeItem(draftKey);
                     } catch {}
                     setExistingDraft(null);
-                    toast("Entwurf verworfen.", { icon: '🗑️' });
+                    toast("Entwurf verworfen.");
                   }}
                   className="px-3 py-2 rounded-xl bg-structure/50 hover:bg-structure text-text-muted hover:text-text-main text-xs font-medium transition-colors cursor-pointer"
                 >
