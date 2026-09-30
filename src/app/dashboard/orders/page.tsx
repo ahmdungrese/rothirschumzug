@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, doc, updateDoc, where } from 'firebase/firestore';
 import { 
@@ -17,7 +17,9 @@ import {
   ArrowTopRightOnSquareIcon,
   CurrencyEuroIcon,
   CheckCircleIcon,
-  TruckIcon
+  TruckIcon,
+  EllipsisVerticalIcon,
+  FolderOpenIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
@@ -51,6 +53,196 @@ function getMoveUrgencyBadge(order: any) {
   if (diffDays > 1 && diffDays <= 7) return { label: `in ${diffDays} Tg.`, className: 'bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300 font-semibold' };
   if (diffDays < 0) return { label: `vor ${Math.abs(diffDays)} Tg.`, className: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 font-medium' };
   return null;
+}
+
+interface OrderActionsDropdownProps {
+  order: any;
+  onOpenPdf: (order: any) => void;
+  onOpenDrawer: (order: any) => void;
+  onOpenSign: (order: any) => void;
+  onOpenPayment: (order: any) => void;
+}
+
+function OrderActionsDropdown({
+  order,
+  onOpenPdf,
+  onOpenDrawer,
+  onOpenSign,
+  onOpenPayment,
+}: OrderActionsDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [coords, setCoords] = useState({ x: 0, y: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const toggleMenu = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const menuWidth = 224; // w-56
+      const menuHeight = 240;
+      const x = Math.max(12, rect.right - menuWidth);
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const y = spaceBelow < menuHeight ? Math.max(10, rect.top - menuHeight - 6) : rect.bottom + 6;
+      setCoords({ x, y });
+    }
+    setIsOpen(prev => !prev);
+  };
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        menuRef.current && !menuRef.current.contains(e.target as Node) &&
+        buttonRef.current && !buttonRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    }
+
+    function handleScroll() {
+      setIsOpen(false);
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [isOpen]);
+
+  const editUrl = order.customerId 
+    ? `/dashboard/customers/${order.customerId}/edit-order/${order.id}` 
+    : `/dashboard/orders/new?orderId=${order.id}`;
+
+  const invoiceUrl = order.customerId
+    ? `/dashboard/customers/${order.customerId}/edit-invoice/${order.id}`
+    : null;
+
+  const canSign = ['quote', 'clarification'].includes(order.status) && 
+    !(order.signature || order.orderMeta?.customerSignature || order.orderMeta?.signedContractScan);
+
+  const canInvoice = ['confirmed', 'completed'].includes(order.status) && !order.invoiceNumber && Boolean(invoiceUrl);
+
+  const hasPayments = Boolean(order.invoiceNumber || order.status?.startsWith('invoice_') || (order.payments && order.payments.length > 0));
+
+  return (
+    <div className="relative inline-block text-left">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={toggleMenu}
+        className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors inline-flex items-center justify-center cursor-pointer border border-slate-200/80 dark:border-slate-700 shadow-2xs"
+        title="Aktionen"
+      >
+        <EllipsisVerticalIcon className="w-4 h-4" />
+      </button>
+
+      {isOpen && (
+        <div
+          ref={menuRef}
+          style={{ position: 'fixed', top: coords.y, left: coords.x }}
+          className="w-56 rounded-2xl shadow-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 py-1.5 z-[9999] animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100 dark:divide-slate-800 text-left"
+        >
+          {/* Main Actions */}
+          <div className="py-1">
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                onOpenPdf(order);
+              }}
+              className="w-full flex items-center px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left cursor-pointer"
+            >
+              <DocumentTextIcon className="w-4 h-4 mr-2.5 text-[#6E8F64]" />
+              <span>PDF Vorschau & Druck</span>
+            </button>
+
+            <Link
+              href={editUrl}
+              onClick={() => setIsOpen(false)}
+              className="w-full flex items-center px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left"
+            >
+              <PencilSquareIcon className="w-4 h-4 mr-2.5 text-blue-500" />
+              <span>Angebot bearbeiten</span>
+            </Link>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                onOpenDrawer(order);
+              }}
+              className="w-full flex items-center px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left cursor-pointer"
+            >
+              <AdjustmentsHorizontalIcon className="w-4 h-4 mr-2.5 text-[#6E8F64]" />
+              <span>Cockpit & Prüfung</span>
+            </button>
+          </div>
+
+          {/* Contextual Next Step */}
+          {(canSign || canInvoice || hasPayments) && (
+            <div className="py-1">
+              {canSign && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    onOpenSign(order);
+                  }}
+                  className="w-full flex items-center px-3.5 py-2 text-xs font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors text-left cursor-pointer"
+                >
+                  <PencilSquareIcon className="w-4 h-4 mr-2.5 text-amber-500" />
+                  <span>Digital Signieren</span>
+                </button>
+              )}
+
+              {canInvoice && (
+                <Link
+                  href={invoiceUrl!}
+                  onClick={() => setIsOpen(false)}
+                  className="w-full flex items-center px-3.5 py-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors text-left"
+                >
+                  <DocumentPlusIcon className="w-4 h-4 mr-2.5 text-emerald-500" />
+                  <span>Rechnung erstellen</span>
+                </Link>
+              )}
+
+              {hasPayments && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    onOpenPayment(order);
+                  }}
+                  className="w-full flex items-center px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left cursor-pointer"
+                >
+                  <BanknotesIcon className="w-4 h-4 mr-2.5 text-blue-500" />
+                  <span>Zahlungen verwalten</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Customer Link */}
+          {order.customerId && (
+            <div className="py-1">
+              <Link
+                href={`/dashboard/customers/${order.customerId}`}
+                onClick={() => setIsOpen(false)}
+                className="w-full flex items-center px-3.5 py-2 text-xs font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors text-left"
+              >
+                <FolderOpenIcon className="w-4 h-4 mr-2.5 text-slate-400" />
+                <span>Kundenakte öffnen</span>
+              </Link>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function OrdersPage() {
@@ -584,78 +776,16 @@ export default function OrdersPage() {
                         </div>
                       </td>
 
-                      {/* 7. Aktionen: Direct, logical horizontal pill buttons without three dots */}
+                      {/* 7. Aktionen: 3-Punkte Menü */}
                       <td className="py-3 px-4 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
-                          
-                          {/* 1. PDF Vorschau & Download */}
-                          <button
-                            type="button"
-                            onClick={() => handleOpenPdf(order)}
-                            className="px-2.5 py-1 rounded-xl text-xs font-semibold font-headline bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1 shadow-2xs cursor-pointer"
-                            title="Angebot / Auftrag als PDF ansehen & herunterladen"
-                          >
-                            <DocumentTextIcon className="w-3.5 h-3.5 text-primary" />
-                            <span>PDF</span>
-                          </button>
-
-                          {/* 2. Angebot bearbeiten (Für alle Aufträge und Angebote!) */}
-                          <Link 
-                            href={order.customerId ? `/dashboard/customers/${order.customerId}/edit-order/${order.id}` : `/dashboard/orders/new?orderId=${order.id}`}
-                            className="px-2.5 py-1 rounded-xl text-xs font-semibold font-headline bg-primary/10 hover:bg-primary text-primary hover:text-white transition-all border border-primary/20 flex items-center gap-1 shadow-2xs"
-                            title="Angebot, Preise & Umzugsliste im Editor bearbeiten"
-                          >
-                            <PencilSquareIcon className="w-3.5 h-3.5" />
-                            <span>Bearbeiten</span>
-                          </Link>
-
-                          {/* 3. Cockpit Drawer (Prüfung & Logistik-Phasen) */}
-                          <button
-                            type="button"
-                            onClick={() => setDrawerOrder(order)}
-                            className="px-2.5 py-1 rounded-xl text-xs font-semibold font-headline bg-[#6E8F64]/10 hover:bg-[#6E8F64] text-[#435E3A] dark:text-[#A8C69F] hover:text-white dark:hover:text-white transition-all border border-[#6E8F64]/30 flex items-center gap-1 shadow-2xs cursor-pointer"
-                            title="Auftrags-Cockpit & Phasen-Prüfung im Drawer öffnen"
-                          >
-                            <AdjustmentsHorizontalIcon className="w-3.5 h-3.5" />
-                            <span>Cockpit</span>
-                          </button>
-
-                          {/* 4. Kontextuelle Schnell-Aktion (Logischer nächster Schritt) */}
-                          {['quote', 'clarification'].includes(order.status) && !(order.signature || order.orderMeta?.customerSignature || order.orderMeta?.signedContractScan) && (
-                            <button 
-                              type="button"
-                              onClick={() => setSignOrder(order)}
-                              className="px-2 py-1 rounded-xl text-xs font-semibold font-headline bg-amber-500/10 hover:bg-amber-500 text-amber-600 dark:text-amber-400 hover:text-white transition-all border border-amber-500/20 flex items-center gap-1 shadow-2xs cursor-pointer"
-                              title="Angebot digital signieren"
-                            >
-                              <PencilSquareIcon className="w-3.5 h-3.5" />
-                              <span>Signieren</span>
-                            </button>
-                          )}
-
-                          {['confirmed', 'completed'].includes(order.status) && !order.invoiceNumber && (
-                            <Link 
-                              href={`/dashboard/customers/${order.customerId}/edit-invoice/${order.id}`}
-                              className="px-2 py-1 rounded-xl text-xs font-semibold font-headline bg-emerald-500/10 hover:bg-emerald-500 text-emerald-600 dark:text-emerald-400 hover:text-white transition-all border border-emerald-500/20 flex items-center gap-1 shadow-2xs"
-                              title="Rechnung für diesen Auftrag erstellen"
-                            >
-                              <DocumentPlusIcon className="w-3.5 h-3.5" />
-                              <span>Rechnung</span>
-                            </Link>
-                          )}
-
-                          {(order.invoiceNumber || order.status?.startsWith('invoice_')) && (
-                            <button 
-                              type="button"
-                              onClick={() => setSelectedPaymentOrder(order)}
-                              className="px-2 py-1 rounded-xl text-xs font-semibold font-headline bg-blue-500/10 hover:bg-blue-500 text-blue-600 dark:text-blue-400 hover:text-white transition-all border border-blue-500/20 flex items-center gap-1 shadow-2xs cursor-pointer"
-                              title="Zahlungen ansehen & erfassen"
-                            >
-                              <BanknotesIcon className="w-3.5 h-3.5" />
-                              <span>Zahlung</span>
-                            </button>
-                          )}
-
+                        <div className="flex justify-end">
+                          <OrderActionsDropdown
+                            order={order}
+                            onOpenPdf={handleOpenPdf}
+                            onOpenDrawer={setDrawerOrder}
+                            onOpenSign={setSignOrder}
+                            onOpenPayment={setSelectedPaymentOrder}
+                          />
                         </div>
                       </td>
                     </tr>
