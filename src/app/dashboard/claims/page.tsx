@@ -11,17 +11,20 @@ import {
   ExclamationTriangleIcon,
   ArrowTopRightOnSquareIcon,
   PhotoIcon,
-  CurrencyEuroIcon
+  CurrencyEuroIcon,
+  BanknotesIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { SettleClaimModal } from '@/components/customers/SettleClaimModal';
 
 export default function ClaimsPage() {
   const [claims, setClaims] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [highlightedClaimId, setHighlightedClaimId] = useState<string | null>(null);
+  const [claimToSettle, setClaimToSettle] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -221,6 +224,7 @@ export default function ClaimsPage() {
                   claim={claim} 
                   updateStatus={updateStatus} 
                   onDelete={() => setDeleteConfirmId(claim.id)} 
+                  onOpenSettle={(c) => setClaimToSettle(c)}
                   isHighlighted={highlightedClaimId === claim.id} 
                 />
               ))
@@ -256,6 +260,7 @@ export default function ClaimsPage() {
                   claim={claim} 
                   updateStatus={updateStatus} 
                   onDelete={() => setDeleteConfirmId(claim.id)} 
+                  onOpenSettle={(c) => setClaimToSettle(c)}
                   isHighlighted={highlightedClaimId === claim.id} 
                 />
               ))
@@ -291,6 +296,7 @@ export default function ClaimsPage() {
                   claim={claim} 
                   updateStatus={updateStatus} 
                   onDelete={() => setDeleteConfirmId(claim.id)} 
+                  onOpenSettle={(c) => setClaimToSettle(c)}
                   isHighlighted={highlightedClaimId === claim.id} 
                 />
               ))
@@ -326,6 +332,7 @@ export default function ClaimsPage() {
                   claim={claim} 
                   updateStatus={updateStatus} 
                   onDelete={() => setDeleteConfirmId(claim.id)} 
+                  onOpenSettle={(c) => setClaimToSettle(c)}
                   isHighlighted={highlightedClaimId === claim.id} 
                 />
               ))
@@ -335,6 +342,14 @@ export default function ClaimsPage() {
         )}
 
       </div>
+
+      {claimToSettle && (
+        <SettleClaimModal
+          claim={claimToSettle}
+          onClose={() => setClaimToSettle(null)}
+          onSuccess={() => {}}
+        />
+      )}
 
       <ConfirmModal 
         isOpen={deleteConfirmId !== null}
@@ -353,11 +368,13 @@ function ClaimCard({
   claim, 
   updateStatus, 
   onDelete, 
+  onOpenSettle,
   isHighlighted 
 }: { 
   claim: any; 
   updateStatus: (id: string, s: string) => void; 
   onDelete: () => void; 
+  onOpenSettle?: (claim: any) => void;
   isHighlighted?: boolean;
 }) {
   // Check for overdue statuses
@@ -464,6 +481,33 @@ function ClaimCard({
             </div>
           )}
         </div>
+      )}
+
+      {/* Settlement Badge or Action Button */}
+      {claim.settledInvoiceNumber ? (
+        <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs flex items-center justify-between">
+          <div className="flex items-center gap-1.5 truncate">
+            <CheckCircleIcon className="w-4 h-4 text-emerald-500 shrink-0" />
+            <span className="font-semibold truncate">Mit {claim.settledInvoiceNumber} verrechnet</span>
+          </div>
+          {claim.settledAmount && (
+            <span className="font-mono font-bold shrink-0 text-emerald-600 dark:text-emerald-400">
+              - {claim.settledAmount.toFixed(2)} €
+            </span>
+          )}
+        </div>
+      ) : (
+        claim.status !== 'Erledigt' && onOpenSettle && (
+          <button
+            type="button"
+            onClick={() => onOpenSettle(claim)}
+            className="w-full py-2 px-3 rounded-xl bg-emerald-600/10 hover:bg-emerald-600 text-emerald-700 dark:text-emerald-400 hover:text-white dark:hover:text-white border border-emerald-500/30 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+            title="Schadensbetrag direkt mit einer Kundenrechnung verrechnen"
+          >
+            <BanknotesIcon className="w-4 h-4 shrink-0" />
+            <span>Mit Rechnung verrechnen</span>
+          </button>
+        )
       )}
 
       {/* Status Selector */}

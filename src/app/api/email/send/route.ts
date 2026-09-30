@@ -1,8 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
+import { adminAuth, adminDb } from '@/lib/firebaseAdmin';
+
+// Hilfsfunktion: Überprüft das Auth-Token und die Berechtigung (Admin oder Büro)
+async function verifyEmailSender(req: NextRequest) {
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new Error('Unauthorized');
+  }
+
+  const idToken = authHeader.split('Bearer ')[1];
+  const decodedToken = await adminAuth.verifyIdToken(idToken);
+
+  const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
+  const userData = userDoc.data();
+
+  // Nur bestehende Mitarbeiter (Admin oder Büro) dürfen Mails versenden
+  if (!userData || !['admin', 'office'].includes(userData.role)) {
+    throw new Error('Forbidden');
+  }
+
+  return decodedToken.uid;
+}
 
 export async function POST(req: NextRequest) {
   try {
+    await verifyEmailSender(req);
     const formData = await req.formData();
     
     // Extrahieren der SMTP Einstellungen
@@ -60,8 +83,13 @@ export async function POST(req: NextRequest) {
 
     console.log('Message sent: %s', info.messageId);
 
-    return NextResponse.json({ success: true, messageId: info.messageId });
   } catch (error: any) {
+    if (error.message === 'Unauthorized') {
+      return NextResponse.json({ success: false, error: 'Nicht autorisiert. Bitte anmelden.' }, { status: 401 });
+    }
+    if (error.message === 'Forbidden') {
+      return NextResponse.json({ success: false, error: 'Keine Berechtigung zum E-Mail-Versand.' }, { status: 403 });
+    }
     console.error('Fehler beim E-Mail Versand:', error);
     return NextResponse.json({ success: false, error: error.message || 'Unbekannter Fehler' }, { status: 500 });
   }

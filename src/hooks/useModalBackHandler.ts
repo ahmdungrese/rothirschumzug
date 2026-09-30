@@ -1,11 +1,17 @@
 "use client";
 
 import { useEffect, useRef } from 'react';
+import { modalManager } from '@/lib/modalManager';
 
 /**
- * Universal safe hook for keyboard (Escape key) dismissal in Modals, Drawers, and Overlays.
- * Note: Does NOT manipulate window.history to prevent conflicts with Next.js router and React StrictMode
- * which previously caused all modals to self-close immediately upon opening.
+ * Universal safe hook for mobile hardware back button, swipe-back gesture,
+ * and keyboard (Escape key) dismissal in Modals, Drawers, and Overlays.
+ * 
+ * Powered by centralized modalManager:
+ * - Captures mobile Back button and closes the modal instead of navigating away.
+ * - Handles nested modals seamlessly.
+ * - 100% immune to React StrictMode remounts and re-render loops (no self-closing bugs).
+ * - Restores browser history state naturally when modal closes.
  */
 export function useModalBackHandler(
   isOpen: boolean,
@@ -18,15 +24,12 @@ export function useModalBackHandler(
   useEffect(() => {
     if (typeof window === 'undefined' || !isOpen) return;
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onCloseRef.current();
-      }
-    };
+    const unregister = modalManager.register(modalId, () => {
+      onCloseRef.current();
+    });
 
-    window.addEventListener('keydown', handleKeyDown);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      unregister();
     };
-  }, [isOpen]);
+  }, [isOpen, modalId]);
 }

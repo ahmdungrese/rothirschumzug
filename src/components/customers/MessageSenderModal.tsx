@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { XMarkIcon, EnvelopeIcon, DocumentDuplicateIcon, ChatBubbleLeftEllipsisIcon } from '@heroicons/react/24/outline';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
@@ -323,8 +323,12 @@ export function MessageSenderModal({
         // I will adjust the API route to make file optional.
       }
 
+      const idToken = await auth.currentUser?.getIdToken();
       const res = await fetch('/api/email/send', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken || ''}`
+        },
         body: formData
       });
 

@@ -13,6 +13,7 @@ Willkommen im offiziellen Benutzerhandbuch der **Rothirsch Umzug App**. In diese
 6. [Finanzverwaltung & Rechnungs-Editor](#6-finanzverwaltung--rechnungs-editor)
 7. [Zentrale Reklamationen (Schadensverwaltung)](#7-zentrale-reklamationen-schadensverwaltung)
 8. [Archiv & System-Einstellungen](#8-archiv--system-einstellungen)
+9. [Versionen-Historie & Changelog](#9-versionen-historie--changelog)
 
 ---
 
@@ -63,8 +64,8 @@ Das Board besteht aus vier Spalten, in denen die Aufträge als Karten visualisie
 3.  **UMZUG BESTÄTIGT**: Vom Kunden fest zugesagte Aufträge.
 4.  **ABGESCHLOSSEN**: Durchgeführte Umzüge, die bereit für die Rechnungsstellung sind.
 
-*   **Drag & Drop (Karten ziehen)**:
-    *   *Aktion*: Ziehe eine Kundenkarte in eine andere Spalte, um deren Status in der Datenbank automatisch zu aktualisieren.
+*   **Automatischer Phasen-Fluss (Event-gesteuert)**:
+    *   *Aktion*: Karten bewegen sich vollautomatisch zwischen den Spalten, sobald Schlüsselaktionen ausgeführt werden (z. B. Angebot bestätigt, Abnahmeprotokoll unterzeichnet, Rechnung erstellt). Dies schützt vor Fehlern und stellt sicher, dass keine vorgeschriebenen Pflichtschritte übersprungen werden.
 *   **Klick auf eine Kanban-Karte**:
     *   *Aktion*: Öffnet das detaillierte **Kunden-Popup-Modal** (siehe unten).
 *   **Schaltfläche „Kundenprofil öffnen“ (User-Icon auf Karte)**:
@@ -202,8 +203,9 @@ Unter `/dashboard/finances` verwaltest du alle Geldeingänge und Abschlüsse.
 
 ### Zahlungs-Manager (Zahlungs-Modal)
 *   **Dropdown „Zahlungsart“**:
-    *   *Aktion*: Auswahl zwischen *Bar*, *Überweisung*, *EC-Karte*, *PayPal* oder *Verrechnung mit Guthaben*.
+    *   *Aktion*: Auswahl zwischen *Bar*, *Überweisung*, *EC-Karte*, *PayPal*, *Verrechnung mit Guthaben* oder *Schadensregulierung / Kulanz*.
     *   *Spezialfunktion „Guthaben“*: Wenn ein vorheriger Auftrag storniert wurde, für den bereits Zahlungen eingegangen sind, bietet das System dieses Guthaben hier zur Verrechnung an.
+    *   *Spezialfunktion „Schadensregulierung / Kulanz“*: Ermöglicht es, vereinbarte Schadensminderungen oder Kulanzbeträge direkt als Zahlungseingang auf die Rechnung zu buchen, sodass der offene Betrag ohne Steuerverzerrung gemindert wird.
 *   **Eingabefeld „Betrag“**:
     *   *Aktion*: Eingabe des gezahlten Betrags (schlägt automatisch den noch offenen Restbetrag vor).
 *   **Schaltfläche „Zahlung verbuchen“**:
@@ -223,6 +225,14 @@ Das Reklamations-Center (`/dashboard/claims`) hilft bei der Abwicklung von Versi
         *   *In Bearbeitung*
         *   *An Versicherung gemeldet*
         *   *Erledigt / Abgeschlossen*
+*   **Schaltfläche „Mit Rechnung verrechnen“ (Geldschein-Symbol)**:
+    *   *Aktion*: Öffnet das integrierte **Schadens-Verrechnungsmodal** (`SettleClaimModal`).
+    *   *Funktion*: Ermöglicht die direkte Verrechnung der Schadenssumme mit einer offenen Kundenrechnung:
+        *   *Option A (Gutschrift/Zahlung)*: Bucht den Schadensbetrag als `Schadensregulierung / Kulanz` direkt in die Zahlungen der Rechnung ein (schließt den offenen Betrag ab).
+        *   *Option B (Positionsrabatt)*: Zieht den Betrag als negative Leistungsposition von der Rechnung ab und berechnet die Umsatzsteuer neu.
+    *   *Ergebnis*: Nach Bestätigung wird die Reklamation automatisch auf **„Erledigt“** gesetzt und im Ticket dokumentiert.
+*   **Grüne Kennzeichnung „Mit R-XXXX verrechnet“**:
+    *   *Bedeutung*: Zeigt auf der Schadenskarte an, dass der Schaden erfolgreich mit der angegebenen Rechnungsnummer ausgeglichen und archiviert wurde.
 *   **Mülleimer-Symbol (auf Schadenskarte)**:
     *   *Aktion*: Löscht die Schadensmeldung nach einer Sicherheitsabfrage dauerhaft.
 *   **Kundenname-Link**:
@@ -252,3 +262,49 @@ Das Reklamations-Center (`/dashboard/claims`) hilft bei der Abwicklung von Versi
 *   **Schaltfläche „System zurücksetzen“ (Gefahrenzone)**:
     *   *Aktion*: Öffnet ein rotes Sicherheitsmodal.
     *   *Voraussetzung*: Du musst das Wort `LÖSCHEN` eingeben, um die Schaltfläche freizuschalten. Nach dem Klick werden alle Aufträge, Kunden und Finanzen gelöscht und das System in den Werkszustand versetzt.
+
+---
+
+## 9. Versionen-Historie & Changelog
+
+### Version 2.5.0 (Aktuell) – Stabilität, Reklamations-Finanzintegration & Workflow-Schutz
+*   **Reklamationen direkt mit Rechnungen verrechnen (`Claims & Invoicing Integration`)**:
+    *   Neues Verrechnungsmodal (`SettleClaimModal`) in der Schadensverwaltung.
+    *   Wahlweise als Schadensgutschrift (Zahlungseingang) oder als Positionsrabatt auf der Rechnung.
+    *   Automatische Statussynchronisation: Reklamation schließt automatisch als „Erledigt“ mit Rechnungsnachweis ab.
+    *   Neuer Zahlungstyp `schaden_verrechnung` im `PaymentManager`.
+*   **Event-gesteuerter automatisierter Phasenfluss**:
+    *   Abschaffung des fehleranfälligen manuellen Drag & Drop zugunsten einer robusten, zustandsgesteuerten Pipeline (State Machine).
+    *   Karten wechseln erst dann die Spalte, wenn vorgeschriebene Pflichtschritte (Unterschrift, Abnahmeprotokoll, Rechnung) verifiziert sind.
+*   **Behebung der Vertragsbestätigungs-Blockade**:
+    *   Vollständige Unterstützung von `isManuallySigned` und `contractSigned` in `orderStateMachine.ts`.
+    *   Verhindert das Blockieren von Transaktionen bei telefonisch oder extern bestätigten Aufträgen.
+*   **Webpack-Build-Optimierung**:
+    *   Umstellung des Produktions-Builds auf Next.js Webpack für maximale Kompatibilität und fehlerfreie Font-Generierung.
+
+### Version 2.4.0 – GoBD-Finanzwesen & Stornoverwaltung
+*   **GoBD-konformer Storno-Workflow**:
+    *   Offizielle Stornorechnungen mit eigenem Nummernkreis (`ST-XXXX`).
+    *   Vollständige Historienführung im Auftrag (`invoiceHistory`).
+*   **DATEV-Export & Monatsabschluss**:
+    *   ZIP-Pakete inklusive aller Monats-PDFs und CSV-Exports für den Steuerberater.
+*   **Erweiterter Rechnungs-Editor**:
+    *   Unterstützung freier Rechnungen ohne Umzugsbindung (Materialverkauf).
+
+### Version 2.3.0 – Operative Logistik & Protokolle
+*   **Digitales Abnahmeprotokoll (`ProtocolModal`)**:
+    *   Rechtssichere digitale Unterschrift des Kunden am Umzugstag auf dem Tablet.
+    *   Automatische Protokoll-Kategorien (Mängelfrei, Gefahrenübergang, Zählerstände).
+*   **Mitarbeiter-Laufzettel (PDF)**:
+    *   Automatischer Ausdruck aller Umzugsinformationen, Adressen und Möbelbesonderheiten für das Team.
+*   **Kalender-Disposition**:
+    *   Zuweisung von Teamleitern, Helfern und Fahrzeugen im Monatskalender.
+
+### Version 2.0.0 – 2.2.0 – Fundament & Kern-Assistenten
+*   **5-stufiger Order Wizard (`OrderEditor`)**:
+    *   Schrittweise Anlage von Kunden, Adressen, Tarifen, Inventar und Dokumenten.
+*   **Routenberechnung**:
+    *   Automatische Kilometer- und Fahrzeitschnittstelle.
+*   **Grafischer Inventar-Rechner**:
+    *   Raumbasierte Möbelerfassung mit automatischer $m^3$-Volumenermittlung.
+

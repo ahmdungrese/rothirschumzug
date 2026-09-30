@@ -27,12 +27,17 @@ export function SmartBackButton({
     }
 
     if (typeof window !== "undefined") {
+      let prevPath: string | null = null;
+      try {
+        prevPath = sessionStorage.getItem("rothirsch_prev_path");
+      } catch {}
+
       const hasHistory = window.history.length > 1;
       const hasInternalReferrer =
         Boolean(document.referrer) &&
         document.referrer.includes(window.location.origin);
 
-      if (hasHistory && hasInternalReferrer) {
+      if (hasHistory && (Boolean(prevPath) || hasInternalReferrer)) {
         router.back();
         return;
       }

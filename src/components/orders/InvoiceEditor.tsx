@@ -37,6 +37,23 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
   const currentStepRef = useRef(currentStep);
   currentStepRef.current = currentStep;
 
+  const goToStep = (stepNum: number) => {
+    if (stepNum > currentStepRef.current && typeof window !== 'undefined') {
+      window.history.pushState({ invoiceStep: stepNum }, '');
+    }
+    setCurrentStep(stepNum);
+  };
+
+  const handleStepBack = () => {
+    if (currentStep > 1) {
+      if (typeof window !== 'undefined' && window.history.state?.invoiceStep) {
+        window.history.back();
+      } else {
+        setCurrentStep(prev => Math.max(1, prev - 1));
+      }
+    }
+  };
+
   const handleSafeCancel = () => {
     const isDirty = Boolean(
       flatRateNet > 0 ||
@@ -62,21 +79,6 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
       }
     }
   };
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handlePopState = () => {
-      if (currentStepRef.current > 1) {
-        setCurrentStep(prev => Math.max(1, prev - 1));
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, []);
 
   const [status, setStatus] = useState('draft'); // invoice_open if final
   const [activeSourceOrderId, setActiveSourceOrderId] = useState<string | null>(sourceOrderId || null);
@@ -137,6 +139,47 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
     to: { address: '', city: '', zip: '', floor: '', lift: 'Nein', parking: 'Nein' },
     distance: 0
   });
+
+  const customerDataRef = useRef(customerData);
+  customerDataRef.current = customerData;
+  const flatRateNetRef = useRef(flatRateNet);
+  flatRateNetRef.current = flatRateNet;
+  const servicesRef = useRef(services);
+  servicesRef.current = services;
+  const textsRef = useRef(texts);
+  textsRef.current = texts;
+
+  // Intercept mobile hardware back button / swipe-back gesture
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = (e: PopStateEvent) => {
+      if (currentStepRef.current > 1) {
+        setCurrentStep(prev => Math.max(1, prev - 1));
+      } else {
+        const isDirty = Boolean(
+          flatRateNetRef.current > 0 ||
+          servicesRef.current.length > 0 ||
+          textsRef.current.quoteIntro ||
+          customerDataRef.current.lastName
+        );
+        if (isDirty) {
+          const confirmLeave = window.confirm(
+            "Möchten Sie die Rechnungsbearbeitung wirklich abbrechen? Nicht gespeicherte Änderungen gehen verloren."
+          );
+          if (!confirmLeave) {
+            window.history.pushState({ invoiceStep: 1 }, '');
+            return;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
 
   useEffect(() => {
     const init = async () => {
@@ -317,7 +360,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
 
           // 2. DATA PREPARATION & CALCULATIONS
           const rawNext = settingsSnap.data()?.nextInvoiceNumber !== undefined ? Number(settingsSnap.data()?.nextInvoiceNumber) : 1771;
-          const nextInvoiceNumber = Math.max(1, rawNext || 1771);
+          const nextInvoiceNumber = Math.max(1771, rawNext || 1771);
           const invoiceNum = `R-${nextInvoiceNumber}`;
           
           payload.invoiceNumber = invoiceNum;
@@ -542,7 +585,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
         ].map(s => (
           <button
             key={s.step}
-            onClick={() => setCurrentStep(s.step)}
+            onClick={() => goToStep(s.step)}
             className={`flex items-center gap-2 whitespace-nowrap px-4 py-2 rounded-lg transition-all ${currentStep === s.step ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'text-text-muted hover:bg-bg-dark hover:text-text-main'}`}
           >
             <span>{s.label}</span>
@@ -710,7 +753,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
           </div>
           <div className="flex justify-between items-center mt-6">
              <button type="button" onClick={handleSafeCancel} className="btn-secondary cursor-pointer">Abbrechen</button>
-             <button type="button" onClick={() => setCurrentStep(2)} className="btn-primary cursor-pointer">Weiter zu Leistungen</button>
+             <button type="button" onClick={() => goToStep(2)} className="btn-primary cursor-pointer">Weiter zu Leistungen</button>
           </div>
         </section>
       )}
@@ -988,8 +1031,8 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
             </div>
           </div>
           <div className="flex justify-between mt-6">
-            <button onClick={() => setCurrentStep(1)} className="btn-secondary">Zurück</button>
-            <button onClick={() => setCurrentStep(3)} className="btn-primary">Weiter zum Abschluss</button>
+            <button type="button" onClick={handleStepBack} className="btn-secondary cursor-pointer">Zurück</button>
+            <button type="button" onClick={() => goToStep(3)} className="btn-primary cursor-pointer">Weiter zum Abschluss</button>
           </div>
         </section>
       )}
@@ -1058,7 +1101,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
           </div>
 
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-8 pt-6 border-t border-structure">
-            <button onClick={() => setCurrentStep(2)} className="btn-secondary w-full md:w-auto">Zurück</button>
+            <button type="button" onClick={handleStepBack} className="btn-secondary w-full md:w-auto cursor-pointer">Zurück</button>
             <div className="flex gap-4 w-full md:w-auto">
               {isLocked ? (
                 <>

@@ -70,7 +70,7 @@ export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpd
     .filter(item => item.hasCredit);
 
   const [amount, setAmount] = useState<number | ''>(remaining > 0 ? remaining : '');
-  const [method, setMethod] = useState<'bar' | 'ueberweisung' | 'ec-karte' | 'paypal' | 'guthaben'>('bar');
+  const [method, setMethod] = useState<'bar' | 'ueberweisung' | 'ec-karte' | 'paypal' | 'guthaben' | 'schaden_verrechnung'>('bar');
   const [isSaving, setIsSaving] = useState(false);
 
   const syncPaymentToFirestore = async (updatedPayments: any[], newStatus: string) => {
@@ -326,6 +326,7 @@ export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpd
                     <option value="ec-karte">EC-Karte / Terminal</option>
                     <option value="paypal">PayPal</option>
                     <option value="guthaben" disabled={availableCredits.length === 0}>Guthaben</option>
+                    <option value="schaden_verrechnung">Schadensregulierung / Kulanz</option>
                   </select>
                 </div>
               </div>
@@ -455,7 +456,9 @@ export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpd
                         € {p.amount.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                       <div className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                        <span className="capitalize font-medium text-slate-600 dark:text-slate-300">{p.method}</span>
+                        <span className="capitalize font-medium text-slate-600 dark:text-slate-300">
+                          {p.method === 'schaden_verrechnung' ? 'Schadensregulierung / Kulanz' : p.method}
+                        </span>
                         <span>•</span>
                         <span>{p.date ? new Date(p.date.toMillis ? p.date.toMillis() : p.date).toLocaleDateString('de-DE') : 'Unbekannt'}</span>
                       </div>

@@ -101,7 +101,12 @@ export async function changeOrderStatus(
     if (targetStatus === 'confirmed') {
       const hasMovingDate = !!(order.orderMeta?.movingDateFrom || order.orderMeta?.movingDateTo);
       const hasBothAddresses = !!(order.logistics?.a_city || order.logistics?.a_street) && !!(order.logistics?.b_city || order.logistics?.b_street);
-      const hasSignatureOrExternal = !!order.signatureOrder || !!order.externallyConfirmed;
+      const hasSignatureOrExternal = 
+        !!order.signatureOrder || 
+        !!order.externallyConfirmed || 
+        !!order.isManuallySigned || 
+        !!order.contractSigned || 
+        !!context?.additionalData?.isManuallySigned;
 
       if (!hasMovingDate) throw new Error("Umzugsdatum fehlt. Bitte Datum angeben.");
       if (!hasBothAddresses) throw new Error("Beide Adressen (Belade- und Entladeadresse) müssen vorhanden sein.");
@@ -142,7 +147,7 @@ export async function changeOrderStatus(
     if ((targetStatus === 'invoice_open' || targetStatus === 'invoice_paid') && !order.invoiceNumber) {
       let nextInvoiceNumber = 1771;
       if (settingsDoc.exists() && settingsDoc.data().nextInvoiceNumber !== undefined) {
-        nextInvoiceNumber = Math.max(1, Number(settingsDoc.data().nextInvoiceNumber) || 1771);
+        nextInvoiceNumber = Math.max(1771, Number(settingsDoc.data().nextInvoiceNumber) || 1771);
       }
       transaction.update(settingsRef, { nextInvoiceNumber: nextInvoiceNumber + 1 });
       updatePayload.invoiceNumber = `R-${nextInvoiceNumber}`;
@@ -152,7 +157,7 @@ export async function changeOrderStatus(
     if (['quote', 'confirmed', 'completed'].includes(targetStatus) && !order.orderNumber && !updatePayload.orderNumber) {
       let nextQuoteNumber = 1771;
       if (settingsDoc.exists() && settingsDoc.data().nextQuoteNumber !== undefined) {
-        nextQuoteNumber = Math.max(1, Number(settingsDoc.data().nextQuoteNumber) || 1771);
+        nextQuoteNumber = Math.max(1771, Number(settingsDoc.data().nextQuoteNumber) || 1771);
       }
       transaction.update(settingsRef, { nextQuoteNumber: nextQuoteNumber + 1 });
       updatePayload.orderNumber = `AN-${nextQuoteNumber}`;
@@ -183,7 +188,7 @@ export async function ensureOrderNumber(orderId: string): Promise<string> {
     const settingsDoc = await transaction.get(settingsRef);
     let nextQuoteNumber = 1771;
     if (settingsDoc.exists() && settingsDoc.data().nextQuoteNumber !== undefined) {
-      nextQuoteNumber = Math.max(1, Number(settingsDoc.data().nextQuoteNumber) || 1771);
+      nextQuoteNumber = Math.max(1771, Number(settingsDoc.data().nextQuoteNumber) || 1771);
     }
 
     const newOrderNumber = `AN-${nextQuoteNumber}`;

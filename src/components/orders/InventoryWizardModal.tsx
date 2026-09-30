@@ -92,6 +92,9 @@ export interface InventoryWizardModalProps {
   inventory: InventoryItem[];
   setInventory: (items: InventoryItem[]) => void;
   initialRoomId?: string | null;
+  roomCounts?: Record<string, number>;
+  onSaveRoomCounts?: (counts: Record<string, number>) => void;
+  auszugsortTitle?: string;
 }
 
 const POPULAR_FURNITURE: Record<string, string[]> = {
@@ -140,7 +143,16 @@ const getAvailableServices = (name: string): ('assembly' | 'connection')[] => {
   return ['assembly'];
 };
 
-export function InventoryWizardModal({ isOpen, onClose, inventory, setInventory, initialRoomId }: InventoryWizardModalProps) {
+export function InventoryWizardModal({ 
+  isOpen, 
+  onClose, 
+  inventory, 
+  setInventory, 
+  initialRoomId,
+  roomCounts: externalRoomCounts,
+  onSaveRoomCounts,
+  auszugsortTitle
+}: InventoryWizardModalProps) {
   const [step, setStep] = useState<1 | 2>(1);
 
   // If in step 2, back button goes to step 1. If in step 1, back button closes modal.
@@ -162,18 +174,23 @@ export function InventoryWizardModal({ isOpen, onClose, inventory, setInventory,
     if (isOpen) {
       setLocalInventory(JSON.parse(JSON.stringify(inventory)));
       
-      const counts: Record<string, number> = {};
-      const uniqueRooms = new Set(inventory.filter(i => i.room).map(i => i.room as string));
-      uniqueRooms.forEach(roomName => {
-         const match = roomName.match(/^(.*?)( \d+)?$/);
-         if (match) {
-           const baseType = match[1];
-           const roomObj = ROOM_TYPES.find(r => r.name === baseType);
-           if (roomObj) {
-              counts[roomObj.id] = (counts[roomObj.id] || 0) + 1;
+      const counts: Record<string, number> = externalRoomCounts && Object.keys(externalRoomCounts).length > 0
+        ? { ...externalRoomCounts }
+        : {};
+
+      if (Object.keys(counts).length === 0) {
+        const uniqueRooms = new Set(inventory.filter(i => i.room).map(i => i.room as string));
+        uniqueRooms.forEach(roomName => {
+           const match = roomName.match(/^(.*?)( \d+)?$/);
+           if (match) {
+             const baseType = match[1];
+             const roomObj = ROOM_TYPES.find(r => r.name.toLowerCase() === baseType.toLowerCase());
+             if (roomObj) {
+                counts[roomObj.id] = (counts[roomObj.id] || 0) + 1;
+             }
            }
-         }
-      });
+        });
+      }
       
       if (initialRoomId) {
         if (!counts[initialRoomId]) {
@@ -187,7 +204,7 @@ export function InventoryWizardModal({ isOpen, onClose, inventory, setInventory,
         setStep(1);
       }
     }
-  }, [isOpen, inventory, initialRoomId]);
+  }, [isOpen, inventory, initialRoomId, externalRoomCounts]);
 
   const activeRooms = useMemo(() => {
     const rooms: { id: string, name: string, typeId: string }[] = [];
@@ -237,6 +254,9 @@ export function InventoryWizardModal({ isOpen, onClose, inventory, setInventory,
       !item.room || activeRoomNames.includes(item.room)
     );
     setInventory(filteredInventory);
+    if (onSaveRoomCounts) {
+      onSaveRoomCounts(roomCounts);
+    }
     onClose();
   };
 
@@ -298,10 +318,24 @@ export function InventoryWizardModal({ isOpen, onClose, inventory, setInventory,
         
         {/* Header */}
         <div className="flex items-center justify-between p-4 sm:p-6 border-b border-structure bg-bg-dark shrink-0">
-          <h2 className="text-xl sm:text-2xl font-bold text-text-main">
-            {step === 1 ? 'Wählen Sie die Räume Ihrer Auszugsadresse' : 'Inventar hinzufügen'}
-          </h2>
-          <button onClick={onClose} className="p-2 text-text-muted hover:text-red-400 transition-colors rounded-lg hover:bg-white/5">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-primary text-xl">home_work</span>
+              <h2 className="text-xl sm:text-2xl font-bold text-text-main">
+                {step === 1 ? 'Räume der Auszugsadresse auswählen' : 'Inventar hinzufügen'}
+              </h2>
+            </div>
+            {auszugsortTitle && (
+              <p className="text-xs text-text-muted mt-1">
+                Auszugsort: <span className="text-primary font-semibold">{auszugsortTitle}</span>
+              </p>
+            )}
+          </div>
+          <button 
+            type="button" 
+            onClick={onClose} 
+            className="p-2 text-text-muted hover:text-red-400 transition-colors rounded-lg hover:bg-white/5"
+          >
             <XMarkIcon className="w-6 h-6" />
           </button>
         </div>
@@ -542,24 +576,52 @@ export function InventoryWizardModal({ isOpen, onClose, inventory, setInventory,
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-structure bg-bg-panel flex justify-between items-center shrink-0">
+        <div className="p-4 border-t border-structure bg-bg-panel flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
           {step === 1 ? (
             <>
-              <button onClick={onClose} className="btn-secondary text-sm px-4 py-2 border-structure text-text-muted">Abbrechen</button>
               <button 
-                onClick={() => setStep(2)} 
-                disabled={activeRooms.length === 0}
-                className="btn-primary text-sm px-6 py-2 shadow-lg disabled:opacity-50 flex items-center gap-2"
+                type="button"
+                onClick={onClose} 
+                className="btn-secondary text-sm px-4 py-2 border-structure text-text-muted w-full sm:w-auto"
               >
-                Weiter <ChevronRightIcon className="w-4 h-4" />
+                Abbrechen
               </button>
+              <div className="flex flex-wrap items-center justify-end gap-2.5 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onSaveRoomCounts) onSaveRoomCounts(roomCounts);
+                    onClose();
+                  }}
+                  disabled={activeRooms.length === 0}
+                  className="px-4 py-2 rounded-xl bg-white/[0.05] hover:bg-white/10 text-text-main border border-structure text-xs font-bold transition-all disabled:opacity-40"
+                >
+                  Räume für Auszugsort übernehmen ({activeRooms.length})
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setStep(2)} 
+                  disabled={activeRooms.length === 0}
+                  className="btn-primary text-sm px-6 py-2 shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  Weiter zum Inventar <ChevronRightIcon className="w-4 h-4" />
+                </button>
+              </div>
             </>
           ) : (
             <>
-              <button onClick={() => setStep(1)} className="btn-secondary text-sm px-4 py-2 flex items-center gap-2 border-structure text-text-muted">
+              <button 
+                type="button"
+                onClick={() => setStep(1)} 
+                className="btn-secondary text-sm px-4 py-2 flex items-center gap-2 border-structure text-text-muted w-full sm:w-auto"
+              >
                 <ChevronLeftIcon className="w-4 h-4" /> Zurück zu Räumen
               </button>
-              <button onClick={handleApply} className="btn-primary text-sm px-6 py-2 shadow-lg bg-[#33412a] hover:bg-[#3d4d32] border border-primary/50 text-white">
+              <button 
+                type="button"
+                onClick={handleApply} 
+                className="btn-primary text-sm px-6 py-2 shadow-lg bg-[#33412a] hover:bg-[#3d4d32] border border-primary/50 text-white w-full sm:w-auto"
+              >
                 Speichern & Übernehmen
               </button>
             </>

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -31,11 +31,11 @@ export function CustomerFastOfferEditor({ order, onSaveSuccess, onClose }: Custo
   const [hasLagerung, setHasLagerung] = useState(false);
   const [lagerungPrice, setLagerungPrice] = useState<number>(order.lagerungPrice || 100);
 
-  // Simplified Truck / Volume Estimation
+  // Simplified Truck / Volume Estimation (Standard: 3.5t Transporter)
   const [truckChoice, setTruckChoice] = useState<'1_transporter' | '1_lkw' | '2_lkw' | 'custom'>(
-    order.truckChoice || '1_lkw'
+    order.truckChoice || '1_transporter'
   );
-  const [estimatedCbm, setEstimatedCbm] = useState<number>(order.estimatedCbm || 30);
+  const [estimatedCbm, setEstimatedCbm] = useState<number>(order.estimatedCbm || 18);
 
   // External / Manual Signature
   const [isManuallySigned, setIsManuallySigned] = useState<boolean>(
@@ -339,7 +339,7 @@ export function CustomerFastOfferEditor({ order, onSaveSuccess, onClose }: Custo
         </h4>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
-            { id: '1_transporter', label: '1x Sprinter 3.5t', desc: '~15-20 m³' },
+            { id: '1_transporter', label: '1x Sprinter 3.5t (Standard)', desc: '~15-20 m³' },
             { id: '1_lkw', label: '1x LKW 7.5t', desc: '~35 m³' },
             { id: '2_lkw', label: '2x Fahrzeuge', desc: '~60 m³' },
             { id: 'custom', label: 'Individuell', desc: 'Manuelle Angabe' },

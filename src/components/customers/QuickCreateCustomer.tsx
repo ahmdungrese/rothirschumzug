@@ -29,6 +29,12 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
     if (hasData) {
       if (window.confirm("Möchten Sie das Anlegen des Kunden wirklich abbrechen? Eingegebene Daten gehen verloren.")) {
         onClose();
+      } else {
+        if (typeof window !== 'undefined' && !window.history.state?.rothirschModal) {
+          try {
+            window.history.pushState({ rothirschModal: true, modalId: 'quick-create-customer' }, '');
+          } catch {}
+        }
       }
     } else {
       onClose();

@@ -10,7 +10,8 @@ export type ActivityAction =
   | 'UPDATE_ORDER' 
   | 'ARCHIVE_ORDER'
   | 'CREATE_INVOICE'
-  | 'CANCEL_INVOICE';
+  | 'CANCEL_INVOICE'
+  | 'SETTLE_CLAIM';
 
 export const logActivity = async (
   userId: string,

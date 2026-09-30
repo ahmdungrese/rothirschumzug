@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, User, signOut } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { logActivity } from "@/lib/activityLogger";
 
 interface UserProfile {
@@ -37,73 +37,52 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    let unsubscribeDoc: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
-      let userDocSnap: any = null;
-      
+
+      // Vorherigen Dokument-Listener beenden, falls vorhanden
+      if (unsubscribeDoc) {
+        unsubscribeDoc();
+        unsubscribeDoc = null;
+      }
+
       if (currentUser) {
-        try {
-          const userDocRef = doc(db, 'users', currentUser.uid);
-          
-          // Use Promise.race to add a timeout to getDoc so it doesn't hang indefinitely if Firestore is not initialized
-          const timeoutPromise = new Promise((resolve) => 
-            setTimeout(() => resolve({ _isTimeout: true }), 300)
-          );
-          
-          const docPromise = getDoc(userDocRef);
-          docPromise.catch(() => {}); // prevent unhandled rejection if it fails later
-          
-          userDocSnap = await Promise.race([
-            docPromise,
-            timeoutPromise
-          ]) as any;
-          
-          if (userDocSnap && userDocSnap._isTimeout) {
-            throw new Error("Firestore timeout");
-          }
-          
-          if (userDocSnap && userDocSnap.exists && userDocSnap.exists()) {
-            setProfile(userDocSnap.data() as UserProfile);
+        const userDocRef = doc(db, 'users', currentUser.uid);
+
+        // Echtzeit-Listener: Sofortiger Abruf aus lokalem Cache & Server, ganz ohne Race-Condition
+        unsubscribeDoc = onSnapshot(userDocRef, (userDocSnap) => {
+          if (userDocSnap.exists()) {
+            const data = userDocSnap.data() as UserProfile;
+            setProfile(data);
+
+            // Login-Aktivität genau einmal pro Sitzung mit echtem Namen loggen
+            if (typeof window !== "undefined" && !sessionStorage.getItem("hasLoggedLogin")) {
+              sessionStorage.setItem("hasLoggedLogin", "true");
+              const cleanLoginName = data.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Mitarbeiter');
+              logActivity(currentUser.uid, cleanLoginName, 'LOGIN', 'Erfolgreich am System angemeldet');
+            }
           } else {
-            // Fallback profile if not explicitly created in Firestore
-            setProfile({
-              uid: currentUser.uid,
-              email: currentUser.email,
-              role: "admin", // default role zu admin geändert, damit man nicht ausgesperrt wird
-              displayName: currentUser.displayName,
-            });
+            console.warn("Benutzer existiert in Auth, hat aber kein Profil in users-Collection.");
+            setProfile(null);
           }
-        } catch (error: any) {
-          if (error.message !== "Firestore timeout") {
-            console.error("Error fetching user profile:", error);
-          }
-          // Set fallback profile even on error to prevent being locked out
-          setProfile({
-            uid: currentUser.uid,
-            email: currentUser.email,
-            role: "admin", // default role zu admin geändert
-            displayName: currentUser.displayName,
-          });
-        }
+          setLoading(false);
+        }, (error) => {
+          console.error("Fehler beim Abruf des Benutzerprofils:", error);
+          setProfile(null);
+          setLoading(false);
+        });
       } else {
         setProfile(null);
+        setLoading(false);
       }
-      
-      // Log login activity once per session with resolved displayName
-      if (currentUser && typeof window !== "undefined" && !sessionStorage.getItem("hasLoggedLogin")) {
-        sessionStorage.setItem("hasLoggedLogin", "true");
-        let activeDisplayName = currentUser.displayName;
-        if (userDocSnap && typeof userDocSnap.exists === 'function' && userDocSnap.exists()) {
-          activeDisplayName = userDocSnap.data()?.displayName || activeDisplayName;
-        }
-        const cleanLoginName = activeDisplayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Mitarbeiter');
-        logActivity(currentUser.uid, cleanLoginName, 'LOGIN', 'Erfolgreich am System angemeldet');
-      }
-
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeDoc) unsubscribeDoc();
+    };
   }, []);
 
   const logout = async () => {

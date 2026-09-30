@@ -8,117 +8,85 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
     function isAdmin() {
       return isAuthenticated() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        getUserData().role == 'admin';
+    }
+
+    function isOfficeOrAdmin() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        (getUserData().role == 'admin' || getUserData().role == 'office');
     }
 
     // ─── customers ──────────────────────────────────────────────
     match /customers/{customerId} {
-      allow read, write: if isAuthenticated();
-    }
-
-    match /customers_demo/{customerId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow write: if isOfficeOrAdmin();
     }
 
     // ─── orders ─────────────────────────────────────────────────
     match /orders/{orderId} {
       allow read: if isAuthenticated();
 
-      // Create: authenticated users may create new orders
-      allow create: if isAuthenticated();
+      // Create: Nur Admin und Büro dürfen neue Aufträge anlegen
+      allow create: if isOfficeOrAdmin();
 
-      // Update: invoiceNumber must not change once set; no hard deletes
-      allow update: if isAuthenticated() &&
-        (
-          // invoiceNumber is not yet set, or it stays the same
-          !('invoiceNumber' in resource.data) ||
-          resource.data.invoiceNumber == null ||
-          request.resource.data.invoiceNumber == resource.data.invoiceNumber
-        );
-
-      // Delete: ABSOLUTELY FORBIDDEN for all orders — use status 'archived' instead
-      allow delete: if false;
-    }
-
-    match /orders_demo/{orderId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
+      // Update: invoiceNumber darf niemals geändert werden; Status & Protokolle aktualisierbar
       allow update: if isAuthenticated() &&
         (
           !('invoiceNumber' in resource.data) ||
           resource.data.invoiceNumber == null ||
           request.resource.data.invoiceNumber == resource.data.invoiceNumber
         );
+
+      // Delete: Strengstens verboten für alle — stattdessen Status 'archived' nutzen
       allow delete: if false;
     }
 
-    // ─── invoices (Alle Rechnungen & Entwürfe) ─────────────────────────────
-    // Same strict rules as orders: invoiceNumber is immutable once set.
-    // No hard deletes — use status 'invoice_cancelled' or 'canceled'.
+    // ─── invoices (Rechnungen & Finanzen) ─────────────────────────
+    // Strenger Schutz: NUR Admin & Büro dürfen Rechnungen lesen oder schreiben!
+    // Teamleiter haben keinerlei Zugriff auf Rechnungsdaten in der Datenbank.
     match /invoices/{invoiceId} {
-      // Lesen: Nur für eingeloggte Nutzer
-      allow read: if isAuthenticated();
+      // Lesen: Nur Admin und Büro
+      allow read: if isOfficeOrAdmin();
 
-      // Erstellen: Nur für eingeloggte Nutzer
-      allow create: if isAuthenticated();
+      // Erstellen: Nur Admin und Büro
+      allow create: if isOfficeOrAdmin();
 
-      // Update: Strenge Unveränderlichkeit für bestimmte Felder/Typen
-      allow update: if isAuthenticated() &&
-        // 1. Storno-Belege dürfen niemals geändert werden
-        (!('isStorno' in resource.data) || resource.data.isStorno != true) &&
-        // 2. invoiceNumber darf nicht geändert werden, sobald sie existiert
-        (
-          !('invoiceNumber' in resource.data) ||
-          resource.data.invoiceNumber == null ||
-          request.resource.data.invoiceNumber == resource.data.invoiceNumber
-        );
-
-      // Löschen: Nur für reine Entwürfe erlaubt (Dokumente ohne invoiceNumber)
-      allow delete: if isAuthenticated() &&
-        (
-          !('invoiceNumber' in resource.data) ||
-          resource.data.invoiceNumber == null
-        );
-    }
-
-    match /invoices_demo/{invoiceId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated();
-      allow update: if isAuthenticated() &&
+      // Update: Nur Admin und Büro; Storno-Belege und vergebene Nummern unveränderlich
+      allow update: if isOfficeOrAdmin() &&
         (!('isStorno' in resource.data) || resource.data.isStorno != true) &&
         (
           !('invoiceNumber' in resource.data) ||
           resource.data.invoiceNumber == null ||
           request.resource.data.invoiceNumber == resource.data.invoiceNumber
         );
-      allow delete: if isAuthenticated() &&
+
+      // Löschen: Nur für reine Entwürfe ohne invoiceNumber durch Admin/Büro
+      allow delete: if isOfficeOrAdmin() &&
         (
           !('invoiceNumber' in resource.data) ||
           resource.data.invoiceNumber == null
         );
     }
 
-    // ─── claims ─────────────────────────────────────────────────
+    // ─── claims (Reklamationen & Schäden) ─────────────────────────
     match /claims/{claimId} {
-      allow read, write: if isAuthenticated();
-    }
-
-    match /claims_demo/{claimId} {
-      allow read, write: if isAuthenticated();
+      allow read: if isOfficeOrAdmin();
+      allow write: if isOfficeOrAdmin();
     }
 
     // ─── system / settings ──────────────────────────────────────
     match /system/{docId} {
       allow read: if isAuthenticated();
-      // Only admins may modify global settings (e.g. nextInvoiceNumber counter)
-      allow write: if isAdmin();
-    }
-
-    match /system_demo/{docId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated(); // demo mode is less strict
+      // Admins und Büro dürfen Zähler und Einstellungen aktualisieren
+      allow write: if isOfficeOrAdmin();
     }
 
     // ─── activity_logs ───────────────────────────────────────────
@@ -128,14 +96,9 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    match /activity_logs_demo/{logId} {
-      allow read, create: if isAuthenticated();
-      allow update, delete: if false;
-    }
-
     // ─── users ──────────────────────────────────────────────────
     match /users/{userId} {
-      // Users can read their own doc; admins can read/write all
+      // Nutzer dürfen ihr eigenes Dokument lesen; Admins alle lesen & schreiben
       allow read: if request.auth.uid == userId || isAdmin();
       allow write: if isAdmin();
     }

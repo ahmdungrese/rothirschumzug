@@ -291,6 +291,35 @@ export function CustomerPremiumProfile({
   // Storno modal state
   const [stornoInvoice, setStornoInvoice] = useState<any>(null);
 
+  // Empty offer warning modal state (when 0 services or 0€)
+  const [emptyOfferWarningModal, setEmptyOfferWarningModal] = useState<any | null>(null);
+
+  const isOrderPricedAndServiced = (ord: any): boolean => {
+    if (!ord) return false;
+    // Flat rate with amount > 0
+    if (ord.isFlatRate && Number(ord.flatRateNet) > 0) return true;
+    // Services with quantity & price or non-empty names
+    if (Array.isArray(ord.services) && ord.services.length > 0) {
+      const hasAnyPrice = ord.services.some((s: any) => (Number(s.quantity) || 0) * (Number(s.unitPrice) || 0) > 0);
+      if (hasAnyPrice) return true;
+      if (ord.services.some((s: any) => s.name?.trim())) return true;
+    }
+    // Totals gross > 0
+    if (ord.totals && (Number(ord.totals.gross) > 0 || Number(ord.totals.net) > 0)) {
+      return true;
+    }
+    return false;
+  };
+
+  const handleOrderPdfClick = (ord: any) => {
+    if (!ord) return;
+    if (!isOrderPricedAndServiced(ord)) {
+      setEmptyOfferWarningModal(ord);
+      return;
+    }
+    onViewPdf(ord, 'order');
+  };
+
   // WhatsApp quick messenger modal / popover state
   const [showWhatsAppQuickMenu, setShowWhatsAppQuickMenu] = useState(false);
 
@@ -1161,15 +1190,29 @@ export function CustomerPremiumProfile({
 
           <div className="flex items-center gap-2 flex-wrap">
             {/* 1. Angebot PDF */}
-            <button
-              type="button"
-              onClick={() => onViewPdf(activeOrder, 'order')}
-              className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1.5 shadow-xs hover:border-primary/50 cursor-pointer"
-              title="Angebot als PDF anzeigen oder drucken"
-            >
-              <DocumentTextIcon className="w-4 h-4 text-primary" />
-              <span>Angebot PDF</span>
-            </button>
+            {(() => {
+              const hasContent = isOrderPricedAndServiced(activeOrder);
+              return (
+                <button
+                  type="button"
+                  onClick={() => handleOrderPdfClick(activeOrder)}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
+                    !hasContent
+                      ? 'bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border border-slate-300/70 dark:border-slate-700/60 hover:border-amber-500/50'
+                      : 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-primary/50'
+                  }`}
+                  title={!hasContent ? "Angebot enthält noch keine Leistungen oder Preise (0,00 €)" : "Angebot als PDF anzeigen oder drucken"}
+                >
+                  <DocumentTextIcon className={`w-4 h-4 ${!hasContent ? 'text-slate-400' : 'text-primary'}`} />
+                  <span>Angebot PDF</span>
+                  {!hasContent && (
+                    <span className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.2 rounded font-normal border border-amber-500/30">
+                      0 €
+                    </span>
+                  )}
+                </button>
+              );
+            })()}
 
             {/* 2. Rechnung PDF / erstellen */}
             {hasInvoice ? (
@@ -2070,14 +2113,29 @@ export function CustomerPremiumProfile({
                     </button>
 
                     {/* 3. PDF Vorschau */}
-                    <button
-                      type="button"
-                      onClick={() => onViewPdf(ord, 'order')}
-                      className="px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-all flex items-center gap-1 cursor-pointer"
-                    >
-                      <DocumentTextIcon className="w-3.5 h-3.5" />
-                      <span>PDF</span>
-                    </button>
+                    {(() => {
+                      const hasContent = isOrderPricedAndServiced(ord);
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => handleOrderPdfClick(ord)}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                            !hasContent
+                              ? 'bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border border-slate-300/70 dark:border-slate-700/60 hover:border-amber-500/50'
+                              : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
+                          }`}
+                          title={!hasContent ? "Angebot enthält noch keine Leistungen oder Preise (0,00 €)" : "PDF Vorschau"}
+                        >
+                          <DocumentTextIcon className={`w-3.5 h-3.5 ${!hasContent ? 'text-slate-400' : 'text-primary'}`} />
+                          <span>PDF</span>
+                          {!hasContent && (
+                            <span className="text-[9px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1 py-0.2 rounded font-semibold border border-amber-500/30">
+                              0 €
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })()}
 
                     {/* 4. Protokoll ansehen oder erstellen */}
                     {ord.protocols && ord.protocols.length > 0 ? (
@@ -2315,6 +2373,86 @@ export function CustomerPremiumProfile({
                 className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 shadow-md transition-colors"
               >
                 Trotzdem Rechnung erstellen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Empty Offer Warning Modal (No services or 0,00 €) */}
+      {emptyOfferWarningModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5">
+            <div className="flex items-start gap-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <ExclamationTriangleIcon className="w-6 h-6" />
+              </div>
+              <div className="flex-1">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                  Leistungs- & Preishinweis
+                </span>
+                <h3 className="font-headline font-bold text-lg text-slate-900 dark:text-white mt-1">
+                  Angebot ohne Leistungen / 0,00 €
+                </h3>
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300 space-y-2">
+              <p className="font-semibold text-sm text-slate-900 dark:text-white">
+                Dieses Angebot enthält noch keine Leistungen oder hat einen Betrag von 0,00 €.
+              </p>
+              <p className="leading-relaxed text-slate-500 dark:text-slate-400">
+                Möchten Sie das Angebot jetzt im Editor öffnen und Leistungen hinzufügen, oder möchten Sie die PDF-Vorschau trotzdem öffnen?
+              </p>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 text-xs space-y-1">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Auftrag:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">
+                  #{emptyOfferWarningModal.orderNumber || emptyOfferWarningModal.id?.slice(-5).toUpperCase()}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Leistungen:</span>
+                <span className="font-bold text-amber-600 dark:text-amber-400">
+                  {Array.isArray(emptyOfferWarningModal.services) ? emptyOfferWarningModal.services.length : 0} Positionen
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setEmptyOfferWarningModal(null)}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-full text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                Abbrechen
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const targetOrd = emptyOfferWarningModal;
+                  setEmptyOfferWarningModal(null);
+                  onViewPdf(targetOrd, 'order');
+                }}
+                className="w-full sm:w-auto px-4 py-2.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 transition-colors"
+              >
+                Trotzdem PDF ansehen
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const targetOrdId = emptyOfferWarningModal.id;
+                  setEmptyOfferWarningModal(null);
+                  router.push(`/dashboard/customers/${customer.id}/edit-order/${targetOrdId}`);
+                }}
+                className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold bg-primary hover:bg-[#b51822] text-white shadow-md shadow-primary/20 transition-colors flex items-center justify-center gap-1.5"
+              >
+                <PencilSquareIcon className="w-4 h-4" />
+                <span>Leistungen im Editor bearbeiten</span>
               </button>
             </div>
           </div>

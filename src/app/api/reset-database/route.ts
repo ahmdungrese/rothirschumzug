@@ -16,16 +16,11 @@ async function verifyAdmin(req: NextRequest) {
   const decodedToken = await adminAuth.verifyIdToken(idToken);
   
   const userDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
-  let userData = userDoc.data();
-  
-  if (!userData) {
-    // Wie im Frontend AuthContext-Fallback: Profil als admin anlegen, wenn es in der DB fehlt
-    userData = { role: 'admin', email: decodedToken.email };
-    await adminDb.collection('users').doc(decodedToken.uid).set(userData);
-  }
+  const userData = userDoc.data();
 
-  if (userData.role !== 'admin') {
-    console.error("verifyAdmin failed. UID:", decodedToken.uid, "userData:", userData);
+  // Sicherheitsfix: Keine automatische Admin-Beförderung! Nur bestehende Admins zulassen.
+  if (!userData || userData.role !== 'admin') {
+    console.error("verifyAdmin failed. Access denied for UID:", decodedToken.uid);
     throw new Error('Forbidden');
   }
 
@@ -104,9 +99,9 @@ export async function POST(req: NextRequest) {
 
       // 3. Settings Zähler zurücksetzen
       await adminDb.doc('system/settings').set({
-        nextQuoteNumber: 1,
+        nextQuoteNumber: 1771,
         nextOrderNumber: 1,
-        nextInvoiceNumber: 1
+        nextInvoiceNumber: 1771
       }, { merge: true });
 
       // 4. Activity Log Eintrag für den Reset erstellen (überlebt den Delete)

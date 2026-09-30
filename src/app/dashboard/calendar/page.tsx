@@ -20,20 +20,27 @@ import {
 import Link from 'next/link';
 import { DispoModal } from './DispoModal';
 import { isTaskCompleted } from '@/lib/taskStateController';
+import { useAuth } from '@/context/AuthContext';
+import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 
 type FilterType = 'all' | 'moves' | 'viewings' | 'logistics';
 type CalendarViewMode = 'hybrid' | 'agenda';
 
 export default function CalendarPage() {
+  const { profile } = useAuth();
+  const isTeamLead = profile?.role === 'teamlead';
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const [orders, setOrders] = useState<any[]>([]);
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
   const [viewingModalEvent, setViewingModalEvent] = useState<any>(null);
-  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [activeFilter, setActiveFilter] = useState<FilterType>(isTeamLead ? 'moves' : 'all');
   const [calendarView, setCalendarView] = useState<CalendarViewMode>('hybrid');
   const [searchQuery, setSearchQuery] = useState('');
+
+  useModalBackHandler(Boolean(viewingModalEvent), () => setViewingModalEvent(null), 'calendar-viewing-modal');
 
   useEffect(() => {
     const q = query(
@@ -136,6 +143,9 @@ export default function CalendarPage() {
             colorClass: 'bg-[#6E8F64]/15 text-[#3B5233] border-[#6E8F64]/35 dark:bg-[#6E8F64]/25 dark:text-[#C5DEC0] dark:border-[#6E8F64]/40'
           });
         }
+
+        // Teamleiter: Nur Umzugstermine im Kalender anzeigen
+        if (isTeamLead) return;
 
         // 2. Halteverbot
         if (o.logistics?.noParkingZone && isConfirmed) {
@@ -266,12 +276,12 @@ export default function CalendarPage() {
       byDate: map,
       stats: {
         moves: totalMoves,
-        viewings: totalViewings,
-        logistics: totalLogistics,
-        all: totalMoves + totalViewings + totalLogistics
+        viewings: isTeamLead ? 0 : totalViewings,
+        logistics: isTeamLead ? 0 : totalLogistics,
+        all: isTeamLead ? totalMoves : (totalMoves + totalViewings + totalLogistics)
       }
     };
-  }, [orders, currentDate, daysInMonth]);
+  }, [orders, currentDate, daysInMonth, isTeamLead]);
 
   // Filter helper for a day's events
   const getFilteredDayEvents = (dateStr: string) => {
@@ -307,43 +317,43 @@ export default function CalendarPage() {
   return (
     <div className="space-y-4 pb-20">
       {/* Ultra-Compact Hybrid Top Bar (Light Olive-Sage Green #6E8F64 — Zero Red) */}
-      <div className="bg-bg-panel border border-structure px-4 py-3 rounded-2xl shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+      <div className="bg-bg-panel border border-structure p-3 sm:px-4 sm:py-3 rounded-2xl shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-3">
         
         {/* Left: Month Stepper + Today + View Switcher (Hybrid Grid vs Agenda) */}
-        <div className="flex items-center justify-between sm:justify-start gap-2 flex-wrap">
-          <div className="flex items-center bg-bg-card border border-structure rounded-xl p-1 shadow-inner">
+        <div className="flex items-center justify-between sm:justify-start gap-1.5 sm:gap-2 flex-wrap">
+          <div className="flex items-center bg-bg-card border border-structure rounded-xl p-0.5 sm:p-1 shadow-inner">
             <button 
               onClick={prevMonth} 
-              className="p-1.5 hover:bg-structure/60 rounded-lg transition-colors text-text-main cursor-pointer"
+              className="p-1 sm:p-1.5 hover:bg-structure/60 rounded-lg transition-colors text-text-main cursor-pointer"
               title="Vorheriger Monat"
             >
-              <ChevronLeftIcon className="w-4 h-4" />
+              <ChevronLeftIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
-            <span className="text-xs md:text-sm font-bold text-text-main px-3 min-w-[125px] text-center font-headline">
+            <span className="text-xs sm:text-sm font-bold text-text-main px-2 sm:px-3 min-w-[105px] sm:min-w-[125px] text-center font-headline">
               {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
             </span>
             <button 
               onClick={nextMonth} 
-              className="p-1.5 hover:bg-structure/60 rounded-lg transition-colors text-text-main cursor-pointer"
+              className="p-1 sm:p-1.5 hover:bg-structure/60 rounded-lg transition-colors text-text-main cursor-pointer"
               title="Nächster Monat"
             >
-              <ChevronRightIcon className="w-4 h-4" />
+              <ChevronRightIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
           </div>
 
           <button
             onClick={goToToday}
-            className="px-3 py-1.5 rounded-xl text-xs font-bold bg-[#6E8F64]/15 hover:bg-[#6E8F64] text-[#435E3A] dark:text-[#B5D1AC] hover:text-white border border-[#6E8F64]/35 transition-colors font-headline cursor-pointer shrink-0"
+            className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs font-bold bg-[#6E8F64]/15 hover:bg-[#6E8F64] text-[#435E3A] dark:text-[#B5D1AC] hover:text-white border border-[#6E8F64]/35 transition-colors font-headline cursor-pointer shrink-0"
           >
             Heute
           </button>
 
           {/* Hybrid View Mode Switcher: 1. Hybrid-Kalender (Grid) | 2. Pro Tag (Agenda) */}
-          <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0">
+          <div className="inline-flex p-0.5 sm:p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0">
             <button
               type="button"
               onClick={() => setCalendarView('hybrid')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                 calendarView === 'hybrid'
                   ? 'bg-[#6E8F64] text-white shadow-xs'
                   : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
@@ -351,12 +361,12 @@ export default function CalendarPage() {
               title="Hybrid-Monatsraster mit kompakten Symbol-Badges"
             >
               <Squares2X2Icon className="w-3.5 h-3.5" />
-              <span>Hybrid-Raster</span>
+              <span><span className="hidden sm:inline">Hybrid-</span>Raster</span>
             </button>
             <button
               type="button"
               onClick={() => setCalendarView('agenda')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
                 calendarView === 'agenda'
                   ? 'bg-[#6E8F64] text-white shadow-xs'
                   : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
@@ -364,72 +374,79 @@ export default function CalendarPage() {
               title="Gebündelte Tages-Agenda (nur Tage mit Terminen)"
             >
               <QueueListIcon className="w-3.5 h-3.5" />
-              <span>Tages-Agenda ({activeAgendaDays.length})</span>
+              <span><span className="hidden sm:inline">Tages-</span>Agenda ({activeAgendaDays.length})</span>
             </button>
           </div>
         </div>
 
         {/* Center: Compact Filter Pills (Light Olive-Sage Green #6E8F64 instead of Red) */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-          <button
-            onClick={() => setActiveFilter('all')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 font-headline shrink-0 cursor-pointer ${
-              activeFilter === 'all'
-                ? 'bg-[#6E8F64] text-white shadow-xs'
-                : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
-            }`}
-          >
-            <span>Alle</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${activeFilter === 'all' ? 'bg-white/20 text-white' : 'bg-structure text-text-muted'}`}>
-              {monthDaysData.stats.all}
-            </span>
-          </button>
+        {!isTeamLead ? (
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 sm:pb-0 scrollbar-none w-full xl:w-auto -mx-1 px-1 sm:mx-0 sm:px-0">
+            <button
+              onClick={() => setActiveFilter('all')}
+              className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 font-headline shrink-0 cursor-pointer ${
+                activeFilter === 'all'
+                  ? 'bg-[#6E8F64] text-white shadow-xs'
+                  : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
+              }`}
+            >
+              <span>Alle</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${activeFilter === 'all' ? 'bg-white/20 text-white' : 'bg-structure text-text-muted'}`}>
+                {monthDaysData.stats.all}
+              </span>
+            </button>
 
-          <button
-            onClick={() => setActiveFilter('moves')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 font-headline shrink-0 cursor-pointer ${
-              activeFilter === 'moves'
-                ? 'bg-[#6E8F64] text-white shadow-xs'
-                : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
-            }`}
-          >
-            <TruckIcon className="w-3.5 h-3.5" />
-            <span>Umzüge</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${activeFilter === 'moves' ? 'bg-white/20 text-white' : 'bg-structure text-text-muted'}`}>
-              {monthDaysData.stats.moves}
-            </span>
-          </button>
+            <button
+              onClick={() => setActiveFilter('moves')}
+              className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 font-headline shrink-0 cursor-pointer ${
+                activeFilter === 'moves'
+                  ? 'bg-[#6E8F64] text-white shadow-xs'
+                  : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
+              }`}
+            >
+              <TruckIcon className="w-3.5 h-3.5" />
+              <span>Umzüge</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${activeFilter === 'moves' ? 'bg-white/20 text-white' : 'bg-structure text-text-muted'}`}>
+                {monthDaysData.stats.moves}
+              </span>
+            </button>
 
-          <button
-            onClick={() => setActiveFilter('viewings')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 font-headline shrink-0 cursor-pointer ${
-              activeFilter === 'viewings'
-                ? 'bg-purple-600 text-white shadow-xs'
-                : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-purple-400" />
-            <span>Besichtigungen</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${activeFilter === 'viewings' ? 'bg-white/20 text-white' : 'bg-structure text-text-muted'}`}>
-              {monthDaysData.stats.viewings}
-            </span>
-          </button>
+            <button
+              onClick={() => setActiveFilter('viewings')}
+              className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 font-headline shrink-0 cursor-pointer ${
+                activeFilter === 'viewings'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-purple-400" />
+              <span>Besichtigungen</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${activeFilter === 'viewings' ? 'bg-white/20 text-white' : 'bg-structure text-text-muted'}`}>
+                {monthDaysData.stats.viewings}
+              </span>
+            </button>
 
-          <button
-            onClick={() => setActiveFilter('logistics')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 font-headline shrink-0 cursor-pointer ${
-              activeFilter === 'logistics'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
-            }`}
-          >
-            <span className="w-2 h-2 rounded-full bg-amber-400" />
-            <span>Logistik</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${activeFilter === 'logistics' ? 'bg-white/20 text-white' : 'bg-structure text-text-muted'}`}>
-              {monthDaysData.stats.logistics}
-            </span>
-          </button>
-        </div>
+            <button
+              onClick={() => setActiveFilter('logistics')}
+              className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 font-headline shrink-0 cursor-pointer ${
+                activeFilter === 'logistics'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'bg-bg-card hover:bg-structure/60 text-text-muted hover:text-text-main border border-structure'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-amber-400" />
+              <span>Logistik</span>
+              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${activeFilter === 'logistics' ? 'bg-white/20 text-white' : 'bg-structure text-text-muted'}`}>
+                {monthDaysData.stats.logistics}
+              </span>
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 font-headline text-xs font-bold text-[#6E8F64] bg-[#6E8F64]/10 border border-[#6E8F64]/25 px-3.5 py-1.5 rounded-xl">
+            <TruckIcon className="w-4 h-4 text-[#6E8F64]" />
+            <span>Umzugstermine ({monthDaysData.stats.moves})</span>
+          </div>
+        )}
 
         {/* Right: Search Input */}
         <div className="relative w-full sm:w-52 shrink-0">
@@ -504,7 +521,9 @@ export default function CalendarPage() {
                           }`}
                         >
                           <div className="flex items-center gap-2 min-w-0">
-                            <span className="material-symbols-outlined text-sm shrink-0">{ev.symbol}</span>
+                            <div className="w-6 h-6 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center shrink-0">
+                              <span className="material-symbols-outlined text-[14px] leading-none select-none">{ev.symbol}</span>
+                            </div>
                             <div className="truncate">
                               <span className="font-bold">{ev.shortLabel}: {ev.customerName}</span>
                               <span className="opacity-75 ml-1.5 text-[11px]">• {ev.address}</span>
@@ -533,7 +552,7 @@ export default function CalendarPage() {
               {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(day => (
                 <div 
                   key={day} 
-                  className="py-2.5 px-2 text-center font-bold text-text-muted text-xs uppercase tracking-wider font-headline"
+                  className="py-1.5 sm:py-2.5 px-1 sm:px-2 text-center font-bold text-text-muted text-[11px] sm:text-xs uppercase tracking-wider font-headline"
                 >
                   {day}
                 </div>
@@ -545,7 +564,7 @@ export default function CalendarPage() {
               {blanksArray.map(b => (
                 <div 
                   key={`blank-${b}`} 
-                  className="min-h-[115px] p-2 border-b border-r border-structure/40 bg-structure/10"
+                  className="min-h-[58px] sm:min-h-[96px] md:min-h-[115px] p-1 sm:p-2 border-b border-r border-structure/40 bg-structure/10"
                 />
               ))}
               
@@ -564,18 +583,18 @@ export default function CalendarPage() {
                   <div 
                     key={`day-${day}`} 
                     onClick={() => setSelectedDateStr(dateStr)}
-                    className={`min-h-[118px] p-2 border-b border-r border-structure/70 relative group transition-colors cursor-pointer flex flex-col justify-between ${
+                    className={`min-h-[58px] sm:min-h-[96px] md:min-h-[118px] p-1 sm:p-2 border-b border-r border-structure/70 relative group transition-colors cursor-pointer flex flex-col justify-between ${
                       isToday 
                         ? 'bg-[#6E8F64]/8 ring-1 ring-[#6E8F64]/50 ring-inset' 
                         : 'hover:bg-structure/20 bg-bg-panel'
                     }`}
                   >
                     {/* Day Header: Day Number + Mini Symbol Summary Counters */}
-                    <div className="flex items-center justify-between gap-1 mb-1.5">
+                    <div className="flex items-center justify-between gap-1 mb-1 sm:mb-1.5">
                       <div className="flex items-center gap-1">
-                        <span className={`font-headline font-bold text-xs ${
+                        <span className={`font-headline font-bold text-[11px] sm:text-xs ${
                           isToday 
-                            ? 'bg-[#6E8F64] text-white px-2 py-0.5 rounded-full shadow-xs' 
+                            ? 'bg-[#6E8F64] text-white w-5 h-5 sm:w-auto sm:h-auto sm:px-2 sm:py-0.5 rounded-full flex items-center justify-center sm:inline-block shadow-xs' 
                             : 'text-text-muted group-hover:text-text-main'
                         }`}>
                           {day}
@@ -587,9 +606,9 @@ export default function CalendarPage() {
                         )}
                       </div>
 
-                      {/* Mini Workload Indicators (Clean Heroicons - Zero Emojis) */}
+                      {/* Mini Workload Indicators (Clean Heroicons - Desktop/Tablet) */}
                       {filteredEvents.length > 0 && (
-                        <div className="flex items-center gap-1 text-[10px] font-bold">
+                        <div className="hidden sm:flex items-center gap-1 text-[10px] font-bold">
                           {movesCount > 0 && (
                             <span className="px-1.5 py-0.5 rounded-md bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] flex items-center gap-0.5" title={`${movesCount} Umzüge`}>
                               <TruckIcon className="w-3 h-3 shrink-0" />
@@ -611,9 +630,51 @@ export default function CalendarPage() {
                         </div>
                       )}
                     </div>
+
+                    {/* Mobile (< sm): Micro-Badges / Micro-Indicators */}
+                    {filteredEvents.length > 0 && (
+                      <div className="flex sm:hidden flex-wrap items-center justify-center gap-0.5 my-auto py-0.5">
+                        {movesCount > 0 && (
+                          <span 
+                            className="w-5 h-5 rounded-md bg-[#6E8F64]/20 text-[#2D4525] dark:text-[#C5DEC0] flex items-center justify-center text-[10px] font-bold shadow-2xs" 
+                            title={`${movesCount} Umzüge`}
+                          >
+                            {movesCount > 1 ? (
+                              <span>{movesCount}</span>
+                            ) : (
+                              <TruckIcon className="w-3 h-3 shrink-0" />
+                            )}
+                          </span>
+                        )}
+                        {viewingsCount > 0 && (
+                          <span 
+                            className="w-5 h-5 rounded-md bg-purple-500/20 text-purple-700 dark:text-purple-300 flex items-center justify-center text-[10px] font-bold shadow-2xs" 
+                            title={`${viewingsCount} Besichtigungen`}
+                          >
+                            {viewingsCount > 1 ? (
+                              <span>{viewingsCount}</span>
+                            ) : (
+                              <HomeIcon className="w-3 h-3 shrink-0" />
+                            )}
+                          </span>
+                        )}
+                        {logisticsCount > 0 && (
+                          <span 
+                            className="w-5 h-5 rounded-md bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center text-[10px] font-bold shadow-2xs" 
+                            title={`${logisticsCount} Logistik`}
+                          >
+                            {logisticsCount > 1 ? (
+                              <span>{logisticsCount}</span>
+                            ) : (
+                              <ArchiveBoxIcon className="w-3 h-3 shrink-0" />
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     
-                    {/* Compact 1-Line Symbol Pills (Max 3 visible, rest folded neatly) */}
-                    <div className="space-y-1 flex-1">
+                    {/* Desktop/Tablet (sm:): Full 1-Line Symbol Pills (Max 3 visible, rest folded neatly) */}
+                    <div className="hidden sm:block space-y-1 flex-1">
                       {filteredEvents.slice(0, 3).map((event: any) => {
                         const isMove = event.type === 'move';
                         const isViewing = event.type === 'viewing';
@@ -637,7 +698,7 @@ export default function CalendarPage() {
                               {event.isDone ? (
                                 <CheckIcon className="w-3 h-3 shrink-0" />
                               ) : (
-                                <span className="material-symbols-outlined text-[12px] shrink-0">{event.symbol}</span>
+                                <span className="material-symbols-outlined text-[12px] leading-none select-none shrink-0">{event.symbol}</span>
                               )}
                               <span className="truncate font-bold">{event.customerName}</span>
                               <span className="opacity-70 truncate hidden xl:inline">• {event.address}</span>
@@ -683,26 +744,28 @@ export default function CalendarPage() {
       {/* Viewing Quick Info Modal */}
       {viewingModalEvent && (
         <div 
-          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200" 
+          className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200" 
           onClick={() => setViewingModalEvent(null)}
         >
           <div 
-            className="relative bg-bg-panel border border-structure w-full max-w-md p-6 rounded-3xl flex flex-col gap-4 shadow-xl shadow-black/20" 
+            className="relative bg-bg-panel border border-structure w-full max-w-md max-h-[90vh] overflow-y-auto p-5 sm:p-6 rounded-3xl flex flex-col gap-4 shadow-xl shadow-black/20" 
             onClick={e => e.stopPropagation()}
           >
             <div className="flex justify-between items-start border-b border-structure pb-4">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-[#6E8F64] text-2xl">
-                  {viewingModalEvent.isVideo ? 'videocam' : 'calendar_month'}
-                </span>
-                <h2 className="text-xl font-bold text-text-main font-headline">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#6E8F64]/15 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-[#6E8F64] text-xl leading-none select-none">
+                    {viewingModalEvent.isVideo ? 'videocam' : 'calendar_month'}
+                  </span>
+                </div>
+                <h2 className="text-lg sm:text-xl font-bold text-text-main font-headline">
                   {viewingModalEvent.isVideo ? 'Videobesichtigung' : 'Vor-Ort-Besichtigung'}
                 </h2>
               </div>
               <button 
                 type="button" 
                 onClick={() => setViewingModalEvent(null)} 
-                className="p-1.5 hover:bg-structure rounded-full transition-colors text-text-muted hover:text-text-main"
+                className="p-1.5 hover:bg-structure rounded-full transition-colors text-text-muted hover:text-text-main cursor-pointer"
               >
                 <XMarkIcon className="w-5 h-5" />
               </button>
@@ -717,9 +780,11 @@ export default function CalendarPage() {
               {viewingModalEvent.timeStr && (
                 <div>
                   <div className="text-xs text-text-muted uppercase tracking-wider font-headline font-bold mb-1">Uhrzeit</div>
-                  <div className="text-sm font-semibold text-text-main flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-sm text-[#6E8F64]">schedule</span>
-                    {viewingModalEvent.timeStr} Uhr
+                  <div className="text-sm font-semibold text-text-main flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center shrink-0">
+                      <span className="material-symbols-outlined text-xs text-[#6E8F64] leading-none select-none">schedule</span>
+                    </span>
+                    <span>{viewingModalEvent.timeStr} Uhr</span>
                   </div>
                 </div>
               )}
@@ -727,12 +792,17 @@ export default function CalendarPage() {
               {viewingModalEvent.fullAddress && (
                 <div>
                   <div className="text-xs text-text-muted uppercase tracking-wider font-headline font-bold mb-1">Besichtigungsadresse</div>
-                  <div className="text-sm text-text-main">{viewingModalEvent.fullAddress}</div>
+                  <div className="text-sm text-text-main flex items-start gap-2">
+                    <span className="w-6 h-6 rounded-lg bg-black/5 dark:bg-white/10 flex items-center justify-center shrink-0 mt-0.5">
+                      <MapPinIcon className="w-3.5 h-3.5 text-primary" />
+                    </span>
+                    <span>{viewingModalEvent.fullAddress}</span>
+                  </div>
                 </div>
               )}
             </div>
 
-            <div className="mt-4 pt-4 border-t border-structure flex flex-col gap-2">
+            <div className="mt-2 pt-4 border-t border-structure flex flex-col gap-2">
               {viewingModalEvent.fullAddress && (
                 <a 
                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(viewingModalEvent.fullAddress)}`}

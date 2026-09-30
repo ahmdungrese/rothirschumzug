@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, TruckIcon, MapPinIcon, ExclamationTriangleIcon, StarIcon, BuildingOffice2Icon, HomeIcon, BriefcaseIcon, BuildingLibraryIcon, ArchiveBoxIcon, WrenchIcon, SparklesIcon, PlusCircleIcon, TagIcon, ArrowsUpDownIcon, NoSymbolIcon, ArrowUpTrayIcon, MagnifyingGlassIcon, ShoppingCartIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 import { useAuth } from '@/context/AuthContext';
@@ -15,6 +15,7 @@ import { changeOrderStatus } from '@/lib/orderStateMachine';
 import { calculateOrderTotals } from '@/lib/financeHelpers';
 import { InventoryWizardModal, ROOM_TYPES } from './InventoryWizardModal';
 import { FLOOR_OPTIONS } from '@/lib/constants';
+import { withDbTimeout, formatFriendlyError } from '@/lib/networkWatchdog';
 
 const getPropertyIcon = (type: string) => {
   const t = (type || '').toLowerCase();
@@ -53,30 +54,411 @@ const STANDARD_SERVICES_B = [
   { id: 'entsorgung', name: 'Müllentsorgung', price: 120, unit: 'pauschal', icon: 'delete', defaultDesc: 'Fachgerechte Entsorgung von Verpackungsmaterial und Restmüll.' }
 ];
 
-const STANDARD_SERVICES_FIXED = [
-  { id: 'transport_lkw', name: 'Transport & LKW', price: 0, unit: 'pauschal', icon: 'local_shipping', defaultDesc: 'Bereitstellung von LKW, Fachpersonal und Transport der Güter.' },
-  { id: 'basisschutz', name: 'Basisschutz & Versicherung', price: 0, unit: 'pauschal', icon: 'shield', defaultDesc: 'Gesetzliche Grundhaftung und Transportversicherung inklusive.' },
-  { id: 'anfahrt', name: 'An- & Abfahrt', price: 0, unit: 'pauschal', icon: 'route', defaultDesc: 'Anfahrt zum Beladeort und Abfahrt vom Entladeort.' }
+export const getServiceIcon = (name: string, fallback = 'design_services'): string => {
+  const n = (name || '').toLowerCase();
+  if (n.includes('lkw') || n.includes('transporter') || n.includes('transport')) return 'local_shipping';
+  if (n.includes('kraftstoff') || n.includes('fahrzeugkosten') || n.includes('benzin') || n.includes('diesel')) return 'local_gas_station';
+  if (n.includes('personal') || n.includes('helfer') || n.includes('träger') || n.includes('traeger') || n.includes('fahrer')) return 'groups';
+  if (n.includes('auspack')) return 'unarchive';
+  if (n.includes('karton') || n.includes('packen') || n.includes('packservice') || n.includes('packmittel')) return 'inventory_2';
+  if (n.includes('keller')) return 'delete_sweep';
+  if (n.includes('garage')) return 'garage';
+  if (n.includes('entsorg') || n.includes('müll') || n.includes('muell') || n.includes('räumung') || n.includes('raeumung')) return 'delete_sweep';
+  if (n.includes('küche') || n.includes('kueche') || n.includes('arbeitsplatte')) return 'countertops';
+  if (n.includes('lift') || n.includes('aufzug')) return 'elevator';
+  if (n.includes('lager') || n.includes('einlagerung')) return 'warehouse';
+  if (n.includes('versicherung') || n.includes('schutz') || n.includes('haftung')) return 'shield';
+  if (n.includes('lampe') || n.includes('leuchte') || n.includes('licht')) return 'lightbulb';
+  if (n.includes('decke') || n.includes('folie')) return 'layers';
+  if (n.includes('demontage') || n.includes('abbau')) return 'tools_ladder';
+  if (n.includes('montage') || n.includes('aufbau') || n.includes('bohr') || n.includes('dübel') || n.includes('duebel')) return 'build';
+  if (n.includes('halteverbot') || n.includes('hvz') || n.includes('zone')) return 'signpost';
+  if (n.includes('reinigung') || n.includes('putzen')) return 'cleaning_services';
+  if (n.includes('anfahrt') || n.includes('abfahrt') || n.includes('route')) return 'route';
+  return fallback;
+};
+
+const DEFAULT_ALLGEMEIN_SERVICES = [
+  { id: 'trans_all', name: 'Transport inkl. Be- und Entladung, Umzugspersonal & Fahrzeugkosten', price: 0, unit: 'Pauschal', icon: 'local_shipping', defaultDesc: 'Bereitstellung von LKW, Fachpersonal und vollständige Be- und Entladung.' },
+  { id: 'ein_auspack_all', name: 'Ein- und Auspackservice (inkl. Kartons & Schutzmaterial)', price: 0, unit: 'Pauschal', icon: 'inventory_2', defaultDesc: 'Fachgerechtes Ein- und Auspacken des gesamten Umzugsguts inkl. Schutzmaterial.' },
+  { id: 'kartons_bereit', name: 'Kartons bereitstellen', price: 0, unit: 'Stk', icon: 'inventory_2', defaultDesc: 'Bereitstellung stabiler Umzugskartons vorab.' },
+  { id: 'arbeitsplatte', name: 'Arbeitsplatte anpassen', price: 0, unit: 'Stk', icon: 'carpenter', defaultDesc: 'Fachgerechter Zuschnitt und Anpassung der Küchenarbeitsplatte.' },
+  { id: 'kueche_komplett', name: 'Küchenauf- und abbau (inkl. Anpassung der Arbeitsplatte)', price: 0, unit: 'Pauschal', icon: 'countertops', defaultDesc: 'Fachgerechter Küchenauf- und abbau inklusive Anpassung der Arbeitsplatte.' },
+  { id: 'trans_be_ent', name: 'Transport inkl. Be- und Entladung', price: 0, unit: 'Pauschal', icon: 'local_shipping', defaultDesc: 'Reiner Transport inkl. Be- und Entladung am Umzugstag.' },
+  { id: 'personal_std', name: 'Umzugspersonal (Fahrer + Umzugshelfer)', price: 0, unit: 'Std', icon: 'groups', defaultDesc: 'Bereitstellung von erfahrenem Fachpersonal nach Aufwand.' },
+  { id: 'fahrzeug_kraftstoff', name: 'Fahrzeugkosten (Kraftstoff)', price: 0, unit: 'Pauschal', icon: 'local_gas_station', defaultDesc: 'Kraftstoff- und Fahrzeugpauschale.' },
+  { id: 'versicherung_basic', name: 'Versicherung Basic', price: 0, unit: 'Pauschal', icon: 'shield', defaultDesc: 'Gesetzliche Grundhaftung und Transportversicherung inklusive.' },
+  { id: 'moebellift', name: 'Möbellift', price: 0, unit: 'Std', icon: 'elevator', defaultDesc: 'Einsatz eines Außenaufzugs für Etagenumzüge.' },
+  { id: 'einlagerung', name: 'Einlagerung', price: 0, unit: 'm³', icon: 'warehouse', defaultDesc: 'Sichere und trockene Einlagerung des Umzugsguts.' },
+  { id: 'kellerraeumung', name: 'Kellerräumung', price: 0, unit: 'Pauschal', icon: 'delete_sweep', defaultDesc: 'Besenreine Räumung und Entrümpelung des Kellerabteils.' },
+  { id: 'garagenraeumung', name: 'Garagenräumung', price: 0, unit: 'Pauschal', icon: 'garage', defaultDesc: 'Besenreine Räumung und Entrümpelung der Garage.' },
+  { id: 'lampen_montieren', name: 'Deckenlampen montieren', price: 0, unit: 'Stk', icon: 'lightbulb', defaultDesc: 'Fachgerechte Demontage und Montage von Deckenlampen.' },
+  { id: 'einpacken_decken', name: 'Einpacken der Möbel mit Decken und Schutzfolien', price: 0, unit: 'Std', icon: 'layers', defaultDesc: 'Umfassender Möbelschutz mit Umzugsdecken und Stretchfolien.' }
 ];
 
-const QUICK_FURNITURE = [
-  { id: 'doppelbett', name: 'Doppelbett', cbm: 2.5, icon: 'single_bed', category: 'Betten', room: 'Schlafzimmer' },
-  { id: 'schrank_2', name: 'Schrank (2türig)', cbm: 1.8, icon: 'door_sliding', category: 'Schränke', room: 'Schlafzimmer' },
-  { id: 'esstisch', name: 'Esstisch', cbm: 0.9, icon: 'table_restaurant', category: 'Tische', room: 'Küche' },
-  { id: 'karton', name: 'Umzugskarton', cbm: 0.15, icon: 'inventory_2', category: 'Kartons', room: 'Allgemein' },
-  { id: 'sofa_3', name: '3er Sofa', cbm: 2.2, icon: 'chair', category: 'Sitzmöbel', room: 'Wohnzimmer' },
-  { id: 'stuhl', name: 'Stuhl', cbm: 0.2, icon: 'chair_alt', category: 'Sitzmöbel', room: 'Wohnzimmer' },
-  { id: 'regal', name: 'Bücherregal', cbm: 0.6, icon: 'shelves', category: 'Regale', room: 'Wohnzimmer' }
+export interface CatalogItem {
+  id: string;
+  name: string;
+  cbm: number;
+  icon: string;
+}
+
+export interface RoomCatalogEntry {
+  id: string;
+  name: string;
+  icon: string;
+  items: CatalogItem[];
+}
+
+export const FURNITURE_CBM_MAP: Record<string, number> = {
+  // Wohnzimmer
+  'sofa 2er': 1.5,
+  'sofa (2-sitzer)': 1.5,
+  '2er sofa': 1.5,
+  'sofa 3er': 2.2,
+  'sofa (3-sitzer)': 2.2,
+  '3er sofa': 2.2,
+  'ecksofa': 3.5,
+  'schlafcouch': 2.0,
+  'sessel': 0.8,
+  'ohrensessel': 1.0,
+  'couchtisch': 0.4,
+  'beistelltisch': 0.2,
+  'tv-board': 0.6,
+  'tv-board / lowboard': 0.6,
+  'lowboard': 0.6,
+  'highboard': 1.2,
+  'sideboard': 1.0,
+  'wohnwand': 2.8,
+  'bücherregal': 0.7,
+  'wandregal': 0.3,
+  'vitrine': 1.0,
+  'teppich': 0.2,
+  'stehlampe': 0.15,
+  'deckenlampe': 0.1,
+  'fernseher (tv)': 0.2,
+  'fernseher': 0.2,
+  'tv': 0.2,
+  'hocker': 0.15,
+  'sitzsack': 0.3,
+  'klavier/flügel': 2.5,
+  'klavier': 2.5,
+
+  // Schlafzimmer
+  'bett (doppel)': 2.5,
+  'doppelbett': 2.5,
+  'bett (einzel)': 1.5,
+  'einzelbett': 1.5,
+  'boxspringbett': 3.0,
+  'hochbett': 2.0,
+  'etagenbett': 2.2,
+  'wasserbett': 2.5,
+  'kinderbett': 1.0,
+  'kleiderschrank (1-türig)': 1.0,
+  'kleiderschrank (2-türig)': 1.8,
+  'schrank (2türig)': 1.8,
+  'kleiderschrank (3-türig)': 2.5,
+  'schrank (3türig)': 2.5,
+  'kleiderschrank (4-türig)': 3.2,
+  'schrank (4türig)': 3.2,
+  'schwebetürenschrank': 3.0,
+  'nachttisch': 0.2,
+  'kommode': 0.8,
+  'schminktisch': 0.8,
+  'spiegel (groß)': 0.2,
+  'spiegel': 0.15,
+  'matratze': 0.5,
+  'matratze extra': 0.5,
+  'bettkasten': 0.6,
+
+  // Küche & Esszimmer
+  'einbauküche': 1.0,
+  'einbauküche (lfm)': 1.0,
+  'einbauküche (laufmeter)': 1.0,
+  'küchenunterschrank': 0.5,
+  'küchenhängeschrank': 0.3,
+  'küchenhochschrank': 1.0,
+  'apothekerschrank': 0.8,
+  'spülenschrank': 0.6,
+  'esstisch': 0.9,
+  'ausziehtisch': 1.2,
+  'küchentisch': 0.7,
+  'stuhl': 0.2,
+  'küchenstuhl': 0.2,
+  'armlehnstuhl': 0.3,
+  'barhocker': 0.2,
+  'sitzbank': 0.6,
+  'eckbank': 1.2,
+  'kühlschrank': 0.8,
+  'kühl-gefrierkombination': 1.2,
+  'gefrierschrank': 0.8,
+  'spülmaschine': 0.6,
+  'herd': 0.6,
+  'backofen': 0.6,
+  'herd / backofen': 0.6,
+  'mikrowelle': 0.1,
+  'kaffeevollautomat': 0.1,
+  'dunstabzugshaube': 0.2,
+  'mülleimer': 0.1,
+  'servierwagen': 0.3,
+
+  // Bad
+  'waschbeckenunterschrank': 0.3,
+  'spiegelschrank': 0.3,
+  'bad-hochschrank': 0.6,
+  'badschrank': 0.4,
+  'waschmaschine': 0.6,
+  'wäschetrockner': 0.6,
+  'trockner': 0.6,
+  'wäschekorb': 0.15,
+  'badhocker': 0.1,
+
+  // Büro
+  'schreibtisch': 0.9,
+  'eckschreibtisch': 1.5,
+  'stehschreibtisch': 1.0,
+  'kinderschreibtisch': 0.7,
+  'bürostuhl': 0.3,
+  'bürostuhl / chefsessel': 0.35,
+  'chefsessel': 0.4,
+  'besucherstuhl': 0.2,
+  'aktenschrank (hoch)': 1.2,
+  'aktenschrank (niedrig)': 0.6,
+  'rollcontainer': 0.2,
+  'aktenregal': 0.7,
+  'akten- / bücherregal': 0.7,
+  'whiteboard': 0.2,
+  'pinnwand': 0.1,
+  'monitor & pc': 0.15,
+  'monitor': 0.1,
+  'computer': 0.15,
+  'drucker / kopierer': 0.2,
+  'drucker': 0.2,
+  'aktenvernichter': 0.1,
+  'tresor/safe': 0.4,
+
+  // Flur & Garderobe
+  'garderobe': 0.8,
+  'garderobenpaneel': 0.3,
+  'schuhschrank': 0.4,
+  'schuhkipper': 0.3,
+  'konsolentisch': 0.3,
+  'schirmständer': 0.1,
+  'schlüsselkasten': 0.05,
+  'ganzkörperspiegel': 0.2,
+
+  // Kinderzimmer
+  'wickelkommode': 0.9,
+  'kinderstuhl': 0.15,
+  'spielzeugregal': 0.5,
+  'spielzeugkiste': 0.3,
+  'hochbett / etagenbett': 2.2,
+
+  // Keller, Garage & Garten
+  'schwerlastregal': 0.8,
+  'holzregal': 0.6,
+  'werkbank': 1.0,
+  'werkbank / tisch': 1.0,
+  'werkzeugschrank': 0.8,
+  'werkzeugkasten': 0.1,
+  'fahrrad': 0.5,
+  'fahrrad / e-bike': 0.5,
+  'e-bike': 0.6,
+  'motorroller': 1.2,
+  'autoreifen (4er satz)': 0.5,
+  'autoreifen (satz)': 0.5,
+  'reifen (satz)': 0.5,
+  'ski/snowboard': 0.2,
+  'reisekoffer (groß)': 0.2,
+  'koffer (groß)': 0.2,
+  'koffer': 0.15,
+  'rasenmäher': 0.6,
+  'schubkarre': 0.4,
+  'leiter': 0.2,
+  'leiter / steighilfe': 0.2,
+  'staubsauger': 0.15,
+  'bügelbrett': 0.1,
+  'wäscheständer': 0.1,
+  'gartentisch': 0.8,
+  'gartenstuhl': 0.2,
+  'sonnenliege': 0.5,
+  'sonnenschirm': 0.15,
+  'sonnenschirm mit ständer': 0.2,
+  'grill (klein)': 0.3,
+  'grill (gas / kohle)': 0.6,
+  'grill (gas/kohle)': 0.6,
+  'lounge-sofa': 2.0,
+  'lounge-möbel': 2.0,
+  'lounge-tisch': 0.5,
+  'strandkorb': 1.8,
+  'große pflanze / kübel': 0.4,
+
+  // Kartons & Material
+  'umzugskarton': 0.15,
+  'karton': 0.15,
+  'kleiderbox': 0.4,
+  'kleiderbox (spedition)': 0.4,
+  'bücherkarton': 0.1,
+  'bücherkarton (schwer)': 0.1,
+  'gläserkarton': 0.15,
+  'bild': 0.1,
+  'pflanze groß': 0.4,
+  'pflanze klein': 0.1,
+  'pflanze': 0.2
+};
+
+export const ROOM_CATALOG: RoomCatalogEntry[] = [
+  {
+    id: 'wohnzimmer',
+    name: 'Wohnzimmer',
+    icon: 'chair',
+    items: [
+      { id: 'w_sofa3', name: 'Sofa (3-Sitzer)', cbm: 2.2, icon: 'chair' },
+      { id: 'w_sofa2', name: 'Sofa (2-Sitzer)', cbm: 1.5, icon: 'chair' },
+      { id: 'w_ecksofa', name: 'Ecksofa', cbm: 3.5, icon: 'weekend' },
+      { id: 'w_sessel', name: 'Sessel', cbm: 0.8, icon: 'armchair' },
+      { id: 'w_couchtisch', name: 'Couchtisch', cbm: 0.4, icon: 'table_restaurant' },
+      { id: 'w_tvboard', name: 'TV-Board / Lowboard', cbm: 0.6, icon: 'tv' },
+      { id: 'w_tv', name: 'Fernseher (TV)', cbm: 0.2, icon: 'desktop_windows' },
+      { id: 'w_wohnwand', name: 'Wohnwand', cbm: 2.8, icon: 'shelves' },
+      { id: 'w_buecherregal', name: 'Bücherregal', cbm: 0.7, icon: 'shelves' },
+      { id: 'w_vitrine', name: 'Vitrine', cbm: 1.0, icon: 'door_sliding' },
+      { id: 'w_teppich', name: 'Teppich', cbm: 0.2, icon: 'texture' },
+      { id: 'w_karton', name: 'Umzugskarton', cbm: 0.15, icon: 'inventory_2' }
+    ]
+  },
+  {
+    id: 'schlafzimmer',
+    name: 'Schlafzimmer',
+    icon: 'bed',
+    items: [
+      { id: 'sz_doppelbett', name: 'Doppelbett', cbm: 2.5, icon: 'single_bed' },
+      { id: 'sz_boxspring', name: 'Boxspringbett', cbm: 3.0, icon: 'bed' },
+      { id: 'sz_einzelbett', name: 'Bett (Einzel)', cbm: 1.5, icon: 'single_bed' },
+      { id: 'sz_schrank2', name: 'Kleiderschrank (2-türig)', cbm: 1.8, icon: 'door_sliding' },
+      { id: 'sz_schrank3', name: 'Kleiderschrank (3-türig)', cbm: 2.5, icon: 'door_sliding' },
+      { id: 'sz_schrank4', name: 'Kleiderschrank (4-türig)', cbm: 3.2, icon: 'door_sliding' },
+      { id: 'sz_schwebetuer', name: 'Schwebetürenschrank', cbm: 3.0, icon: 'door_sliding' },
+      { id: 'sz_nacht', name: 'Nachttisch', cbm: 0.2, icon: 'table_restaurant' },
+      { id: 'sz_kommode', name: 'Kommode', cbm: 0.8, icon: 'table_restaurant' },
+      { id: 'sz_matratze', name: 'Matratze extra', cbm: 0.5, icon: 'bed' },
+      { id: 'sz_spiegel', name: 'Spiegel (groß)', cbm: 0.2, icon: 'photo' },
+      { id: 'sz_kleiderbox', name: 'Kleiderbox (Spedition)', cbm: 0.4, icon: 'archive' },
+      { id: 'sz_karton', name: 'Umzugskarton', cbm: 0.15, icon: 'inventory_2' }
+    ]
+  },
+  {
+    id: 'kueche',
+    name: 'Küche',
+    icon: 'countertops',
+    items: [
+      { id: 'k_kueche', name: 'Einbauküche (Lfm)', cbm: 1.0, icon: 'countertops' },
+      { id: 'k_esstisch', name: 'Esstisch', cbm: 0.9, icon: 'table_restaurant' },
+      { id: 'k_stuhl', name: 'Küchenstuhl', cbm: 0.2, icon: 'chair_alt' },
+      { id: 'k_kuehlschrank', name: 'Kühlschrank', cbm: 0.8, icon: 'kitchen' },
+      { id: 'k_kuehlkombi', name: 'Kühl-Gefrierkombination', cbm: 1.2, icon: 'kitchen' },
+      { id: 'k_gefrierschrank', name: 'Gefrierschrank', cbm: 0.8, icon: 'kitchen' },
+      { id: 'k_spuelmaschine', name: 'Spülmaschine', cbm: 0.6, icon: 'dishwasher_gen' },
+      { id: 'k_herd', name: 'Herd / Backofen', cbm: 0.6, icon: 'oven_gen' },
+      { id: 'k_mikrowelle', name: 'Mikrowelle', cbm: 0.1, icon: 'microwave' },
+      { id: 'k_unterschrank', name: 'Küchenunterschrank', cbm: 0.5, icon: 'door_sliding' },
+      { id: 'k_haengeschrank', name: 'Küchenhängeschrank', cbm: 0.3, icon: 'shelves' },
+      { id: 'k_glaeserkarton', name: 'Gläserkarton', cbm: 0.15, icon: 'archive' },
+      { id: 'k_karton', name: 'Umzugskarton', cbm: 0.15, icon: 'inventory_2' }
+    ]
+  },
+  {
+    id: 'bad',
+    name: 'Badezimmer',
+    icon: 'bathtub',
+    items: [
+      { id: 'b_waschmaschine', name: 'Waschmaschine', cbm: 0.6, icon: 'local_laundry_service' },
+      { id: 'b_trockner', name: 'Wäschetrockner', cbm: 0.6, icon: 'dry' },
+      { id: 'b_waschtisch', name: 'Waschbeckenunterschrank', cbm: 0.3, icon: 'table_restaurant' },
+      { id: 'b_spiegelschrank', name: 'Spiegelschrank', cbm: 0.3, icon: 'photo' },
+      { id: 'b_hochschrank', name: 'Bad-Hochschrank', cbm: 0.6, icon: 'door_sliding' },
+      { id: 'b_waeschekorb', name: 'Wäschekorb', cbm: 0.15, icon: 'shopping_basket' },
+      { id: 'b_karton', name: 'Umzugskarton', cbm: 0.15, icon: 'inventory_2' }
+    ]
+  },
+  {
+    id: 'kinderzimmer',
+    name: 'Kinderzimmer',
+    icon: 'toys',
+    items: [
+      { id: 'kz_bett', name: 'Kinderbett', cbm: 1.0, icon: 'single_bed' },
+      { id: 'kz_hochbett', name: 'Hochbett / Etagenbett', cbm: 2.2, icon: 'bed' },
+      { id: 'kz_schreibtisch', name: 'Kinderschreibtisch', cbm: 0.7, icon: 'desk' },
+      { id: 'kz_stuhl', name: 'Kinderstuhl', cbm: 0.15, icon: 'chair_alt' },
+      { id: 'kz_schrank', name: 'Kleiderschrank (2-türig)', cbm: 1.8, icon: 'door_sliding' },
+      { id: 'kz_regal', name: 'Spielzeugregal', cbm: 0.5, icon: 'shelves' },
+      { id: 'kz_kiste', name: 'Spielzeugkiste', cbm: 0.3, icon: 'toys' },
+      { id: 'kz_karton', name: 'Umzugskarton', cbm: 0.15, icon: 'inventory_2' }
+    ]
+  },
+  {
+    id: 'buero',
+    name: 'Büro / Arbeitszimmer',
+    icon: 'desk',
+    items: [
+      { id: 'bu_schreibtisch', name: 'Schreibtisch', cbm: 0.9, icon: 'desk' },
+      { id: 'bu_eckschreibtisch', name: 'Eckschreibtisch', cbm: 1.5, icon: 'desk' },
+      { id: 'bu_stuhl', name: 'Bürostuhl / Chefsessel', cbm: 0.35, icon: 'chair' },
+      { id: 'bu_rollcontainer', name: 'Rollcontainer', cbm: 0.2, icon: 'inbox' },
+      { id: 'bu_aktenschrank', name: 'Aktenschrank (hoch)', cbm: 1.2, icon: 'door_sliding' },
+      { id: 'bu_regal', name: 'Akten- / Bücherregal', cbm: 0.7, icon: 'shelves' },
+      { id: 'bu_pc', name: 'Monitor & PC', cbm: 0.15, icon: 'desktop_windows' },
+      { id: 'bu_drucker', name: 'Drucker / Kopierer', cbm: 0.2, icon: 'print' },
+      { id: 'bu_buecherkarton', name: 'Bücherkarton (schwer)', cbm: 0.1, icon: 'menu_book' },
+      { id: 'bu_karton', name: 'Umzugskarton', cbm: 0.15, icon: 'inventory_2' }
+    ]
+  },
+  {
+    id: 'flur',
+    name: 'Flur / Diele',
+    icon: 'meeting_room',
+    items: [
+      { id: 'fl_garderobe', name: 'Garderobe', cbm: 0.8, icon: 'checkroom' },
+      { id: 'fl_schuhschrank', name: 'Schuhschrank', cbm: 0.4, icon: 'door_sliding' },
+      { id: 'fl_kommode', name: 'Kommode / Sideboard', cbm: 0.6, icon: 'table_restaurant' },
+      { id: 'fl_spiegel', name: 'Ganzkörperspiegel', cbm: 0.2, icon: 'photo' },
+      { id: 'fl_bank', name: 'Sitzbank', cbm: 0.4, icon: 'chair' },
+      { id: 'fl_karton', name: 'Umzugskarton', cbm: 0.15, icon: 'inventory_2' }
+    ]
+  },
+  {
+    id: 'keller',
+    name: 'Keller / Abstellraum',
+    icon: 'warehouse',
+    items: [
+      { id: 'kl_regal', name: 'Schwerlastregal', cbm: 0.8, icon: 'shelves' },
+      { id: 'kl_werkbank', name: 'Werkbank / Tisch', cbm: 1.0, icon: 'handyman' },
+      { id: 'kl_fahrrad', name: 'Fahrrad / E-Bike', cbm: 0.5, icon: 'directions_bike' },
+      { id: 'kl_reifen', name: 'Autoreifen (4er Satz)', cbm: 0.5, icon: 'tire_repair' },
+      { id: 'kl_koffer', name: 'Reisekoffer (groß)', cbm: 0.2, icon: 'luggage' },
+      { id: 'kl_leiter', name: 'Leiter / Steighilfe', cbm: 0.2, icon: 'stairs' },
+      { id: 'kl_karton', name: 'Umzugskarton', cbm: 0.15, icon: 'inventory_2' }
+    ]
+  },
+  {
+    id: 'balkon',
+    name: 'Balkon / Garten',
+    icon: 'deck',
+    items: [
+      { id: 'bg_tisch', name: 'Gartentisch', cbm: 0.8, icon: 'table_restaurant' },
+      { id: 'bg_stuhl', name: 'Gartenstuhl', cbm: 0.2, icon: 'chair_alt' },
+      { id: 'bg_liege', name: 'Sonnenliege', cbm: 0.5, icon: 'weekend' },
+      { id: 'bg_schirm', name: 'Sonnenschirm mit Ständer', cbm: 0.2, icon: 'umbrella' },
+      { id: 'bg_grill', name: 'Grill (Gas / Kohle)', cbm: 0.6, icon: 'outdoor_grill' },
+      { id: 'bg_lounge', name: 'Lounge-Möbel', cbm: 2.0, icon: 'deck' },
+      { id: 'bg_pflanze', name: 'Große Pflanze / Kübel', cbm: 0.4, icon: 'potted_plant' }
+    ]
+  }
 ];
 
-const QUICK_ROOMS = [
-  { id: 'alle', name: 'Alle', icon: 'apps' },
-  { id: 'wohnzimmer', name: 'Wohnzimmer', icon: 'chair' },
-  { id: 'schlafzimmer', name: 'Schlafzimmer', icon: 'bed' },
-  { id: 'kueche', name: 'Küche', icon: 'countertops' },
-  { id: 'kinderzimmer', name: 'Kinderzimmer', icon: 'toys' },
-  { id: 'buero', name: 'Büro', icon: 'desk' }
-];
+export const QUICK_ROOMS = ROOM_CATALOG.map(r => ({ id: r.id, name: r.name, icon: r.icon }));
+
+export const QUICK_FURNITURE = ROOM_CATALOG.flatMap(r => r.items.map(it => ({ ...it, room: r.name, category: r.name })));
 
 export function OrderEditor({ orderId }: { orderId?: string }) {
   const params = useParams();
@@ -92,7 +474,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const [settings, setSettings] = useState<any>(null);
   const [orderStatus, setOrderStatus] = useState('draft');
   const stepParam = searchParams?.get('step');
-  const initialStep = (stepParam === 'inventory' || stepParam === '4') ? 4 : (stepParam ? parseInt(stepParam, 10) || 1 : 1);
+  const modeParam = searchParams?.get('mode');
+  const initialStep = (stepParam === 'inventory' || stepParam === '4' || modeParam === 'inspection') ? 4 : (stepParam ? parseInt(stepParam, 10) || 1 : 1);
   const [currentStep, setCurrentStep] = useState(initialStep);
   const [unlockedByAdmin, setUnlockedByAdmin] = useState(false);
   const isContractLocked = (orderStatus === 'confirmed' || orderStatus === 'completed') && !unlockedByAdmin;
@@ -107,13 +490,23 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     setCurrentStep(stepNum);
   };
 
+  const handleStepBack = () => {
+    if (currentStep > 1) {
+      if (typeof window !== 'undefined' && window.history.state?.orderStep) {
+        window.history.back();
+      } else {
+        setCurrentStep(prev => Math.max(1, prev - 1));
+      }
+    }
+  };
+
   const handleSafeCancel = () => {
     const isDirty = Boolean(
-      customerData.lastName?.trim() ||
-      customerData.phone?.trim() ||
-      customerData.street?.trim() ||
-      inventory.length > 0 ||
-      services.length > 0
+      customerDataRef.current.lastName?.trim() ||
+      customerDataRef.current.phone?.trim() ||
+      customerDataRef.current.street?.trim() ||
+      inventoryRef.current.length > 0 ||
+      servicesRef.current.length > 0
     );
 
     if (isDirty) {
@@ -133,21 +526,6 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       }
     }
   };
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handlePopState = () => {
-      if (currentStepRef.current > 1) {
-        setCurrentStep(prev => Math.max(1, prev - 1));
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, []);
 
   // 1. Kundeninformationen
   const [customerData, setCustomerData] = useState({
@@ -232,57 +610,200 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const [checklist, setChecklist] = useState<{ id: string, text: string, done: boolean }[]>([]);
   const [newChecklistItem, setNewChecklistItem] = useState('');
 
-  // 9. Fuhrpark & Volumen (Schnell-Auswahl) & Externe Signatur
-  const [truckChoice, setTruckChoice] = useState<'1_transporter' | '1_lkw' | '2_lkw' | 'custom'>('1_lkw');
-  const [estimatedCbm, setEstimatedCbm] = useState<number>(30);
+  // 9. Fuhrpark & Volumen (Schnell-Auswahl: Standard 3.5t Transporter) & Externe Signatur
+  const [truckChoice, setTruckChoice] = useState<'1_transporter' | '1_lkw' | '2_lkw' | 'custom'>('1_transporter');
+  const [estimatedCbm, setEstimatedCbm] = useState<number>(18);
   const [isManuallySigned, setIsManuallySigned] = useState<boolean>(false);
-  const [selectedRoomTab, setSelectedRoomTab] = useState('Alle');
-  const [showFullCatalog, setShowFullCatalog] = useState(false);
+  const [roomCounts, setRoomCounts] = useState<Record<string, number>>({});
+  const [selectedRoomTab, setSelectedRoomTab] = useState('');
+  const [customItemName, setCustomItemName] = useState('');
+  const [customItemCbm, setCustomItemCbm] = useState('0.5');
+  const [isAddingCustom, setIsAddingCustom] = useState(false);
+  const [showFullCatalog, setShowFullCatalog] = useState(true);
   const [showBisDate, setShowBisDate] = useState(false);
+
+  const customerDataRef = useRef(customerData);
+  customerDataRef.current = customerData;
+  const inventoryRef = useRef(inventory);
+  inventoryRef.current = inventory;
+  const servicesRef = useRef(services);
+  servicesRef.current = services;
+
+  // Intercept mobile hardware back button / swipe-back gesture
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = (e: PopStateEvent) => {
+      if (currentStepRef.current > 1) {
+        setCurrentStep(prev => Math.max(1, prev - 1));
+      } else {
+        const isDirty = Boolean(
+          customerDataRef.current.lastName?.trim() ||
+          customerDataRef.current.phone?.trim() ||
+          customerDataRef.current.street?.trim() ||
+          inventoryRef.current.length > 0 ||
+          servicesRef.current.length > 0
+        );
+        if (isDirty) {
+          const confirmLeave = window.confirm(
+            "Möchten Sie die Bearbeitung wirklich verlassen? Nicht gespeicherte Änderungen gehen verloren."
+          );
+          if (!confirmLeave) {
+            window.history.pushState({ orderStep: 1 }, '');
+            return;
+          }
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
+  // Auto-save draft locally to prevent loss on unexpected reload or exit
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hasData = Boolean(
+      customerData.lastName?.trim() ||
+      customerData.phone?.trim() ||
+      customerData.street?.trim() ||
+      inventory.length > 0 ||
+      services.length > 0
+    );
+    if (!hasData) return;
+
+    const draftKey = `rothirsch_order_draft_${orderId || 'new'}`;
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(draftKey, JSON.stringify({
+          customerData,
+          orderMeta,
+          logistics,
+          inventory,
+          services,
+          savedAt: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+        }));
+      } catch {}
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [customerData, orderMeta, logistics, inventory, services, orderId]);
 
   useEffect(() => {
     if (orderMeta.movingDateTo) {
       setShowBisDate(true);
     }
   }, [orderMeta.movingDateTo]);
-  // Helper to toggle standard service in Step 3
-  const toggleStandardService = (srv: typeof STANDARD_SERVICES_A[0]) => {
-    const existing = services.find(s => s.id === srv.id || (s.name||'').toLowerCase() === (srv.name||'').toLowerCase());
+  // Helper to toggle standard/catalog service in Step 3
+  const toggleStandardService = (srv: { id?: string; name: string; price?: number; defaultPrice?: number; unit?: string; defaultDesc?: string; description?: string }) => {
+    const srvName = (srv.name || '').trim();
+    const existing = services.find(s => (srv.id && s.id === srv.id) || (s.name || '').trim().toLowerCase() === srvName.toLowerCase());
     if (existing) {
       setServices(prev => prev.filter(s => s.id !== existing.id));
-      if (srv.id === 'hvz_a') setLogistics((l: any) => ({ ...l, a_parking: false }));
-      if (srv.id === 'hvz_b') setLogistics((l: any) => ({ ...l, b_parking: false }));
+      if (srv.id === 'hvz_a' || srvName.toLowerCase().includes('halteverbot a')) setLogistics((l: any) => ({ ...l, a_parking: false }));
+      if (srv.id === 'hvz_b' || srvName.toLowerCase().includes('halteverbot b')) setLogistics((l: any) => ({ ...l, b_parking: false }));
     } else {
       setServices(prev => [...prev, {
-        id: srv.id,
-        name: srv.name,
+        id: srv.id || (Date.now().toString() + Math.random().toString(36).substring(2, 6)),
+        name: srvName,
         quantity: 1,
-        unitPrice: srv.price,
-        unit: srv.unit
+        unitPrice: srv.price ?? srv.defaultPrice ?? 0,
+        unit: srv.unit || 'pauschal',
+        note: srv.defaultDesc || srv.description || '',
+        location: 'both'
       }]);
-      if (srv.id === 'hvz_a') setLogistics((l: any) => ({ ...l, a_parking: true }));
-      if (srv.id === 'hvz_b') setLogistics((l: any) => ({ ...l, b_parking: true }));
+      if (srv.id === 'hvz_a' || srvName.toLowerCase().includes('halteverbot a')) setLogistics((l: any) => ({ ...l, a_parking: true }));
+      if (srv.id === 'hvz_b' || srvName.toLowerCase().includes('halteverbot b')) setLogistics((l: any) => ({ ...l, b_parking: true }));
     }
   };
 
-  const isStandardServiceSelected = (srvId: string, srvName?: string) => {
-    return services.some(s => s.id === srvId || (s.name||'').toLowerCase() === ((srvName || srvId)||'').toLowerCase());
+  const isStandardServiceSelected = (srvId?: string, srvName?: string) => {
+    const targetName = (srvName || srvId || '').trim().toLowerCase();
+    return services.some(s => (srvId && s.id === srvId) || (s.name || '').trim().toLowerCase() === targetName);
   };
+
+  const getServiceQuantity = (srvId?: string, srvName?: string) => {
+    const targetName = (srvName || srvId || '').trim().toLowerCase();
+    return services.find(s => (srvId && s.id === srvId) || (s.name || '').trim().toLowerCase() === targetName)?.quantity || 0;
+  };
+
+  const allgemeinServices = useMemo(() => {
+    const fromSettings = settings?.catalog?.find((c: any) => (c.category || '').trim().toLowerCase() === 'allgemein')?.items;
+    if (fromSettings && Array.isArray(fromSettings) && fromSettings.length > 0) {
+      return fromSettings.map((item: any, idx: number) => ({
+        id: item.id || `allg_${idx}`,
+        name: item.name,
+        price: item.price ?? item.defaultPrice ?? 0,
+        unit: item.unit || 'Pauschal',
+        icon: item.icon || getServiceIcon(item.name),
+        defaultDesc: item.description || item.defaultDesc || ''
+      }));
+    }
+    return DEFAULT_ALLGEMEIN_SERVICES;
+  }, [settings?.catalog]);
+
+  const otherCatalogCategories = useMemo(() => {
+    if (!settings?.catalog || !Array.isArray(settings.catalog)) {
+      return ['Küchenservice', 'Kartonservice', 'Möbelservice'];
+    }
+    const cats = settings.catalog
+      .map((c: any) => c.category)
+      .filter((c: string) => c && c.trim().toLowerCase() !== 'allgemein');
+    return cats.length > 0 ? cats : ['Küchenservice', 'Kartonservice', 'Möbelservice'];
+  }, [settings?.catalog]);
+
+  const otherCatalogItems = useMemo(() => {
+    if (!settings?.catalog || !Array.isArray(settings.catalog)) {
+      return [
+        { category: 'Küchenservice', name: 'Aufbauen Von Küche', price: 0, unit: 'Std' },
+        { category: 'Küchenservice', name: 'Abbauen Von Küche', price: 0, unit: 'Std' },
+        { category: 'Kartonservice', name: 'Einpackservice', price: 0, unit: 'Stk' },
+        { category: 'Kartonservice', name: 'Auspackservice', price: 0, unit: 'Stk' },
+        { category: 'Kartonservice', name: 'Ein- und Auspacken', price: 0, unit: 'Stk' },
+        { category: 'Möbelservice', name: 'Montieren Von Möbel', price: 0, unit: 'Std' },
+        { category: 'Möbelservice', name: 'Demontieren Von Möbel', price: 0, unit: 'Std' },
+        { category: 'Möbelservice', name: 'Demontage und Montage von Möbel', price: 0, unit: 'Std' },
+        { category: 'Möbelservice', name: 'Möbelmontage & -demontage (inkl. Schutzverpackung)', price: 0, unit: 'Std' }
+      ];
+    }
+    return settings.catalog
+      .filter((cat: any) => (cat.category || '').trim().toLowerCase() !== 'allgemein')
+      .flatMap((cat: any) =>
+        (cat.items || []).map((item: any) => ({
+          ...item,
+          category: cat.category,
+          icon: item.icon || getServiceIcon(item.name)
+        }))
+      );
+  }, [settings?.catalog]);
+
+  const filteredOtherCatalogItems = useMemo(() => {
+    return otherCatalogItems.filter((item: any) => {
+      const matchesSearch = !catalogSearch.trim() || 
+        (item.name || '').toLowerCase().includes(catalogSearch.toLowerCase()) ||
+        (item.category || '').toLowerCase().includes(catalogSearch.toLowerCase());
+      const matchesCat = activeCategoryTab === 'Alle' || item.category === activeCategoryTab;
+      return matchesSearch && matchesCat;
+    });
+  }, [otherCatalogItems, activeCategoryTab, catalogSearch]);
 
   // Helper for quick furniture items in Step 4
   const getFurnitureCount = (name: string, room?: string) => {
+    const targetRoom = room || selectedRoomTab;
     const item = inventory.find(i => 
       (i.name||'').toLowerCase() === (name||'').toLowerCase() && 
-      (!room || room === 'Alle' || (i.room || 'Wohnzimmer').toLowerCase() === (room||'').toLowerCase())
+      (i.room || 'Wohnzimmer').toLowerCase() === targetRoom.toLowerCase()
     );
     return item ? item.quantity : 0;
   };
 
-  const updateFurnitureCount = (fItem: typeof QUICK_FURNITURE[0], room: string, delta: number) => {
-    const targetRoom = room === 'Alle' ? (fItem.room || 'Wohnzimmer') : room;
+  const updateFurnitureCount = (fItem: { name: string; cbm?: number; icon?: string }, room: string, delta: number) => {
+    const targetRoom = room || selectedRoomTab || 'Wohnzimmer';
     const existingIdx = inventory.findIndex(i => 
       (i.name||'').toLowerCase() === (fItem.name||'').toLowerCase() && 
-      (i.room || 'Wohnzimmer').toLowerCase() === (targetRoom||'').toLowerCase()
+      (i.room || 'Wohnzimmer').toLowerCase() === targetRoom.toLowerCase()
     );
     if (existingIdx >= 0) {
       const newQty = inventory[existingIdx].quantity + delta;
@@ -297,21 +818,106 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         name: fItem.name,
         quantity: delta,
         note: '',
-        room: targetRoom
+        room: targetRoom,
+        cbm: fItem.cbm
       }]);
     }
   };
 
+  const handleAddCustomFurniture = (room: string) => {
+    if (!customItemName.trim()) return;
+    const cbmVal = parseFloat(customItemCbm) || 0.5;
+    const targetRoom = room || selectedRoomTab || 'Wohnzimmer';
+    const existingIdx = inventory.findIndex(i => 
+      (i.name||'').toLowerCase() === customItemName.trim().toLowerCase() && 
+      (i.room || 'Wohnzimmer').toLowerCase() === targetRoom.toLowerCase()
+    );
+    if (existingIdx >= 0) {
+      setInventory(prev => prev.map((item, idx) => idx === existingIdx ? { ...item, quantity: item.quantity + 1 } : item));
+    } else {
+      setInventory(prev => [...prev, {
+        id: Date.now().toString() + Math.random(),
+        name: customItemName.trim(),
+        quantity: 1,
+        note: '',
+        room: targetRoom,
+        cbm: cbmVal
+      }]);
+    }
+    setCustomItemName('');
+    setIsAddingCustom(false);
+  };
+
   const totalFurniturePieces = inventory.reduce((sum, item) => sum + (item.quantity || 0), 0);
+
+  const getItemCbm = (name: string, fallback?: number) => {
+    if (fallback !== undefined && fallback > 0) return fallback;
+    const n = (name || '').toLowerCase().trim();
+    if (FURNITURE_CBM_MAP[n] !== undefined) return FURNITURE_CBM_MAP[n];
+    for (const [key, val] of Object.entries(FURNITURE_CBM_MAP)) {
+      if (n === key || n.includes(key) || key.includes(n)) return val;
+    }
+    return 0.25;
+  };
 
   const calculateQuickCbm = () => {
     let sum = 0;
     inventory.forEach(item => {
-      const found = QUICK_FURNITURE.find(q => (q.name||'').toLowerCase() === (item.name||'').toLowerCase());
-      sum += (item.quantity || 0) * (found ? found.cbm : 0.25);
+      const cbm = (item as any).cbm !== undefined && (item as any).cbm > 0 ? (item as any).cbm : getItemCbm(item.name);
+      sum += (item.quantity || 0) * cbm;
     });
-    return sum > 0 ? Number(sum.toFixed(2)) : estimatedCbm;
+    return sum > 0 ? Number(sum.toFixed(2)) : (estimatedCbm || 0);
   };
+
+  const totalConfiguredRoomsCount = Object.values(roomCounts).reduce((sum, c) => sum + (c || 0), 0);
+
+  const availableRoomTabs = useMemo(() => {
+    const list: { id: string; name: string; baseCategory: string; icon: string }[] = [];
+    
+    // 1. Configured rooms from roomCounts
+    Object.entries(roomCounts).forEach(([rId, count]) => {
+      if (count <= 0) return;
+      const cat = ROOM_CATALOG.find(r => r.id === rId || r.name.toLowerCase() === rId.toLowerCase())
+        || ROOM_CATALOG.find(r => r.name.toLowerCase().includes(rId.toLowerCase()))
+        || { id: rId, name: rId.charAt(0).toUpperCase() + rId.slice(1), icon: 'meeting_room' };
+      
+      if (count === 1) {
+        list.push({ id: `${rId}-1`, name: cat.name, baseCategory: cat.name, icon: cat.icon });
+      } else {
+        for (let i = 1; i <= count; i++) {
+          list.push({ id: `${rId}-${i}`, name: `${cat.name} ${i}`, baseCategory: cat.name, icon: cat.icon });
+        }
+      }
+    });
+
+    // 2. Also include any rooms already present in inventory items that aren't in list yet
+    inventory.forEach(item => {
+      if (item.room && !list.some(r => r.name.toLowerCase() === item.room?.toLowerCase())) {
+        const match = item.room.match(/^(.*?)( \d+)?$/);
+        const baseName = match ? match[1] : item.room;
+        const cat = ROOM_CATALOG.find(r => r.name.toLowerCase() === baseName.toLowerCase());
+        list.push({
+          id: `inv-${item.room}`,
+          name: item.room,
+          baseCategory: cat ? cat.name : baseName,
+          icon: cat ? cat.icon : 'meeting_room'
+        });
+      }
+    });
+
+    // Only return the rooms that were actually configured or added to inventory
+    return list;
+  }, [roomCounts, inventory]);
+
+  useEffect(() => {
+    if (availableRoomTabs.length > 0) {
+      if (!selectedRoomTab || !availableRoomTabs.some((r: any) => r.name.toLowerCase() === selectedRoomTab.toLowerCase())) {
+        setSelectedRoomTab(availableRoomTabs[0].name);
+      }
+    } else {
+      setSelectedRoomTab('');
+    }
+  }, [availableRoomTabs, selectedRoomTab]);
 
   const handleCalculateRoute = async () => {
     const addressA = `${logistics.a_street || ''} ${logistics.a_houseNr || ''}, ${logistics.a_zip || ''} ${logistics.a_city || ''}`.trim();
@@ -460,6 +1066,24 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           if (data.truckChoice) setTruckChoice(data.truckChoice);
           if (data.estimatedCbm) setEstimatedCbm(data.estimatedCbm);
           if (data.isManuallySigned) setIsManuallySigned(data.isManuallySigned);
+          if (data.roomCounts) {
+            setRoomCounts(data.roomCounts);
+          } else if (data.orderMeta?.roomCounts) {
+            setRoomCounts(data.orderMeta.roomCounts);
+          } else if (data.inventory && data.inventory.length > 0) {
+            const counts: Record<string, number> = {};
+            const uniqueRooms = new Set<string>(data.inventory.filter((i: any) => i.room).map((i: any) => i.room as string));
+            uniqueRooms.forEach((roomName: string) => {
+              const match = roomName.match(/^(.*?)( \d+)?$/);
+              const baseType = match ? match[1] : roomName;
+              const roomObj = ROOM_TYPES.find(r => r.name.toLowerCase() === baseType.toLowerCase())
+                || ROOM_CATALOG.find(r => r.name.toLowerCase() === baseType.toLowerCase());
+              if (roomObj) {
+                counts[roomObj.id] = (counts[roomObj.id] || 0) + 1;
+              }
+            });
+            setRoomCounts(counts);
+          }
           
           if (data.billingAddress) {
             setCustomerData(prev => ({
@@ -622,6 +1246,19 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [showNoServicesModal, setShowNoServicesModal] = useState(false);
+  const [pendingQuoteAction, setPendingQuoteAction] = useState<(() => void) | null>(null);
+
+  const hasServices = (isFlatRate && flatRateNet > 0) || (services && services.length > 0);
+
+  const handleQuoteActionWithCheck = (action: () => void) => {
+    if (!hasServices) {
+      setPendingQuoteAction(() => action);
+      setShowNoServicesModal(true);
+      return;
+    }
+    action();
+  };
 
   const saveOrder = async (status: 'draft' | 'quote' | 'invoice_open', generateQuote: boolean = false) => {
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -680,7 +1317,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       const finalOrderMeta = {
         ...orderMeta,
         halteverbotDate: orderMeta.halteverbotDateA || orderMeta.halteverbotDate || logistics.hvzDateA || logistics.hvzDate || '',
-        halteverbotTime: orderMeta.halteverbotTimeA || orderMeta.halteverbotTime || logistics.hvzTimeA || logistics.hvzTime || ''
+        halteverbotTime: orderMeta.halteverbotTimeA || orderMeta.halteverbotTime || logistics.hvzTimeA || logistics.hvzTime || '',
+        roomCounts
       };
       const finalLogistics = {
         ...logistics,
@@ -712,6 +1350,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         flatRateNet,
         services,
         inventory,
+        roomCounts,
         appendInventoryToPDF,
         checklist,
         texts,
@@ -723,42 +1362,46 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         updatedBy: cleanCreatorName
       };
 
-      if (orderId) {
-        await updateDoc(doc(db, 'orders', orderId), payload);
-        await logActivity(profile?.uid || 'unknown', cleanCreatorName, 'UPDATE_ORDER', `Angebot/Auftrag aktualisiert für Kunde ${payload.customerName}`);
-        
-        if (generateQuote || finalStatus === 'quote' || finalStatus === 'confirmed') {
-          try {
-            await changeOrderStatus(orderId, (finalStatus === 'draft' ? 'quote' : finalStatus) as any, { userId: profile?.uid });
-          } catch (err: any) {
-            console.error("Fehler bei der Angebotsstatus-Aktualisierung:", err);
+      await withDbTimeout((async () => {
+        if (orderId) {
+          await updateDoc(doc(db, 'orders', orderId), payload);
+          await logActivity(profile?.uid || 'unknown', cleanCreatorName, 'UPDATE_ORDER', `Angebot/Auftrag aktualisiert für Kunde ${payload.customerName}`);
+          
+          if (generateQuote || finalStatus === 'quote' || finalStatus === 'confirmed') {
+            try {
+              await changeOrderStatus(orderId, (finalStatus === 'draft' ? 'quote' : finalStatus) as any, { userId: profile?.uid });
+            } catch (err: any) {
+              console.error("Fehler bei der Angebotsstatus-Aktualisierung:", err);
+            }
+          }
+        } else {
+          const docRef = await addDoc(collection(db, 'orders'), { 
+            ...payload, 
+            createdAt: serverTimestamp(),
+            createdBy: cleanCreatorName 
+          });
+          await logActivity(profile?.uid || 'unknown', cleanCreatorName, 'CREATE_ORDER', `Angebot erstellt für Kunde ${payload.customerName}`);
+          
+          if (generateQuote || finalStatus === 'quote' || finalStatus === 'confirmed') {
+            try {
+              await changeOrderStatus(docRef.id, (finalStatus === 'draft' ? 'quote' : finalStatus) as any, { userId: profile?.uid });
+            } catch (err: any) {
+              console.error("Fehler bei der Angebotsstatus-Aktualisierung:", err);
+            }
           }
         }
-      } else {
-        const docRef = await addDoc(collection(db, 'orders'), { 
-          ...payload, 
-          createdAt: serverTimestamp(),
-          createdBy: cleanCreatorName 
-        });
-        await logActivity(profile?.uid || 'unknown', cleanCreatorName, 'CREATE_ORDER', `Angebot erstellt für Kunde ${payload.customerName}`);
-        
-        if (generateQuote || finalStatus === 'quote' || finalStatus === 'confirmed') {
-          try {
-            await changeOrderStatus(docRef.id, (finalStatus === 'draft' ? 'quote' : finalStatus) as any, { userId: profile?.uid });
-          } catch (err: any) {
-            console.error("Fehler bei der Angebotsstatus-Aktualisierung:", err);
-          }
-        }
-      }
+      })(), { operationName: 'Angebot/Auftrag speichern', timeoutMs: 35000 });
+
       setSaveStatus('success');
       toast.success(orderId ? "Änderungen erfolgreich gespeichert!" : "Neues Angebot erfolgreich erstellt!");
       router.push(`/dashboard/customers/${finalCustomerId}`);
-    } catch (e) {
-      console.error(e); 
-      toast.error("Systemfehler beim Speichern. Bitte erneut versuchen.");
-      setErrorMessage("Systemfehler beim Speichern. Bitte erneut versuchen.");
+    } catch (e: any) {
+      console.error("OrderEditor save error:", e); 
+      const friendlyMsg = formatFriendlyError(e, 'Speichern des Angebots');
+      toast.error(friendlyMsg, { duration: 6000 });
+      setErrorMessage(friendlyMsg);
       setSaveStatus('error');
-      setTimeout(() => { setErrorMessage(''); setSaveStatus('idle'); }, 4000);
+      setTimeout(() => { setErrorMessage(''); setSaveStatus('idle'); }, 6000);
     } finally {
       setIsSaving(false);
     }
@@ -777,9 +1420,13 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   };
 
   const validateAndSetStep = (targetStep: number) => {
-    // If going backwards, always allow
+    // If going backwards, always allow and sync history
     if (targetStep < currentStep) {
-      setCurrentStep(targetStep);
+      if (typeof window !== 'undefined' && window.history.state?.orderStep) {
+        window.history.back();
+      } else {
+        setCurrentStep(targetStep);
+      }
       return;
     }
 
@@ -797,18 +1444,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       }
     }
 
-    // Step 2 Validation: Moving Addresses
-    if (currentStep === 2 && targetStep > 2) {
-      if (!logistics.a_city?.trim() && !logistics.a_street?.trim()) {
-        const errorMsg = "Hinweis: Bitte mindestens Ort oder Straße der Beladestelle (A) angeben!";
-        toast.error(errorMsg);
-        setErrorMessage(errorMsg);
-        setTimeout(() => setErrorMessage(''), 4000);
-        return;
-      }
-    }
+    // Step 2 (Logistik) is non-blocking: Addresses can be completed later in Cockpit if needed.
 
-    setCurrentStep(targetStep);
+    goToStep(targetStep);
   };
 
   const onTouchEndHandler = () => {
@@ -1781,53 +2419,198 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   </span>
                 </div>
 
-                {/* Standard-Leistungen Picker */}
-                <div className="mb-6 bg-bg-dark/40 rounded-2xl border border-structure/60 shadow-sm p-4 sm:p-5 flex flex-col gap-6">
-                  <div className="flex items-center gap-2 border-b border-structure/60 pb-3">
-                    <span className="material-symbols-outlined text-primary text-xl">view_list</span>
-                    <span className="text-sm font-headline font-bold text-text-main">
-                      Typische Umzugsleistungen
+                {/* Standard-Leistungen Picker (Typische Umzugsleistungen - Allgemein) */}
+                <div className="mb-6 bg-bg-dark/40 rounded-2xl border border-structure/60 shadow-sm p-4 sm:p-5 flex flex-col gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-structure/60 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-primary text-xl">view_list</span>
+                      <span className="text-sm font-headline font-bold text-text-main">
+                        Typische Umzugsleistungen
+                      </span>
+                    </div>
+                    <span className="self-start sm:self-auto text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                      Allgemein ({allgemeinServices.length})
                     </span>
                   </div>
 
-                  {/* Feste Leistungen (Transport, Basisschutz) */}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2 pb-2 border-b border-structure/50">
-                      <span className="w-6 h-6 rounded-full bg-slate-500/20 text-slate-400 flex items-center justify-center font-bold text-xs">
-                        *
-                      </span>
-                      <h4 className="font-headline font-bold text-xs uppercase tracking-wider text-text-main">
-                        Allgemeine & Feste Leistungen
-                      </h4>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                      {STANDARD_SERVICES_FIXED.map((svc) => {
-                        const isSelected = isStandardServiceSelected(svc.id, svc.name);
-                        return (
-                          <button
-                            key={svc.id}
-                            type="button"
-                            onClick={() => toggleStandardService(svc)}
-                            className={`flex items-center justify-between p-3 rounded-xl border transition-all text-left ${
-                              isSelected
-                                ? 'border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary/30 font-bold'
-                                : 'border-structure/80 bg-white/[0.02] text-text-main hover:bg-white/[0.05] hover:border-structure'
-                            }`}
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className={`material-symbols-outlined text-xl ${isSelected ? 'text-primary' : 'text-text-muted'}`}>
-                                {svc.icon}
-                              </span>
-                              <span className="text-xs font-semibold truncate">{svc.name}</span>
-                            </div>
-                            <span className={`material-symbols-outlined text-base shrink-0 ${isSelected ? 'text-primary' : 'text-text-muted/60'}`}>
-                              {isSelected ? 'check_circle' : 'add_circle'}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
+                    {allgemeinServices.map((svc: any, idx: number) => {
+                      const isSelected = isStandardServiceSelected(svc.id, svc.name);
+                      const qty = getServiceQuantity(svc.id, svc.name);
+                      const icon = svc.icon || getServiceIcon(svc.name);
+                      return (
+                        <button
+                          key={svc.id || svc.name || idx}
+                          type="button"
+                          onClick={() => toggleStandardService(svc)}
+                          className={`group relative flex items-start justify-between p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                            isSelected
+                              ? 'border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary/40 font-bold'
+                              : 'border-structure/80 bg-white/[0.02] text-text-main hover:bg-white/[0.05] hover:border-structure'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2.5 min-w-0 pr-2">
+                            <span className={`material-symbols-outlined text-lg shrink-0 mt-0.5 ${isSelected ? 'text-primary' : 'text-text-muted group-hover:text-text-main'} transition-colors`}>
+                              {icon}
                             </span>
-                          </button>
-                        );
-                      })}
+                            <div className="min-w-0 flex-1">
+                              <span className="text-xs font-semibold leading-snug line-clamp-2 block break-words">
+                                {svc.name}
+                              </span>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                {((svc.price || svc.defaultPrice || 0) > 0 || svc.unit) && (
+                                  <span className="text-[10px] text-text-muted font-normal">
+                                    {(svc.price || svc.defaultPrice || 0) > 0 ? `${(svc.price || svc.defaultPrice).toFixed(2)} € ` : ''}
+                                    {svc.unit ? `(${svc.unit})` : ''}
+                                  </span>
+                                )}
+                                {isSelected && qty > 1 && (
+                                  <span className="text-[10px] bg-primary/20 text-primary px-1.5 rounded font-bold">
+                                    {qty}x
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <span className={`material-symbols-outlined text-lg shrink-0 ${isSelected ? 'text-primary' : 'text-text-muted/50 group-hover:text-text-muted'} transition-colors`}>
+                            {isSelected ? 'check_circle' : 'add_circle'}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Weitere Katalog-Leistungen (Vor Belade- und Entladestelle) */}
+                <div className="mb-6 bg-bg-dark/40 rounded-2xl border border-structure/60 shadow-sm p-4 sm:p-5 flex flex-col gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-structure/60 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-primary text-xl">menu_book</span>
+                      <div>
+                        <span className="text-sm font-headline font-bold text-text-main block">
+                          Weitere Katalog-Leistungen
+                        </span>
+                        <span className="text-[10px] text-text-muted">
+                          Zusatzservices, Küchen-, Karton- & Möbelservice
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
+                      <span className="text-[10px] text-text-muted bg-white/[0.04] border border-structure/50 px-2 py-0.5 rounded-full font-medium">
+                        {filteredOtherCatalogItems.length} Positionen
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowFullCatalog(!showFullCatalog)}
+                        className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <span className="material-symbols-outlined text-sm">
+                          {showFullCatalog ? 'expand_less' : 'expand_more'}
+                        </span>
+                        <span>{showFullCatalog ? 'Einklappen' : 'Katalog öffnen'}</span>
+                      </button>
                     </div>
                   </div>
+
+                  {showFullCatalog && (
+                    <div className="space-y-3.5 animate-in fade-in duration-200">
+                      {/* Search Bar */}
+                      <div className="relative">
+                        <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
+                        <input 
+                          type="text" 
+                          placeholder="Weitere Leistungen suchen (z.B. Aufbau Küche, Montage, Kartons)..." 
+                          value={catalogSearch} 
+                          onChange={e => setCatalogSearch(e.target.value)} 
+                          className="input-field w-full pl-9 pr-8 py-2 rounded-xl bg-black/20 text-xs shadow-inner" 
+                        />
+                        {catalogSearch && (
+                          <button
+                            type="button"
+                            onClick={() => setCatalogSearch('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-white"
+                          >
+                            <XMarkIcon className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Category Filter Tabs */}
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
+                        <button 
+                          type="button"
+                          onClick={() => setActiveCategoryTab('Alle')} 
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer shrink-0 ${activeCategoryTab === 'Alle' ? 'bg-primary text-white shadow-xs' : 'bg-structure/50 text-text-muted hover:bg-structure hover:text-text-main'}`}
+                        >
+                          Alle weiteren
+                        </button>
+                        {otherCatalogCategories.map((catName: string) => (
+                          <button 
+                            key={catName} 
+                            type="button"
+                            onClick={() => setActiveCategoryTab(catName)} 
+                            className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer shrink-0 ${activeCategoryTab === catName ? 'bg-primary text-white shadow-xs' : 'bg-structure/50 text-text-muted hover:bg-structure hover:text-text-main'}`}
+                          >
+                            {catName}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Items Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 xl:grid-cols-3 gap-2 max-h-60 overflow-y-auto custom-scrollbar pr-1">
+                        {filteredOtherCatalogItems.length === 0 ? (
+                          <div className="col-span-full py-6 text-center text-xs text-text-muted italic">
+                            Keine weiteren Leistungen gefunden.
+                          </div>
+                        ) : (
+                          filteredOtherCatalogItems.map((item: any, idx: number) => {
+                            const isSelected = isStandardServiceSelected(item.id || item.name, item.name);
+                            const qty = getServiceQuantity(item.id || item.name, item.name);
+                            const icon = item.icon || getServiceIcon(item.name);
+                            return (
+                              <button 
+                                key={item.id || item.name || idx} 
+                                type="button"
+                                onClick={() => toggleStandardService(item)} 
+                                className={`group flex items-start justify-between p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                                  isSelected
+                                    ? 'border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary/40 font-bold'
+                                    : 'border-structure/80 bg-white/[0.02] text-text-main hover:bg-white/[0.05] hover:border-structure'
+                                }`}
+                              >
+                                <div className="flex items-start gap-2.5 min-w-0 pr-2">
+                                  <span className={`material-symbols-outlined text-base shrink-0 mt-0.5 ${isSelected ? 'text-primary' : 'text-text-muted group-hover:text-text-main'} transition-colors`}>
+                                    {icon}
+                                  </span>
+                                  <div className="min-w-0 flex-1">
+                                    <span className="text-xs font-semibold leading-snug line-clamp-2 block break-words">
+                                      {item.name}
+                                    </span>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                      <span className="text-[10px] text-text-muted font-normal">
+                                        {!isFlatRate && (item.price || item.defaultPrice || 0) > 0 
+                                          ? `${(item.price || item.defaultPrice).toFixed(2)} €` 
+                                          : 'Katalog'}
+                                        {item.unit ? ` / ${item.unit}` : ''}
+                                      </span>
+                                      {isSelected && qty > 1 && (
+                                        <span className="text-[10px] bg-primary/20 text-primary px-1.5 rounded font-bold">
+                                          {qty}x
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <span className={`material-symbols-outlined text-base shrink-0 ${isSelected ? 'text-primary' : 'text-text-muted/50 group-hover:text-text-muted'}`}>
+                                  {isSelected ? 'check_circle' : 'add_circle'}
+                                </span>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1843,13 +2626,13 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                     </div>
                     <div className="flex flex-col gap-2">
                       {STANDARD_SERVICES_A.map((svc) => {
-                        const isSelected = isStandardServiceSelected(svc.name);
+                        const isSelected = isStandardServiceSelected(svc.id, svc.name);
                         return (
                           <button
                             key={svc.id}
                             type="button"
                             onClick={() => toggleStandardService(svc)}
-                            className={`flex items-center justify-between p-3 rounded-xl border transition-all text-left ${
+                            className={`flex items-center justify-between p-3 rounded-xl border transition-all text-left cursor-pointer ${
                               isSelected
                                 ? 'border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary/30 font-bold'
                                 : 'border-structure/80 bg-white/[0.02] text-text-main hover:bg-white/[0.05] hover:border-structure'
@@ -1882,13 +2665,13 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                     </div>
                     <div className="flex flex-col gap-2">
                       {STANDARD_SERVICES_B.map((svc) => {
-                        const isSelected = isStandardServiceSelected(svc.name);
+                        const isSelected = isStandardServiceSelected(svc.id, svc.name);
                         return (
                           <button
                             key={svc.id}
                             type="button"
                             onClick={() => toggleStandardService(svc)}
-                            className={`flex items-center justify-between p-3 rounded-xl border transition-all text-left ${
+                            className={`flex items-center justify-between p-3 rounded-xl border transition-all text-left cursor-pointer ${
                               isSelected
                                 ? 'border-primary bg-primary/10 text-primary shadow-sm ring-1 ring-primary/30 font-bold'
                                 : 'border-structure/80 bg-white/[0.02] text-text-main hover:bg-white/[0.05] hover:border-structure'
@@ -1920,77 +2703,6 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                     </p>
                   </div>
                 </div>
-
-                {/* Full Catalog Toggle */}
-                <div className="mt-4 pt-4 border-t border-structure/60 flex items-center justify-between">
-                  <span className="text-xs text-text-muted">
-                    Spezielle Materialien, Packmittel oder individuelle Sonderleistungen?
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowFullCatalog(!showFullCatalog)}
-                    className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-                  >
-                    <span className="material-symbols-outlined text-sm">
-                      {showFullCatalog ? 'expand_less' : 'expand_more'}
-                    </span>
-                    {showFullCatalog ? 'Katalog einklappen' : 'Vollständigen Katalog öffnen'}
-                  </button>
-                </div>
-
-                {/* Expandable Full POS Catalog */}
-                {showFullCatalog && (
-                  <div className="mt-4 pt-4 border-t border-structure/40 space-y-4 animate-in fade-in duration-200">
-                    <div className="relative">
-                      <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-                      <input 
-                        type="text" 
-                        placeholder="Leistungen suchen (z.B. Karton, Klavier)..." 
-                        value={catalogSearch} 
-                        onChange={e => setCatalogSearch(e.target.value)} 
-                        className="input-field w-full pl-10 py-2.5 rounded-xl bg-black/20 text-xs shadow-inner" 
-                      />
-                    </div>
-                    
-                    <div className="flex flex-wrap gap-1.5">
-                      <button 
-                        onClick={() => setActiveCategoryTab('Alle')} 
-                        className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${activeCategoryTab === 'Alle' ? 'bg-primary text-white' : 'bg-structure/50 text-text-muted hover:bg-structure'}`}
-                      >
-                        Alle
-                      </button>
-                      {settings.catalog?.map((cat:any) => (
-                        <button 
-                          key={cat.category} 
-                          onClick={() => setActiveCategoryTab(cat.category)} 
-                          className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${activeCategoryTab === cat.category ? 'bg-primary text-white' : 'bg-structure/50 text-text-muted hover:bg-structure'}`}
-                        >
-                          {cat.category}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto custom-scrollbar pr-1">
-                      {settings.catalog?.flatMap((cat:any) => cat.items.map((item:any) => ({ ...item, category: cat.category }))).filter((item:any) => {
-                        const matchesSearch = (item.name||'').toLowerCase().includes((catalogSearch||'').toLowerCase());
-                        const matchesCat = activeCategoryTab === 'Alle' || item.category === activeCategoryTab;
-                        return matchesSearch && matchesCat;
-                      }).map((item:any, idx:number) => (
-                        <button 
-                          key={idx} 
-                          type="button"
-                          onClick={() => addServiceFromCatalog(item)} 
-                          className="bg-bg-dark/80 border border-white/10 hover:border-primary hover:bg-primary/10 rounded-xl p-2.5 flex flex-col items-center text-center gap-1.5 transition-all text-xs"
-                        >
-                          <span className="font-semibold text-text-main line-clamp-1">{item.name}</span>
-                          <span className="text-[10px] text-text-muted">
-                            {!isFlatRate && (item.price || item.defaultPrice || 0) > 0 ? `${(item.price || item.defaultPrice).toFixed(2)} €` : 'Katalog'}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -2173,12 +2885,21 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   <div className="flex flex-col gap-2 pt-2">
                     <button
                       type="button"
-                      onClick={() => saveOrder('draft', true)}
+                      onClick={() => handleQuoteActionWithCheck(() => saveOrder('draft', true))}
                       disabled={isSaving}
-                      className="w-full py-3 bg-primary text-white rounded-xl font-headline font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary/20 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2"
+                      className={`w-full py-3 rounded-xl font-headline font-bold text-xs uppercase tracking-wider shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                        !hasServices
+                          ? 'bg-slate-700/80 hover:bg-slate-700 text-slate-200 border border-amber-500/40 shadow-none'
+                          : 'bg-primary text-white shadow-primary/20 hover:brightness-110'
+                      }`}
                     >
                       <span className="material-symbols-outlined text-sm">description</span>
                       <span>Angebot Erstellen</span>
+                      {!hasServices && (
+                        <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30 lowercase font-normal">
+                          0 leistungen
+                        </span>
+                      )}
                     </button>
                     <button
                       type="button"
@@ -2221,124 +2942,315 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            {/* Left Column: Room Tabs & Furniture Catalog */}
+            {/* Left Column: Auszugsort -> Raum-Auswahl -> Möbel-Katalog */}
             <div className="lg:col-span-8 space-y-6">
-              {/* Section 1: Zimmer-Auswahl Tabs */}
-              <div className="bg-bg-card rounded-2xl p-5 border border-structure shadow-md">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-headline font-bold text-text-main flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary">meeting_room</span>
-                    1. Raum-Auswahl
-                  </h3>
-                  <span className="text-xs text-text-muted">
-                    Ausgewählt: <strong className="text-primary">{selectedRoomTab}</strong>
-                  </span>
-                </div>
-                <div className="flex gap-2.5 overflow-x-auto pb-2 custom-scrollbar">
-                  {QUICK_ROOMS.map(room => {
-                    const isSelected = selectedRoomTab === room.name;
-                    const itemsInRoom = inventory.filter(i => (i.room || 'Wohnzimmer') === room.name).reduce((sum, i) => sum + i.quantity, 0);
-                    return (
-                      <button
-                        key={room.id}
-                        type="button"
-                        onClick={() => setSelectedRoomTab(room.name)}
-                        className={`flex-shrink-0 px-4 py-3 rounded-xl border transition-all flex flex-col items-center gap-1.5 min-w-[95px] ${
-                          isSelected
-                            ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25 scale-[1.02]'
-                            : 'bg-white/[0.02] border-structure/80 text-text-main hover:border-structure hover:bg-white/[0.05]'
-                        }`}
-                      >
-                        <span className={`material-symbols-outlined text-xl ${isSelected ? 'text-white' : 'text-text-muted'}`}>
-                          {room.icon}
+              
+              {/* Section 1: 1. Auszugsort & Raum-Konfiguration */}
+              <div className="bg-bg-card rounded-2xl p-5 border border-structure shadow-md relative overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-12 h-12 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center text-primary shrink-0">
+                      <span className="material-symbols-outlined text-2xl">location_on</span>
+                    </div>
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wider bg-primary/20 text-primary border border-primary/30">
+                          Auszugsort (Beladestelle A)
                         </span>
-                        <span className="text-xs font-bold">{room.name}</span>
-                        {itemsInRoom > 0 && (
-                          <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${isSelected ? 'bg-white/20 text-white' : 'bg-primary/20 text-primary'}`}>
-                            {itemsInRoom} Stk.
+                        {logistics.a_type && (
+                          <span className="text-[11px] text-text-muted font-medium">
+                            • {logistics.a_type}
                           </span>
                         )}
+                        {logistics.a_floor && (
+                          <span className="text-[11px] text-text-muted font-medium">
+                            • {logistics.a_floor}
+                          </span>
+                        )}
+                        {logistics.a_elevator && (
+                          <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                            Aufzug
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-base font-headline font-bold text-text-main mt-1">
+                        {logistics.a_street 
+                          ? `${logistics.a_street} ${logistics.a_houseNr || ''}, ${logistics.a_zip || ''} ${logistics.a_city || ''}`.trim() 
+                          : 'Beladestelle (Auszugsadresse A)'}
+                      </h3>
+                      <p className="text-xs text-text-muted mt-0.5">
+                        Definieren Sie als ersten Schritt die Anzahl der Zimmer für diesen Auszugsort.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Button: Detaillierter Assistent */}
+                  <div className="shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInitialWizardRoom(null);
+                        setIsInventoryWizardOpen(true);
+                      }}
+                      className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-white font-headline font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary/20 flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-base">tune</span>
+                      <span>Detaillierter Assistent</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Konfigurierte Räume Badges */}
+                <div className="mt-4 pt-3.5 border-t border-structure/60 flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-bold text-text-muted mr-1 flex items-center gap-1">
+                    <span className="material-symbols-outlined text-sm text-primary">meeting_room</span>
+                    Zimmer am Auszugsort:
+                  </span>
+                  {totalConfiguredRoomsCount > 0 ? (
+                    <>
+                      {Object.entries(roomCounts).filter(([_, c]) => c > 0).map(([rId, count]) => {
+                        const roomObj = ROOM_TYPES.find(r => r.id === rId) || ROOM_CATALOG.find(r => r.id === rId);
+                        const rName = roomObj?.name || rId;
+                        return (
+                          <span
+                            key={rId}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-structure text-xs font-semibold text-text-main"
+                          >
+                            <span className="font-extrabold text-primary">{count}x</span>
+                            <span>{rName}</span>
+                          </span>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInitialWizardRoom(null);
+                          setIsInventoryWizardOpen(true);
+                        }}
+                        className="text-xs text-primary hover:underline font-bold ml-1.5 flex items-center gap-0.5"
+                      >
+                        <span className="material-symbols-outlined text-xs">edit</span>
+                        Zimmer anpassen
                       </button>
-                    );
-                  })}
+                    </>
+                  ) : (
+                    <span className="text-xs text-text-muted italic">
+                      Noch keine Räume ausgewählt. Klicken Sie auf <strong>„Detaillierter Assistent“</strong>, um die Zimmer der Auszugsadresse festzulegen.
+                    </span>
+                  )}
                 </div>
               </div>
 
-              {/* Section 2: Möbel-Katalog mit Zählern */}
-              <div className="bg-bg-card rounded-2xl p-5 border border-structure shadow-md space-y-4">
-                <div className="flex items-center justify-between">
+              {/* Section 2: 2. Raum-Auswahl (Raumauswahl) */}
+              <div className="bg-bg-card rounded-2xl p-5 border border-structure shadow-md">
+                <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-headline font-bold text-text-main flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary">chair</span>
-                    2. Möbel &amp; Umzugsgut für {selectedRoomTab}
+                    <span className="material-symbols-outlined text-primary">door_front</span>
+                    2. Raum-Auswahl
                   </h3>
+                  {selectedRoomTab && (
+                    <span className="text-xs text-text-muted">
+                      Ausgewählt: <strong className="text-primary">{selectedRoomTab}</strong>
+                    </span>
+                  )}
+                </div>
+
+                {availableRoomTabs.length > 0 ? (
+                  <div className="flex gap-2.5 overflow-x-auto pb-2 custom-scrollbar">
+                    {availableRoomTabs.map((room: any) => {
+                      const isSelected = selectedRoomTab.toLowerCase() === room.name.toLowerCase();
+                      const itemsInRoom = inventory.filter(i => (i.room || '').toLowerCase() === room.name.toLowerCase()).reduce((sum, i) => sum + i.quantity, 0);
+                      return (
+                        <button
+                          key={room.id}
+                          type="button"
+                          onClick={() => setSelectedRoomTab(room.name)}
+                          className={`flex-shrink-0 px-4 py-3 rounded-xl border transition-all flex flex-col items-center gap-1.5 min-w-[95px] ${
+                            isSelected
+                              ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25 scale-[1.02]'
+                              : 'bg-white/[0.02] border-structure/80 text-text-main hover:border-structure hover:bg-white/[0.05]'
+                          }`}
+                        >
+                          <span className={`material-symbols-outlined text-xl ${isSelected ? 'text-white' : 'text-text-muted'}`}>
+                            {room.icon}
+                          </span>
+                          <span className="text-xs font-bold whitespace-nowrap">{room.name}</span>
+                          {itemsInRoom > 0 && (
+                            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-extrabold ${isSelected ? 'bg-white/20 text-white' : 'bg-primary/20 text-primary'}`}>
+                              {itemsInRoom} Stk.
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-7 px-4 rounded-xl border border-dashed border-structure/80 bg-white/[0.01]">
+                    <span className="material-symbols-outlined text-3xl text-text-muted mb-2">meeting_room</span>
+                    <p className="text-xs font-bold text-text-main">Noch keine Räume für den Auszugsort festgelegt</p>
+                    <p className="text-[11px] text-text-muted mt-1 max-w-sm mx-auto mb-3">
+                      Legen Sie zuerst über <strong>„Detaillierter Assistent“</strong> die Räume Ihrer Auszugsadresse fest. Es werden ausschließlich die von Ihnen ausgewählten Räume angezeigt.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInitialWizardRoom(null);
+                        setIsInventoryWizardOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-white text-xs font-bold shadow hover:brightness-110 active:scale-95 transition-all cursor-pointer"
+                    >
+                      <span className="material-symbols-outlined text-sm">tune</span>
+                      <span>Räume jetzt auswählen</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 3: Möbel-Katalog mit Zählern (nur sichtbar wenn Raum gewählt) */}
+              {availableRoomTabs.length > 0 && selectedRoomTab ? (
+                <div className="bg-bg-card rounded-2xl p-5 border border-structure shadow-md space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-headline font-bold text-text-main flex items-center gap-2">
+                      <span className="material-symbols-outlined text-primary">chair</span>
+                      3. Möbel &amp; Umzugsgut für {selectedRoomTab}
+                    </h3>
+                    <p className="text-[11px] text-text-muted mt-0.5">
+                      Gegenstände für diesen Raum auswählen. Mengen werden direkt addiert.
+                    </p>
+                  </div>
                   <button
                     type="button"
                     onClick={() => { setInitialWizardRoom(null); setIsInventoryWizardOpen(true); }}
-                    className="text-primary text-xs font-bold flex items-center gap-1 hover:underline"
+                    className="text-primary text-xs font-bold flex items-center gap-1 hover:underline px-2.5 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all"
                   >
                     <span className="material-symbols-outlined text-sm">open_in_new</span>
                     Detaillierter Assistent
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5">
-                  {QUICK_FURNITURE.map(item => {
-                    const count = getFurnitureCount(item.name, selectedRoomTab);
-                    const isPicked = count > 0;
-                    return (
-                      <div
-                        key={item.id}
-                        className={`p-3.5 rounded-xl border transition-all flex flex-col items-center text-center relative ${
-                          isPicked
-                            ? 'border-primary bg-primary/10 shadow-sm ring-1 ring-primary/40'
-                            : 'border-structure/80 bg-white/[0.02] hover:border-structure hover:bg-white/[0.04]'
-                        }`}
-                      >
-                        <div className={`w-12 h-12 rounded-full mb-2 flex items-center justify-center transition-colors ${
-                          isPicked ? 'bg-primary/20 text-primary' : 'bg-structure/50 text-text-muted'
-                        }`}>
-                          <span className="material-symbols-outlined text-2xl">{item.icon}</span>
-                        </div>
-                        <p className="font-bold text-xs text-text-main mb-0.5 line-clamp-1">{item.name}</p>
-                        <p className="text-[10px] text-text-muted mb-3 font-medium">~{item.cbm} m³</p>
+                {(() => {
+                  const activeTabObj = availableRoomTabs.find((t: any) => t.name.toLowerCase() === selectedRoomTab.toLowerCase()) || availableRoomTabs[0];
+                  const baseCatName = activeTabObj?.baseCategory || selectedRoomTab;
+                  const activeRoomData = ROOM_CATALOG.find(r => 
+                    r.name.toLowerCase() === baseCatName.toLowerCase() ||
+                    baseCatName.toLowerCase().includes(r.name.toLowerCase()) ||
+                    r.name.toLowerCase().includes(baseCatName.toLowerCase())
+                  ) || ROOM_CATALOG[0];
 
-                        <div className="flex items-center gap-2 w-full justify-between px-2 bg-structure/40 rounded-lg py-1 border border-white/5 mt-auto">
+                  return (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {activeRoomData.items.map(item => {
+                        const count = getFurnitureCount(item.name, selectedRoomTab);
+                        const isPicked = count > 0;
+                        return (
+                          <div
+                            key={item.id}
+                            className={`p-3 rounded-xl border transition-all flex flex-col items-center text-center relative ${
+                              isPicked
+                                ? 'border-primary bg-primary/10 shadow-sm ring-1 ring-primary/40'
+                                : 'border-structure/80 bg-white/[0.02] hover:border-structure hover:bg-white/[0.04]'
+                            }`}
+                          >
+                            <div className={`w-11 h-11 rounded-full mb-2 flex items-center justify-center transition-colors ${
+                              isPicked ? 'bg-primary/20 text-primary' : 'bg-structure/50 text-text-muted'
+                            }`}>
+                              <span className="material-symbols-outlined text-2xl">{item.icon}</span>
+                            </div>
+                            <p className="font-bold text-xs text-text-main mb-0.5 line-clamp-1">{item.name}</p>
+                            <p className="text-[10px] text-text-muted mb-2.5 font-medium">~{item.cbm} m³</p>
+
+                            <div className="flex items-center gap-2 w-full justify-between px-2 bg-structure/40 rounded-lg py-1 border border-white/5 mt-auto">
+                              <button
+                                type="button"
+                                onClick={() => updateFurnitureCount(item, selectedRoomTab, -1)}
+                                disabled={count === 0}
+                                className="w-7 h-7 rounded-md bg-white/[0.05] hover:bg-white/10 text-text-main flex items-center justify-center font-bold text-sm disabled:opacity-30 transition-colors"
+                              >
+                                -
+                              </button>
+                              <span className={`font-black text-xs ${isPicked ? 'text-primary' : 'text-text-muted'}`}>
+                                {count}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => updateFurnitureCount(item, selectedRoomTab, 1)}
+                                className="w-7 h-7 rounded-md bg-primary text-white flex items-center justify-center font-bold text-sm hover:brightness-110 active:scale-95 transition-all shadow-sm"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Inline Custom Item Card */}
+                      <div className="p-3 rounded-xl border border-dashed border-structure/90 bg-white/[0.02] flex flex-col justify-between min-h-[140px]">
+                        {!isAddingCustom ? (
                           <button
                             type="button"
-                            onClick={() => updateFurnitureCount(item, selectedRoomTab, -1)}
-                            disabled={count === 0}
-                            className="w-6 h-6 rounded-md bg-white/[0.05] hover:bg-white/10 text-text-main flex items-center justify-center font-bold text-xs disabled:opacity-30 transition-colors"
+                            onClick={() => setIsAddingCustom(true)}
+                            className="w-full h-full flex flex-col items-center justify-center gap-1.5 text-text-muted hover:text-primary transition-colors group p-2 text-center"
                           >
-                            -
+                            <span className="material-symbols-outlined text-3xl group-hover:scale-110 transition-transform text-primary">add_circle</span>
+                            <span className="text-xs font-bold text-text-main">+ Eigener Gegenstand</span>
+                            <span className="text-[10px] text-text-muted leading-tight">Zu {selectedRoomTab}</span>
                           </button>
-                          <span className={`font-black text-xs ${isPicked ? 'text-primary' : 'text-text-muted'}`}>
-                            {count}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => updateFurnitureCount(item, selectedRoomTab, 1)}
-                            className="w-6 h-6 rounded-md bg-primary text-white flex items-center justify-center font-bold text-xs hover:brightness-110 active:scale-95 transition-all shadow-sm"
-                          >
-                            +
-                          </button>
-                        </div>
+                        ) : (
+                          <div className="space-y-2 flex flex-col justify-between h-full">
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-[11px] font-bold text-text-main">Möbelstück</span>
+                                <button 
+                                  type="button" 
+                                  onClick={() => { setIsAddingCustom(false); setCustomItemName(''); }}
+                                  className="text-text-muted hover:text-red-400 text-xs px-1"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                              <input
+                                type="text"
+                                value={customItemName}
+                                onChange={e => setCustomItemName(e.target.value)}
+                                placeholder="z.B. Schminktisch"
+                                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-structure bg-bg-card text-text-main focus:border-primary mb-1.5"
+                                autoFocus
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    handleAddCustomFurniture(selectedRoomTab);
+                                  }
+                                }}
+                              />
+                              <div className="flex items-center justify-between gap-1 text-[11px] text-text-muted">
+                                <span>m³:</span>
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0.1"
+                                  value={customItemCbm}
+                                  onChange={e => setCustomItemCbm(e.target.value)}
+                                  className="w-16 text-xs px-1.5 py-0.5 rounded border border-structure bg-bg-card text-text-main text-center"
+                                />
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAddCustomFurniture(selectedRoomTab)}
+                              disabled={!customItemName.trim()}
+                              className="w-full py-1.5 rounded-lg bg-primary text-white text-xs font-bold disabled:opacity-40 hover:brightness-110 transition-all shadow-sm"
+                            >
+                              Hinzufügen
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    );
-                  })}
-
-                  {/* Custom / Add More Card */}
-                  <div
-                    onClick={() => { setInitialWizardRoom(null); setIsInventoryWizardOpen(true); }}
-                    className="p-3.5 rounded-xl border-2 border-dashed border-structure/80 bg-white/[0.01] hover:bg-white/[0.04] hover:border-primary/50 transition-all flex flex-col items-center justify-center cursor-pointer text-center group min-h-[140px]"
-                  >
-                    <span className="material-symbols-outlined text-3xl text-text-muted group-hover:text-primary group-hover:scale-110 transition-all mb-1">
-                      add_box
-                    </span>
-                    <p className="font-bold text-xs text-text-main">Eigener Gegenstand</p>
-                    <p className="text-[10px] text-text-muted mt-0.5">Assistent öffnen</p>
-                  </div>
-                </div>
+                    </div>
+                  );
+                })()}
               </div>
+              ) : null}
 
               {/* Section 3: Erfasste Gegenstände Übersicht */}
               {inventory.length > 0 && (
@@ -2476,7 +3388,11 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   <div className="flex justify-between items-center border-b border-structure/40 pb-2">
                     <span className="text-text-muted">Empfohlene Fahrzeugklasse</span>
                     <span className="font-bold text-primary">
-                      {calculateQuickCbm() <= 18 ? '1x Sprinter 3.5t' : calculateQuickCbm() <= 38 ? '1x LKW 7.5t' : '2x Fahrzeuge (LKW + Sprinter)'}
+                      {calculateQuickCbm() <= 20
+                        ? '1x Sprinter 3.5t (Standard)'
+                        : calculateQuickCbm() <= 38
+                          ? '1x 3.5t (2 Touren) oder 1x 7.5t LKW'
+                          : '2x Fahrzeuge (LKW + Sprinter)'}
                     </span>
                   </div>
                 </div>
@@ -2491,7 +3407,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       <div>
                         <div className="flex justify-between items-end mb-2">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-text-muted">
-                            Ladekapazität ({truckChoice === '1_transporter' ? 'Sprinter' : '7.5t LKW'})
+                            Ladekapazität ({truckChoice === '1_transporter' ? '3.5t Sprinter (Standard)' : truckChoice === '1_lkw' ? '7.5t LKW' : truckChoice === '2_lkw' ? '2x Fahrzeuge' : 'Manuell'})
                           </span>
                           <span className="text-xs font-bold text-primary">{pct}%</span>
                         </div>
@@ -2538,8 +3454,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     {[
-                      { id: '1_transporter', label: 'Sprinter 3.5t', desc: '~15-20 m³' },
-                      { id: '1_lkw', label: 'LKW 7.5t', desc: '~35 m³' },
+                      { id: '1_transporter', label: '3.5t Sprinter (Standard)', desc: 'bis ~20 m³' },
+                      { id: '1_lkw', label: '7.5t LKW', desc: '~35 m³' },
                       { id: '2_lkw', label: '2x Fahrzeuge', desc: '~60 m³' },
                       { id: 'custom', label: 'Manuell', desc: 'Individuell' },
                     ].map(truck => (
@@ -2740,8 +3656,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   <div className="flex gap-1.5">
                     <button 
                       type="button" 
-                      onClick={() => window.print()} 
-                      className="p-1.5 bg-white/[0.04] hover:bg-white/10 rounded-lg border border-structure text-text-muted hover:text-white transition-colors"
+                      onClick={() => handleQuoteActionWithCheck(() => window.print())} 
+                      className="p-1.5 bg-white/[0.04] hover:bg-white/10 rounded-lg border border-structure text-text-muted hover:text-white transition-colors cursor-pointer"
                       title="Drucken / PDF erzeugen"
                     >
                       <span className="material-symbols-outlined text-base">print</span>
@@ -2751,7 +3667,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
                 {/* Simulated PDF Preview Paper */}
                 <div 
-                  onClick={() => window.print()}
+                  onClick={() => handleQuoteActionWithCheck(() => window.print())}
                   className="flex-grow bg-white/[0.03] rounded-xl border border-dashed border-structure/80 p-6 flex flex-col justify-between cursor-pointer group hover:border-primary/50 transition-colors min-h-[260px] relative overflow-hidden"
                 >
                   <div className="flex justify-between items-start border-b border-structure/40 pb-4">
@@ -2849,15 +3765,29 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 {/* Action 1: Save */}
                 <button
                   type="button"
-                  onClick={() => saveOrder(isInvoice ? 'invoice_open' : 'quote', true)}
+                  onClick={() => handleQuoteActionWithCheck(() => saveOrder(isInvoice ? 'invoice_open' : 'quote', true))}
                   disabled={isSaving}
-                  className="group flex flex-col items-center justify-center gap-3 p-6 bg-bg-card rounded-2xl border border-structure hover:border-primary transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 text-center"
+                  className={`group flex flex-col items-center justify-center gap-3 p-6 bg-bg-card rounded-2xl border transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 text-center cursor-pointer ${
+                    !hasServices ? 'border-amber-500/40 hover:border-amber-500' : 'border-structure hover:border-primary'
+                  }`}
                 >
-                  <div className="w-14 h-14 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:bg-primary group-hover:text-white transition-colors">
+                  <div className="w-14 h-14 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:bg-primary group-hover:text-white transition-colors relative">
                     <span className="material-symbols-outlined text-2xl">save</span>
+                    {!hasServices && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-black text-[9px] font-bold flex items-center justify-center" title="0 Leistungen">
+                        !
+                      </span>
+                    )}
                   </div>
                   <div>
-                    <p className="font-headline font-bold text-sm text-text-main">Angebot speichern</p>
+                    <p className="font-headline font-bold text-sm text-text-main flex items-center justify-center gap-1.5">
+                      <span>Angebot speichern</span>
+                      {!hasServices && (
+                        <span className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-normal">
+                          0 Leistungen
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-text-muted mt-0.5">In der Datenbank archivieren</p>
                   </div>
                 </button>
@@ -2865,14 +3795,28 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 {/* Action 2: Download / Print */}
                 <button
                   type="button"
-                  onClick={() => window.print()}
-                  className="group flex flex-col items-center justify-center gap-3 p-6 bg-bg-card rounded-2xl border border-structure hover:border-primary transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 text-center"
+                  onClick={() => handleQuoteActionWithCheck(() => window.print())}
+                  className={`group flex flex-col items-center justify-center gap-3 p-6 bg-bg-card rounded-2xl border transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 text-center cursor-pointer ${
+                    !hasServices ? 'border-amber-500/40 hover:border-amber-500' : 'border-structure hover:border-primary'
+                  }`}
                 >
-                  <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-400 group-hover:bg-primary group-hover:text-white transition-colors">
+                  <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-400 group-hover:bg-primary group-hover:text-white transition-colors relative">
                     <span className="material-symbols-outlined text-2xl">download</span>
+                    {!hasServices && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-black text-[9px] font-bold flex items-center justify-center" title="0 Leistungen">
+                        !
+                      </span>
+                    )}
                   </div>
                   <div>
-                    <p className="font-headline font-bold text-sm text-text-main">PDF herunterladen</p>
+                    <p className="font-headline font-bold text-sm text-text-main flex items-center justify-center gap-1.5">
+                      <span>PDF herunterladen</span>
+                      {!hasServices && (
+                        <span className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-normal">
+                          0 Leistungen
+                        </span>
+                      )}
+                    </p>
                     <p className="text-xs text-text-muted mt-0.5">Lokal drucken oder als PDF sichern</p>
                   </div>
                 </button>
@@ -2880,12 +3824,12 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 {/* Action 3: Email */}
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={() => handleQuoteActionWithCheck(() => {
                     const subject = encodeURIComponent(`Ihr Umzugsangebot von Rothirsch - ${customerName || ''}`);
                     const body = encodeURIComponent(`Guten Tag ${customerName || ''},\n\nanbei erhalten Sie das Angebot für Ihren bevorstehenden Umzug.\nGesamtbetrag: ${totals.gross.toFixed(2)} €.\n\nMit freundlichen Grüßen\nIhr Rothirsch Team`);
                     window.location.href = `mailto:${customerEmail || ''}?subject=${subject}&body=${body}`;
-                  }}
-                  className="group flex flex-col items-center justify-center gap-3 p-6 bg-primary/10 rounded-2xl border border-primary/30 hover:border-primary transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 text-center"
+                  })}
+                  className="group flex flex-col items-center justify-center gap-3 p-6 bg-primary/10 rounded-2xl border border-primary/30 hover:border-primary transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 text-center cursor-pointer"
                 >
                   <div className="w-14 h-14 rounded-full bg-primary text-white flex items-center justify-center group-hover:scale-110 transition-transform shadow-md">
                     <span className="material-symbols-outlined text-2xl">alternate_email</span>
@@ -2917,7 +3861,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             {currentStep > 1 ? (
               <button
                 type="button"
-                onClick={() => setCurrentStep(prev => prev - 1)}
+                onClick={handleStepBack}
                 disabled={isSaving}
                 className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline bg-structure/50 hover:bg-structure text-text-main transition-all flex items-center gap-1.5 border border-structure active:scale-95 cursor-pointer"
               >
@@ -2975,7 +3919,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             ) : (
               <button
                 type="button"
-                onClick={() => saveOrder('confirmed' as any, true)}
+                onClick={() => handleQuoteActionWithCheck(() => saveOrder('confirmed' as any, true))}
                 disabled={isSaving}
                 className="bg-primary hover:brightness-110 text-white px-5 sm:px-7 py-2.5 rounded-xl font-headline font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2 shadow-xl shadow-primary/40 active:scale-95 transition-all cursor-pointer"
               >
@@ -2990,6 +3934,82 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           </div>
         </div>
       </div>
+
+      {/* Modal: Keine Leistungen Warnung vor Angebotserstellung */}
+      {showNoServicesModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-bg-panel border-2 border-amber-500/40 rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl space-y-5 text-center animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/25 flex items-center justify-center mx-auto shadow-inner">
+              <span className="material-symbols-outlined text-3xl">receipt_long</span>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xl font-headline font-bold text-text-main">
+                Keine Leistungen erfasst
+              </h3>
+              <p className="text-xs font-semibold text-amber-400">
+                لم تقم بإضافة أي خدمات بعد (0,00 €)
+              </p>
+              <p className="text-xs text-text-muted leading-relaxed pt-1">
+                Es wurden bisher noch keine Einzelleistungen oder Pauschalbeträge hinterlegt. Möchten Sie jetzt Leistungen auswählen oder das Angebot trotzdem ohne Leistungen erstellen?
+              </p>
+            </div>
+
+            <div className="bg-black/25 rounded-xl p-3.5 border border-structure/60 text-left text-xs space-y-1.5">
+              <div className="flex justify-between text-text-muted">
+                <span>Leistungen:</span>
+                <span className="font-bold text-amber-400">0 Positionen</span>
+              </div>
+              <div className="flex justify-between text-text-muted">
+                <span>Gesamtbetrag:</span>
+                <span className="font-bold text-text-main">0,00 €</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNoServicesModal(false);
+                  setPendingQuoteAction(null);
+                  validateAndSetStep(3); // Go to step 3 (Leistungen)
+                }}
+                className="btn-primary py-3 px-4 rounded-xl text-xs font-bold font-headline flex items-center justify-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-sm">add_circle</span>
+                <span>Leistungen hinzufügen (Schritt 3) / إضافة خدمات</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNoServicesModal(false);
+                  if (pendingQuoteAction) {
+                    const act = pendingQuoteAction;
+                    setPendingQuoteAction(null);
+                    act();
+                  }
+                }}
+                className="py-2.5 px-4 rounded-xl text-xs font-bold text-text-muted hover:text-text-main bg-white/[0.04] hover:bg-white/[0.08] border border-structure transition cursor-pointer"
+              >
+                Trotzdem erstellen / المتابعة والإنشاء رغم ذلك
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowNoServicesModal(false);
+                  setPendingQuoteAction(null);
+                }}
+                className="text-[11px] text-text-muted hover:text-text-main underline pt-1 cursor-pointer"
+              >
+                Abbrechen / إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <InventoryWizardModal 
         isOpen={isInventoryWizardOpen}
         onClose={() => {
@@ -3000,6 +4020,13 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         inventory={inventory}
         setInventory={setInventory}
         initialRoomId={initialWizardRoom}
+        roomCounts={roomCounts}
+        onSaveRoomCounts={(counts) => setRoomCounts(counts)}
+        auszugsortTitle={
+          logistics.a_street 
+            ? `${logistics.a_street} ${logistics.a_houseNr || ''}, ${logistics.a_city || ''}`.trim()
+            : 'Beladestelle A'
+        }
       />
     </div>
   );

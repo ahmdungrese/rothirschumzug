@@ -22,6 +22,9 @@ export function ClaimModal({
   const [insuranceId, setInsuranceId] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  const [amount, setAmount] = useState('');
+  const [settlementPreference, setSettlementPreference] = useState('rechnung_abzug');
+
   const save = async () => {
     if (!description.trim()) {
       toast.error("Bitte eine Beschreibung des Schadens / Problems eingeben.");
@@ -35,6 +38,8 @@ export function ClaimModal({
         customerName,
         orderId: orderId || null,
         description,
+        amount: amount ? parseFloat(amount) : null,
+        settlementPreference,
         insuranceId: insuranceId || null,
         status: 'Neu',
         createdAt: serverTimestamp(),
@@ -64,9 +69,9 @@ export function ClaimModal({
           </button>
         </div>
         
-        <div className="p-6 overflow-y-auto flex-1 space-y-6">
+        <div className="p-6 overflow-y-auto flex-1 space-y-5">
           <p className="text-sm text-text-muted">
-            Lege hier ein neues Ticket für einen Schaden oder ein Problem (z.B. Kratzer, Reklamation) an. Es wird in deiner zentralen Reklamations-Übersicht verfolgt.
+            Lege hier ein neues Ticket für einen Schaden oder ein Problem an. Das Ticket kann direkt mit einer Kundenrechnung verrechnet oder an die Versicherung weitergeleitet werden.
           </p>
 
           <div className="space-y-4">
@@ -75,22 +80,55 @@ export function ClaimModal({
               <textarea 
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="input-field py-3 px-4 w-full h-32 bg-bg-dark border-red-500/30 focus:border-red-500"
+                className="input-field py-3 px-4 w-full h-28 bg-bg-dark border-red-500/30 focus:border-red-500"
                 placeholder="Was ist passiert? (z.B. Kratzer am Kühlschrank beim Verladen)"
                 required
               />
             </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-text-muted mb-1.5">
+                  Schadenshöhe / Betrag (€)
+                </label>
+                <input 
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="input-field py-2.5 px-3.5 w-full bg-bg-dark font-mono text-sm"
+                  placeholder="z.B. 150.00"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-text-muted mb-1.5">
+                  Geplante Abwicklung
+                </label>
+                <select
+                  value={settlementPreference}
+                  onChange={(e) => setSettlementPreference(e.target.value)}
+                  className="input-field py-2.5 px-3.5 w-full bg-bg-dark text-xs font-medium cursor-pointer"
+                >
+                  <option value="rechnung_abzug">Mit Rechnung verrechnen</option>
+                  <option value="versicherung">Über Versicherung einreichen</option>
+                  <option value="auszahlung">Direkte Auszahlung</option>
+                  <option value="offen">Noch offen / In Prüfung</option>
+                </select>
+              </div>
+            </div>
             
             <div>
-              <label className="block text-sm font-medium text-text-muted mb-2">Versicherungs-Schadensnummer (Optional)</label>
+              <label className="block text-xs font-semibold text-text-muted mb-1.5">Versicherungs-Schadensnummer (Optional)</label>
               <input 
                 type="text"
                 value={insuranceId}
                 onChange={(e) => setInsuranceId(e.target.value)}
-                className="input-field py-3 px-4 w-full bg-bg-dark"
+                className="input-field py-2 px-3.5 w-full bg-bg-dark text-xs"
                 placeholder="z.B. V-123456789"
               />
-              <p className="text-xs text-text-muted mt-1">Kann später nachgetragen werden, sobald die Versicherung kontaktiert wurde.</p>
+              <p className="text-[11px] text-text-muted mt-1">Kann später nachgetragen werden, sobald die Versicherung kontaktiert wurde.</p>
             </div>
           </div>
         </div>

@@ -6,6 +6,7 @@ import { doc, getDoc, addDoc, updateDoc, collection, serverTimestamp } from 'fir
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
+import { withDbTimeout, formatFriendlyError } from '@/lib/networkWatchdog';
 import SignatureCanvas from 'react-signature-canvas';
 import { 
   ChevronRightIcon, 
@@ -172,6 +173,12 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
   // --- MULTI-STEP HISTORY & SAFE CANCEL ---
   const stepRef = useRef(step);
   stepRef.current = step;
+  const customerRef = useRef(customer);
+  customerRef.current = customer;
+  const inventoryRef = useRef(inventory);
+  inventoryRef.current = inventory;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   const goToStep = (nextStep: number) => {
     if (nextStep > stepRef.current) {
@@ -180,6 +187,16 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
       }
     }
     setStep(nextStep);
+  };
+
+  const handleStepBack = () => {
+    if (step > 1) {
+      if (typeof window !== 'undefined' && window.history.state?.wizardStep) {
+        window.history.back();
+      } else {
+        setStep(prev => Math.max(1, prev - 1));
+      }
+    }
   };
 
   const handleSafeCancel = () => {
@@ -221,10 +238,10 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
         setStep(prev => Math.max(1, prev - 1));
       } else {
         const isDirty = Boolean(
-          customer.lastName?.trim() ||
-          customer.phone?.trim() ||
-          customer.street?.trim() ||
-          inventory.length > 0
+          customerRef.current.lastName?.trim() ||
+          customerRef.current.phone?.trim() ||
+          customerRef.current.street?.trim() ||
+          inventoryRef.current.length > 0
         );
         if (isDirty) {
           const confirmLeave = window.confirm(
@@ -235,13 +252,11 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
             return;
           }
         }
-        if (onClose) {
-          onClose();
-        } else if (urlCustomerId) {
-          router.push(`/dashboard/customers/${urlCustomerId}`);
-        } else {
-          router.push('/dashboard');
+        if (onCloseRef.current) {
+          onCloseRef.current();
         }
+        // If not in a modal, the browser history has already popped to the referrer.
+        // We never force router.push('/dashboard') which would overwrite their natural origin!
       }
     };
 
@@ -249,7 +264,7 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
     return () => {
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [onClose, urlCustomerId, router, customer, inventory]);
+  }, []);
 
   // LOAD DATA
   useEffect(() => {
@@ -261,8 +276,9 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
           const days = parseInt(s.quoteValidDays) || 14;
           const validDate = new Date();
           validDate.setDate(validDate.getDate() + days);
+          const validUntilStr = !isNaN(validDate.getTime()) ? validDate.toISOString().split('T')[0] : '';
           setOrderMeta((prev: any) => ({ 
-            ...prev, manager: s.contacts?.[0] || '', paymentMethod: s.paymentMethods?.[0]?.name || '', validUntil: validDate.toISOString().split('T')[0]
+            ...prev, manager: s.contacts?.[0] || '', paymentMethod: s.paymentMethods?.[0]?.name || '', validUntil: validUntilStr
           }));
           setTexts({ quoteIntro: s.texts?.quoteIntro || '', paymentTerms: s.paymentMethods?.[0]?.textQuote || '', quoteOutro: s.texts?.quoteGreeting || '' });
         }
@@ -352,13 +368,13 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
   const getItemQuantity = (room: string, itemName: string) => inventory.find(i => i.name === itemName && i.room === room)?.quantity || 0;
 
   const catalogCategories = React.useMemo(() => {
-    if (!settings?.catalog) return [];
+    if (!settings?.catalog || !Array.isArray(settings.catalog)) return [];
     const cats: string[] = settings.catalog.map((c: any) => c.category).filter(Boolean);
     return Array.from(new Set(cats));
   }, [settings]);
 
   const allCatalogItems = React.useMemo(() => {
-    if (!settings?.catalog) return [];
+    if (!settings?.catalog || !Array.isArray(settings.catalog)) return [];
     return settings.catalog.flatMap((cat: any) => 
       (cat.items || []).map((item: any) => ({ ...item, category: cat.category || 'Allgemein' }))
     );
@@ -489,21 +505,27 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
         payload.signatureDate = serverTimestamp();
       }
 
-      if (orderId) {
-        await updateDoc(doc(db, 'orders', orderId), payload);
-        toast.success("Besichtigung erfolgreich und sicher aktualisiert!", { id: toastId });
-      } else {
-        payload.status = 'draft';
-        const rawQuote = settings?.nextQuoteNumber !== undefined ? Number(settings.nextQuoteNumber) : 1771;
-        const nextQuote = Math.max(1, rawQuote || 1771);
-        payload.orderNumber = `AN-${nextQuote}`;
-        payload.createdAt = serverTimestamp();
-        payload.createdBy = profile?.displayName || 'Außendienst';
-        
-        await addDoc(collection(db, 'orders'), payload);
-        await updateDoc(doc(db, 'system', 'settings'), { nextQuoteNumber: nextQuote + 1 });
-        toast.success("Besichtigung erfolgreich und sicher gespeichert!", { id: toastId });
-      }
+      await withDbTimeout((async () => {
+        if (orderId) {
+          await updateDoc(doc(db, 'orders', orderId), payload);
+          toast.success("Besichtigung erfolgreich und sicher aktualisiert!", { id: toastId });
+        } else {
+          payload.status = 'draft';
+          const rawQuote = settings?.nextQuoteNumber !== undefined ? Number(settings.nextQuoteNumber) : 1771;
+          const nextQuote = Math.max(1771, rawQuote || 1771);
+          payload.orderNumber = `AN-${nextQuote}`;
+          payload.createdAt = serverTimestamp();
+          payload.createdBy = profile?.displayName || 'Außendienst';
+          
+          await addDoc(collection(db, 'orders'), payload);
+          try {
+            await updateDoc(doc(db, 'system', 'settings'), { nextQuoteNumber: nextQuote + 1 });
+          } catch (settingsErr) {
+            console.warn("Could not increment nextQuoteNumber in settings, continuing...", settingsErr);
+          }
+          toast.success("Besichtigung erfolgreich und sicher gespeichert!", { id: toastId });
+        }
+      })(), { operationName: 'Besichtigung / Angebot speichern', timeoutMs: 35000 });
       
       try {
         if (typeof window !== 'undefined') {
@@ -515,9 +537,10 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
 
       if (onClose) onClose();
       else router.push(`/dashboard/customers/${finalCustomerId}`);
-    } catch (e) {
-      console.error(e);
-      toast.error("Fehler beim Speichern. Bitte überprüfe deine Internetverbindung.", { id: toastId, duration: 5000 });
+    } catch (e: any) {
+      console.error("MobileInspectionWizard save error:", e);
+      const friendlyMsg = formatFriendlyError(e, 'Speichern der Besichtigung');
+      toast.error(friendlyMsg, { id: toastId, duration: 6000 });
     } finally {
       setIsSaving(false);
     }
@@ -540,7 +563,7 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
       <div className="glass-panel w-full md:w-64 p-4 shrink-0 flex flex-row md:flex-col justify-between overflow-x-auto custom-scrollbar m-4 md:m-8 rounded-2xl">
         <div className="flex md:flex-col gap-2 md:gap-4 w-max md:w-full">
           {STEPS.map((item) => (
-            <button key={item.s} onClick={() => setStep(item.s)} className={`flex items-center gap-3 p-3 rounded-xl transition-all font-medium text-sm text-left whitespace-nowrap md:whitespace-normal ${step === item.s ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'text-text-muted hover:bg-structure/50'} ${step > item.s ? 'border border-primary/50 text-primary bg-primary/10' : ''}`}>
+            <button key={item.s} onClick={() => goToStep(item.s)} className={`flex items-center gap-3 p-3 rounded-xl transition-all font-medium text-sm text-left whitespace-nowrap md:whitespace-normal ${step === item.s ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'text-text-muted hover:bg-structure/50'} ${step > item.s ? 'border border-primary/50 text-primary bg-primary/10' : ''}`}>
               <item.icon className="w-5 h-5 shrink-0" />
               <span className="hidden md:inline">{item.title}</span>
               <span className="md:hidden">{item.s}.</span>
@@ -1517,7 +1540,7 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
             <button type="button" onClick={saveOrder} disabled={isSaving} className="btn-secondary text-xs flex-1 py-2 cursor-pointer">{isSaving ? 'Speichert...' : 'Speichern'}</button>
           </div>
           <div className="flex justify-between gap-2 w-full">
-            <button type="button" onClick={() => setStep(Math.max(1, step - 1))} disabled={step === 1} className={`btn-secondary py-3 px-4 flex items-center gap-2 text-sm flex-1 justify-center cursor-pointer ${step === 1 ? 'opacity-0 pointer-events-none' : ''}`}><ChevronLeftIcon className="w-5 h-5" /> Zurück</button>
+            <button type="button" onClick={handleStepBack} disabled={step === 1} className={`btn-secondary py-3 px-4 flex items-center gap-2 text-sm flex-1 justify-center cursor-pointer ${step === 1 ? 'opacity-0 pointer-events-none' : ''}`}><ChevronLeftIcon className="w-5 h-5" /> Zurück</button>
             {step < 7 ? (
               <button type="button" onClick={() => goToStep(step + 1)} className="btn-primary py-3 px-4 flex items-center gap-2 text-sm shadow-lg flex-1 justify-center cursor-pointer">Weiter <ChevronRightIcon className="w-5 h-5" /></button>
             ) : (
@@ -1533,7 +1556,7 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
             <button type="button" onClick={saveOrder} disabled={isSaving} className="btn-secondary py-3 px-6 flex items-center gap-2 text-lg cursor-pointer">{isSaving ? 'Speichert...' : 'Speichern'}</button>
           </div>
           <div className="flex gap-4">
-            <button type="button" onClick={() => setStep(Math.max(1, step - 1))} disabled={step === 1} className={`btn-secondary py-3 px-6 flex items-center gap-2 text-lg cursor-pointer ${step === 1 ? 'opacity-0 pointer-events-none' : ''}`}><ChevronLeftIcon className="w-5 h-5" /> Zurück</button>
+            <button type="button" onClick={handleStepBack} disabled={step === 1} className={`btn-secondary py-3 px-6 flex items-center gap-2 text-lg cursor-pointer ${step === 1 ? 'opacity-0 pointer-events-none' : ''}`}><ChevronLeftIcon className="w-5 h-5" /> Zurück</button>
             {step < 7 ? (
               <button type="button" onClick={() => goToStep(step + 1)} className="btn-primary py-3 px-8 flex items-center gap-2 text-lg shadow-lg cursor-pointer">Weiter <ChevronRightIcon className="w-5 h-5" /></button>
             ) : (

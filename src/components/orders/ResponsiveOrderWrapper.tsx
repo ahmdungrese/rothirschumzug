@@ -6,7 +6,6 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { OrderEditor } from './OrderEditor';
 import { InvoiceEditor } from './InvoiceEditor';
-import { MobileInspectionWizard } from './MobileInspectionWizard';
 import { OrderErrorBoundary } from './OrderErrorBoundary';
 
 function ResponsiveOrderWrapperInner({ orderId }: { orderId?: string }) {
@@ -84,9 +83,8 @@ function ResponsiveOrderWrapperInner({ orderId }: { orderId?: string }) {
   let content = null;
   if (isInvoice) {
     content = <InvoiceEditor orderId={isEditInvoiceRoute ? undefined : actualOrderId} sourceOrderId={sourceOrderId} />;
-  } else if (isMobile) {
-    content = <MobileInspectionWizard orderId={actualOrderId} />;
   } else {
+    // Unified Order & Inspection Editor for both mobile and desktop
     content = <OrderEditor orderId={actualOrderId} />;
   }
 

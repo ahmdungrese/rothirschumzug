@@ -49,7 +49,8 @@ export default function SettingsPage() {
     propertyTypes: ['Haus', 'Wohnung', 'Einfamilienhaus', 'Reihenhaus', 'Büro / Gewerbe', 'Lager / Garage', 'Sonstiges'],
     taxRate: 19,
     dunningFee: 5,
-    nextInvoiceNumber: 1,
+    nextQuoteNumber: 1771,
+    nextInvoiceNumber: 1771,
     nextOrderNumber: 1,
     quoteValidDays: 14,
     employees: ['Ali', 'Thomas', 'Klaus', 'Mustafa'],
@@ -239,8 +240,8 @@ export default function SettingsPage() {
       if (!data.customerSources) data.customerSources = ['Google Suche', 'Check24', 'Empfehlung', 'Eigene Website', 'Kleinanzeigen', 'Direkter Anruf'];
       if (!data.employees) data.employees = ['Ali', 'Thomas', 'Klaus', 'Mustafa'];
       if (!data.vehicles) data.vehicles = ['LKW 7,5t (Eigener)', 'Sixt Koffer 3,5t (A)', 'Sixt Koffer 3,5t (B)'];
-      if (data.nextQuoteNumber === undefined || data.nextQuoteNumber === null || data.nextQuoteNumber < 1) data.nextQuoteNumber = 1771;
-      if (data.nextInvoiceNumber === undefined || data.nextInvoiceNumber === null || data.nextInvoiceNumber < 1) data.nextInvoiceNumber = 1771;
+      if (data.nextQuoteNumber === undefined || data.nextQuoteNumber === null || data.nextQuoteNumber < 1771) data.nextQuoteNumber = 1771;
+      if (data.nextInvoiceNumber === undefined || data.nextInvoiceNumber === null || data.nextInvoiceNumber < 1771) data.nextInvoiceNumber = 1771;
       if (data.nextOrderNumber === undefined) data.nextOrderNumber = 1;
       if (!data.texts.orderIntro) {
         data.texts.orderIntro = 'Sehr geehrte Damen und Herren,\nvielen Dank für Ihre Unterschrift. Hiermit bestätigen wir Ihren Auftrag verbindlich.';
@@ -314,6 +315,18 @@ export default function SettingsPage() {
         }
       });
 
+      if (settings.nextQuoteNumber < 1771) {
+        alert('Die Startnummer für Angebote muss mindestens 1771 betragen (Format: AN-17##).');
+        setSaveStatus('error');
+        setIsSaving(false);
+        return;
+      }
+      if (settings.nextInvoiceNumber < 1771) {
+        alert('Die Startnummer für Rechnungen muss mindestens 1771 betragen (Format: R-17##).');
+        setSaveStatus('error');
+        setIsSaving(false);
+        return;
+      }
       if (settings.nextQuoteNumber <= maxQuote) {
         alert(`Fehler: Es existiert bereits ein Angebot mit der Nummer AN-${maxQuote}. Der Zähler für Angebote darf nicht unter ${maxQuote + 1} gesetzt werden.`);
         setSaveStatus('error');
@@ -640,9 +653,9 @@ export default function SettingsPage() {
                     </label>
                     <input 
                       type="number" 
-                      min="1"
+                      min="1771"
                       value={settings.nextQuoteNumber || 1771} 
-                      onChange={e => handleChange('nextQuoteNumber', Math.max(1, parseInt(e.target.value, 10) || 1))} 
+                      onChange={e => handleChange('nextQuoteNumber', Math.max(1771, parseInt(e.target.value, 10) || 1771))} 
                       className="input-field w-full bg-bg-panel text-xl font-bold font-mono py-2.5" 
                     />
                     <p className="text-xs text-text-muted mt-2">
@@ -674,9 +687,9 @@ export default function SettingsPage() {
                     </label>
                     <input 
                       type="number" 
-                      min="1"
+                      min="1771"
                       value={settings.nextInvoiceNumber || 1771} 
-                      onChange={e => handleChange('nextInvoiceNumber', Math.max(1, parseInt(e.target.value, 10) || 1))} 
+                      onChange={e => handleChange('nextInvoiceNumber', Math.max(1771, parseInt(e.target.value, 10) || 1771))} 
                       className="input-field w-full bg-bg-panel text-xl font-bold font-mono py-2.5" 
                     />
                     <p className="text-xs text-text-muted mt-2">

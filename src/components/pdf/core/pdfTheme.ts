@@ -41,7 +41,8 @@ export const pdfCommonStyles = StyleSheet.create({
   table: {
     width: '100%',
     marginBottom: 14,
-    backgroundColor: '#ffffff',
+    backgroundColor: 'transparent',
+    position: 'relative',
   },
   tableHeader: {
     flexDirection: 'row',
@@ -58,7 +59,6 @@ export const pdfCommonStyles = StyleSheet.create({
   },
   tableRow: {
     flexDirection: 'row',
-    backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: PDF_COLORS.border,
     paddingVertical: 5,

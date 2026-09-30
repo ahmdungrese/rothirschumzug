@@ -357,6 +357,13 @@ const manualItems: ManualItem[] = [
     details: "Verschiebt den Schadensfall auf dem Schadensboard.",
     icon: ShieldExclamationIcon
   },
+  {
+    name: "Schaltfläche „Mit Rechnung verrechnen“",
+    category: "claims",
+    action: "Öffnet das Verrechnungsmodal, um den Schadens- oder Kulanzbetrag direkt mit einer Kundenrechnung auszugleichen.",
+    details: "Bucht wahlweise eine Schadensgutschrift (Zahlungseingang) oder einen Positionsrabatt und setzt das Ticket auf 'Erledigt'.",
+    icon: BanknotesIcon
+  },
 
   // --- Einstellungen & Archiv ---
   {

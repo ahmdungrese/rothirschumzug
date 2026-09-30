@@ -38,7 +38,8 @@ export function DispoModal({
 }) {
   useModalBackHandler(Boolean(dateStr), onClose, 'calendar-dispo-modal');
   const { profile } = useAuth();
-  const [activeSection, setActiveSection] = useState<'all' | 'moves' | 'viewings' | 'logistics'>('all');
+  const isTeamLead = profile?.role === 'teamlead';
+  const [activeSection, setActiveSection] = useState<'all' | 'moves' | 'viewings' | 'logistics'>(isTeamLead ? 'moves' : 'all');
 
   const displayDate = new Date(dateStr).toLocaleDateString('de-DE', { 
     weekday: 'long', 
@@ -54,12 +55,13 @@ export function DispoModal({
     return effectiveMovingDate?.split('T')[0] === dateStr && isConfirmed;
   });
 
-  // Calculate separate tasks for this day
+  // Calculate separate tasks for this day (nur für Admin & Büro)
   const viewingTasks: any[] = [];
   const logisticsTasks: any[] = [];
 
-  orders.forEach(o => {
-    let createdAtObj = new Date();
+  if (!isTeamLead) {
+    orders.forEach(o => {
+      let createdAtObj = new Date();
     if (o.createdAt) {
       createdAtObj = o.createdAt?.seconds ? new Date(o.createdAt.seconds * 1000) : new Date(o.createdAt);
     }
@@ -160,6 +162,7 @@ export function DispoModal({
       });
     }
   });
+  }
 
   const handleToggleTask = async (orderId: string, ticketId: string, currentState: boolean) => {
     try {
@@ -197,32 +200,44 @@ export function DispoModal({
       <div className="relative bg-bg-panel border border-structure w-full max-w-5xl max-h-[92vh] flex flex-col rounded-3xl shadow-2xl shadow-black/20 overflow-hidden">
         
         {/* Header with Title & KPI Chips */}
-        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 p-5 md:p-6 border-b border-structure bg-bg-card/40 shrink-0">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-primary text-2xl">local_shipping</span>
-              <h2 className="text-xl md:text-2xl font-bold font-headline text-text-main">
-                Tages-Planung & Ressourcen
-              </h2>
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-3 p-4 sm:p-5 md:p-6 border-b border-structure bg-bg-card/40 shrink-0">
+          <div className="w-full sm:w-auto">
+            <div className="flex items-center justify-between sm:justify-start gap-2">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                  <span className="material-symbols-outlined text-primary text-xl leading-none select-none">local_shipping</span>
+                </div>
+                <h2 className="text-lg sm:text-xl md:text-2xl font-bold font-headline text-text-main">
+                  Tages-Planung & Ressourcen
+                </h2>
+              </div>
+              <button 
+                type="button" 
+                aria-label="Schließen" 
+                onClick={onClose} 
+                className="p-1.5 hover:bg-structure rounded-full transition-colors text-text-muted hover:text-text-main sm:hidden cursor-pointer shrink-0"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
             </div>
-            <p className="text-sm font-bold text-[#6E8F64] mt-1 font-headline">
+            <p className="text-xs sm:text-sm font-bold text-[#6E8F64] mt-1 font-headline">
               {displayDate}
             </p>
             
             {/* Global Resource KPIs */}
             {dayOrders.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2.5 text-xs font-semibold">
-                <span className="bg-bg-panel border border-structure px-3 py-1.5 rounded-full text-text-main flex items-center gap-1.5 shadow-xs">
-                  <UserGroupIcon className="w-4 h-4 text-primary" /> 
-                  Helfer gesamt: <strong className="text-primary font-headline text-sm">{totalHelpers}</strong>
+              <div className="mt-2.5 flex flex-wrap gap-1.5 sm:gap-2.5 text-[11px] sm:text-xs font-semibold">
+                <span className="bg-bg-panel border border-structure px-2.5 py-1 rounded-full text-text-main flex items-center gap-1.5 shadow-2xs">
+                  <UserGroupIcon className="w-3.5 h-3.5 text-primary shrink-0" /> 
+                  <span>Helfer: <strong className="text-primary font-headline text-xs sm:text-sm">{totalHelpers}</strong></span>
                 </span>
-                <span className="bg-bg-panel border border-structure px-3 py-1.5 rounded-full text-text-main flex items-center gap-1.5 shadow-xs">
-                  <TruckIcon className="w-4 h-4 text-orange-500" /> 
-                  3,5t LKW: <strong className="text-orange-500 font-headline text-sm">{totalKoffer35t}</strong>
+                <span className="bg-bg-panel border border-structure px-2.5 py-1 rounded-full text-text-main flex items-center gap-1.5 shadow-2xs">
+                  <TruckIcon className="w-3.5 h-3.5 text-orange-500 shrink-0" /> 
+                  <span>3,5t: <strong className="text-orange-500 font-headline text-xs sm:text-sm">{totalKoffer35t}</strong></span>
                 </span>
-                <span className="bg-bg-panel border border-structure px-3 py-1.5 rounded-full text-text-main flex items-center gap-1.5 shadow-xs">
-                  <TruckIcon className="w-4 h-4 text-emerald-500" /> 
-                  7,5t LKW: <strong className="text-emerald-500 font-headline text-sm">{totalLkw7t}</strong>
+                <span className="bg-bg-panel border border-structure px-2.5 py-1 rounded-full text-text-main flex items-center gap-1.5 shadow-2xs">
+                  <TruckIcon className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> 
+                  <span>7,5t: <strong className="text-emerald-500 font-headline text-xs sm:text-sm">{totalLkw7t}</strong></span>
                 </span>
               </div>
             )}
@@ -232,64 +247,73 @@ export function DispoModal({
             type="button" 
             aria-label="Schließen" 
             onClick={onClose} 
-            className="p-2 hover:bg-structure rounded-full transition-colors text-text-muted hover:text-text-main self-end sm:self-auto"
+            className="p-2 hover:bg-structure rounded-full transition-colors text-text-muted hover:text-text-main hidden sm:block cursor-pointer shrink-0"
           >
             <XMarkIcon className="w-6 h-6" />
           </button>
         </div>
 
         {/* Section Navigation Tabs (Funktionen Trennen) */}
-        <div className="px-6 py-2.5 border-b border-structure bg-bg-card/20 flex flex-wrap items-center gap-2 shrink-0">
-          <button
-            onClick={() => setActiveSection('all')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all font-headline ${
-              activeSection === 'all'
-                ? 'bg-text-main text-bg-panel'
-                : 'text-text-muted hover:text-text-main bg-structure/40'
-            }`}
-          >
-            Alle anzeigen
-          </button>
+        {!isTeamLead ? (
+          <div className="px-4 sm:px-6 py-2 border-b border-structure bg-bg-card/20 flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none shrink-0">
+            <button
+              onClick={() => setActiveSection('all')}
+              className={`px-3 sm:px-3.5 py-1.5 rounded-full text-xs font-bold transition-all font-headline shrink-0 cursor-pointer ${
+                activeSection === 'all'
+                  ? 'bg-text-main text-bg-panel'
+                  : 'text-text-muted hover:text-text-main bg-structure/40'
+              }`}
+            >
+              Alle anzeigen
+            </button>
 
-          <button
-            onClick={() => setActiveSection('moves')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 font-headline ${
-              activeSection === 'moves'
-                ? 'bg-[#6E8F64] text-white shadow-xs'
-                : 'text-text-muted hover:text-text-main bg-structure/40'
-            }`}
-          >
-            <TruckIcon className="w-3.5 h-3.5" />
-            <span>Umzüge ({dayOrders.length})</span>
-          </button>
+            <button
+              onClick={() => setActiveSection('moves')}
+              className={`px-3 sm:px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 font-headline shrink-0 cursor-pointer ${
+                activeSection === 'moves'
+                  ? 'bg-[#6E8F64] text-white shadow-xs'
+                  : 'text-text-muted hover:text-text-main bg-structure/40'
+              }`}
+            >
+              <TruckIcon className="w-3.5 h-3.5 shrink-0" />
+              <span>Umzüge ({dayOrders.length})</span>
+            </button>
 
-          <button
-            onClick={() => setActiveSection('viewings')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 font-headline ${
-              activeSection === 'viewings'
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'text-text-muted hover:text-text-main bg-structure/40'
-            }`}
-          >
-            <span className="material-symbols-outlined text-xs">visibility</span>
-            <span>Besichtigungen ({viewingTasks.length})</span>
-          </button>
+            <button
+              onClick={() => setActiveSection('viewings')}
+              className={`px-3 sm:px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 font-headline shrink-0 cursor-pointer ${
+                activeSection === 'viewings'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-text-muted hover:text-text-main bg-structure/40'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[13px] leading-none select-none shrink-0">visibility</span>
+              <span>Besichtigungen ({viewingTasks.length})</span>
+            </button>
 
-          <button
-            onClick={() => setActiveSection('logistics')}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 font-headline ${
-              activeSection === 'logistics'
-                ? 'bg-blue-600 text-white shadow-xs'
-                : 'text-text-muted hover:text-text-main bg-structure/40'
-            }`}
-          >
-            <span className="material-symbols-outlined text-xs">inventory_2</span>
-            <span>Material & Fristen ({logisticsTasks.length})</span>
-          </button>
-        </div>
+            <button
+              onClick={() => setActiveSection('logistics')}
+              className={`px-3 sm:px-3.5 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 font-headline shrink-0 cursor-pointer ${
+                activeSection === 'logistics'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-text-muted hover:text-text-main bg-structure/40'
+              }`}
+            >
+              <span className="material-symbols-outlined text-[13px] leading-none select-none shrink-0">inventory_2</span>
+              <span>Material & Fristen ({logisticsTasks.length})</span>
+            </button>
+          </div>
+        ) : (
+          <div className="px-4 sm:px-6 py-2 border-b border-structure bg-bg-card/20 flex items-center gap-2 shrink-0">
+            <span className="px-3.5 py-1.5 rounded-full text-xs font-bold bg-[#6E8F64] text-white shadow-xs flex items-center gap-1.5 font-headline">
+              <TruckIcon className="w-3.5 h-3.5 shrink-0" />
+              <span>Umzugstermine ({dayOrders.length})</span>
+            </span>
+          </div>
+        )}
         
         {/* Modal Scroll Content */}
-        <div className="p-5 md:p-6 overflow-y-auto flex-1 space-y-6 custom-scrollbar">
+        <div className="p-4 sm:p-5 md:p-6 overflow-y-auto flex-1 space-y-5 sm:space-y-6 custom-scrollbar">
 
           {/* SECTION 1: UMZÜGE & FUHRPARK */}
           {(activeSection === 'all' || activeSection === 'moves') && (
@@ -316,52 +340,52 @@ export function DispoModal({
                     return (
                       <div 
                         key={order.id} 
-                        className="bg-bg-card border border-structure rounded-2xl p-5 shadow-sm space-y-4"
+                        className="bg-bg-card border border-structure rounded-2xl p-4 sm:p-5 shadow-sm space-y-4"
                       >
                         <div className="flex flex-col md:flex-row justify-between items-start gap-4">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              {order.customerId ? (
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {!isTeamLead && order.customerId ? (
                                 <Link 
                                   href={`/dashboard/customers/${order.customerId}`}
-                                  className="text-lg font-bold text-text-main hover:text-[#6E8F64] transition-colors font-headline flex items-center gap-1"
+                                  className="text-base sm:text-lg font-bold text-text-main hover:text-[#6E8F64] transition-colors font-headline flex items-center gap-1"
                                 >
                                   {order.customerName}
-                                  <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5 opacity-60" />
+                                  <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5 opacity-60 shrink-0" />
                                 </Link>
                               ) : (
-                                <h4 className="text-lg font-bold text-text-main font-headline">
+                                <h4 className="text-base sm:text-lg font-bold text-text-main font-headline">
                                   {order.customerName}
                                 </h4>
                               )}
-                              <span className="text-[10px] font-bold text-[#6E8F64] px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 font-headline">
+                              <span className="text-[10px] font-bold text-[#6E8F64] px-2 py-0.5 rounded-full bg-primary/10 border border-primary/20 font-headline shrink-0">
                                 {orderNum}
                               </span>
                             </div>
 
                             {/* Route details */}
-                            <div className="mt-2 space-y-1 text-xs text-text-muted">
+                            <div className="mt-2 space-y-1.5 text-xs text-text-muted">
                               <div className="flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-full bg-orange-500 shrink-0"></span>
-                                <span>Beladestelle: <strong className="text-text-main">{order.logistics?.a_city || order.logistics?.loadingAddress || 'Nicht angegeben'}</strong></span>
+                                <span className="truncate">Beladestelle: <strong className="text-text-main font-medium">{order.logistics?.a_city || order.logistics?.loadingAddress || 'Nicht angegeben'}</strong></span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                                <span>Entladestelle: <strong className="text-text-main">{order.logistics?.b_city || order.logistics?.unloadingAddress || 'Nicht angegeben'}</strong></span>
+                                <span className="truncate">Entladestelle: <strong className="text-text-main font-medium">{order.logistics?.b_city || order.logistics?.unloadingAddress || 'Nicht angegeben'}</strong></span>
                               </div>
                             </div>
                           </div>
 
                           {/* PDF Laufzettel Download Button */}
-                          <div className="shrink-0 flex items-center">
+                          <div className="w-full sm:w-auto shrink-0 flex items-center">
                             <PDFDownloadLink
                               document={<EmployeeSheetPDF order={order} customer={{ firstName: order.customerName, lastName: '' }} />}
                               fileName={`Laufzettel_${order.customerName?.replace(/\s+/g, '_') || 'Kunde'}.pdf`}
-                              className="btn-primary py-2 px-3.5 text-xs font-bold rounded-xl flex items-center gap-2 shadow-xs"
+                              className="btn-primary w-full sm:w-auto py-2 px-3.5 text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-xs"
                             >
                               {({ loading }) => (
                                 <>
-                                  <DocumentArrowDownIcon className="w-4 h-4" />
+                                  <DocumentArrowDownIcon className="w-4 h-4 shrink-0" />
                                   <span>{loading ? 'Generiere...' : 'Laufzettel PDF'}</span>
                                 </>
                               )}
@@ -369,34 +393,51 @@ export function DispoModal({
                           </div>
                         </div>
 
-                        {/* Capacities Counters */}
+                        {/* Capacities */}
                         <div className="border-t border-structure pt-3">
                           <div className="text-xs font-bold text-text-muted mb-2 font-headline">
                             Eingeteilte Kapazitäten für diesen Umzug:
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            <div className="bg-bg-panel border border-structure p-2.5 rounded-xl">
-                              <CounterInput 
-                                label="Umzugshelfer" 
-                                value={helpersCount} 
-                                onChange={v => updateResource(order.id, 'helpers', v)} 
-                              />
+                          {isTeamLead ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+                              <div className="bg-bg-panel border border-structure p-2.5 rounded-xl flex items-center justify-between">
+                                <span className="text-xs text-text-muted font-medium">Umzugshelfer</span>
+                                <span className="text-base font-bold text-primary font-headline">{helpersCount}</span>
+                              </div>
+                              <div className="bg-bg-panel border border-structure p-2.5 rounded-xl flex items-center justify-between">
+                                <span className="text-xs text-text-muted font-medium">3,5t LKW</span>
+                                <span className="text-base font-bold text-orange-500 font-headline">{koffer35tCount}</span>
+                              </div>
+                              <div className="bg-bg-panel border border-structure p-2.5 rounded-xl flex items-center justify-between">
+                                <span className="text-xs text-text-muted font-medium">7,5t LKW</span>
+                                <span className="text-base font-bold text-emerald-500 font-headline">{lkw7tCount}</span>
+                              </div>
                             </div>
-                            <div className="bg-bg-panel border border-structure p-2.5 rounded-xl">
-                              <CounterInput 
-                                label="Koffer 3,5t" 
-                                value={koffer35tCount} 
-                                onChange={v => updateResource(order.id, 'koffer35t', v)} 
-                              />
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
+                              <div className="bg-bg-panel border border-structure p-2.5 rounded-xl">
+                                <CounterInput 
+                                  label="Umzugshelfer" 
+                                  value={helpersCount} 
+                                  onChange={v => updateResource(order.id, 'helpers', v)} 
+                                />
+                              </div>
+                              <div className="bg-bg-panel border border-structure p-2.5 rounded-xl">
+                                <CounterInput 
+                                  label="Koffer 3,5t" 
+                                  value={koffer35tCount} 
+                                  onChange={v => updateResource(order.id, 'koffer35t', v)} 
+                                />
+                              </div>
+                              <div className="bg-bg-panel border border-structure p-2.5 rounded-xl">
+                                <CounterInput 
+                                  label="LKW 7,5t" 
+                                  value={lkw7tCount} 
+                                  onChange={v => updateResource(order.id, 'lkw7t', v)} 
+                                />
+                              </div>
                             </div>
-                            <div className="bg-bg-panel border border-structure p-2.5 rounded-xl">
-                              <CounterInput 
-                                label="LKW 7,5t" 
-                                value={lkw7tCount} 
-                                onChange={v => updateResource(order.id, 'lkw7t', v)} 
-                              />
-                            </div>
-                          </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -406,8 +447,8 @@ export function DispoModal({
             </div>
           )}
 
-          {/* SECTION 2: BESICHTIGUNGSTERMINE */}
-          {(activeSection === 'all' || activeSection === 'viewings') && (
+          {/* SECTION 2: BESICHTIGUNGSTERMINE (Nur Admin & Büro) */}
+          {!isTeamLead && (activeSection === 'all' || activeSection === 'viewings') && (
             <div>
               <div className="flex items-center justify-between mb-3 border-b border-structure pb-2">
                 <h3 className="text-xs uppercase tracking-wider font-bold text-text-muted font-headline flex items-center gap-1.5">
@@ -433,28 +474,30 @@ export function DispoModal({
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="material-symbols-outlined text-amber-600 dark:text-amber-400 text-sm">
-                              {task.isVideo ? 'videocam' : 'home'}
-                            </span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
+                              <span className="material-symbols-outlined text-amber-700 dark:text-amber-400 text-[15px] leading-none select-none">
+                                {task.isVideo ? 'videocam' : 'home'}
+                              </span>
+                            </div>
                             <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400 font-headline">
                               {task.title}
                             </span>
                           </div>
-                          <div className="font-bold text-sm text-text-main mt-1">
+                          <div className="font-bold text-sm text-text-main mt-1.5">
                             {task.customer}
                           </div>
                         </div>
 
                         {task.timeStr && (
-                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-bg-panel border border-structure text-text-main font-headline">
+                          <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-bg-panel border border-structure text-text-main font-headline shrink-0">
                             {task.timeStr} Uhr
                           </span>
                         )}
                       </div>
 
                       {task.fullAddress && (
-                        <div className="text-xs text-text-muted flex items-center gap-1 truncate">
+                        <div className="text-xs text-text-muted flex items-center gap-1.5 truncate">
                           <MapPinIcon className="w-3.5 h-3.5 shrink-0 text-primary" />
                           <span className="truncate">{task.fullAddress}</span>
                         </div>
@@ -466,7 +509,7 @@ export function DispoModal({
                             type="checkbox"
                             checked={task.isDone}
                             onChange={() => handleToggleTask(task.id, task.type, task.isDone)}
-                            className="w-4 h-4 rounded border-structure text-[#D91E2A] focus:ring-[#D91E2A] cursor-pointer"
+                            className="w-4 h-4 rounded border-structure text-[#6E8F64] focus:ring-[#6E8F64] accent-[#6E8F64] cursor-pointer"
                           />
                           <span className={`text-[11px] font-semibold ${task.isDone ? 'line-through text-text-muted' : 'text-text-main'}`}>
                             {task.isDone ? 'Erledigt' : 'Als erledigt markieren'}
@@ -476,7 +519,7 @@ export function DispoModal({
                         {task.customerId && (
                           <Link 
                             href={`/dashboard/customers/${task.customerId}`}
-                            className="text-[11px] font-bold text-primary hover:underline"
+                            className="text-[11px] font-bold text-[#6E8F64] hover:underline"
                           >
                             Kundenprofil →
                           </Link>
@@ -489,8 +532,8 @@ export function DispoModal({
             </div>
           )}
 
-          {/* SECTION 3: MATERIAL & LOGISTIK CHECKLISTE */}
-          {(activeSection === 'all' || activeSection === 'logistics') && (
+          {/* SECTION 3: MATERIAL & LOGISTIK CHECKLISTE (Nur Admin & Büro) */}
+          {!isTeamLead && (activeSection === 'all' || activeSection === 'logistics') && (
             <div>
               <div className="flex items-center justify-between mb-3 border-b border-structure pb-2">
                 <h3 className="text-xs uppercase tracking-wider font-bold text-text-muted font-headline flex items-center gap-1.5">
@@ -514,18 +557,20 @@ export function DispoModal({
                           : 'bg-bg-card border-structure hover:border-primary/50 text-text-main'
                       }`}
                     >
-                      <label className="flex items-center gap-3 cursor-pointer select-none flex-1">
+                      <label className="flex items-center gap-3 cursor-pointer select-none flex-1 min-w-0">
                         <input
                           type="checkbox"
                           checked={task.isDone}
                           onChange={() => handleToggleTask(task.id, task.type, task.isDone)}
-                          className="w-4 h-4 rounded border-structure text-[#D91E2A] focus:ring-[#D91E2A] cursor-pointer"
+                          className="w-4 h-4 rounded border-structure text-[#6E8F64] focus:ring-[#6E8F64] accent-[#6E8F64] cursor-pointer"
                         />
-                        <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-sm text-text-muted">
-                            {task.icon}
-                          </span>
-                          <span className={`text-xs font-bold font-headline ${task.isDone ? 'line-through opacity-60' : ''}`}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-7 h-7 rounded-lg bg-blue-500/15 dark:bg-blue-400/20 flex items-center justify-center shrink-0 text-blue-600 dark:text-blue-400">
+                            <span className="material-symbols-outlined text-[15px] leading-none select-none">
+                              {task.icon}
+                            </span>
+                          </div>
+                          <span className={`text-xs font-bold font-headline truncate ${task.isDone ? 'line-through opacity-60' : ''}`}>
                             {task.title}
                           </span>
                         </div>
@@ -534,12 +579,12 @@ export function DispoModal({
                       {task.customerId ? (
                         <Link 
                           href={`/dashboard/customers/${task.customerId}`}
-                          className="text-xs font-semibold text-text-muted hover:text-primary transition-colors truncate max-w-[200px]"
+                          className="text-xs font-semibold text-text-muted hover:text-[#6E8F64] transition-colors truncate max-w-[140px] sm:max-w-[200px] shrink-0"
                         >
                           {task.customer} →
                         </Link>
                       ) : (
-                        <span className="text-xs font-semibold text-text-muted truncate max-w-[200px]">
+                        <span className="text-xs font-semibold text-text-muted truncate max-w-[140px] sm:max-w-[200px] shrink-0">
                           {task.customer}
                         </span>
                       )}

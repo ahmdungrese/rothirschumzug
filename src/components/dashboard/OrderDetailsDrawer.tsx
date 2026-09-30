@@ -80,6 +80,20 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
     return 1;
   };
 
+  const isOrderPricedAndServiced = (ord: any): boolean => {
+    if (!ord) return false;
+    if (ord.isFlatRate && Number(ord.flatRateNet) > 0) return true;
+    if (Array.isArray(ord.services) && ord.services.length > 0) {
+      const hasAnyPrice = ord.services.some((s: any) => (Number(s.quantity) || 0) * (Number(s.unitPrice) || 0) > 0);
+      if (hasAnyPrice) return true;
+      if (ord.services.some((s: any) => s.name?.trim())) return true;
+    }
+    if (ord.totals && (Number(ord.totals.gross) > 0 || Number(ord.totals.net) > 0)) {
+      return true;
+    }
+    return false;
+  };
+
   const currentOrderPhase = getInitialPhase(order?.status || 'draft', order);
   const [activePhaseTab, setActivePhaseTab] = useState<number>(initialPhase || currentOrderPhase);
 
@@ -473,18 +487,38 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
             <div className="ml-auto flex flex-wrap items-center gap-1.5">
               {/* PDF Vorschau Button next to Editor */}
-              <button
-                type="button"
-                onClick={() => {
-                  setPdfModalType('order');
-                  setPdfModalOpen(true);
-                }}
-                className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-                title="Angebot / Auftrag als PDF anzeigen & herunterladen"
-              >
-                <DocumentTextIcon className="w-4 h-4 text-primary" />
-                <span>PDF</span>
-              </button>
+              {(() => {
+                const hasContent = isOrderPricedAndServiced(order);
+                return (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!hasContent) {
+                        toast('Hinweis: Dieses Angebot enthält noch keine Leistungen oder Preise (0,00 €).', {
+                          icon: '⚠️',
+                          duration: 4000
+                        });
+                      }
+                      setPdfModalType('order');
+                      setPdfModalOpen(true);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                      !hasContent
+                        ? 'bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border-slate-300/70 dark:border-slate-700/60 hover:border-amber-500/50'
+                        : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+                    }`}
+                    title={!hasContent ? "Angebot enthält noch keine Leistungen oder Preise (0,00 €)" : "Angebot / Auftrag als PDF anzeigen & herunterladen"}
+                  >
+                    <DocumentTextIcon className={`w-4 h-4 ${!hasContent ? 'text-slate-400' : 'text-primary'}`} />
+                    <span>PDF</span>
+                    {!hasContent && (
+                      <span className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.2 rounded font-normal border border-amber-500/30">
+                        0 €
+                      </span>
+                    )}
+                  </button>
+                );
+              })()}
 
               {/* Single Offer Editor Button in Cockpit Header */}
               <Link
