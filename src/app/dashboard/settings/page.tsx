@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon, CalendarIcon, LinkIcon, EnvelopeIcon, ExclamationTriangleIcon, CreditCardIcon, ListBulletIcon, HashtagIcon } from '@heroicons/react/24/outline';
+import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon, CalendarIcon, LinkIcon, EnvelopeIcon, ExclamationTriangleIcon, CreditCardIcon, ListBulletIcon, HashtagIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
 import { TeamAccessManager } from '@/components/settings/TeamAccessManager';
 import { ActivityLogViewer } from '@/components/settings/ActivityLogViewer';
 import { toast } from 'react-hot-toast';
@@ -21,6 +21,7 @@ const TABS = [
   { id: 'vorlagen', name: 'Nachrichten-Vorlagen', icon: DocumentTextIcon },
   { id: 'protokolle', name: 'Protokolle & Vorlagen', icon: DocumentTextIcon },
   { id: 'system', name: 'System & Steuern', icon: ServerStackIcon },
+  { id: 'audit', name: 'Aktivitäts-Logbuch (Audit)', icon: ClipboardDocumentListIcon },
   { id: 'integration', name: 'Kalender (Outlook)', icon: CalendarIcon },
 ];
 
@@ -238,8 +239,8 @@ export default function SettingsPage() {
       if (!data.customerSources) data.customerSources = ['Google Suche', 'Check24', 'Empfehlung', 'Eigene Website', 'Kleinanzeigen', 'Direkter Anruf'];
       if (!data.employees) data.employees = ['Ali', 'Thomas', 'Klaus', 'Mustafa'];
       if (!data.vehicles) data.vehicles = ['LKW 7,5t (Eigener)', 'Sixt Koffer 3,5t (A)', 'Sixt Koffer 3,5t (B)'];
-      if (data.nextQuoteNumber === undefined || data.nextQuoteNumber < 1771) data.nextQuoteNumber = 1771;
-      if (data.nextInvoiceNumber === undefined || data.nextInvoiceNumber < 1771) data.nextInvoiceNumber = 1771;
+      if (data.nextQuoteNumber === undefined || data.nextQuoteNumber === null || data.nextQuoteNumber < 1) data.nextQuoteNumber = 1771;
+      if (data.nextInvoiceNumber === undefined || data.nextInvoiceNumber === null || data.nextInvoiceNumber < 1) data.nextInvoiceNumber = 1771;
       if (data.nextOrderNumber === undefined) data.nextOrderNumber = 1;
       if (!data.texts.orderIntro) {
         data.texts.orderIntro = 'Sehr geehrte Damen und Herren,\nvielen Dank für Ihre Unterschrift. Hiermit bestätigen wir Ihren Auftrag verbindlich.';
@@ -336,6 +337,7 @@ export default function SettingsPage() {
       await updateDoc(doc(db, 'system', 'settings'), { nextOfferNumber: deleteField() }).catch(() => {});
 
       setSaveStatus('success');
+      toast.success("Startnummern und Einstellungen erfolgreich gespeichert!");
       setTimeout(() => setSaveStatus('idle'), 3000);
     } catch (error) {
       console.error("Fehler beim Speichern", error);
@@ -724,11 +726,6 @@ export default function SettingsPage() {
               {/* Neuer TeamAccessManager inkl. Firebase Auth */}
               <div className="panel border-t-4 border-t-structure">
                 <TeamAccessManager />
-              </div>
-
-              {/* Aktivitäts-Logbuch */}
-              <div className="panel border-t-4 border-t-structure">
-                <ActivityLogViewer />
               </div>
 
               {/* Fuhrpark */}
@@ -1173,6 +1170,13 @@ export default function SettingsPage() {
                 </div>
 
               </div>
+            </div>
+          )}
+
+          {/* TAB: Audit */}
+          {activeTab === 'audit' && (
+            <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
+              <ActivityLogViewer />
             </div>
           )}
 

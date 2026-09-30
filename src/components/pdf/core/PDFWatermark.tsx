@@ -5,6 +5,7 @@ interface PDFWatermarkProps {
   type?: 'symbols' | 'text';
   text?: string;
   softRows?: number[];
+  tableZoneLogoOnly?: boolean;
 }
 
 // Exact vector contours of the official Rothirsch logo (House behind + Rothirsch deer in front)
@@ -46,6 +47,7 @@ export const PDFWatermark: React.FC<PDFWatermarkProps> = ({
   type = 'symbols',
   text = 'Rothirsch Umzug',
   softRows = [],
+  tableZoneLogoOnly = false,
 }) => {
   if (type === 'text') {
     return (
@@ -210,13 +212,43 @@ export const PDFWatermark: React.FC<PDFWatermarkProps> = ({
   return (
     <View style={styles.container} fixed>
       <Svg width="100%" height="100%" viewBox="0 0 595 842">
-        {/* Vollständiges 6x9 Zellengitter (alle 54 Zellen ohne großes Zentralsymbol) */}
-        {ROWS.map((y, rowIdx) =>
-          COLS.map((x, colIdx) => {
+        {/* Vollständiges 6x9 Zellengitter */}
+        {ROWS.map((y, rowIdx) => {
+          // Im Tabellenbereich (rowIdx 4 & 5) werden bei tableZoneLogoOnly alle störenden Symbole ausgeblendet,
+          // damit ausschließlich das Rothirsch-Logo in der leeren Mitte der Leistungstabelle erscheint.
+          if (tableZoneLogoOnly && (rowIdx === 4 || rowIdx === 5)) {
+            return null;
+          }
+
+          return COLS.map((x, colIdx) => {
             const cellIndex = (rowIdx * COLS.length + colIdx) % 8;
             const { scale, strokeColor, strokeFactor } = getScaleAndColor(rowIdx, colIdx);
             return renderCellIcon(cellIndex, x, y, scale, strokeColor, strokeFactor, `grid-${rowIdx}-${colIdx}`);
-          })
+          });
+        })}
+
+        {/* Exklusives, dezentes Rothirsch-Logo in der leeren Mitte der Leistungstabelle (zwischen Text links und Preis rechts) */}
+        {tableZoneLogoOnly && (
+          <G transform={`translate(${297.5 - 50 * 0.92}, ${475 - 50 * 0.92}) scale(0.92)`}>
+            {/* 1. Weißes Haus im Hintergrund */}
+            <Path
+              d={ROTHIRSCH_HOUSE_OUTLINE_PATH}
+              fill="#FFFFFF"
+              stroke="#F0DFE2"
+              strokeWidth={2.4}
+              strokeLinejoin="round"
+            />
+            {/* 2. Weißer Trennungs-Halo */}
+            <Path
+              d={ROTHIRSCH_DEER_PATH}
+              fill="#FFFFFF"
+              stroke="#FFFFFF"
+              strokeWidth={4.2}
+              strokeLinejoin="round"
+            />
+            {/* 3. Offizieller Rothirsch im Vordergrund vor dem Haus */}
+            <Path d={ROTHIRSCH_DEER_PATH} fillRule="evenodd" fill="#F1DEE1" />
+          </G>
         )}
       </Svg>
     </View>

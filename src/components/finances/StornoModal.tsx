@@ -6,6 +6,8 @@ import { doc, collection, addDoc, updateDoc, getDoc, serverTimestamp, writeBatch
 import { XMarkIcon, ExclamationTriangleIcon, DocumentCheckIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
+import { useAuth } from '@/context/AuthContext';
+import { logActivity } from '@/lib/activityLogger';
 
 interface StornoModalProps {
   invoice: any;
@@ -14,6 +16,7 @@ interface StornoModalProps {
 }
 
 export function StornoModal({ invoice, onClose, onSuccess }: StornoModalProps) {
+  const { profile } = useAuth();
   useModalBackHandler(Boolean(invoice), onClose, 'storno-modal');
   const [reason, setReason] = useState('Rechnungskorrektur / Falsche Positionen');
   const [customReason, setCustomReason] = useState('');
@@ -96,6 +99,14 @@ export function StornoModal({ invoice, onClose, onSuccess }: StornoModalProps) {
 
       toast.success(`Rechnung ${invoiceNum} erfolgreich storniert! Storno-Beleg ${stornoNumber} erstellt.`);
       
+      const cancellerName = profile?.displayName || profile?.email?.split('@')[0] || 'Mitarbeiter';
+      await logActivity(
+        profile?.uid || 'unknown',
+        cancellerName,
+        'CANCEL_INVOICE',
+        `Rechnung ${invoiceNum} storniert (${stornoNumber}) für ${invoice.customerName || 'Kunde'}. Grund: ${finalReason}`
+      );
+
       if (onSuccess) {
         onSuccess({ ...stornoPayload, id: stornoRef.id });
       }

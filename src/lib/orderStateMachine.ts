@@ -141,8 +141,8 @@ export async function changeOrderStatus(
     // 3. NUMBER GENERATION & WRITES
     if ((targetStatus === 'invoice_open' || targetStatus === 'invoice_paid') && !order.invoiceNumber) {
       let nextInvoiceNumber = 1771;
-      if (settingsDoc.exists() && settingsDoc.data().nextInvoiceNumber) {
-        nextInvoiceNumber = Math.max(1771, settingsDoc.data().nextInvoiceNumber);
+      if (settingsDoc.exists() && settingsDoc.data().nextInvoiceNumber !== undefined) {
+        nextInvoiceNumber = Math.max(1, Number(settingsDoc.data().nextInvoiceNumber) || 1771);
       }
       transaction.update(settingsRef, { nextInvoiceNumber: nextInvoiceNumber + 1 });
       updatePayload.invoiceNumber = `R-${nextInvoiceNumber}`;
@@ -151,8 +151,8 @@ export async function changeOrderStatus(
 
     if (['quote', 'confirmed', 'completed'].includes(targetStatus) && !order.orderNumber && !updatePayload.orderNumber) {
       let nextQuoteNumber = 1771;
-      if (settingsDoc.exists() && settingsDoc.data().nextQuoteNumber) {
-        nextQuoteNumber = Math.max(1771, settingsDoc.data().nextQuoteNumber);
+      if (settingsDoc.exists() && settingsDoc.data().nextQuoteNumber !== undefined) {
+        nextQuoteNumber = Math.max(1, Number(settingsDoc.data().nextQuoteNumber) || 1771);
       }
       transaction.update(settingsRef, { nextQuoteNumber: nextQuoteNumber + 1 });
       updatePayload.orderNumber = `AN-${nextQuoteNumber}`;
@@ -182,8 +182,8 @@ export async function ensureOrderNumber(orderId: string): Promise<string> {
     const settingsRef = doc(db, 'system', 'settings');
     const settingsDoc = await transaction.get(settingsRef);
     let nextQuoteNumber = 1771;
-    if (settingsDoc.exists() && settingsDoc.data().nextQuoteNumber) {
-      nextQuoteNumber = Math.max(1771, settingsDoc.data().nextQuoteNumber);
+    if (settingsDoc.exists() && settingsDoc.data().nextQuoteNumber !== undefined) {
+      nextQuoteNumber = Math.max(1, Number(settingsDoc.data().nextQuoteNumber) || 1771);
     }
 
     const newOrderNumber = `AN-${nextQuoteNumber}`;

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, TruckIcon, MapPinIcon, ExclamationTriangleIcon, StarIcon, BuildingOffice2Icon, HomeIcon, BriefcaseIcon, BuildingLibraryIcon, ArchiveBoxIcon, WrenchIcon, SparklesIcon, PlusCircleIcon, TagIcon, ArrowsUpDownIcon, NoSymbolIcon, ArrowUpTrayIcon, MagnifyingGlassIcon, ShoppingCartIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 import { useAuth } from '@/context/AuthContext';
@@ -97,15 +97,57 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const [unlockedByAdmin, setUnlockedByAdmin] = useState(false);
   const isContractLocked = (orderStatus === 'confirmed' || orderStatus === 'completed') && !unlockedByAdmin;
 
-  useEffect(() => {
-    const s = searchParams?.get('step');
-    if (s === '4' || s === 'inventory') {
-      setCurrentStep(4);
-    } else if (s) {
-      const parsed = parseInt(s, 10);
-      if (parsed >= 1 && parsed <= 5) setCurrentStep(parsed);
+  const currentStepRef = useRef(currentStep);
+  currentStepRef.current = currentStep;
+
+  const goToStep = (stepNum: number) => {
+    if (stepNum > currentStepRef.current && typeof window !== 'undefined') {
+      window.history.pushState({ orderStep: stepNum }, '');
     }
-  }, [searchParams]);
+    setCurrentStep(stepNum);
+  };
+
+  const handleSafeCancel = () => {
+    const isDirty = Boolean(
+      customerData.lastName?.trim() ||
+      customerData.phone?.trim() ||
+      customerData.street?.trim() ||
+      inventory.length > 0 ||
+      services.length > 0
+    );
+
+    if (isDirty) {
+      const confirmLeave = window.confirm(
+        "Möchten Sie die Bearbeitung wirklich abbrechen? Nicht gespeicherte Änderungen gehen verloren."
+      );
+      if (!confirmLeave) return;
+    }
+
+    if (urlCustomerId) {
+      router.push(`/dashboard/customers/${urlCustomerId}`);
+    } else {
+      if (typeof window !== 'undefined' && document.referrer && document.referrer.includes(window.location.origin)) {
+        router.back();
+      } else {
+        router.push('/dashboard');
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = () => {
+      if (currentStepRef.current > 1) {
+        setCurrentStep(prev => Math.max(1, prev - 1));
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
 
   // 1. Kundeninformationen
   const [customerData, setCustomerData] = useState({
@@ -2885,10 +2927,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             ) : (
               <button
                 type="button"
-                onClick={() => {
-                  if (urlCustomerId) router.push(`/dashboard/customers/${urlCustomerId}`);
-                  else router.push('/dashboard/orders');
-                }}
+                onClick={handleSafeCancel}
                 disabled={isSaving}
                 className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline text-text-muted hover:text-text-main transition-colors flex items-center gap-1 cursor-pointer"
               >

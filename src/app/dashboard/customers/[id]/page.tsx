@@ -14,8 +14,13 @@ import { PdfModal } from '@/components/ui/PdfModal';
 import { ClaimModal } from '@/components/customers/ClaimModal';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
+import { useModalBackHandler } from '@/hooks/useModalBackHandler';
+import { SmartBackButton } from '@/components/ui/SmartBackButton';
+import { useAuth } from '@/context/AuthContext';
+import { logActivity } from '@/lib/activityLogger';
 
 export default function CustomerProfilePage() {
+  const { profile } = useAuth();
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -40,6 +45,9 @@ export default function CustomerProfilePage() {
   const [pdfType, setPdfType] = useState<any>('order');
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [isSavingCustomer, setIsSavingCustomer] = useState(false);
+
+  // Close editing modal on mobile back button
+  useModalBackHandler(isEditingCustomer, () => setIsEditingCustomer(false), 'edit-customer-modal');
 
   useEffect(() => {
     if (!customerId) return;
@@ -95,6 +103,14 @@ export default function CustomerProfilePage() {
         ...editFormData,
         updatedAt: new Date()
       });
+      const editorName = profile?.displayName || profile?.email?.split('@')[0] || 'Mitarbeiter';
+      const cName = `${editFormData.firstName || customer?.firstName || ''} ${editFormData.lastName || customer?.lastName || ''}`.trim() || 'Kunde';
+      await logActivity(
+        profile?.uid || 'unknown',
+        editorName,
+        'UPDATE_CUSTOMER',
+        `Kundendaten für ${cName} aktualisiert`
+      );
       toast.success('Kundendaten erfolgreich gespeichert!');
       setIsEditingCustomer(false);
     } catch (err: any) {
@@ -130,19 +146,25 @@ export default function CustomerProfilePage() {
 
   return (
     <div className="w-full">
-      {/* Breadcrumb Navigation */}
-      <div className="mb-6 flex items-center justify-between text-xs text-slate-500">
-        <div className="flex items-center gap-2 font-medium">
-          <Link href="/dashboard" className="hover:text-primary transition-colors flex items-center gap-1">
+      {/* Breadcrumb Navigation & Mobile Back */}
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500">
+        <div className="flex items-center gap-2 font-medium flex-wrap">
+          <SmartBackButton
+            fallbackHref="/dashboard/customers"
+            fallbackLabel="Zurück zu Kunden"
+            className="text-slate-600 dark:text-slate-400 hover:text-primary transition-colors flex items-center gap-1 font-semibold text-xs py-1 px-2.5 rounded-lg bg-slate-100 dark:bg-slate-800 cursor-pointer"
+          />
+          <span className="hidden sm:inline text-slate-300 dark:text-slate-700">|</span>
+          <Link href="/dashboard" className="hidden sm:flex hover:text-primary transition-colors items-center gap-1">
             <span className="material-symbols-outlined text-sm">dashboard</span>
             Disposition
           </Link>
-          <span>/</span>
-          <Link href="/dashboard/customers" className="hover:text-primary transition-colors">
+          <span className="hidden sm:inline text-slate-300 dark:text-slate-700">/</span>
+          <Link href="/dashboard/customers" className="hidden sm:inline hover:text-primary transition-colors">
             Kunden
           </Link>
-          <span>/</span>
-          <span className="text-slate-900 dark:text-white font-bold">
+          <span className="hidden sm:inline text-slate-300 dark:text-slate-700">/</span>
+          <span className="text-slate-900 dark:text-white font-bold truncate">
             {customer.firstName} {customer.lastName || customer.company}
           </span>
         </div>

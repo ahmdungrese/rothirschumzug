@@ -1,17 +1,90 @@
 "use client";
 import { useState, useEffect, useRef } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { BellIcon, ExclamationCircleIcon, ShieldExclamationIcon, TruckIcon, UsersIcon } from '@heroicons/react/24/outline';
+import { collection, query, onSnapshot } from 'firebase/firestore';
+import { 
+  BellIcon, 
+  ExclamationCircleIcon, 
+  ExclamationTriangleIcon,
+  TruckIcon, 
+  UsersIcon, 
+  CalendarDaysIcon,
+  DocumentTextIcon,
+  CubeIcon,
+  UserMinusIcon,
+  CheckCircleIcon,
+  XMarkIcon
+} from '@heroicons/react/24/outline';
 import Link from 'next/link';
+
+function extractMovingDate(o: any): string | null {
+  if (!o) return null;
+  return (
+    o.orderMeta?.movingDateFrom ||
+    o.orderMeta?.movingDateTo ||
+    o.movingDate ||
+    o.logistics?.movingDate ||
+    o.movingDateFrom ||
+    null
+  );
+}
+
+function parseDateSafely(dateStr?: string | null): Date | null {
+  if (!dateStr || typeof dateStr !== 'string') return null;
+  const trimmed = dateStr.trim();
+  if (!trimmed) return null;
+
+  // Handle DD.MM.YYYY
+  if (trimmed.includes('.')) {
+    const parts = trimmed.split('.');
+    if (parts.length >= 3) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parseInt(parts[2], 10);
+      if (!isNaN(day) && !isNaN(month) && !isNaN(year)) {
+        const d = new Date(year, month, day);
+        d.setHours(0, 0, 0, 0);
+        return isNaN(d.getTime()) ? null : d;
+      }
+    }
+  }
+
+  // Handle YYYY-MM-DD or ISO
+  const d = new Date(trimmed);
+  if (!isNaN(d.getTime())) {
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  return null;
+}
 
 export function NotificationBell() {
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Load dismissed alerts from localStorage
   useEffect(() => {
-    // Schließen bei Klick außerhalb
+    try {
+      const saved = localStorage.getItem('dismissed_alarms');
+      if (saved) {
+        setDismissedIds(JSON.parse(saved));
+      }
+    } catch {}
+  }, []);
+
+  const handleDismiss = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = [...dismissedIds, id];
+    setDismissedIds(next);
+    try {
+      localStorage.setItem('dismissed_alarms', JSON.stringify(next));
+    } catch {}
+  };
+
+  useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
@@ -22,158 +95,254 @@ export function NotificationBell() {
   }, []);
 
   useEffect(() => {
-    // Wir holen Angebote, bestätigte und abgeschlossene Aufträge
-    const q = query(collection(db, 'orders'), where('status', 'in', ['quote', 'confirmed', 'completed']));
-    const unsub = onSnapshot(q, (snap) => {
-      const orders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    // 1. Listen to orders
+    const qOrders = query(collection(db, 'orders'));
+    // 2. Listen to customers
+    const qCustomers = query(collection(db, 'customers'));
+
+    let currentOrders: any[] = [];
+    let currentCustomers: any[] = [];
+
+    const recomputeAlarms = () => {
       const newNotifications: any[] = [];
       const now = new Date();
-      now.setHours(0,0,0,0);
-      
-      const sevenDaysFromNow = new Date(now);
-      sevenDaysFromNow.setDate(now.getDate() + 7);
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-      orders.forEach((o: any) => {
-        const customerName = o.customerName || 'Unbekannt';
+      // --------------------------------------------------------------------
+      // A. ORDER-BASED ALERTS
+      // --------------------------------------------------------------------
+      currentOrders.forEach((o: any) => {
+        if (o.status === 'archived' || o.status === 'rejected' || o.status === 'cancelled') return;
 
-        // --- ALARM: Abgelaufene Angebote (Nachfassen) ---
-        if (o.status === 'quote' && o.orderMeta?.validUntil) {
-          const validDate = new Date(o.orderMeta.validUntil);
-          const diffDays = Math.floor((validDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
-          
-          if (diffDays <= 2) {
-            newNotifications.push({
-              id: `${o.id}-quote`,
-              type: 'warning',
-              title: diffDays < 0 ? 'Angebot abgelaufen!' : 'Angebot läuft ab',
-              message: `Angebot für ${customerName} ${diffDays < 0 ? 'ist abgelaufen' : 'läuft in ' + diffDays + ' Tagen ab'}. Nachfassen!`,
-              link: `/dashboard/customers/${o.customerId}`,
-              urgency: diffDays < 0 ? 'high' : 'medium'
-            });
+        const customerName = o.customerName || (o.customerData?.firstName ? `${o.customerData.firstName} ${o.customerData.lastName}` : 'Kunde');
+        const customerId = o.customerId || o.id;
+        const moveDate = parseDateSafely(extractMovingDate(o));
+
+        // --- 1. BESICHTIGUNGSTERMINE (تنبيه المعاينة قبل بساعة) ---
+        const viewDateStr = o.orderMeta?.viewingDate || o.viewingDate;
+        if (viewDateStr && !o.viewingDone && !o.checklist?.find((c: any) => c.text?.toLowerCase()?.includes('besichtigung'))?.done) {
+          const timeStr = o.orderMeta?.viewingTime || o.viewingTime || (viewDateStr.includes('T') ? viewDateStr.split('T')[1].substring(0, 5) : '09:00');
+          let apptDate: Date | null = null;
+
+          if (viewDateStr.includes('T')) {
+            apptDate = new Date(viewDateStr);
+          } else if (viewDateStr.includes('.')) {
+            const parts = viewDateStr.split('.');
+            const [hour, min] = timeStr.split(':').map((n: string) => parseInt(n, 10) || 0);
+            apptDate = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]), hour || 9, min || 0);
+          } else {
+            const [hour, min] = timeStr.split(':').map((n: string) => parseInt(n, 10) || 0);
+            const base = new Date(viewDateStr);
+            if (!isNaN(base.getTime())) {
+              base.setHours(hour || 9, min || 0, 0, 0);
+              apptDate = base;
+            }
+          }
+
+          if (apptDate && !isNaN(apptDate.getTime())) {
+            const diffMinutes = Math.floor((apptDate.getTime() - now.getTime()) / (1000 * 60));
+            // Trigger if within 90 minutes before up to 45 minutes after appointment start
+            if (diffMinutes >= -45 && diffMinutes <= 90) {
+              const isVideo = (o.orderMeta?.viewingType || '').toLowerCase().includes('video');
+              const timeLabel = diffMinutes <= 0 ? 'Jetzt fällig' : `in ${diffMinutes} Min.`;
+              newNotifications.push({
+                id: `${o.id}-viewing`,
+                type: 'viewing',
+                title: 'Besichtigung in Kürze',
+                message: `${isVideo ? 'Videocall' : 'Vor-Ort-Besichtigung'} für ${customerName} (${timeLabel} um ${timeStr} Uhr).`,
+                link: `/dashboard/customers/${customerId}`,
+                urgency: 'high'
+              });
+            }
           }
         }
 
-        // --- ALARM: Fehlende Rechnung ---
-        if (o.status === 'completed' && !o.invoiceNumber) {
-          newNotifications.push({
-            id: `${o.id}-invoice`,
-            type: 'invoice',
-            title: 'Rechnung fehlt!',
-            message: `Umzug ${customerName} ist fertig, aber es gibt noch keine Rechnung!`,
-            link: `/dashboard/customers/${o.customerId}`,
-            urgency: 'high'
-          });
-        }
-
-        // If there's no moving date, we skip the remaining alarms because they depend on movingDate
-        if (!o.movingDate) return;
-
-        // Parse movingDate (DD.MM.YYYY oder YYYY-MM-DD)
-        let moveDate = new Date();
-        if (o.movingDate.includes('.')) {
-          const parts = o.movingDate.split('.');
-          moveDate = new Date(parseInt(parts[2]), parseInt(parts[1])-1, parseInt(parts[0]));
-        } else {
-          moveDate = new Date(o.movingDate);
-        }
-
-
-        // --- ALARMS FOR CONFIRMED MOVES ---
-        if (o.status === 'confirmed') {
-          const daysLeft = Math.floor((moveDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
-          const timeText = daysLeft === 0 ? 'Heute' : daysLeft === 1 ? 'Morgen' : `in ${daysLeft} Tagen`;
+        // --- 2. KARTON-ALARM (تسليم الكراتين قبل 3 أسابيع / 21 يوماً) ---
+        if (moveDate) {
+          const daysUntilMove = Math.ceil((moveDate.getTime() - today.getTime()) / (1000 * 3600 * 24));
+          const hasBoxService = o.services?.some((s: any) => (s.name || '').toLowerCase().includes('karton')) 
+            || (Number(o.calcInput?.boxes || 0) > 0)
+            || (Number(o.boxesCount || 0) > 0)
+            || o.checklist?.some((c: any) => (c.text || '').toLowerCase().includes('karton'));
           
-          // Karton-Alarm (< 28 Tage)
-          const needsBoxes = o.services?.some((s: any) => s.name.toLowerCase().includes('karton'));
-          const boxesDelivered = o.checklist?.find((c:any) => c.text.includes('Umzugskartons'))?.done;
-          
-          if (needsBoxes && !boxesDelivered && daysLeft <= 28 && daysLeft >= 0) {
+          const boxesDelivered = Boolean(
+            o.boxesDelivered || 
+            o.checklist?.find((c: any) => (c.text || '').toLowerCase().includes('karton'))?.done
+          );
+
+          if (hasBoxService && !boxesDelivered && daysUntilMove >= 0 && daysUntilMove <= 21) {
+            const timeText = daysUntilMove === 0 ? 'Heute!' : daysUntilMove === 1 ? 'Morgen' : `in ${daysUntilMove} Tagen`;
             newNotifications.push({
               id: `${o.id}-boxes`,
               type: 'boxes',
               title: 'Kartons liefern',
-              message: `Umzug ${customerName} (${timeText}): Kartons wurden noch nicht geliefert!`,
-              link: `/dashboard/customers/${o.customerId}`,
-              urgency: daysLeft <= 10 ? 'high' : 'medium'
+              message: `Umzug ${customerName} (${timeText}): Umzugskartons müssen ausgeliefert werden!`,
+              link: `/dashboard/customers/${customerId}`,
+              urgency: daysUntilMove <= 7 ? 'high' : 'medium'
             });
           }
 
-          // Wenn der Umzug in den nächsten 7 Tagen ist oder bereits in der Vergangenheit liegt (und noch auf confirmed steht)
-          if (moveDate <= sevenDaysFromNow) {
-            // 1. Personal-Check
-          if (!o.disposition || !o.disposition.helpers || o.disposition.helpers === 0) {
-            newNotifications.push({
-              id: `${o.id}-staff`,
-              type: 'staff',
-              title: 'Mitarbeiter fehlen',
-              message: `Umzug ${customerName} (${timeText}): Keine Helfer eingeteilt!`,
-              link: `/dashboard/customers/${o.customerId}`,
-              urgency: daysLeft <= 2 ? 'high' : 'medium'
-            });
+          // --- 3. DISPO-PRÜFUNG BEI AUFTRAGSBESTÄTIGUNG (3 bis 5 Tage vor Umzug) ---
+          if (o.status === 'confirmed' && daysUntilMove >= 0 && daysUntilMove <= 5) {
+            const timeText = daysUntilMove === 0 ? 'Heute!' : daysUntilMove === 1 ? 'Morgen' : `in ${daysUntilMove} Tagen`;
+            const helpers = Number(o.disposition?.helpers || o.helpers || 0);
+            const koffer = Number(o.disposition?.koffer35t || 0);
+            const lkw = Number(o.disposition?.lkw7t || 0);
+            const assignedVehicles = (o.disposition?.vehicles || []).length;
+            const hasVehicle = (koffer + lkw + assignedVehicles) > 0;
+
+            if (helpers === 0 && !hasVehicle) {
+              newNotifications.push({
+                id: `${o.id}-dispo-both`,
+                type: 'dispo',
+                title: 'Dispo-Alarm (Helfer & Fahrzeug fehlen)',
+                message: `Umzug ${customerName} (${timeText}): Weder Helfer noch Fahrzeuge eingeteilt!`,
+                link: `/dashboard/customers/${customerId}`,
+                urgency: 'high'
+              });
+            } else if (helpers === 0) {
+              newNotifications.push({
+                id: `${o.id}-staff`,
+                type: 'staff',
+                title: 'Personal fehlt (Dispo)',
+                message: `Umzug ${customerName} (${timeText}): Keine Umzugshelfer eingeteilt!`,
+                link: `/dashboard/customers/${customerId}`,
+                urgency: daysUntilMove <= 2 ? 'high' : 'medium'
+              });
+            } else if (!hasVehicle) {
+              newNotifications.push({
+                id: `${o.id}-vehicle`,
+                type: 'vehicle',
+                title: 'Fahrzeug fehlt (Dispo)',
+                message: `Umzug ${customerName} (${timeText}): Kein Umzugsfahrzeug reserviert!`,
+                link: `/dashboard/customers/${customerId}`,
+                urgency: daysUntilMove <= 2 ? 'high' : 'medium'
+              });
+            }
           }
 
-          // 2. Fahrzeug-Check
-          const koffer = o.disposition?.koffer35t || 0;
-          const lkw = o.disposition?.lkw7t || 0;
-          if (koffer === 0 && lkw === 0) {
+          // --- 4. RECHNUNG FEHLT NACH UMZUG (فاتورة ما بعد النقل بيوم) ---
+          const daysSinceMove = Math.floor((today.getTime() - moveDate.getTime()) / (1000 * 3600 * 24));
+          if (daysSinceMove >= 1 && daysSinceMove <= 30 && !o.invoiceNumber) {
             newNotifications.push({
-              id: `${o.id}-vehicle`,
-              type: 'vehicle',
-              title: 'Fahrzeug fehlt',
-              message: `Umzug ${customerName} (${timeText}): Kein Fahrzeug reserviert!`,
-              link: `/dashboard/customers/${o.customerId}`,
-              urgency: daysLeft <= 2 ? 'high' : 'medium'
-            });
-          }
-
-          // 3. Halteverbot-Check (Wenn gebucht, aber noch nicht bestätigt/bestellt)
-          if (o.logistics?.noParkingZone && !o.logistics?.noParkingZoneConfirmed) {
-            newNotifications.push({
-              id: `${o.id}-parking`,
-              type: 'parking',
-              title: 'Halteverbot nicht bestellt',
-              message: `Umzug ${customerName} (${timeText}): Halteverbot muss bei der Stadt beantragt werden!`,
-              link: `/dashboard/customers/${o.customerId}`,
+              id: `${o.id}-invoice-missing`,
+              type: 'invoice',
+              title: 'Rechnung fehlt nach Umzug',
+              message: `Umzug ${customerName} vor ${daysSinceMove === 1 ? '1 Tag' : daysSinceMove + ' Tagen'} abgeschlossen. Bitte Rechnung erstellen!`,
+              link: `/dashboard/customers/${customerId}`,
               urgency: 'high'
             });
           }
-          } // End if moveDate within 7 days
-        } // End if confirmed
+        }
       });
 
-      // Nach Dringlichkeit sortieren (High zuerst)
+      // --------------------------------------------------------------------
+      // B. CUSTOMER-BASED ALERTS: KUNDE OHNE UMZUGSDATUM SEIT 10 TAGEN
+      // --------------------------------------------------------------------
+      currentCustomers.forEach((cust: any) => {
+        if (cust.isArchived) return;
+
+        // Check if customer has an active order with movingDate or is already confirmed/completed
+        const custOrders = currentOrders.filter(o => o.customerId === cust.id);
+        const hasValidMoveDate = Boolean(
+          cust.movingDate || 
+          cust.movingDateFrom || 
+          cust.orderMeta?.movingDateFrom ||
+          custOrders.some(o => {
+            if (o.status === 'cancelled' || o.status === 'rejected' || o.status === 'archived') return false;
+            const mDate = extractMovingDate(o);
+            if (mDate) return true;
+            // If already confirmed, completed, or invoiced, moving date is not missing
+            if (o.status === 'confirmed' || o.status === 'completed' || o.status === 'invoice_open' || o.status === 'paid' || Boolean(o.invoiceNumber)) {
+              return true;
+            }
+            return false;
+          })
+        );
+
+        if (!hasValidMoveDate) {
+          const createdDate = cust.createdAt?.toDate ? cust.createdAt.toDate() : (cust.createdAt ? new Date(cust.createdAt) : null);
+          if (createdDate && !isNaN(createdDate.getTime())) {
+            const daysInactive = Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 3600 * 24));
+            if (daysInactive >= 10 && daysInactive <= 90) {
+              const custFullName = `${cust.firstName || ''} ${cust.lastName || 'Kunde'}`.trim();
+              newNotifications.push({
+                id: `${cust.id}-no-movedate`,
+                type: 'stagnant',
+                title: 'Kunde ohne Umzugsdatum',
+                message: `Kunde ${custFullName} ist seit ${daysInactive} Tagen im System ohne Umzugsdatum. Bitte nachfassen!`,
+                link: `/dashboard/customers/${cust.id}`,
+                urgency: daysInactive >= 21 ? 'high' : 'medium'
+              });
+            }
+          }
+        }
+      });
+
+      // Sort: High urgency first, then newer
       newNotifications.sort((a, b) => (a.urgency === 'high' ? -1 : 1));
       setNotifications(newNotifications);
+    };
+
+    const unsubOrders = onSnapshot(qOrders, (snap) => {
+      currentOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      recomputeAlarms();
     });
 
-    return () => unsub();
+    const unsubCustomers = onSnapshot(qCustomers, (snap) => {
+      currentCustomers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      recomputeAlarms();
+    });
+
+    // Recalculate every 60 seconds (for viewing countdowns)
+    const interval = setInterval(recomputeAlarms, 60000);
+
+    return () => {
+      unsubOrders();
+      unsubCustomers();
+      clearInterval(interval);
+    };
   }, []);
 
   const getIcon = (type: string, urgency: string) => {
-    const color = urgency === 'high' ? 'text-amber-500' : 'text-orange-400';
+    const isHigh = urgency === 'high';
+    const color = isHigh ? 'text-red-500 dark:text-red-400' : 'text-amber-500 dark:text-amber-400';
     switch (type) {
-      case 'staff': return <UsersIcon className={`w-5 h-5 ${color}`} />;
-      case 'vehicle': return <TruckIcon className={`w-5 h-5 ${color}`} />;
-      case 'parking': return <ShieldExclamationIcon className={`w-5 h-5 ${color}`} />;
-      case 'boxes': return <svg className={`w-5 h-5 ${color}`} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" /></svg>;
-      case 'invoice': return <svg className={`w-5 h-5 ${color}`} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>;
-      default: return <ExclamationCircleIcon className={`w-5 h-5 ${color}`} />;
+      case 'boxes':
+        return <CubeIcon className={`w-5 h-5 ${color}`} />;
+      case 'viewing':
+        return <CalendarDaysIcon className={`w-5 h-5 ${color}`} />;
+      case 'stagnant':
+        return <UserMinusIcon className={`w-5 h-5 ${color}`} />;
+      case 'dispo':
+        return <ExclamationTriangleIcon className={`w-5 h-5 ${color}`} />;
+      case 'staff':
+        return <UsersIcon className={`w-5 h-5 ${color}`} />;
+      case 'vehicle':
+        return <TruckIcon className={`w-5 h-5 ${color}`} />;
+      case 'invoice':
+        return <DocumentTextIcon className={`w-5 h-5 ${color}`} />;
+      default:
+        return <ExclamationCircleIcon className={`w-5 h-5 ${color}`} />;
     }
   };
+
+  const visibleNotifications = notifications.filter(n => !dismissedIds.includes(n.id));
 
   return (
     <div className="relative" ref={dropdownRef}>
       <button 
         id="bell-icon"
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-text-muted hover:text-text-main hover:bg-structure/30 rounded-lg transition-colors"
+        className="relative p-2 text-text-muted hover:text-text-main hover:bg-structure/40 rounded-xl transition-colors cursor-pointer"
+        title="Dispo-Warnungen & Anti-Vergess System"
       >
-        <BellIcon className="w-6 h-6" />
-        {notifications.length > 0 && (
+        <BellIcon className="w-5 h-5 sm:w-6 sm:h-6" />
+        {visibleNotifications.length > 0 && (
           <span className="absolute top-1 right-1 flex h-4 w-4">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#6E8F64] opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-4 w-4 bg-[#6E8F64] text-[9px] items-center justify-center text-white font-bold">
-              {notifications.length}
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-4 w-4 bg-red-600 text-[10px] items-center justify-center text-white font-bold">
+              {visibleNotifications.length > 99 ? '99+' : visibleNotifications.length}
             </span>
           </span>
         )}
@@ -194,40 +363,70 @@ export function NotificationBell() {
                 <BellIcon className="w-4 h-4 text-primary" />
                 <h3 className="font-bold text-xs sm:text-sm font-headline text-text-main">Dispo-Warnungen (Anti-Vergess)</h3>
               </div>
-              <span className="text-[10px] font-bold bg-primary/10 text-primary px-2.5 py-0.5 rounded-full border border-primary/20 font-headline">
-                {notifications.length}
+              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border font-headline ${
+                visibleNotifications.length > 0 
+                  ? 'bg-red-500/10 text-red-500 border-red-500/20' 
+                  : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+              }`}>
+                {visibleNotifications.length} {visibleNotifications.length === 1 ? 'Alarm' : 'Alarme'}
               </span>
             </div>
             
-            <div className="max-h-[70vh] sm:max-h-96 overflow-y-auto custom-scrollbar divide-y divide-structure">
-              {notifications.length === 0 ? (
+            <div className="max-h-[70vh] sm:max-h-96 overflow-y-auto custom-scrollbar divide-y divide-structure/40">
+              {visibleNotifications.length === 0 ? (
                 <div className="p-8 text-center text-text-muted flex flex-col items-center">
-                  <CheckCircleIcon className="w-10 h-10 text-emerald-500/60 mb-2" />
+                  <CheckCircleIcon className="w-10 h-10 text-emerald-500/70 mb-2" />
                   <p className="font-semibold text-text-main text-sm">Alles im grünen Bereich!</p>
-                  <p className="text-xs text-text-muted mt-1">Die nächsten 7 Tage sind perfekt disponiert.</p>
+                  <p className="text-xs text-text-muted mt-1">Keine offenen Alarme oder vergessenen Vorgänge.</p>
                 </div>
               ) : (
-                notifications.map((notif) => (
-                  <Link 
-                    key={notif.id}
-                    href={notif.link}
-                    onClick={() => setIsOpen(false)}
-                    className={`block p-3.5 sm:p-4 hover:bg-structure/20 transition-colors ${notif.urgency === 'high' ? 'bg-primary/5' : ''}`}
-                  >
-                    <div className="flex gap-3 items-start">
-                      <div className="mt-0.5 shrink-0 p-1.5 rounded-xl bg-structure/40">
-                        {getIcon(notif.type, notif.urgency)}
+                visibleNotifications.map((notif) => (
+                  <div key={notif.id} className="relative group">
+                    <Link 
+                      href={notif.link}
+                      onClick={() => setIsOpen(false)}
+                      className={`block p-3.5 sm:p-4 hover:bg-structure/30 transition-colors cursor-pointer pr-10 ${
+                        notif.urgency === 'high' ? 'bg-red-500/5 hover:bg-red-500/10' : ''
+                      }`}
+                    >
+                      <div className="flex gap-3 items-start">
+                        <div className={`mt-0.5 shrink-0 p-2 rounded-xl border ${
+                          notif.urgency === 'high'
+                            ? 'bg-red-500/10 border-red-500/20'
+                            : 'bg-amber-500/10 border-amber-500/20'
+                        }`}>
+                          {getIcon(notif.type, notif.urgency)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <h4 className={`text-xs sm:text-sm font-bold font-headline truncate ${
+                              notif.urgency === 'high' ? 'text-red-500 dark:text-red-400' : 'text-amber-500 dark:text-amber-400'
+                            }`}>
+                              {notif.title}
+                            </h4>
+                            {notif.urgency === 'high' && (
+                              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded bg-red-500/20 text-red-400 shrink-0">
+                                Dringend
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-text-muted mt-1 leading-snug break-words group-hover:text-text-main transition-colors">
+                            {notif.message}
+                          </p>
+                        </div>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <h4 className={`text-xs sm:text-sm font-bold font-headline ${notif.urgency === 'high' ? 'text-primary' : 'text-amber-500'}`}>
-                          {notif.title}
-                        </h4>
-                        <p className="text-xs text-text-muted mt-0.5 leading-snug break-words">
-                          {notif.message}
-                        </p>
-                      </div>
-                    </div>
-                  </Link>
+                    </Link>
+
+                    {/* Subtle Dismiss (X) button */}
+                    <button
+                      type="button"
+                      onClick={(e) => handleDismiss(e, notif.id)}
+                      className="absolute top-3.5 right-3 p-1 rounded-lg text-text-muted/50 hover:text-text-main hover:bg-structure/60 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
+                      title="Warnung ausblenden"
+                    >
+                      <XMarkIcon className="w-4 h-4" />
+                    </button>
+                  </div>
                 ))
               )}
             </div>
@@ -235,13 +434,5 @@ export function NotificationBell() {
         </>
       )}
     </div>
-  );
-}
-
-function CheckCircleIcon(props: any) {
-  return (
-    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
   );
 }

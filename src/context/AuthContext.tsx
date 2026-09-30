@@ -39,6 +39,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      let userDocSnap: any = null;
       
       if (currentUser) {
         try {
@@ -52,7 +53,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           const docPromise = getDoc(userDocRef);
           docPromise.catch(() => {}); // prevent unhandled rejection if it fails later
           
-          const userDocSnap = await Promise.race([
+          userDocSnap = await Promise.race([
             docPromise,
             timeoutPromise
           ]) as any;
@@ -88,10 +89,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setProfile(null);
       }
       
-      // Log login activity once per session
+      // Log login activity once per session with resolved displayName
       if (currentUser && typeof window !== "undefined" && !sessionStorage.getItem("hasLoggedLogin")) {
-        const cleanLoginName = currentUser.displayName || currentUser.email?.split('@')[0] || 'Team';
-        logActivity(currentUser.uid, cleanLoginName, 'LOGIN', 'Erfolgreich angemeldet');
+        sessionStorage.setItem("hasLoggedLogin", "true");
+        let activeDisplayName = currentUser.displayName;
+        if (userDocSnap && typeof userDocSnap.exists === 'function' && userDocSnap.exists()) {
+          activeDisplayName = userDocSnap.data()?.displayName || activeDisplayName;
+        }
+        const cleanLoginName = activeDisplayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Mitarbeiter');
+        logActivity(currentUser.uid, cleanLoginName, 'LOGIN', 'Erfolgreich am System angemeldet');
       }
 
       setLoading(false);

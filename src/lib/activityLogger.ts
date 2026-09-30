@@ -1,7 +1,16 @@
 import { db } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
-export type ActivityAction = 'LOGIN' | 'CREATE_CUSTOMER' | 'UPDATE_CUSTOMER' | 'ARCHIVE_CUSTOMER' | 'CREATE_ORDER' | 'UPDATE_ORDER' | 'ARCHIVE_ORDER';
+export type ActivityAction = 
+  | 'LOGIN' 
+  | 'CREATE_CUSTOMER' 
+  | 'UPDATE_CUSTOMER' 
+  | 'ARCHIVE_CUSTOMER' 
+  | 'CREATE_ORDER' 
+  | 'UPDATE_ORDER' 
+  | 'ARCHIVE_ORDER'
+  | 'CREATE_INVOICE'
+  | 'CANCEL_INVOICE';
 
 export const logActivity = async (
   userId: string,
@@ -10,9 +19,14 @@ export const logActivity = async (
   details: string
 ) => {
   try {
-    const cleanName = (userName && userName !== 'Unbekannt') ? userName : 'Mitarbeiter';
+    let cleanName = (userName && userName.trim() !== '' && userName !== 'Unbekannt') ? userName.trim() : 'Mitarbeiter';
+    // If it was just 'admin' (lowercase generic), make it readable as Mitarbeiter or keep capitalized if named Admin
+    if (cleanName.toLowerCase() === 'admin') {
+      cleanName = 'Administrator';
+    }
+    
     await addDoc(collection(db, 'activity_logs'), {
-      userId,
+      userId: userId || 'system',
       userName: cleanName,
       action,
       details,

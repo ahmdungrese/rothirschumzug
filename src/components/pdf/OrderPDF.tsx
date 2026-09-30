@@ -283,7 +283,7 @@ export const OrderPDF = ({
       {/* PAGE 1: Header, Route Details (BEFORE Table), Services & Pricing Summary  */}
       {/* ───────────────────────────────────────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
-        <PDFWatermark type="symbols" softRows={[1, 2]} />
+        <PDFWatermark type="symbols" softRows={[1, 2]} tableZoneLogoOnly />
         <PDFHeader settings={settings} docTitle={docTypeTitle} />
         <PDFFooter settings={settings} />
 

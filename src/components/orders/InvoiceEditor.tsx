@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, CheckCircleIcon, ArchiveBoxIcon, WrenchIcon, SparklesIcon, PlusCircleIcon, TagIcon, TruckIcon, MapPinIcon, CalendarDaysIcon, LockClosedIcon, ArrowPathIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { useAuth } from '@/context/AuthContext';
 import { logActivity } from '@/lib/activityLogger';
@@ -34,6 +34,50 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
   const [isSaving, setIsSaving] = useState(false);
   const [settings, setSettings] = useState<any>(null);
   const [currentStep, setCurrentStep] = useState(1);
+  const currentStepRef = useRef(currentStep);
+  currentStepRef.current = currentStep;
+
+  const handleSafeCancel = () => {
+    const isDirty = Boolean(
+      flatRateNet > 0 ||
+      services.length > 0 ||
+      texts.quoteIntro ||
+      customerData.lastName
+    );
+
+    if (isDirty) {
+      const confirmLeave = window.confirm(
+        "Möchten Sie die Rechnungsbearbeitung wirklich abbrechen? Nicht gespeicherte Änderungen gehen verloren."
+      );
+      if (!confirmLeave) return;
+    }
+
+    if (urlCustomerId) {
+      router.push(`/dashboard/customers/${urlCustomerId}`);
+    } else {
+      if (typeof window !== 'undefined' && document.referrer && document.referrer.includes(window.location.origin)) {
+        router.back();
+      } else {
+        router.push('/dashboard');
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = () => {
+      if (currentStepRef.current > 1) {
+        setCurrentStep(prev => Math.max(1, prev - 1));
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
+
   const [status, setStatus] = useState('draft'); // invoice_open if final
   const [activeSourceOrderId, setActiveSourceOrderId] = useState<string | null>(sourceOrderId || null);
   const [existingInvoiceNumber, setExistingInvoiceNumber] = useState<string | null>(null);
@@ -272,8 +316,8 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
           }
 
           // 2. DATA PREPARATION & CALCULATIONS
-          const rawNext = settingsSnap.data()?.nextInvoiceNumber || 1771;
-          const nextInvoiceNumber = Math.max(1771, rawNext);
+          const rawNext = settingsSnap.data()?.nextInvoiceNumber !== undefined ? Number(settingsSnap.data()?.nextInvoiceNumber) : 1771;
+          const nextInvoiceNumber = Math.max(1, rawNext || 1771);
           const invoiceNum = `R-${nextInvoiceNumber}`;
           
           payload.invoiceNumber = invoiceNum;
@@ -315,8 +359,9 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
           t.update(settingsRef, { nextInvoiceNumber: nextInvoiceNumber + 1 });
         });
 
-        const editorActorName = profile?.displayName || profile?.email?.split('@')[0] || 'Team';
-        await logActivity(user?.uid || '', editorActorName, orderId ? 'UPDATE_ORDER' : 'CREATE_ORDER', `Rechnung ausgestellt: ${payload.invoiceNumber}`);
+        const editorActorName = profile?.displayName || profile?.email?.split('@')[0] || 'Mitarbeiter';
+        const customerFullName = `${customerData?.firstName || ''} ${customerData?.lastName || 'Kunde'}`.trim();
+        await logActivity(user?.uid || '', editorActorName, 'CREATE_INVOICE', `Rechnung ${payload.invoiceNumber} ausgestellt für Kunde ${customerFullName}`);
         toast.success('Rechnung erfolgreich ausgestellt!');
       } else if (finalStatus === 'invoice_open' && payload.invoiceNumber) {
         // Re-saving already finalized invoice
@@ -663,8 +708,9 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
               </div>
             )}
           </div>
-          <div className="flex justify-end mt-6">
-             <button onClick={() => setCurrentStep(2)} className="btn-primary">Weiter zu Leistungen</button>
+          <div className="flex justify-between items-center mt-6">
+             <button type="button" onClick={handleSafeCancel} className="btn-secondary cursor-pointer">Abbrechen</button>
+             <button type="button" onClick={() => setCurrentStep(2)} className="btn-primary cursor-pointer">Weiter zu Leistungen</button>
           </div>
         </section>
       )}
