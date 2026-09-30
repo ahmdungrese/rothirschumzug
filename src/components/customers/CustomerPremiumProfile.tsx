@@ -900,6 +900,169 @@ export function CustomerPremiumProfile({
         </div>
       </div>
 
+      {/* Top Priority Logistical & Financial Overview (Executive Live-Sync Dashboard) */}
+      {activeOrder && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          {/* 1. Move Schedule & Scope Card (Synchronized with Cockpit & Offer Form) */}
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-headline">
+                Termine & Umfang (Live-Sync)
+              </span>
+              <CalendarDaysIcon className="w-5 h-5 text-blue-500" />
+            </div>
+
+            <div className="flex items-baseline justify-between gap-2">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Haupt-Umzugstermin
+                </span>
+                <div className="text-xl font-bold text-slate-900 dark:text-white font-headline">
+                  {logisticsEval?.movingDateDisplay || 'Kein Termin eingetragen'}
+                </div>
+              </div>
+              {(orderLogistics.estimatedVolume || activeOrder?.estimatedCbm) && (
+                <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shrink-0">
+                  {orderLogistics.estimatedVolume || activeOrder?.estimatedCbm} m³
+                </span>
+              )}
+            </div>
+
+            {activeOrder && (
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-xs">
+                {/* 1. Besichtigungstermin */}
+                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                  <span className="text-slate-500 dark:text-slate-400 font-medium">Besichtigung:</span>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleModalTodo({ id: 'viewing_requested', name: 'Besichtigung' })}
+                    className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Klicken zum Planen oder Ändern des Besichtigungstermins"
+                  >
+                    {activeOrder.orderMeta?.viewingDate && activeOrder.orderMeta?.viewingDate !== 'requested' ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckIcon className="w-3.5 h-3.5 shrink-0" />
+                        <span>{formatCustomerDate(activeOrder.orderMeta.viewingDate, activeOrder.orderMeta.viewingTime)}</span>
+                      </span>
+                    ) : (
+                      <span className="text-primary underline">+ Termin planen</span>
+                    )}
+                  </button>
+                </div>
+
+                {/* 2. Halteverbotszone (HVZ) */}
+                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                  <span className="text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1">
+                    <span>Halteverbot (HVZ):</span>
+                    {(activeOrder.orderMeta?.hvzMethod || activeOrder.logistics?.hvzMethod) && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold">
+                        {(activeOrder.orderMeta?.hvzMethod || activeOrder.logistics?.hvzMethod) === 'extern' ? 'Extern' : 'Selbst'}
+                      </span>
+                    )}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleModalTodo({ id: 'halteverbot', kanbanCategory: 'halteverbot', name: 'Halteverbot' })}
+                    className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Klicken zum Planen oder Ändern der Halteverbotszone"
+                  >
+                    {activeOrder.orderMeta?.halteverbotDate || activeOrder.logistics?.hvzDate ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckIcon className="w-3.5 h-3.5 shrink-0" />
+                        <span>{formatCustomerDate(activeOrder.orderMeta?.halteverbotDate || activeOrder.logistics?.hvzDate, activeOrder.orderMeta?.halteverbotTime || activeOrder.logistics?.hvzTime)}</span>
+                      </span>
+                    ) : (
+                      <span className="text-primary underline">+ Termin planen</span>
+                    )}
+                  </button>
+                </div>
+
+                {/* 3. Kartonlieferung */}
+                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                  <span className="text-slate-500 dark:text-slate-400 font-medium">Kartonlieferung:</span>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleModalTodo({ id: 'kartons_liefern', kanbanCategory: 'kartons', name: 'Kartons' })}
+                    className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Klicken zum Planen oder Ändern der Kartonlieferung"
+                  >
+                    {activeOrder.orderMeta?.kartonDeliveryDate || activeOrder.logistics?.boxDeliveryDate ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckIcon className="w-3.5 h-3.5 shrink-0" />
+                        <span>{formatCustomerDate(activeOrder.orderMeta?.kartonDeliveryDate || activeOrder.logistics?.boxDeliveryDate, activeOrder.orderMeta?.kartonDeliveryTime || activeOrder.logistics?.boxDeliveryTime)}</span>
+                      </span>
+                    ) : (
+                      <span className="text-primary underline">+ Termin planen</span>
+                    )}
+                  </button>
+                </div>
+
+                {/* 4. Möbellift (if needed or scheduled) */}
+                {(activeOrder.logistics?.a_furnitureLift || activeOrder.logistics?.b_furnitureLift || activeOrder.orderMeta?.moebelliftDate) && (
+                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                    <span className="text-slate-500 dark:text-slate-400 font-medium">Möbellift:</span>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleModalTodo({ id: 'moebellift_buchen', kanbanCategory: 'moebellift', name: 'Möbellift' })}
+                      className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Klicken zum Planen oder Ändern des Möbellifts"
+                    >
+                      {activeOrder.orderMeta?.moebelliftDate ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                          <CheckIcon className="w-3.5 h-3.5 shrink-0" />
+                          <span>{formatCustomerDate(activeOrder.orderMeta.moebelliftDate, activeOrder.orderMeta.moebelliftTime)}</span>
+                        </span>
+                      ) : (
+                        <span className="text-primary underline">+ Termin planen</span>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 2. Financial Health Card with Visual Progress */}
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-headline">
+                Finanzen & Zahlung
+              </span>
+              <CurrencyEuroIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-extrabold text-slate-900 dark:text-white font-headline">
+                €{totals.gross.toLocaleString('de-DE')}
+              </span>
+              <span className="text-xs font-semibold text-slate-400">Brutto</span>
+            </div>
+
+            {/* Payment Progress Bar */}
+            <div className="space-y-1.5 pt-1">
+              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                <div 
+                  className="bg-emerald-500 h-2 rounded-full transition-all duration-500" 
+                  style={{ width: `${paidPercentage}%` }}
+                ></div>
+              </div>
+              <div className="flex justify-between text-[11px] font-medium text-slate-500">
+                <span>Bezahlt: €{totalPaid.toLocaleString('de-DE')} ({paidPercentage}%)</span>
+                <span className={!hasInvoice ? 'text-slate-400 font-semibold' : openAmount > 0 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-emerald-600 font-bold'}>
+                  {!hasInvoice 
+                    ? 'Rechnung noch offen' 
+                    : openAmount > 0 
+                      ? `Offen: €${openAmount.toLocaleString('de-DE')}` 
+                      : 'Ausgeglichen'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      )}
+
       {/* Quick Documents Hub (1-Klick Dokumentenzentrale) */}
       {activeOrder && (
         <div className="bg-slate-50 dark:bg-slate-900/60 p-3 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 shadow-xs">
@@ -1317,168 +1480,6 @@ export function CustomerPremiumProfile({
         {/* Left Column (7 cols): Route & Logistics + Checkliste */}
         <div className="lg:col-span-7 space-y-6">
           
-          {/* Key Metrics Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            
-            {/* Financial Health Card with Visual Progress */}
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-headline">
-                  Finanzen & Zahlung
-                </span>
-                <CurrencyEuroIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              </div>
-              
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-extrabold text-slate-900 dark:text-white font-headline">
-                  €{totals.gross.toLocaleString('de-DE')}
-                </span>
-                <span className="text-xs font-semibold text-slate-400">Brutto</span>
-              </div>
-
-              {/* Payment Progress Bar */}
-              <div className="space-y-1.5 pt-1">
-                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                  <div 
-                    className="bg-emerald-500 h-2 rounded-full transition-all duration-500" 
-                    style={{ width: `${paidPercentage}%` }}
-                  ></div>
-                </div>
-                <div className="flex justify-between text-[11px] font-medium text-slate-500">
-                  <span>Bezahlt: €{totalPaid.toLocaleString('de-DE')} ({paidPercentage}%)</span>
-                  <span className={!hasInvoice ? 'text-slate-400 font-semibold' : openAmount > 0 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-emerald-600 font-bold'}>
-                    {!hasInvoice 
-                      ? 'Rechnung noch offen' 
-                      : openAmount > 0 
-                        ? `Offen: €${openAmount.toLocaleString('de-DE')}` 
-                        : 'Ausgeglichen'}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Move Schedule & Scope Card (Synchronized with Cockpit & Offer Form) */}
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-headline">
-                  Termine & Umfang (Live-Sync)
-                </span>
-                <CalendarDaysIcon className="w-5 h-5 text-blue-500" />
-              </div>
-
-              <div className="flex items-baseline justify-between gap-2">
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-                    Haupt-Umzugstermin
-                  </span>
-                  <div className="text-xl font-bold text-slate-900 dark:text-white font-headline">
-                    {logisticsEval?.movingDateDisplay || 'Kein Termin eingetragen'}
-                  </div>
-                </div>
-                {(orderLogistics.estimatedVolume || activeOrder?.estimatedCbm) && (
-                  <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shrink-0">
-                    {orderLogistics.estimatedVolume || activeOrder?.estimatedCbm} m³
-                  </span>
-                )}
-              </div>
-
-              {activeOrder && (
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-xs">
-                  {/* 1. Besichtigungstermin */}
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                    <span className="text-slate-500 dark:text-slate-400 font-medium">Besichtigung:</span>
-                    <button
-                      type="button"
-                      onClick={() => setScheduleModalTodo({ id: 'viewing_requested', name: 'Besichtigung' })}
-                      className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
-                      title="Klicken zum Planen oder Ändern des Besichtigungstermins"
-                    >
-                      {activeOrder.orderMeta?.viewingDate && activeOrder.orderMeta?.viewingDate !== 'requested' ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                          <CheckIcon className="w-3.5 h-3.5 shrink-0" />
-                          <span>{formatCustomerDate(activeOrder.orderMeta.viewingDate, activeOrder.orderMeta.viewingTime)}</span>
-                        </span>
-                      ) : (
-                        <span className="text-primary underline">+ Termin planen</span>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* 2. Halteverbotszone (HVZ) */}
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                    <span className="text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1">
-                      <span>Halteverbot (HVZ):</span>
-                      {(activeOrder.orderMeta?.hvzMethod || activeOrder.logistics?.hvzMethod) && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold">
-                          {(activeOrder.orderMeta?.hvzMethod || activeOrder.logistics?.hvzMethod) === 'extern' ? 'Extern' : 'Selbst'}
-                        </span>
-                      )}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setScheduleModalTodo({ id: 'halteverbot', kanbanCategory: 'halteverbot', name: 'Halteverbot' })}
-                      className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
-                      title="Klicken zum Planen oder Ändern der Halteverbotszone"
-                    >
-                      {activeOrder.orderMeta?.halteverbotDate || activeOrder.logistics?.hvzDate ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                          <CheckIcon className="w-3.5 h-3.5 shrink-0" />
-                          <span>{formatCustomerDate(activeOrder.orderMeta?.halteverbotDate || activeOrder.logistics?.hvzDate, activeOrder.orderMeta?.halteverbotTime || activeOrder.logistics?.hvzTime)}</span>
-                        </span>
-                      ) : (
-                        <span className="text-primary underline">+ Termin planen</span>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* 3. Kartonlieferung */}
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                    <span className="text-slate-500 dark:text-slate-400 font-medium">Kartonlieferung:</span>
-                    <button
-                      type="button"
-                      onClick={() => setScheduleModalTodo({ id: 'kartons_liefern', kanbanCategory: 'kartons', name: 'Kartons' })}
-                      className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
-                      title="Klicken zum Planen oder Ändern der Kartonlieferung"
-                    >
-                      {activeOrder.orderMeta?.kartonDeliveryDate || activeOrder.logistics?.boxDeliveryDate ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                          <CheckIcon className="w-3.5 h-3.5 shrink-0" />
-                          <span>{formatCustomerDate(activeOrder.orderMeta?.kartonDeliveryDate || activeOrder.logistics?.boxDeliveryDate, activeOrder.orderMeta?.kartonDeliveryTime || activeOrder.logistics?.boxDeliveryTime)}</span>
-                        </span>
-                      ) : (
-                        <span className="text-primary underline">+ Termin planen</span>
-                      )}
-                    </button>
-                  </div>
-
-                  {/* 4. Möbellift (if needed or scheduled) */}
-                  {(activeOrder.logistics?.a_furnitureLift || activeOrder.logistics?.b_furnitureLift || activeOrder.orderMeta?.moebelliftDate) && (
-                    <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                      <span className="text-slate-500 dark:text-slate-400 font-medium">Möbellift:</span>
-                      <button
-                        type="button"
-                        onClick={() => setScheduleModalTodo({ id: 'moebellift_buchen', kanbanCategory: 'moebellift', name: 'Möbellift' })}
-                        className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
-                        title="Klicken zum Planen oder Ändern des Möbellifts"
-                      >
-                        {activeOrder.orderMeta?.moebelliftDate ? (
-                          <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                            <CheckIcon className="w-3.5 h-3.5 shrink-0" />
-                            <span>{formatCustomerDate(activeOrder.orderMeta.moebelliftDate, activeOrder.orderMeta.moebelliftTime)}</span>
-                          </span>
-                        ) : (
-                          <span className="text-primary underline">+ Termin planen</span>
-                        )}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-
-
           {/* Smart Logistics & Multi-Stop Route Engine (Bochum Depot Roundtrip) */}
           <div className="bg-white dark:bg-slate-900 p-6 md:p-7 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
