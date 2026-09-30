@@ -900,11 +900,94 @@ export function CustomerPremiumProfile({
         </div>
       </div>
 
-      {/* Top Priority Logistical & Financial Overview (Executive Live-Sync Dashboard) */}
-      {activeOrder && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          
-          {/* 1. Move Schedule & Scope Card (Synchronized with Cockpit & Offer Form) */}
+      {/* Top Priority 3-Card Executive Dashboard (Kontaktdaten, Termine & Umfang, Finanzen) */}
+      <div className={`grid grid-cols-1 ${activeOrder ? 'md:grid-cols-2 lg:grid-cols-3' : 'max-w-md'} gap-4 items-stretch`}>
+        
+        {/* 1. Kontaktdaten Card */}
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800 mb-3">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-headline">
+                Kontaktdaten
+              </span>
+              <button
+                type="button"
+                onClick={onEditCustomer}
+                className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                title="Kundendaten bearbeiten"
+              >
+                <PencilSquareIcon className="w-3.5 h-3.5" />
+                <span>Bearbeiten</span>
+              </button>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              {/* Phone */}
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <PhoneIcon className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block leading-none mb-0.5">Telefon</span>
+                    <a href={`tel:${customer?.phone}`} className="font-bold text-slate-800 dark:text-slate-200 hover:text-primary truncate block">
+                      {customer?.phone || 'Keine Nummer hinterlegt'}
+                    </a>
+                  </div>
+                </div>
+                {customer?.phone && (
+                  <a
+                    href={`tel:${customer.phone}`}
+                    className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-primary hover:text-white transition-colors text-slate-700 dark:text-slate-200 shrink-0"
+                    title="Anrufen"
+                  >
+                    <PhoneIcon className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
+
+              {/* Email */}
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                    <EnvelopeIcon className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block leading-none mb-0.5">E-Mail</span>
+                    <a href={`mailto:${customer?.email}`} className="font-bold text-slate-800 dark:text-slate-200 hover:text-primary truncate block max-w-[140px] sm:max-w-[180px]">
+                      {customer?.email || 'Keine E-Mail hinterlegt'}
+                    </a>
+                  </div>
+                </div>
+                {customer?.email && (
+                  <a
+                    href={`mailto:${customer.email}`}
+                    className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-primary hover:text-white transition-colors text-slate-700 dark:text-slate-200 shrink-0"
+                    title="E-Mail schreiben"
+                  >
+                    <EnvelopeIcon className="w-3.5 h-3.5" />
+                  </a>
+                )}
+              </div>
+
+              {/* Main Address */}
+              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                <div className="w-8 h-8 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
+                  <HomeIcon className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold block leading-none mb-0.5">Kundenadresse</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 truncate block">
+                    {customer?.street ? `${customer.street}, ${customer.zip || ''} ${customer.city || ''}` : 'Keine Stamm-Adresse hinterlegt'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 2. Move Schedule & Scope Card (Synchronized with Cockpit & Offer Form) */}
+        {activeOrder && (
           <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-headline">
@@ -1022,8 +1105,10 @@ export function CustomerPremiumProfile({
               </div>
             )}
           </div>
+        )}
 
-          {/* 2. Financial Health Card with Visual Progress */}
+        {/* 3. Financial Health Card with Visual Progress */}
+        {activeOrder && (
           <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-headline">
@@ -1059,9 +1144,9 @@ export function CustomerPremiumProfile({
               </div>
             </div>
           </div>
+        )}
 
-        </div>
-      )}
+      </div>
 
       {/* Quick Documents Hub (1-Klick Dokumentenzentrale) */}
       {activeOrder && (
@@ -1680,89 +1765,9 @@ export function CustomerPremiumProfile({
           </div>
         </div>
 
-        {/* Right Column (5 cols): Contact Info + Active Offer Switcher */}
+        {/* Right Column (5 cols): Active Offer Switcher & Übergabeprotokolle */}
         <div className="lg:col-span-5 space-y-6">
           
-          {/* Contact Details Card with Direct Actions */}
-          <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="font-headline font-bold text-base text-slate-900 dark:text-white">
-                Kontaktdaten
-              </h3>
-              <button
-                type="button"
-                onClick={onEditCustomer}
-                className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-              >
-                <PencilSquareIcon className="w-3.5 h-3.5" />
-                <span>Bearbeiten</span>
-              </button>
-            </div>
-
-            <div className="space-y-3 text-xs">
-              {/* Phone */}
-              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                    <PhoneIcon className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">Telefon</span>
-                    <a href={`tel:${customer?.phone}`} className="font-bold text-slate-800 dark:text-slate-200 hover:text-primary">
-                      {customer?.phone || 'Keine Nummer hinterlegt'}
-                    </a>
-                  </div>
-                </div>
-                {customer?.phone && (
-                  <a
-                    href={`tel:${customer.phone}`}
-                    className="p-2 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-primary hover:text-white transition-colors text-slate-700 dark:text-slate-200"
-                    title="Anrufen"
-                  >
-                    <PhoneIcon className="w-3.5 h-3.5" />
-                  </a>
-                )}
-              </div>
-
-              {/* Email */}
-              <div className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
-                    <EnvelopeIcon className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block">E-Mail</span>
-                    <a href={`mailto:${customer?.email}`} className="font-bold text-slate-800 dark:text-slate-200 hover:text-primary truncate block max-w-[180px]">
-                      {customer?.email || 'Keine E-Mail hinterlegt'}
-                    </a>
-                  </div>
-                </div>
-                {customer?.email && (
-                  <a
-                    href={`mailto:${customer.email}`}
-                    className="p-2 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-primary hover:text-white transition-colors text-slate-700 dark:text-slate-200"
-                    title="E-Mail schreiben"
-                  >
-                    <EnvelopeIcon className="w-3.5 h-3.5" />
-                  </a>
-                )}
-              </div>
-
-              {/* Main Address */}
-              <div className="flex items-center gap-3 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50">
-                <div className="w-9 h-9 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
-                  <HomeIcon className="w-4 h-4" />
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Kundenadresse</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-200">
-                    {customer?.street ? `${customer.street}, ${customer.zip || ''} ${customer.city || ''}` : 'Keine Stamm-Adresse hinterlegt'}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Quick Active Order Selector (If customer has multiple orders) */}
           {orders.length > 1 && (
             <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
