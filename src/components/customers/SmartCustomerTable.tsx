@@ -2,10 +2,38 @@ import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { UserCircleIcon as UserCircleSolid, BuildingOfficeIcon as BuildingSolid } from '@heroicons/react/24/solid';
-import { DocumentTextIcon, CheckBadgeIcon, ArrowRightIcon, PlusIcon, EnvelopeIcon, PhoneIcon, ClipboardDocumentListIcon, FolderOpenIcon, PencilSquareIcon, DocumentArrowDownIcon, EllipsisVerticalIcon, CalendarDaysIcon } from '@heroicons/react/24/solid';
+import { 
+  DocumentTextIcon, 
+  CheckBadgeIcon, 
+  ArrowRightIcon, 
+  PlusIcon, 
+  EnvelopeIcon, 
+  PhoneIcon, 
+  ClipboardDocumentListIcon, 
+  FolderOpenIcon, 
+  PencilSquareIcon, 
+  DocumentArrowDownIcon, 
+  EllipsisVerticalIcon, 
+  CalendarDaysIcon,
+  ArchiveBoxIcon
+} from '@heroicons/react/24/outline';
 import { PDFDownloadButton } from '@/components/pdf/PDFDownloadButton';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { db } from '@/lib/firebase';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { toast } from 'react-hot-toast';
 
-function RowActions({ customer, latestOrder, btnUrl }: { customer: any; latestOrder: any; btnUrl: string }) {
+function RowActions({ 
+  customer, 
+  latestOrder, 
+  btnUrl,
+  onArchive
+}: { 
+  customer: any; 
+  latestOrder: any; 
+  btnUrl: string;
+  onArchive: (customer: any) => void;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -15,10 +43,14 @@ function RowActions({ customer, latestOrder, btnUrl }: { customer: any; latestOr
     e.stopPropagation();
     if (!isOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
-      // Position the dropdown below the button, aligned to the right edge
-      setCoords({ x: rect.right - 224, y: rect.bottom + 8 }); // 224px is w-56
+      const menuWidth = 224; // w-56
+      const menuHeight = 200;
+      const x = Math.max(12, rect.right - menuWidth);
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const y = spaceBelow < menuHeight ? Math.max(10, rect.top - menuHeight - 6) : rect.bottom + 6;
+      setCoords({ x, y });
     }
-    setIsOpen(!isOpen);
+    setIsOpen(prev => !prev);
   };
 
   useEffect(() => {
@@ -43,75 +75,108 @@ function RowActions({ customer, latestOrder, btnUrl }: { customer: any; latestOr
     };
   }, [isOpen]);
 
+  const custPdfType = latestOrder?.invoiceNumber 
+    ? 'invoice' 
+    : (['confirmed', 'completed'].includes(latestOrder?.status) ? 'contract' : 'order');
+
   return (
-    <>
+    <div className="relative inline-block text-left">
       <button 
         ref={buttonRef}
+        type="button"
         onClick={toggleDropdown}
-        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 text-text-muted hover:text-text-main transition-colors"
+        className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors inline-flex items-center justify-center cursor-pointer border border-slate-200/80 dark:border-slate-700 shadow-2xs"
+        title="Aktionen"
       >
-        <EllipsisVerticalIcon className="w-6 h-6" />
+        <EllipsisVerticalIcon className="w-4 h-4" />
       </button>
 
       {isOpen && (
         <div 
           ref={dropdownRef}
           style={{ position: 'fixed', top: coords.y, left: coords.x }}
-          className="w-56 rounded-xl shadow-2xl bg-bg-panel ring-1 ring-black ring-opacity-5 z-[9999] border border-structure py-2 animate-in fade-in zoom-in-95 duration-100"
+          className="w-56 rounded-2xl shadow-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 py-1.5 z-[9999] animate-in fade-in zoom-in-95 duration-100 divide-y divide-slate-100 dark:divide-slate-800 text-left"
         >
-          <Link 
-            href={btnUrl} 
-            onClick={() => setIsOpen(false)}
-            className="group flex items-center px-4 py-2 text-sm text-text-main hover:bg-white/5"
-          >
-            <PencilSquareIcon className="mr-3 h-5 w-5 text-orange-400" aria-hidden="true" />
-            Bearbeiten / Neu
-          </Link>
+          {/* 1. Bearbeiten / Neu */}
+          <div className="py-1">
+            <Link 
+              href={btnUrl} 
+              onClick={() => setIsOpen(false)}
+              className="w-full flex items-center px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left"
+            >
+              <PencilSquareIcon className="w-4 h-4 mr-2.5 text-blue-500 shrink-0" aria-hidden="true" />
+              <span>Bearbeiten / Neu</span>
+            </Link>
+          </div>
 
-          {latestOrder ? (
-            <div className="group flex items-center px-4 py-2 text-sm text-text-main hover:bg-white/5 cursor-pointer">
-              <div className="mr-3 h-5 w-5 flex items-center justify-center text-[#6E8F64]">
-                <PDFDownloadButton 
-                  order={latestOrder} 
-                  customer={customer} 
-                  type={latestOrder.invoiceNumber ? 'invoice' : (['confirmed', 'completed'].includes(latestOrder.status) ? 'contract' : 'order')}
-                  iconOnly={true}
-                  customIcon={<DocumentArrowDownIcon className="w-5 h-5 shrink-0" />}
-                  className=""
-                />
+          {/* 2. PDF Download & Übergabeprotokoll */}
+          <div className="py-1">
+            {latestOrder ? (
+              <div 
+                onClick={() => setIsOpen(false)}
+                className="w-full flex items-center px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+              >
+                <div className="mr-2.5 flex items-center text-[#6E8F64]">
+                  <PDFDownloadButton 
+                    order={latestOrder} 
+                    customer={customer} 
+                    type={custPdfType}
+                    iconOnly={true}
+                    customIcon={<DocumentArrowDownIcon className="w-4 h-4 shrink-0" />}
+                    className=""
+                  />
+                </div>
+                <span className="pointer-events-none">PDF Download</span>
               </div>
-              <span className="pointer-events-none">PDF Download</span>
-            </div>
-          ) : (
-            <div className="group flex items-center px-4 py-2 text-sm text-text-muted opacity-50 cursor-not-allowed">
-              <DocumentArrowDownIcon className="mr-3 h-5 w-5" aria-hidden="true" />
-              PDF Download
-            </div>
-          )}
+            ) : (
+              <div className="w-full flex items-center px-3.5 py-2 text-xs font-medium text-slate-400 dark:text-slate-500 opacity-50 cursor-not-allowed text-left">
+                <DocumentArrowDownIcon className="w-4 h-4 mr-2.5 shrink-0" aria-hidden="true" />
+                <span>PDF Download</span>
+              </div>
+            )}
 
-          {latestOrder ? (
-            <div className="group flex items-center px-4 py-2 text-sm text-text-main hover:bg-white/5 cursor-pointer">
-              <div className="mr-3 h-5 w-5 flex items-center justify-center text-emerald-400">
-                <PDFDownloadButton 
-                  order={latestOrder} 
-                  customer={customer} 
-                  type="protocol"
-                  iconOnly={true}
-                  customIcon={<ClipboardDocumentListIcon className="w-5 h-5 shrink-0" />}
-                  className=""
-                />
+            {latestOrder ? (
+              <div 
+                onClick={() => setIsOpen(false)}
+                className="w-full flex items-center px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer text-left"
+              >
+                <div className="mr-2.5 flex items-center text-emerald-500">
+                  <PDFDownloadButton 
+                    order={latestOrder} 
+                    customer={customer} 
+                    type="protocol"
+                    iconOnly={true}
+                    customIcon={<ClipboardDocumentListIcon className="w-4 h-4 shrink-0" />}
+                    className=""
+                  />
+                </div>
+                <span className="pointer-events-none">Übergabeprotokoll</span>
               </div>
-              <span className="pointer-events-none">Übergabeprotokoll</span>
-            </div>
-          ) : (
-            <div className="group flex items-center px-4 py-2 text-sm text-text-muted opacity-50 cursor-not-allowed">
-              <ClipboardDocumentListIcon className="mr-3 h-5 w-5" aria-hidden="true" />
-              Übergabeprotokoll
-            </div>
-          )}
+            ) : (
+              <div className="w-full flex items-center px-3.5 py-2 text-xs font-medium text-slate-400 dark:text-slate-500 opacity-50 cursor-not-allowed text-left">
+                <ClipboardDocumentListIcon className="w-4 h-4 mr-2.5 shrink-0" aria-hidden="true" />
+                <span>Übergabeprotokoll</span>
+              </div>
+            )}
+          </div>
+
+          {/* 3. Kunde archivieren (بمثابة حذف) */}
+          <div className="py-1">
+            <button
+              type="button"
+              onClick={() => {
+                setIsOpen(false);
+                onArchive(customer);
+              }}
+              className="w-full flex items-center px-3.5 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors text-left cursor-pointer"
+            >
+              <ArchiveBoxIcon className="w-4 h-4 mr-2.5 text-red-500 shrink-0" aria-hidden="true" />
+              <span>Kunde archivieren</span>
+            </button>
+          </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -131,6 +196,26 @@ export function getSourceBadgeStyle(source?: string) {
 
 export function SmartCustomerTable({ customers }: { customers: any[] }) {
   const router = useRouter();
+  const [customerToArchive, setCustomerToArchive] = useState<any | null>(null);
+
+  const confirmArchive = async () => {
+    if (!customerToArchive) return;
+    try {
+      await updateDoc(doc(db, 'customers', customerToArchive.id), {
+        isArchived: true,
+        archivedAt: serverTimestamp()
+      });
+      const name = customerToArchive.type === 'firma'
+        ? (customerToArchive.company || customerToArchive.lastName || 'Firma')
+        : `${customerToArchive.firstName || ''} ${customerToArchive.lastName || ''}`.trim() || 'Kunde';
+      toast.success(`Kunde "${name}" wurde erfolgreich archiviert!`);
+    } catch (err) {
+      console.error("Fehler beim Archivieren:", err);
+      toast.error("Fehler beim Archivieren des Kunden.");
+    } finally {
+      setCustomerToArchive(null);
+    }
+  };
 
   if (customers.length === 0) {
     return (
@@ -334,7 +419,12 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                   </td>
                   
                   <td className="px-6 py-4 text-right">
-                    <RowActions customer={customer} latestOrder={latestOrder} btnUrl={btnUrl} />
+                    <RowActions 
+                      customer={customer} 
+                      latestOrder={latestOrder} 
+                      btnUrl={btnUrl} 
+                      onArchive={(c) => setCustomerToArchive(c)}
+                    />
                   </td>
                 </tr>
               );
@@ -342,6 +432,20 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
           </tbody>
         </table>
       </div>
+
+      {/* Confirm Archive Modal */}
+      {customerToArchive && (
+        <ConfirmModal
+          isOpen={Boolean(customerToArchive)}
+          title="Kunde archivieren"
+          message={`Möchten Sie den Kunden "${customerToArchive.type === 'firma' ? (customerToArchive.company || customerToArchive.lastName || 'Firma') : `${customerToArchive.firstName || ''} ${customerToArchive.lastName || ''}`.trim() || 'Kunde'}" wirklich archivieren? Der Kunde wird aus der aktiven Liste entfernt und ins Archiv verschoben.`}
+          confirmText="Archivieren"
+          cancelText="Abbrechen"
+          isDestructive={true}
+          onConfirm={confirmArchive}
+          onCancel={() => setCustomerToArchive(null)}
+        />
+      )}
     </div>
   );
 }
