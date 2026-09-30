@@ -214,7 +214,7 @@ export const InvoicePDF = ({
   return (
     <Document title={docTitle}>
       <Page size="A4" style={styles.page}>
-        <PDFWatermark type="symbols" softRows={[1, 2, 6, 7, 8]} tableZoneLogoOnly />
+        <PDFWatermark type="symbols" softRows={[1, 2, 6, 7, 8]} />
         <PDFHeader settings={settings} docTitle={isStorno ? 'Stornorechnung' : (isKorrektur ? 'Korrekturrechnung' : 'Rechnung')} />
         <PDFFooter settings={settings} />
 
@@ -462,10 +462,26 @@ export const InvoicePDF = ({
         </View>
 
         {invoiceGreeting ? (
-          <Text style={{ ...styles.textBlock, marginTop: 8 }} wrap={false}>
+          <Text style={{ ...styles.textBlock, marginTop: 6 }} wrap={false}>
             {invoiceGreeting}
           </Text>
         ) : null}
+
+        {/* Gesetzliche Hinweise (§ 14b Abs. 1 UStG & § 35a EStG) */}
+        {!isStorno && (
+          <View style={{ marginTop: 6, padding: 5, backgroundColor: '#fcfcfc', borderRadius: 3, borderWidth: 0.5, borderColor: PDF_COLORS.border }} wrap={false}>
+            {billing?.type !== 'firma' && (
+              <Text style={{ fontSize: 6.5, color: '#666666', lineHeight: 1.25 }}>
+                <Text style={{ fontFamily: 'Helvetica-Bold' }}>Hinweis zur Aufbewahrungspflicht (§ 14b Abs. 1 UStG): </Text>
+                Für Privatpersonen gilt eine gesetzliche Aufbewahrungsfrist von 2 Jahren ab Ende des Ausstellungsjahres.
+              </Text>
+            )}
+            <Text style={{ fontSize: 6.5, color: '#666666', lineHeight: 1.25, marginTop: billing?.type !== 'firma' ? 2 : 0 }}>
+              <Text style={{ fontFamily: 'Helvetica-Bold' }}>Steuerabzug (§ 35a EStG): </Text>
+              Aufwendungen für haushaltsnahe Dienstleistungen (Umzugsarbeitskosten) können steuerlich geltend gemacht werden (Zahlung per Überweisung erforderlich).
+            </Text>
+          </View>
+        )}
       </Page>
     </Document>
   );
