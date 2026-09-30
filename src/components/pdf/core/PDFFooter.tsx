@@ -84,7 +84,7 @@ export const PDFFooter: React.FC<PDFFooterProps> = ({ settings }) => {
       {/* Col 4: Steuern & Recht */}
       <View style={styles.col}>
         <Text style={styles.colTitle}>Steuern & Recht</Text>
-        {taxId ? <Text style={styles.colText}>USt-IdNr: {taxId}</Text> : null}
+        {taxId && taxId.trim().toUpperCase().startsWith('DE') ? <Text style={styles.colText}>USt-IdNr: {taxId}</Text> : null}
         {taxNumber ? <Text style={styles.colText}>Steuer-Nr: {taxNumber}</Text> : null}
         {register ? <Text style={styles.colText}>{register}</Text> : null}
       </View>
