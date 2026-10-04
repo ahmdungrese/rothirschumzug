@@ -78,10 +78,10 @@ export function KanbanOrderCard({ order, customer, columnId, onSelect }: KanbanO
     >
       {/* 1. Header: Customer Name & Order Number */}
       <div className="flex items-start justify-between gap-2 mb-2">
-        <h4 className="font-bold text-sm text-slate-900 dark:text-white font-headline group-hover:text-[#6E8F64] transition-colors truncate">
+        <h4 className="font-bold text-sm text-slate-900 dark:text-white font-headline group-hover:text-[#6E8F64] transition-colors line-clamp-1 xl:line-clamp-2 leading-snug" title={custName}>
           {custName}
         </h4>
-        <span className="text-[10px] font-bold text-[#6E8F64] dark:text-[#A8C69F] font-headline shrink-0">
+        <span className="text-[10px] font-bold text-[#6E8F64] dark:text-[#A8C69F] font-headline shrink-0 ml-1">
           {orderNum}
         </span>
       </div>
@@ -93,24 +93,24 @@ export function KanbanOrderCard({ order, customer, columnId, onSelect }: KanbanO
       </div>
 
       {/* 3. Footer: Moving Date & Ambient Status Pill */}
-      <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700/60 text-xs">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 pt-2 border-t border-slate-100 dark:border-slate-700/60 text-xs">
         {/* Moving date with optional urgency badge */}
-        <div className="flex items-center gap-1.5">
-          <span className="material-symbols-outlined text-xs text-slate-400">calendar_today</span>
-          <span className="font-semibold text-slate-700 dark:text-slate-300 text-[11px]">
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="material-symbols-outlined text-[13px] text-slate-400 shrink-0">calendar_today</span>
+          <span className="font-semibold text-slate-700 dark:text-slate-300 text-[11px] whitespace-nowrap">
             {evaluation.movingDateDisplay}
           </span>
           {urgency && (
-            <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${urgency.color}`}>
+            <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-bold whitespace-nowrap shrink-0 ${urgency.color}`}>
               {urgency.label}
             </span>
           )}
         </div>
 
         {/* Ambient Status Indicator */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           <span className={`w-2 h-2 rounded-full ${statusDotColor} shrink-0`} />
-          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight">
+          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-tight whitespace-nowrap">
             {statusText}
           </span>
         </div>

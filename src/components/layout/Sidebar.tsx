@@ -42,17 +42,17 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
 
   return (
     <>
-      {/* Mobile overlay */}
+      {/* Mobile & Tablet Portrait overlay */}
       {isOpen && (
         <div 
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
           onClick={() => setIsOpen(false)}
         />
       )}
 
-      {/* Sidebar - SlideOver on mobile, static on desktop */}
+      {/* Sidebar - SlideOver on mobile/tablet portrait (<1024px), static on desktop (>=1024px) */}
       <aside className={`
-        flex md:static md:inset-0 fixed inset-y-0 left-0 z-50 w-64 flex-col bg-bg-dark md:bg-bg-panel border-r border-structure transform transition-transform duration-300 ease-in-out md:translate-x-0
+        flex lg:static lg:inset-0 fixed inset-y-0 left-0 z-50 w-64 flex-col bg-bg-dark lg:bg-bg-panel border-r border-structure transform transition-transform duration-300 ease-in-out lg:translate-x-0
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         <div className="flex items-center justify-between h-16 px-4 border-b border-structure" style={{ backgroundColor: 'var(--lm-sidebar-header)' }}>
@@ -64,7 +64,7 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
             className="object-contain" 
             priority 
           />
-          <button onClick={() => setIsOpen(false)} className="md:hidden text-text-muted hover:text-text-main">
+          <button onClick={() => setIsOpen(false)} className="lg:hidden text-text-muted hover:text-text-main">
             <XMarkIcon className="w-6 h-6" />
           </button>
         </div>
@@ -98,7 +98,7 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
             <span className="font-semibold text-[11px] text-text-main">Rothirsch ERP</span>
           </div>
           <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold border border-primary/20 text-[10px] font-mono">
-            v2.4.0
+            v2.5.0
           </span>
         </div>
       </aside>

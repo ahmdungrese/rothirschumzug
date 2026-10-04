@@ -374,9 +374,10 @@ export function KanbanDispositionBoard() {
 
                 {/* Past moves kept cleanly at the bottom without any number badge */}
                 {pastBestaetigt.length > 0 && (
-                  <div className="pt-3 border-t border-dashed border-slate-300 dark:border-slate-700/80 space-y-2">
-                    <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-1">
-                      Vorbei
+                  <div className="pt-3 mt-2 border-t border-dashed border-slate-300 dark:border-slate-700/80 space-y-2">
+                    <div className="flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                      <span className="material-symbols-outlined text-[14px]">history</span>
+                      <span>Vergangene Termine</span>
                     </div>
                     {pastBestaetigt.map(order => (
                       <KanbanOrderCard

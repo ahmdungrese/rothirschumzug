@@ -450,9 +450,9 @@ export default function LogisticsPage() {
   }
 
   return (
-    <div className="w-full max-w-full px-4 md:px-8 space-y-5 animate-in fade-in duration-300 pb-16 min-h-screen">
+    <div className="w-full max-w-full px-2 sm:px-4 md:px-6 space-y-4 animate-in fade-in duration-300 pb-16 min-h-screen">
       {/* Clean Header & Search Bar (Light Olive-Sage Green #6E8F64 — Zero Red) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900/80 px-4 py-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900/80 px-3 sm:px-4 py-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="flex items-center justify-between sm:justify-start gap-3">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-[#6E8F64] animate-pulse" />
@@ -472,7 +472,7 @@ export default function LogisticsPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {/* View Mode Toggle: 1. Pro Kunde (STANDARD) | 2. Symbole (Einzeln) */}
           <div className="inline-flex p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0">
             <button

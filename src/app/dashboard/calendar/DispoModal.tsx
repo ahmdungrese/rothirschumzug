@@ -414,28 +414,22 @@ export function DispoModal({
                               </div>
                             </div>
                           ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-3">
-                              <div className="bg-bg-panel border border-structure p-2.5 rounded-xl">
-                                <CounterInput 
-                                  label="Umzugshelfer" 
-                                  value={helpersCount} 
-                                  onChange={v => updateResource(order.id, 'helpers', v)} 
-                                />
-                              </div>
-                              <div className="bg-bg-panel border border-structure p-2.5 rounded-xl">
-                                <CounterInput 
-                                  label="Koffer 3,5t" 
-                                  value={koffer35tCount} 
-                                  onChange={v => updateResource(order.id, 'koffer35t', v)} 
-                                />
-                              </div>
-                              <div className="bg-bg-panel border border-structure p-2.5 rounded-xl">
-                                <CounterInput 
-                                  label="LKW 7,5t" 
-                                  value={lkw7tCount} 
-                                  onChange={v => updateResource(order.id, 'lkw7t', v)} 
-                                />
-                              </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                              <CounterInput 
+                                label="Umzugshelfer" 
+                                value={helpersCount} 
+                                onChange={v => updateResource(order.id, 'helpers', v)} 
+                              />
+                              <CounterInput 
+                                label="Koffer 3,5t" 
+                                value={koffer35tCount} 
+                                onChange={v => updateResource(order.id, 'koffer35t', v)} 
+                              />
+                              <CounterInput 
+                                label="LKW 7,5t" 
+                                value={lkw7tCount} 
+                                onChange={v => updateResource(order.id, 'lkw7t', v)} 
+                              />
                             </div>
                           )}
                         </div>
