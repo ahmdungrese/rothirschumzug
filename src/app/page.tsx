@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
-import { ShieldExclamationIcon, LockClosedIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { LockClosedIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_SECONDS = 10 * 60; // 10 Minuten
@@ -154,9 +154,9 @@ export default function Home() {
       </div>
 
       <div className="glass-panel w-full max-w-md p-6 md:p-8 animate-in zoom-in-95 duration-500 shadow-2xl rounded-2xl border border-structure/80">
-        <div className="flex justify-center mb-8 px-4">
-          <div className="bg-[#0B132B] p-6 rounded-2xl shadow-inner border border-slate-700/50 w-full max-w-[280px] md:max-w-[320px] flex items-center justify-center">
-            <img src="/login-logo.png" alt="Rothirsch Login Logo" className="w-full object-contain" />
+        <div className="flex justify-center mb-6">
+          <div className="bg-[#0B132B] py-3.5 px-6 rounded-2xl shadow-md border border-slate-700/60 flex items-center justify-center">
+            <img src="/Rothirsch.png" alt="Rothirsch Logo" className="h-10 md:h-11 w-auto object-contain" />
           </div>
         </div>
         
@@ -244,13 +244,6 @@ export default function Home() {
             )}
           </button>
         </form>
-
-        <div className="mt-6 pt-4 border-t border-structure/40 text-center">
-          <span className="text-[11px] text-text-muted flex items-center justify-center gap-1.5">
-            <ShieldExclamationIcon className="w-4 h-4 text-primary" />
-            Rothirsch Sicherheit: Rate-Limiting & Brute-Force-Schutz aktiv
-          </span>
-        </div>
       </div>
     </main>
   );
