@@ -40,13 +40,15 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
   const pathname = usePathname();
   const { profile } = useAuth();
   const { theme } = useTheme();
-  const [isSlim, setIsSlim] = useState(false);
+  const [isSlim, setIsSlim] = useState(true);
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem('rothirsch_sidebar_slim');
       if (saved !== null) {
         setIsSlim(saved === 'true');
+      } else {
+        setIsSlim(true);
       }
     } catch {}
   }, []);
@@ -119,10 +121,22 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
                 <button 
                   type="button"
                   onClick={toggleSlim}
-                  title="Sidebar vergrößern"
-                  className="w-9 h-9 flex items-center justify-center rounded-xl bg-structure/40 hover:bg-structure text-text-main transition-colors cursor-pointer"
+                  title="Sidebar ausklappen (Klicken zum Erweitern)"
+                  className="group relative flex items-center justify-center w-10 h-10 rounded-xl hover:bg-structure/60 transition-all cursor-pointer"
                 >
-                  <ChevronRightIcon className="w-4 h-4 text-primary" />
+                  <div className="w-9 h-9 overflow-hidden flex items-center justify-start rounded-lg transition-transform group-hover:scale-95">
+                    <Image 
+                      src="/Rothirsch.png" 
+                      alt="Rothirsch" 
+                      width={120} 
+                      height={36} 
+                      className="object-contain max-w-none h-8 w-auto -ml-0.5" 
+                      priority 
+                    />
+                  </div>
+                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-primary text-white rounded-full flex items-center justify-center shadow-xs opacity-0 group-hover:opacity-100 transition-opacity">
+                    <ChevronRightIcon className="w-3 h-3 stroke-[3]" />
+                  </div>
                 </button>
               </div>
             ) : (
@@ -206,8 +220,9 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
                 type="button"
                 onClick={toggleSlim}
                 title="Sidebar ausklappen"
-                className="p-1 rounded-lg hover:bg-structure text-text-muted hover:text-primary transition-colors cursor-pointer w-full text-center"
+                className="flex items-center justify-center gap-1 p-1 rounded-lg hover:bg-structure text-text-muted hover:text-primary transition-colors cursor-pointer w-full text-center group"
               >
+                <ChevronRightIcon className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-bold border border-primary/20 text-[9px] font-mono">
                   v2.5
                 </span>
