@@ -200,21 +200,21 @@ export default function Home() {
         <form onSubmit={handleLogin} className="space-y-5">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-text-muted mb-2">
-              E-Mail oder Handynummer
+              E-Mail-Adresse
             </label>
             <input
               type="text"
               value={loginId}
               onChange={(e) => setLoginId(e.target.value)}
               className="input-field disabled:opacity-50 disabled:cursor-not-allowed"
-              placeholder="01761234567 oder E-Mail"
+              placeholder="name@rothirsch-umzug.de"
               disabled={isLocked}
               required
             />
           </div>
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-text-muted mb-2">
-              Passwort / PIN
+              Passwort
             </label>
             <input
               type="password"
