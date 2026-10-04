@@ -15,7 +15,7 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
         <div className="flex items-center gap-2 sm:gap-3">
           <button 
             onClick={onMenuClick}
-            className="lg:hidden p-2 -ml-1 text-text-muted hover:text-text-main hover:bg-structure/30 rounded-xl transition-colors cursor-pointer"
+            className="md:hidden p-2 -ml-1 text-text-muted hover:text-text-main hover:bg-structure/30 rounded-xl transition-colors cursor-pointer"
             title="Menü öffnen"
           >
             <Bars3Icon className="w-6 h-6" />
