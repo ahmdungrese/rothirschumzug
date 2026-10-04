@@ -161,7 +161,7 @@ export default function Home() {
         </div>
         
         <h2 className="text-xl md:text-2xl font-bold mb-6 text-center text-text-main tracking-tight font-headline">
-          Internes ERP-System
+          Umzugs-Management
         </h2>
         
         {/* Lockout Warning Banner with Live Countdown */}
