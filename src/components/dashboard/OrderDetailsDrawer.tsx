@@ -38,6 +38,7 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
+import { modalManager } from '@/lib/modalManager';
 
 interface OrderDetailsDrawerProps {
   order: any;
@@ -212,7 +213,8 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
       e.preventDefault();
       e.stopPropagation();
     }
-    router.push(url);
+    modalManager.prepareNavigation();
+    router.replace(url);
     onClose();
   };
 
@@ -1652,8 +1654,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                 type="button"
                 onClick={() => {
                   setEarlyInvoiceWarningOpen(false);
-                  onClose();
-                  router.push(editInvoiceUrl);
+                  handleNavigate(editInvoiceUrl);
                 }}
                 className="px-4 py-2.5 rounded-xl bg-[#D91E2A] hover:bg-[#b51822] text-white text-xs font-bold shadow-md transition-colors cursor-pointer"
               >

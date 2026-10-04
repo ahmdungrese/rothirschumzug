@@ -22,10 +22,21 @@ class ModalManager {
   private isSilentBack = false;
   private pendingUnregisters = new Map<string, NodeJS.Timeout>();
   private isInitialized = false;
+  private isNavigating = false;
 
   private init() {
     if (typeof window === 'undefined' || this.isInitialized) return;
     this.isInitialized = true;
+
+    // Global navigation detection: If a link is clicked inside any modal/drawer, prepare navigation
+    window.addEventListener('click', (e: MouseEvent) => {
+      const target = (e.target as HTMLElement)?.closest?.('a');
+      if (target && target.href && !target.href.startsWith('#') && !target.target) {
+        if (this.hasOpenModals()) {
+          this.prepareNavigation();
+        }
+      }
+    }, true);
 
     // Listen to browser / mobile hardware back button
     window.addEventListener('popstate', (e: PopStateEvent) => {
@@ -99,6 +110,21 @@ class ModalManager {
     return () => this.unregister(id);
   }
 
+  /**
+   * Prepares modal manager for a route transition.
+   * Cancels any pending history.back() calls so the browser does not revert or abort the navigation.
+   */
+  prepareNavigation() {
+    this.isNavigating = true;
+    this.stack = [];
+    this.pendingUnregisters.forEach(timer => clearTimeout(timer));
+    this.pendingUnregisters.clear();
+
+    setTimeout(() => {
+      this.isNavigating = false;
+    }, 1000);
+  }
+
   unregister(id: string) {
     if (typeof window === 'undefined') return;
 
@@ -111,6 +137,11 @@ class ModalManager {
     // Debounce unregister slightly (60ms) to allow React StrictMode and micro-tasks to settle
     const timer = setTimeout(() => {
       this.pendingUnregisters.delete(id);
+
+      // If a route navigation is currently in flight, never revert history backwards
+      if (this.isNavigating) {
+        return;
+      }
 
       const index = this.stack.findIndex(m => m.id === id);
       if (index !== -1) {
