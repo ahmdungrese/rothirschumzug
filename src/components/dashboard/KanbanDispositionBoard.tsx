@@ -284,7 +284,7 @@ export function KanbanDispositionBoard() {
             </span>
           </div>
 
-          <div className="space-y-2.5 flex-1 overflow-y-auto max-h-[75vh] pr-1 custom-scrollbar">
+          <div className="space-y-2.5 flex-1 overflow-y-auto overflow-x-hidden max-h-[75vh] pr-1 custom-scrollbar">
             {columnNeu.length === 0 ? (
               <div className="text-center py-10 text-xs text-slate-400 font-medium">
                 Keine neuen Anfragen
@@ -319,7 +319,7 @@ export function KanbanDispositionBoard() {
             </span>
           </div>
 
-          <div className="space-y-2.5 flex-1 overflow-y-auto max-h-[75vh] pr-1 custom-scrollbar">
+          <div className="space-y-2.5 flex-1 overflow-y-auto overflow-x-hidden max-h-[75vh] pr-1 custom-scrollbar">
             {columnVerhandlung.length === 0 ? (
               <div className="text-center py-10 text-xs text-slate-400 font-medium">
                 Keine offenen Angebote
@@ -354,7 +354,7 @@ export function KanbanDispositionBoard() {
             </span>
           </div>
 
-          <div className="space-y-2.5 flex-1 overflow-y-auto max-h-[75vh] pr-1 custom-scrollbar">
+          <div className="space-y-2.5 flex-1 overflow-y-auto overflow-x-hidden max-h-[75vh] pr-1 custom-scrollbar">
             {columnBestaetigt.length === 0 ? (
               <div className="text-center py-10 text-xs text-slate-400 font-medium">
                 Keine bestätigten Umzüge
@@ -411,7 +411,7 @@ export function KanbanDispositionBoard() {
             </span>
           </div>
 
-          <div className="space-y-2.5 flex-1 overflow-y-auto max-h-[75vh] pr-1 custom-scrollbar">
+          <div className="space-y-2.5 flex-1 overflow-y-auto overflow-x-hidden max-h-[75vh] pr-1 custom-scrollbar">
             {columnAbgeschlossen.length === 0 ? (
               <div className="text-center py-10 text-xs text-slate-400 font-medium">
                 Keine abgeschlossenen Umzüge

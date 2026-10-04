@@ -484,18 +484,17 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   currentStepRef.current = currentStep;
 
   const goToStep = (stepNum: number) => {
-    if (stepNum > currentStepRef.current && typeof window !== 'undefined') {
-      window.history.pushState({ orderStep: stepNum }, '');
-    }
     setCurrentStep(stepNum);
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
   };
 
   const handleStepBack = () => {
     if (currentStep > 1) {
-      if (typeof window !== 'undefined' && window.history.state?.orderStep) {
-        window.history.back();
-      } else {
-        setCurrentStep(prev => Math.max(1, prev - 1));
+      setCurrentStep(prev => Math.max(1, prev - 1));
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     }
   };
@@ -1407,26 +1406,10 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     }
   };
 
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
-  };
-
-  const onTouchMove = (e: React.TouchEvent) => {
-    setTouchEnd(e.targetTouches[0].clientX);
-  };
-
   const validateAndSetStep = (targetStep: number) => {
-    // If going backwards, always allow and sync history
+    // If going backwards, directly go to step without exiting page
     if (targetStep < currentStep) {
-      if (typeof window !== 'undefined' && window.history.state?.orderStep) {
-        window.history.back();
-      } else {
-        setCurrentStep(targetStep);
-      }
+      goToStep(targetStep);
       return;
     }
 
@@ -1449,19 +1432,6 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     goToStep(targetStep);
   };
 
-  const onTouchEndHandler = () => {
-    if (!touchStart || !touchEnd) return;
-    const distance = touchStart - touchEnd;
-    const minSwipeDistance = 50;
-    
-    if (distance > minSwipeDistance && currentStep < 5) {
-      validateAndSetStep(currentStep + 1);
-    }
-    if (distance < -minSwipeDistance && currentStep > 1) {
-      validateAndSetStep(currentStep - 1);
-    }
-  };
-
   if (!settings) return <div className="p-12 text-center text-text-main">Lade Einstellungen...</div>;
 
   const date = orderMeta?.movingDateFrom || "";
@@ -1477,12 +1447,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const distanceDuration = routeInfo ? `${Math.floor(routeInfo.durationMinutes / 60)}h ${routeInfo.durationMinutes % 60}m` : '';
 
   return (
-    <div 
-      className="space-y-8 animate-in fade-in duration-500 pb-48"
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEndHandler}
-    >
+    <div className="space-y-8 animate-in fade-in duration-500 pb-48">
       <div className="flex justify-between items-center bg-bg-panel border border-structure p-4 rounded-xl shadow-lg mt-6">
         <div>
           <h1 className="text-2xl font-bold text-text-main flex items-center gap-2">

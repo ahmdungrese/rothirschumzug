@@ -74,7 +74,7 @@ export function KanbanOrderCard({ order, customer, columnId, onSelect }: KanbanO
   return (
     <div 
       onClick={() => onSelect && onSelect(order)}
-      className={`bg-white dark:bg-slate-800/95 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 border-l-4 ${borderLeftColor} shadow-xs hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all cursor-pointer select-none group flex flex-col justify-between`}
+      className={`bg-white dark:bg-slate-800/95 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 border-l-4 ${borderLeftColor} shadow-xs hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all cursor-pointer select-none group flex flex-col justify-between w-full max-w-full overflow-hidden`}
     >
       {/* 1. Header: Customer Name & Order Number */}
       <div className="flex items-start justify-between gap-2 mb-2">
