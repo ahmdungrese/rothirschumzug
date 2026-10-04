@@ -16,6 +16,7 @@ import { calculateOrderTotals } from '@/lib/financeHelpers';
 import { InventoryWizardModal, ROOM_TYPES } from './InventoryWizardModal';
 import { FLOOR_OPTIONS } from '@/lib/constants';
 import { withDbTimeout, formatFriendlyError } from '@/lib/networkWatchdog';
+import { modalManager } from '@/lib/modalManager';
 
 const getPropertyIcon = (type: string) => {
   const t = (type || '').toLowerCase();
@@ -633,6 +634,11 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     if (typeof window === 'undefined') return;
 
     const handlePopState = (e: PopStateEvent) => {
+      // If modalManager is handling a modal or a silent history rollback, ignore this popstate
+      if (modalManager.isHandlingModal()) {
+        return;
+      }
+
       if (currentStepRef.current > 1) {
         setCurrentStep(prev => Math.max(1, prev - 1));
       } else {

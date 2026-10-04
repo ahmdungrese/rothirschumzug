@@ -330,33 +330,43 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                   className="hover:bg-white/[0.04] transition-colors group"
                 >
                   <td className="px-4 lg:px-6 py-4">
-                    <Link href={`/dashboard/customers/${customer.id}`} className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
-                      {isCompany ? (
-                        <div className="bg-primary/20 p-2.5 rounded-xl text-primary shrink-0 shadow-inner">
-                          <BuildingSolid className="w-5 h-5" />
-                        </div>
-                      ) : (
-                        <div className="bg-black/10 dark:bg-white/5 p-2.5 rounded-xl text-text-muted group-hover:text-text-main transition-colors shrink-0 shadow-inner">
-                          <UserCircleSolid className="w-5 h-5" />
-                        </div>
-                      )}
-                      <div>
-                        <div className="font-bold text-base text-text-main hover:text-primary transition-colors">{displayName}</div>
-                        {isCompany && customer.firstName && (
-                          <div className="text-sm text-text-muted mb-1">{customer.firstName}</div>
-                        )}
-                        {customer.source && (
-                          <div className={`mt-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border inline-block ${getSourceBadgeStyle(customer.source)}`}>
-                            {customer.source}
+                    <div className="flex items-start gap-3">
+                      <Link 
+                        href={`/dashboard/customers/${customer.id}`} 
+                        className="shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                      >
+                        {isCompany ? (
+                          <div className="bg-primary/20 p-2.5 rounded-xl text-primary shrink-0 shadow-inner">
+                            <BuildingSolid className="w-5 h-5" />
+                          </div>
+                        ) : (
+                          <div className="bg-black/10 dark:bg-white/5 p-2.5 rounded-xl text-text-muted group-hover:text-text-main transition-colors shrink-0 shadow-inner">
+                            <UserCircleSolid className="w-5 h-5" />
                           </div>
                         )}
+                      </Link>
 
-                        {/* Smart Condensed Quick Contact for Tablets (< xl) */}
-                        <div className="flex xl:hidden items-center gap-1.5 mt-2 flex-wrap" onClick={e => e.stopPropagation()}>
+                      <div className="min-w-0">
+                        <Link 
+                          href={`/dashboard/customers/${customer.id}`}
+                          className="block cursor-pointer hover:opacity-80 transition-opacity"
+                        >
+                          <div className="font-bold text-base text-text-main hover:text-primary transition-colors">{displayName}</div>
+                          {isCompany && customer.firstName && (
+                            <div className="text-sm text-text-muted mb-1">{customer.firstName}</div>
+                          )}
+                          {customer.source && (
+                            <div className={`mt-1.5 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border inline-block ${getSourceBadgeStyle(customer.source)}`}>
+                              {customer.source}
+                            </div>
+                          )}
+                        </Link>
+
+                        {/* Smart Condensed Quick Contact for Tablets (< xl) - Separate from Link */}
+                        <div className="flex xl:hidden items-center gap-1.5 mt-2 flex-wrap">
                           {customer.phone && (
                             <a 
                               href={`tel:${customer.phone}`} 
-                              onClick={e => e.stopPropagation()} 
                               title={`Anrufen: ${customer.phone}`}
                               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold transition-colors cursor-pointer border border-primary/20 shrink-0"
                             >
@@ -367,7 +377,6 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                           {customer.email && (
                             <a 
                               href={`mailto:${customer.email}`} 
-                              onClick={e => e.stopPropagation()} 
                               title={`E-Mail senden: ${customer.email}`}
                               className="inline-flex items-center justify-center p-1 rounded-md bg-slate-200/60 dark:bg-slate-800 hover:bg-primary hover:text-white text-text-muted transition-colors cursor-pointer shrink-0"
                             >
@@ -376,7 +385,7 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                           )}
                         </div>
                       </div>
-                    </Link>
+                    </div>
                   </td>
                   
                   <td className="hidden xl:table-cell px-4 lg:px-6 py-4">

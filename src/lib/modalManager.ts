@@ -23,6 +23,7 @@ class ModalManager {
   private pendingUnregisters = new Map<string, NodeJS.Timeout>();
   private isInitialized = false;
   private isNavigating = false;
+  private lastModalActionTime = 0;
 
   private init() {
     if (typeof window === 'undefined' || this.isInitialized) return;
@@ -43,11 +44,13 @@ class ModalManager {
       // If we triggered this back programmatically to clean up history, ignore it
       if (this.isSilentBack) {
         this.isSilentBack = false;
+        this.lastModalActionTime = Date.now();
         return;
       }
 
       // If we have open modals on the stack, the mobile back button closes the top modal
       if (this.stack.length > 0) {
+        this.lastModalActionTime = Date.now();
         const topModal = this.stack.pop();
         if (topModal) {
           try {
@@ -152,6 +155,7 @@ class ModalManager {
       // cleanly revert the pushed history entry
       if (this.stack.length === 0 && window.history.state?.rothirschModal) {
         this.isSilentBack = true;
+        this.lastModalActionTime = Date.now();
         try {
           window.history.back();
         } catch {
@@ -170,6 +174,14 @@ class ModalManager {
 
   hasOpenModals(): boolean {
     return this.stack.length > 0;
+  }
+
+  /**
+   * Returns true if a modal is currently open or if a modal just closed or triggered
+   * a history back operation within the last 400ms.
+   */
+  isHandlingModal(): boolean {
+    return this.isSilentBack || this.stack.length > 0 || (Date.now() - this.lastModalActionTime < 400);
   }
 }
 
