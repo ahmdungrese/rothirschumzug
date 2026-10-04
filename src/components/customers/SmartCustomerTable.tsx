@@ -231,12 +231,12 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
         <table className="w-full text-left text-sm text-text-main">
           <thead className="bg-bg-dark text-text-muted uppercase text-xs tracking-wider border-b border-structure">
             <tr>
-              <th className="px-6 py-4 font-semibold">Kunde</th>
-              <th className="px-6 py-4 font-semibold">Kontakt</th>
-              <th className="px-6 py-4 font-semibold">Letzter Auftrag</th>
-              <th className="px-6 py-4 font-semibold">Umzugsdatum</th>
-              <th className="px-6 py-4 font-semibold">Status</th>
-              <th className="px-6 py-4 font-semibold text-right">Aktionen</th>
+              <th className="px-4 lg:px-6 py-3.5 font-semibold">Kunde</th>
+              <th className="hidden xl:table-cell px-4 lg:px-6 py-3.5 font-semibold">Kontakt</th>
+              <th className="px-3 lg:px-6 py-3.5 font-semibold">Letzter Auftrag</th>
+              <th className="px-3 lg:px-6 py-3.5 font-semibold">Umzugsdatum</th>
+              <th className="px-3 lg:px-6 py-3.5 font-semibold">Status</th>
+              <th className="px-3 lg:px-6 py-3.5 font-semibold text-right">Aktionen</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-structure">
@@ -329,7 +329,7 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                   key={customer.id} 
                   className="hover:bg-white/[0.04] transition-colors group"
                 >
-                  <td className="px-6 py-4">
+                  <td className="px-4 lg:px-6 py-4">
                     <Link href={`/dashboard/customers/${customer.id}`} className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
                       {isCompany ? (
                         <div className="bg-primary/20 p-2.5 rounded-xl text-primary shrink-0 shadow-inner">
@@ -350,11 +350,36 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                             {customer.source}
                           </div>
                         )}
+
+                        {/* Smart Condensed Quick Contact for Tablets (< xl) */}
+                        <div className="flex xl:hidden items-center gap-1.5 mt-2 flex-wrap" onClick={e => e.stopPropagation()}>
+                          {customer.phone && (
+                            <a 
+                              href={`tel:${customer.phone}`} 
+                              onClick={e => e.stopPropagation()} 
+                              title={`Anrufen: ${customer.phone}`}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold transition-colors cursor-pointer border border-primary/20 shrink-0"
+                            >
+                              <PhoneIcon className="w-3 h-3" />
+                              <span className="text-[11px] font-mono">{customer.phone}</span>
+                            </a>
+                          )}
+                          {customer.email && (
+                            <a 
+                              href={`mailto:${customer.email}`} 
+                              onClick={e => e.stopPropagation()} 
+                              title={`E-Mail senden: ${customer.email}`}
+                              className="inline-flex items-center justify-center p-1 rounded-md bg-slate-200/60 dark:bg-slate-800 hover:bg-primary hover:text-white text-text-muted transition-colors cursor-pointer shrink-0"
+                            >
+                              <EnvelopeIcon className="w-3.5 h-3.5" />
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </Link>
                   </td>
                   
-                  <td className="px-6 py-4">
+                  <td className="hidden xl:table-cell px-4 lg:px-6 py-4">
                     <div className="flex flex-col gap-1 text-sm text-text-muted">
                       {customer.phone && (
                         <a href={`tel:${customer.phone}`} onClick={e => e.stopPropagation()} className="flex items-center gap-1.5 hover:text-primary transition-colors">
@@ -370,7 +395,7 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                     </div>
                   </td>
                   
-                  <td className="px-6 py-4">
+                  <td className="px-3 lg:px-6 py-4">
                     {latestOrder?.logistics?.a_city && latestOrder?.logistics?.b_city ? (
                       <div className="flex items-center gap-2 text-sm text-primary bg-primary/10 px-2.5 py-1.5 rounded-md border border-primary/20 w-fit">
                         <span className="font-semibold">{latestOrder.logistics.a_city}</span>
@@ -382,7 +407,7 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                     )}
                   </td>
                   
-                  <td className="px-6 py-4">
+                  <td className="px-3 lg:px-6 py-4">
                     {(() => {
                       const movingDateRaw = latestOrder?.orderMeta?.movingDateFrom || latestOrder?.movingDate || latestOrder?.logistics?.movingDate;
                       if (!movingDateRaw) return <span className="text-sm text-text-muted italic opacity-50">-</span>;
@@ -412,13 +437,13 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                     })()}
                   </td>
                   
-                  <td className="px-6 py-4">
+                  <td className="px-3 lg:px-6 py-4">
                     <span className={`px-3 py-1.5 rounded-full text-xs font-semibold border ${statusBadge} inline-flex whitespace-nowrap`}>
                       {statusText}
                     </span>
                   </td>
                   
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-3 lg:px-6 py-4 text-right">
                     <RowActions 
                       customer={customer} 
                       latestOrder={latestOrder} 
