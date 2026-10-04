@@ -155,7 +155,7 @@ export default function Home() {
 
       <div className="glass-panel w-full max-w-md p-6 md:p-8 animate-in zoom-in-95 duration-500 shadow-2xl rounded-2xl border border-structure/80">
         <div className="flex justify-center mb-8 px-4">
-          <div className="bg-white p-6 rounded-2xl shadow-inner w-full max-w-[280px] md:max-w-[320px] flex items-center justify-center">
+          <div className="bg-[#0B132B] p-6 rounded-2xl shadow-inner border border-slate-700/50 w-full max-w-[280px] md:max-w-[320px] flex items-center justify-center">
             <img src="/login-logo.png" alt="Rothirsch Login Logo" className="w-full object-contain" />
           </div>
         </div>
