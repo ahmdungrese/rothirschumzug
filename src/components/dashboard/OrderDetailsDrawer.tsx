@@ -207,10 +207,18 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
   );
   const isReadyForInvoice = Boolean(order.invoiceNumber) || (isContractSigned && (hasProtocol || evaluation.isComplete || order.status === 'completed'));
 
+  const handleNavigate = (url: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    router.push(url);
+    onClose();
+  };
+
   const handleInvoiceClick = () => {
     if (isReadyForInvoice) {
-      onClose();
-      router.push(editInvoiceUrl);
+      handleNavigate(editInvoiceUrl);
     } else {
       setEarlyInvoiceWarningOpen(true);
     }
@@ -432,12 +440,12 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
               </div>
               <Link
                 href={customerProfileUrl}
-                onClick={onClose}
-                className="group inline-flex items-center gap-2 text-xl font-bold font-headline text-slate-900 dark:text-white hover:text-primary dark:hover:text-primary transition-colors"
+                onClick={(e) => handleNavigate(customerProfileUrl, e)}
+                className="group inline-flex items-center gap-2 text-xl font-bold font-headline text-slate-900 dark:text-white hover:text-primary dark:hover:text-primary transition-colors cursor-pointer select-none active:opacity-75 p-1 -m-1 rounded-lg"
                 title="Kundenakte öffnen"
               >
-                <span>{custName}</span>
-                <span className="w-7 h-7 rounded-lg bg-slate-200/80 dark:bg-slate-800 group-hover:bg-primary group-hover:text-white text-slate-600 dark:text-slate-300 inline-flex items-center justify-center transition-all shadow-2xs">
+                <span className="hover:underline underline-offset-4 decoration-primary">{custName}</span>
+                <span className="w-7 h-7 rounded-lg bg-slate-200/80 dark:bg-slate-800 group-hover:bg-primary group-hover:text-white text-slate-600 dark:text-slate-300 inline-flex items-center justify-center transition-all shadow-2xs shrink-0">
                   <ArrowTopRightOnSquareIcon className="w-4 h-4" />
                 </span>
               </Link>
@@ -523,8 +531,8 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
               {/* Single Offer Editor Button in Cockpit Header */}
               <Link
                 href={editOrderUrl}
-                onClick={onClose}
-                className="px-3.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+                onClick={(e) => handleNavigate(editOrderUrl, e)}
+                className="px-3.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer select-none active:scale-95"
                 title="Angebot, Umzugsliste & Kalkulation im Editor bearbeiten"
               >
                 <PencilSquareIcon className="w-4 h-4" />
