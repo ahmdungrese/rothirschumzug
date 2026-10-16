@@ -1177,19 +1177,63 @@ export function CustomerPremiumProfile({
 
       </div>
 
-      {/* Quick Documents Hub (1-Klick Dokumentenzentrale) */}
+      {/* Consolidated Schnellaktionen & Dokumente Hub */}
       {activeOrder && (
-        <div className="bg-slate-50 dark:bg-slate-900/60 p-3 sm:p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 shadow-xs">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-primary animate-ping"></span>
-            <span className="text-xs font-bold text-slate-700 dark:text-slate-300 font-headline uppercase tracking-wider flex items-center gap-1.5">
-              <DocumentTextIcon className="w-4 h-4 text-primary" />
-              Dokumente (#{activeOrder.orderNumber || activeOrder.id?.slice(-5).toUpperCase()}):
-            </span>
+        <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 shrink-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#6E8F64] animate-pulse"></span>
+            <div>
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 font-headline uppercase tracking-wider block">
+                Aktionen & Dokumente
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium block">
+                Auftrag #{activeOrder.orderNumber || activeOrder.id?.slice(-5).toUpperCase()}
+              </span>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* 1. Angebot PDF */}
+            {/* 1. WhatsApp Quick Chat */}
+            <button
+              type="button"
+              onClick={() => {
+                const defaultT = allWaTemplates.find((t: any) => t.id === 't3') || allWaTemplates[0];
+                if (defaultT) {
+                  setSelectedWaTemplateId(defaultT.id);
+                  setWaCustomText(formatTemplateText(defaultT.body));
+                }
+                setShowWhatsAppModal(true);
+              }}
+              className="px-3.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+              title="WhatsApp Chat mit hinterlegter Vorlage starten"
+            >
+              <ChatBubbleLeftRightIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>WhatsApp</span>
+            </button>
+
+            {/* 2. Zahlung erfassen */}
+            <button
+              type="button"
+              onClick={() => handleRequestPayment(activeOrder)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
+                hasInvoice
+                  ? 'bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                  : 'bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 text-slate-500 border-slate-300 dark:border-slate-700 opacity-80'
+              }`}
+              title={hasInvoice ? "Zahlung auf Rechnung erfassen" : "Keine Rechnung vorhanden (Klicken zum Erstellen)"}
+            >
+              <CurrencyEuroIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Zahlung erfassen</span>
+              {!hasInvoice && (
+                <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-normal">
+                  fehlt
+                </span>
+              )}
+            </button>
+
+            <span className="hidden sm:inline-block w-px h-5 bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
+            {/* 3. Angebot PDF */}
             {(() => {
               const hasContent = isOrderPricedAndServiced(activeOrder);
               return (
@@ -1214,7 +1258,7 @@ export function CustomerPremiumProfile({
               );
             })()}
 
-            {/* 2. Rechnung PDF / erstellen */}
+            {/* 4. Rechnung PDF / erstellen */}
             {hasInvoice ? (
               <div className="flex items-center gap-1">
                 <button
@@ -1249,7 +1293,7 @@ export function CustomerPremiumProfile({
               </button>
             )}
 
-            {/* 3. Protokoll */}
+            {/* 5. Protokoll */}
             {hasActiveProtocols ? (
               <div className="flex items-center gap-1">
                 <button
@@ -1282,7 +1326,7 @@ export function CustomerPremiumProfile({
               </button>
             )}
 
-            {/* 4. Laufzettel */}
+            {/* 6. Laufzettel */}
             <button
               type="button"
               onClick={() => onViewPdf(activeOrder, 'employee')}
@@ -1293,7 +1337,7 @@ export function CustomerPremiumProfile({
               <span>Laufzettel</span>
             </button>
 
-            {/* 5. Digital signieren (wenn noch offen) */}
+            {/* 7. Digital signieren (wenn noch offen) */}
             {!logisticsEval?.angebotStatus.isSigned && onOpenSignatureModal && (
               <button
                 type="button"
@@ -1468,137 +1512,7 @@ export function CustomerPremiumProfile({
         </div>
       )}
 
-      {/* Quick Action Navigation Toolbar */}
-      <section>
-        <div className="flex items-center justify-between mb-3 px-1">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 font-headline">
-            Schnellaktionen & Workflows
-          </h2>
-          {activeOrder && (
-            <span className="text-xs text-slate-400 font-medium">
-              Ausgewählter Auftrag: <strong className="text-slate-700 dark:text-slate-200">#{activeOrder.orderNumber || activeOrder.id?.slice(-5).toUpperCase()}</strong>
-            </span>
-          )}
-        </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
-          {/* 1. WhatsApp Quick Chat */}
-          <button
-            type="button"
-            onClick={() => {
-              const defaultT = allWaTemplates.find((t: any) => t.id === 't3') || allWaTemplates[0];
-              if (defaultT) {
-                setSelectedWaTemplateId(defaultT.id);
-                setWaCustomText(formatTemplateText(defaultT.body));
-              }
-              setShowWhatsAppModal(true);
-            }}
-            className="w-full p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-emerald-500/40 hover:shadow-md transition-all group flex flex-col items-center text-center gap-2 cursor-pointer"
-          >
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center group-hover:bg-emerald-500 group-hover:text-white transition-all shadow-xs">
-              <ChatBubbleLeftRightIcon className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-              WhatsApp Chat
-            </span>
-          </button>
-
-          {/* 2. Zahlung erfassen (GUARDED: Nur mit Rechnung) */}
-          <button
-            type="button"
-            onClick={() => handleRequestPayment(activeOrder)}
-            className={`p-4 rounded-2xl bg-white dark:bg-slate-900 border transition-all group flex flex-col items-center text-center gap-2 ${
-              hasInvoice 
-                ? 'border-slate-200 dark:border-slate-800 hover:border-emerald-500/40 hover:shadow-md' 
-                : 'border-slate-200/80 dark:border-slate-800/80 opacity-75 hover:opacity-100 hover:border-amber-400'
-            }`}
-            title={hasInvoice ? "Zahlung auf Rechnung erfassen" : "Keine Rechnung vorhanden (Klicken zum Erstellen)"}
-          >
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-xs ${
-              hasInvoice 
-                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 group-hover:bg-emerald-600 group-hover:text-white' 
-                : 'bg-slate-100 dark:bg-slate-800 text-slate-400 group-hover:text-amber-500'
-            }`}>
-              <CurrencyEuroIcon className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                Zahlung erfassen
-              </span>
-              {!hasInvoice && (
-                <span className="text-[9px] font-bold text-amber-600 dark:text-amber-400 block mt-0.5">
-                  Rechnung fehlt
-                </span>
-              )}
-            </div>
-          </button>
-
-          {/* 3. Protokoll erstellen / verwalten */}
-          <button
-            type="button"
-            onClick={() => onOpenProtocolModal(activeOrder)}
-            className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-500/40 hover:shadow-md transition-all group flex flex-col items-center text-center gap-2 cursor-pointer relative"
-          >
-            <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-all shadow-xs relative">
-              <ClipboardDocumentCheckIcon className="w-5 h-5" />
-              {hasActiveProtocols && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center shadow-xs">
-                  {activeProtocols.length}
-                </span>
-              )}
-            </div>
-            <div>
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                {hasActiveProtocols ? 'Protokolle verwalten' : 'Protokoll erfassen'}
-              </span>
-              {hasActiveProtocols ? (
-                <span className="text-[9px] font-bold text-blue-600 dark:text-blue-400 block mt-0.5">
-                  {activeProtocols.length} {activeProtocols.length === 1 ? 'Eintrag' : 'Einträge'}
-                </span>
-              ) : (
-                <span className="text-[9px] text-slate-400 block mt-0.5">
-                  Abnahme & Mängel
-                </span>
-              )}
-            </div>
-          </button>
-
-          {/* 4. Laufzettel drucken */}
-          <button
-            type="button"
-            onClick={() => onViewPdf(activeOrder, 'employee')}
-            className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-amber-500/40 hover:shadow-md transition-all group flex flex-col items-center text-center gap-2"
-          >
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center group-hover:bg-amber-600 group-hover:text-white transition-all shadow-xs">
-              <DocumentTextIcon className="w-5 h-5" />
-            </div>
-            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-              Laufzettel drucken
-            </span>
-          </button>
-
-          {/* 5. Rechnung erstellen oder ansehen */}
-          <button
-            type="button"
-            onClick={() => hasInvoice ? onViewPdf(linkedInvoice || activeOrder, 'invoice') : handleRequestInvoice(activeOrder)}
-            className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-purple-500/40 hover:shadow-md transition-all group flex flex-col items-center text-center gap-2"
-          >
-            <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition-all shadow-xs">
-              <DocumentCheckIcon className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                {hasInvoice ? 'Rechnung ansehen' : 'Rechnung erstellen'}
-              </span>
-              {hasInvoice && invoiceNumberDisplay && (
-                <span className="text-[9px] font-bold text-purple-600 dark:text-purple-400 block mt-0.5">
-                  {invoiceNumberDisplay}
-                </span>
-              )}
-            </div>
-          </button>
-        </div>
-      </section>
 
 
 
