@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from 'react';
-import { db } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon, CalendarIcon, LinkIcon, EnvelopeIcon, ExclamationTriangleIcon, CreditCardIcon, ListBulletIcon, HashtagIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
 import { TeamAccessManager } from '@/components/settings/TeamAccessManager';
@@ -1209,8 +1209,26 @@ export default function SettingsPage() {
                       type="password" 
                       value={pinInput}
                       onChange={e => setPinInput(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && pinInput === '7770') setIsSystemUnlocked(true);
+                      onKeyDown={async e => {
+                        if (e.key === 'Enter' && pinInput.trim()) {
+                          try {
+                            const idToken = await auth.currentUser?.getIdToken();
+                            const res = await fetch('/api/admin/verify-pin', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+                              body: JSON.stringify({ pin: pinInput.trim(), scope: 'system' })
+                            });
+                            const data = await res.json();
+                            if (res.ok && data.valid) {
+                              setIsSystemUnlocked(true);
+                              setPinInput('');
+                            } else {
+                              toast.error(data.error || 'Falsche PIN!');
+                            }
+                          } catch {
+                            toast.error('Fehler bei der PIN-Prüfung.');
+                          }
+                        }
                       }}
                       className="input-field text-center w-32 tracking-widest font-mono text-xl" 
                       maxLength={4} 
@@ -1218,9 +1236,25 @@ export default function SettingsPage() {
                       autoFocus
                     />
                     <button 
-                      onClick={() => {
-                        if (pinInput === '7770') setIsSystemUnlocked(true);
-                        else alert('Falsche PIN!');
+                      onClick={async () => {
+                        if (!pinInput.trim()) return;
+                        try {
+                          const idToken = await auth.currentUser?.getIdToken();
+                          const res = await fetch('/api/admin/verify-pin', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
+                            body: JSON.stringify({ pin: pinInput.trim(), scope: 'system' })
+                          });
+                          const data = await res.json();
+                          if (res.ok && data.valid) {
+                            setIsSystemUnlocked(true);
+                            setPinInput('');
+                          } else {
+                            toast.error(data.error || 'Falsche PIN!');
+                          }
+                        } catch {
+                          toast.error('Fehler bei der PIN-Prüfung.');
+                        }
                       }} 
                       className="btn-primary"
                     >

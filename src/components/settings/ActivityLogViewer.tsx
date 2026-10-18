@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
 import { db } from "@/lib/firebase";
-import { collection, query, orderBy, limit, onSnapshot, deleteDoc, doc } from "firebase/firestore";
+import { collection, query, orderBy, limit, onSnapshot, deleteDoc, doc, addDoc, serverTimestamp } from "firebase/firestore";
+import { useAuth } from "@/context/AuthContext";
 import { 
   ClipboardDocumentListIcon, 
   UserPlusIcon, 
@@ -18,6 +19,8 @@ import {
 import toast from "react-hot-toast";
 
 export function ActivityLogViewer() {
+  const { user, profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
   const [logs, setLogs] = useState<any[]>([]);
   const [filterType, setFilterType] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -32,15 +35,30 @@ export function ActivityLogViewer() {
   }, []);
 
   const handleDeleteAll = async () => {
-    if (!confirm('Möchtest du wirklich alle Aktivitäten-Logs löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) return;
+    if (!isAdmin) {
+      toast.error('Nur Administratoren dürfen das Audit-Logbuch bereinigen.');
+      return;
+    }
+    if (!confirm('Möchtest du wirklich alle Aktivitäten-Logs löschen? Diese Aktion kann nicht rückgängig gemacht werden und wird protokolliert.')) return;
     setIsDeleting(true);
     try {
+      const deletedCount = logs.length;
       const promises = logs.map(act => deleteDoc(doc(db, 'activity_logs', act.id)));
       await Promise.all(promises);
-      toast.success('Alle Logs erfolgreich gelöscht!');
+
+      const adminName = (profile?.displayName && profile.displayName.trim() !== '') ? profile.displayName.trim() : 'Administrator';
+      await addDoc(collection(db, 'activity_logs'), {
+        userId: user?.uid || 'admin',
+        userName: adminName,
+        action: 'CLEAR_AUDIT_LOGS',
+        details: `Audit-Logbuch durch ${adminName} bereinigt (${deletedCount} ältere Einträge gelöscht).`,
+        timestamp: serverTimestamp()
+      });
+
+      toast.success('Alte Logs erfolgreich bereinigt!');
     } catch (e) {
       console.error("Fehler beim Löschen:", e);
-      toast.error('Fehler beim Löschen der Logs.');
+      toast.error('Fehler beim Löschen der Logs (Berechtigung prüfen).');
     } finally {
       setIsDeleting(false);
     }
@@ -60,6 +78,13 @@ export function ActivityLogViewer() {
           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-red-500/15 text-red-600 dark:text-red-400 border border-red-500/30">
             <XCircleIcon className="w-3.5 h-3.5" />
             Rechnung storniert
+          </span>
+        );
+      case 'CLEAR_AUDIT_LOGS':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30">
+            <TrashIcon className="w-3.5 h-3.5" />
+            Logbuch bereinigt
           </span>
         );
       case 'CREATE_CUSTOMER':
@@ -164,12 +189,12 @@ export function ActivityLogViewer() {
           <span className="px-3 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
             {logs.length} Einträge
           </span>
-          {logs.length > 0 && (
+          {isAdmin && logs.length > 0 && (
             <button
               onClick={handleDeleteAll}
               disabled={isDeleting}
               className="p-2 text-text-muted hover:text-red-500 hover:bg-red-500/10 rounded-xl transition-colors cursor-pointer"
-              title="Alle Logs löschen"
+              title="Alle Logs löschen (Nur Admin)"
             >
               <TrashIcon className="w-5 h-5" />
             </button>

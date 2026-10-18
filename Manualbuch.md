@@ -155,7 +155,9 @@ Hier werden alle Kundendaten und deren Historie verwaltet.
         *   **Zahlung verwalten**: Öffnet den Zahlungs-Manager.
         *   **Smarte Nachricht senden**: Ermöglicht den schnellen Versand vordefinierter Nachrichten.
         *   **Auftrag stornieren**: Setzt den Status auf storniert.
-        *   **Auftrag löschen**: Löscht den Auftrag unwiderruflich (nur bei Angeboten ohne Rechnung möglich).
+*   **Quick Documents Hub & PDF-Schaltflächen (`Angebot PDF` & `PDF`)**:
+    *   *Aktion*: Zeigt die druckfertige PDF-Vorschau des Angebots an.
+    *   *Intelligenter Schutz vor leeren 0€-Angeboten*: Enthält ein Angebot noch keine Leistungen oder beläuft sich der Gesamtbetrag auf 0,00 €, werden die Schaltflächen automatisch **grau hinterlegt (deaktivierter Look)** und mit einer deutlichen `0 €`-Kennzeichnung versehen. Ein Klick öffnet ein interaktives Hinweisfenster mit der Wahl, mit einem Klick in den Editor zu springen (`Leistungen im Editor bearbeiten`) oder die PDF dennoch anzusehen (`Trotzdem PDF ansehen`).
 
 ---
 
@@ -165,6 +167,7 @@ Der Wizard (`/dashboard/orders/new` oder `edit-order`) führt dich in 5 Schritte
 
 ### Stepper-Buttons (Schritt 1 bis 5)
 Ermöglichen das direkte Springen zwischen den einzelnen Abschnitten:
+*   *Flexible Navigation*: Sobald in Schritt 1 der **Nachname** des Kunden hinterlegt ist, kann der Disponent sofort frei zu **Schritt 3 (Leistungen)** oder **Schritt 4 (Inventar)** springen, ohne vorher Adressen in Schritt 2 eingeben zu müssen. Dies ermöglicht das schnelle Notieren von Positionen oder Umzugsgütern bei telefonischer Erstaufnahme. Die Adressen können später im Cockpit nachgepflegt werden.
 
 1.  **Schritt 1: Kunde & Termine**:
     *   *Eingabefelder*: Kundensuche (für Bestandskunden) oder manuelle Eingabe von Vorname, Nachname, E-Mail, Telefon und der Marketing-Quelle (z. B. Empfehlung, Google).
@@ -267,7 +270,24 @@ Das Reklamations-Center (`/dashboard/claims`) hilft bei der Abwicklung von Versi
 
 ## 9. Versionen-Historie & Changelog
 
-### Version 2.5.0 (Aktuell) – Stabilität, Reklamations-Finanzintegration & Workflow-Schutz
+### Version 2.6.0 (Aktuell) – Assistenten-Flexibilität, 0€-Schutz & Sicherheits-Härtung
+*   **0€ / Leere Angebote Schutz & Graue PDF-Tasten im Cockpit**:
+    *   Im Kundenprofil (`CustomerPremiumProfile`) und im Auftrags-Drawer (`OrderDetailsDrawer`) werden die Schaltflächen `Angebot PDF` und `PDF` automatisch ausgegraut (mit deutlicher `0 €` Kennzeichnung), wenn noch keine Leistungen hinterlegt wurden oder der Gesamtbetrag 0,00 € beträgt.
+    *   Klick öffnet ein interaktives Hinweismodal mit der Wahl, entweder sofort mit 1-Klick in den Editor zu springen (`Leistungen im Editor bearbeiten`) oder die leere PDF dennoch anzusehen (`Trotzdem PDF ansehen`).
+*   **Freie Navigation im 5-Schritte Assistenten (`OrderEditor`)**:
+    *   Nach Eingabe des Kundennachnamens kann der Disponent sofort flexibel in Schritt 3 (Leistungen) oder Schritt 4 (Inventar) springen, auch wenn Adressen noch unvollständig sind.
+    *   Beim Speichern von Angeboten ohne Leistungen greift ein Sicherheitsdialog, der den Benutzer warnt und eine bewusste Bestätigung einholt.
+*   **Sicherheitssperre & Brute-Force-Schutz (`Login Security`)**:
+    *   Maximal 5 Anmeldeversuche bei fehlerhafter Passworteingabe.
+    *   Automatische 10-Minuten-Sperre mit persistentem Countdown-Timer und zweisprachiger Warnung (Deutsch/Arabisch), um unautorisierte Zugriffsversuche abzuwehren.
+*   **Netzwerk-Watchdog & Server-Verbindungsüberwachung (`NetworkMonitor`)**:
+    *   Automatische Erkennung von Verbindungsabbrüchen, Echtzeit-Warnbanner oben im Bildschirm.
+    *   Schutz vor Datenverlust beim Neuladen der Seite im Offline-Zustand (`beforeunload`).
+    *   Überwachung von Datenbank-Timeouts mit automatischer Benachrichtigung (`rothirsch_db_timeout`).
+*   **Bereinigung & Deployment-Vorbereitung**:
+    *   Entfernung veralteter temporärer Skripte, Mockups und ungenutzter Test-Endpunkte für einen sauberen Produktions-Build.
+
+### Version 2.5.0 – Stabilität, Reklamations-Finanzintegration & Workflow-Schutz
 *   **Reklamationen direkt mit Rechnungen verrechnen (`Claims & Invoicing Integration`)**:
     *   Neues Verrechnungsmodal (`SettleClaimModal`) in der Schadensverwaltung.
     *   Wahlweise als Schadensgutschrift (Zahlungseingang) oder als Positionsrabatt auf der Rechnung.

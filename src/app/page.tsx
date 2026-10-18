@@ -13,6 +13,61 @@ const LOCKOUT_DURATION_SECONDS = 10 * 60; // 10 Minuten
 const STORAGE_ATTEMPTS_KEY = "rothirsch_failed_login_attempts";
 const STORAGE_LOCKOUT_KEY = "rothirsch_login_lockout_until";
 
+function getSecurityCookie(name: string): string | null {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie
+    .split("; ")
+    .find((row) => row.startsWith(`${name}=`));
+  return match ? decodeURIComponent(match.split("=")[1]) : null;
+}
+
+function setSecurityCookie(name: string, value: string, maxAgeSeconds: number) {
+  if (typeof document === "undefined") return;
+  document.cookie = `${name}=${encodeURIComponent(value)}; max-age=${Math.max(1, Math.floor(maxAgeSeconds))}; path=/; SameSite=Strict`;
+}
+
+function clearSecurityCookie(name: string) {
+  if (typeof document === "undefined") return;
+  document.cookie = `${name}=; max-age=0; path=/; SameSite=Strict`;
+}
+
+function persistLockoutState(lockoutUntilMs: number, attempts: number) {
+  const remainingSec = Math.max(1, Math.ceil((lockoutUntilMs - Date.now()) / 1000));
+  try {
+    localStorage.setItem(STORAGE_LOCKOUT_KEY, lockoutUntilMs.toString());
+    localStorage.setItem(STORAGE_ATTEMPTS_KEY, attempts.toString());
+  } catch {}
+  try {
+    sessionStorage.setItem(STORAGE_LOCKOUT_KEY, lockoutUntilMs.toString());
+    sessionStorage.setItem(STORAGE_ATTEMPTS_KEY, attempts.toString());
+  } catch {}
+  setSecurityCookie(STORAGE_LOCKOUT_KEY, lockoutUntilMs.toString(), remainingSec);
+  setSecurityCookie(STORAGE_ATTEMPTS_KEY, attempts.toString(), remainingSec);
+}
+
+function persistAttemptsState(attempts: number) {
+  try {
+    localStorage.setItem(STORAGE_ATTEMPTS_KEY, attempts.toString());
+  } catch {}
+  try {
+    sessionStorage.setItem(STORAGE_ATTEMPTS_KEY, attempts.toString());
+  } catch {}
+  setSecurityCookie(STORAGE_ATTEMPTS_KEY, attempts.toString(), LOCKOUT_DURATION_SECONDS);
+}
+
+function clearAllSecurityState() {
+  try {
+    localStorage.removeItem(STORAGE_LOCKOUT_KEY);
+    localStorage.removeItem(STORAGE_ATTEMPTS_KEY);
+  } catch {}
+  try {
+    sessionStorage.removeItem(STORAGE_LOCKOUT_KEY);
+    sessionStorage.removeItem(STORAGE_ATTEMPTS_KEY);
+  } catch {}
+  clearSecurityCookie(STORAGE_LOCKOUT_KEY);
+  clearSecurityCookie(STORAGE_ATTEMPTS_KEY);
+}
+
 export default function Home() {
   const { user, profile, loading } = useAuth();
   const [loginId, setLoginId] = useState("");
@@ -20,28 +75,47 @@ export default function Home() {
   const [error, setError] = useState("");
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
 
-  // Check existing lockout or failed attempts on mount
+  // Check existing lockout or failed attempts on mount across localStorage, sessionStorage & cookie
   useEffect(() => {
     if (typeof window === "undefined") return;
 
     try {
-      const storedLockout = localStorage.getItem(STORAGE_LOCKOUT_KEY);
-      if (storedLockout) {
-        const lockoutUntil = parseInt(storedLockout, 10);
-        const diff = Math.ceil((lockoutUntil - Date.now()) / 1000);
+      const lockoutCandidates = [
+        localStorage.getItem(STORAGE_LOCKOUT_KEY),
+        sessionStorage.getItem(STORAGE_LOCKOUT_KEY),
+        getSecurityCookie(STORAGE_LOCKOUT_KEY),
+      ]
+        .map((v) => (v ? parseInt(v, 10) : 0))
+        .filter((v) => !isNaN(v) && v > 0);
+
+      const maxLockoutUntil = lockoutCandidates.length > 0 ? Math.max(...lockoutCandidates) : 0;
+
+      const attemptCandidates = [
+        localStorage.getItem(STORAGE_ATTEMPTS_KEY),
+        sessionStorage.getItem(STORAGE_ATTEMPTS_KEY),
+        getSecurityCookie(STORAGE_ATTEMPTS_KEY),
+      ]
+        .map((v) => (v ? parseInt(v, 10) : 0))
+        .filter((v) => !isNaN(v) && v > 0);
+
+      const maxAttempts = attemptCandidates.length > 0 ? Math.max(...attemptCandidates) : 0;
+
+      if (maxLockoutUntil > 0) {
+        const diff = Math.ceil((maxLockoutUntil - Date.now()) / 1000);
         if (diff > 0) {
+          const effectiveAttempts = Math.max(maxAttempts, MAX_LOGIN_ATTEMPTS);
           setLockoutRemaining(diff);
+          setFailedAttempts(effectiveAttempts);
+          persistLockoutState(maxLockoutUntil, effectiveAttempts);
         } else {
-          localStorage.removeItem(STORAGE_LOCKOUT_KEY);
-          localStorage.removeItem(STORAGE_ATTEMPTS_KEY);
+          clearAllSecurityState();
         }
-      } else {
-        const storedAttempts = localStorage.getItem(STORAGE_ATTEMPTS_KEY);
-        if (storedAttempts) {
-          setFailedAttempts(parseInt(storedAttempts, 10) || 0);
-        }
+      } else if (maxAttempts > 0) {
+        setFailedAttempts(maxAttempts);
+        persistAttemptsState(maxAttempts);
       }
     } catch {
       // Fallback
@@ -55,10 +129,7 @@ export default function Home() {
     const timer = setInterval(() => {
       setLockoutRemaining((prev) => {
         if (prev <= 1) {
-          try {
-            localStorage.removeItem(STORAGE_LOCKOUT_KEY);
-            localStorage.removeItem(STORAGE_ATTEMPTS_KEY);
-          } catch {}
+          clearAllSecurityState();
           setFailedAttempts(0);
           setError("");
           return 0;
@@ -100,6 +171,7 @@ export default function Home() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setError("");
 
     if (lockoutRemaining > 0) {
@@ -107,40 +179,53 @@ export default function Home() {
       return;
     }
 
+    setIsSubmitting(true);
+
     try {
+      // Exponential Backoff Delay vor jedem weiteren Versuch nach vorangegangenen Fehlversuchen
+      if (failedAttempts > 0) {
+        const backoffDelayMs = Math.min(Math.pow(2, failedAttempts - 1) * 1000, 8000);
+        await new Promise((resolve) => setTimeout(resolve, backoffDelayMs));
+      }
+
       // Wenn es kein @ enthält, ist es eine Handynummer -> Fake E-Mail bauen
       const finalEmail = loginId.includes("@") ? loginId : `${loginId.replace(/[^0-9]/g, '')}@rothirsch-app.de`;
       
       await signInWithEmailAndPassword(auth, finalEmail, password);
 
       // Reset counters upon successful login
-      try {
-        localStorage.removeItem(STORAGE_ATTEMPTS_KEY);
-        localStorage.removeItem(STORAGE_LOCKOUT_KEY);
-      } catch {}
+      clearAllSecurityState();
 
       router.push("/dashboard");
     } catch (err: any) {
-      const nextCount = failedAttempts + 1;
+      const isFirebaseRateLimited =
+        err?.code === "auth/too-many-requests" ||
+        (typeof err?.message === "string" && err.message.includes("auth/too-many-requests"));
+
+      const nextCount = isFirebaseRateLimited
+        ? MAX_LOGIN_ATTEMPTS
+        : failedAttempts + 1;
       setFailedAttempts(nextCount);
 
-      if (nextCount >= MAX_LOGIN_ATTEMPTS) {
+      if (isFirebaseRateLimited || nextCount >= MAX_LOGIN_ATTEMPTS) {
         const lockoutUntil = Date.now() + (LOCKOUT_DURATION_SECONDS * 1000);
-        try {
-          localStorage.setItem(STORAGE_LOCKOUT_KEY, lockoutUntil.toString());
-          localStorage.setItem(STORAGE_ATTEMPTS_KEY, nextCount.toString());
-        } catch {}
+        persistLockoutState(lockoutUntil, nextCount);
         setLockoutRemaining(LOCKOUT_DURATION_SECONDS);
-        setError("Sicherheitssperre aktiviert! 5 fehlgeschlagene Anmeldeversuche. Aus Sicherheitsgründen ist die Anmeldung für 10 Minuten gesperrt / تم تفعيل الحظر الأمني! 5 محاولات خاطئة. الدخول محظور لمدة 10 دقائق لحماية النظام.");
-      } else {
-        try {
-          localStorage.setItem(STORAGE_ATTEMPTS_KEY, nextCount.toString());
-        } catch {}
-        const remaining = MAX_LOGIN_ATTEMPTS - nextCount;
         setError(
-          `Anmeldung fehlgeschlagen (Falsche Anmeldedaten). Verbleibende Versuche: ${remaining} von ${MAX_LOGIN_ATTEMPTS} / فشل تسجيل الدخول. المحاولات المتبقية: ${remaining} من ${MAX_LOGIN_ATTEMPTS}.`
+          isFirebaseRateLimited
+            ? "Sicherheitssperre durch Server aktiviert (auth/too-many-requests)! Zu viele Anmeldeversuche. Der Zugriff ist für 10 Minuten gesperrt / تم تفعيل الحظر الأمني من الخادم بسبب كثرة المحاولات! الدخول محظور لمدة 10 دقائق."
+            : "Sicherheitssperre aktiviert! 5 fehlgeschlagene Anmeldeversuche. Aus Sicherheitsgründen ist die Anmeldung für 10 Minuten gesperrt / تم تفعيل الحظر الأمني! 5 محاولات خاطئة. الدخول محظور لمدة 10 دقائق لحماية النظام."
+        );
+      } else {
+        persistAttemptsState(nextCount);
+        const remaining = MAX_LOGIN_ATTEMPTS - nextCount;
+        const nextBackoffSec = Math.min(Math.pow(2, nextCount - 1), 8);
+        setError(
+          `Anmeldung fehlgeschlagen (Falsche Anmeldedaten). Verbleibende Versuche: ${remaining} von ${MAX_LOGIN_ATTEMPTS} (Verzögerung: ${nextBackoffSec}s) / فشل تسجيل الدخول. المحاولات المتبقية: ${remaining} من ${MAX_LOGIN_ATTEMPTS}.`
         );
       }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -208,7 +293,7 @@ export default function Home() {
               onChange={(e) => setLoginId(e.target.value)}
               className="input-field disabled:opacity-50 disabled:cursor-not-allowed"
               placeholder="name@rothirsch-umzug.de"
-              disabled={isLocked}
+              disabled={isLocked || isSubmitting}
               required
             />
           </div>
@@ -222,16 +307,16 @@ export default function Home() {
               onChange={(e) => setPassword(e.target.value)}
               className="input-field disabled:opacity-50 disabled:cursor-not-allowed"
               placeholder="••••••••"
-              disabled={isLocked}
+              disabled={isLocked || isSubmitting}
               required
             />
           </div>
           
           <button 
             type="submit" 
-            disabled={isLocked}
+            disabled={isLocked || isSubmitting}
             className={`btn-primary w-full mt-8 py-3.5 flex items-center justify-center gap-2 font-bold ${
-              isLocked ? 'opacity-50 cursor-not-allowed bg-slate-600' : ''
+              isLocked || isSubmitting ? 'opacity-50 cursor-not-allowed bg-slate-600' : ''
             }`}
           >
             {isLocked ? (
@@ -239,6 +324,8 @@ export default function Home() {
                 <LockClosedIcon className="w-5 h-5" />
                 <span>Gesperrt ({formatTimer(lockoutRemaining)})</span>
               </>
+            ) : isSubmitting ? (
+              <span>Prüfe Anmeldung...</span>
             ) : (
               <span>Anmelden</span>
             )}

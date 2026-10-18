@@ -1,4 +1,5 @@
 import { isTaskCompleted } from './taskStateController';
+import { getActiveInvoiceNumber, isInvoiceCancelled, getLatestCancelledInvoiceNumber } from './financeHelpers';
 
 export interface LogisticsCheckItem {
   id: string;
@@ -93,24 +94,29 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
   // 5. Determine Current Phase
   const isSigned = isTaskCompleted(order, 'signature');
   const isDraft = order?.status === 'draft';
+  const activeInvNum = getActiveInvoiceNumber(order);
+  const latestCancelledNum = getLatestCancelledInvoiceNumber(order);
   const hasInvoice = Boolean(
-    order?.invoiceNumber ||
-    order?.status?.startsWith('invoice_') ||
-    order?.status === 'completed' ||
-    order?.status === 'archived' ||
-    (Array.isArray(order?.invoices) && order.invoices.length > 0)
+    !isInvoiceCancelled(order) && (
+      activeInvNum ||
+      order?.status === 'invoice_open' ||
+      order?.status === 'invoice_paid' ||
+      order?.status === 'completed' ||
+      order?.status === 'archived' ||
+      (Array.isArray(order?.invoices) && order.invoices.some((i: any) => !isInvoiceCancelled(i) && !i.isStorno))
+    )
   );
-  const isConfirmed = isSigned || order?.status === 'confirmed';
+  const isConfirmed = isSigned || order?.status === 'confirmed' || Boolean(latestCancelledNum);
 
   let phase: 1 | 2 | 3 | 4 = 1;
   let phaseLabel = 'Entwurf';
 
-  if (hasInvoice || order?.status === 'completed' || order?.status?.startsWith('invoice_')) {
+  if (hasInvoice || order?.status === 'completed') {
     phase = 4;
     phaseLabel = order?.status === 'invoice_paid' ? 'Abgeschlossen & Bezahlt' : 'Abrechnung & Durchführung';
   } else if (isConfirmed) {
     phase = 3;
-    phaseLabel = 'Auftrag bestätigt';
+    phaseLabel = latestCancelledNum ? `Korrektur nach Storno (${latestCancelledNum})` : 'Auftrag bestätigt';
   } else if (!isDraft) {
     phase = 2;
     phaseLabel = 'Angebot versendet';
@@ -239,7 +245,7 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
       });
     }
 
-    // 2. HVZ Halteverbotszone
+    // 2. HVZ Halteverbotszone (NUR wenn im Angebot gebucht oder bereits eingeplant)
     const hasHVZService = Array.isArray(order?.services) && order.services.some((s: any) => 
       (s.name || '').toLowerCase().includes('halteverbot') || (s.name || '').toLowerCase().includes('hvz')
     );
@@ -254,28 +260,24 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
       order?.servicesList?.some((s: any) => (s.name || '').toLowerCase().includes('halteverbot'))
     );
     const isHVZDone = isTaskCompleted(order, 'hvz');
-    checklist.push({
-      id: 'hvz',
-      label: isHVZDone 
-        ? 'HVZ Halteverbot eingerichtet/beantragt' 
-        : needsHVZ 
-          ? 'HVZ Halteverbot beantragen (Gebucht)' 
-          : 'HVZ Halteverbot einrichten (Optional)',
-      done: needsHVZ ? isHVZDone : true,
-      type: 'hvz',
-      isAutomated: false,
-      missingReason: (!isHVZDone && needsHVZ) ? 'Halteverbotszone ist gebucht, aber noch nicht bestätigt.' : undefined,
-      date: logistics?.hvzDate || order?.orderMeta?.halteverbotDate
-    });
+    if (needsHVZ || isHVZDone) {
+      checklist.push({
+        id: 'hvz',
+        label: isHVZDone 
+          ? 'HVZ Halteverbot eingerichtet/beantragt' 
+          : 'HVZ Halteverbot beantragen (Gebucht)',
+        done: isHVZDone,
+        type: 'hvz',
+        isAutomated: false,
+        missingReason: !isHVZDone ? 'Halteverbotszone ist gebucht, aber noch nicht bestätigt.' : undefined,
+        date: logistics?.hvzDate || order?.orderMeta?.halteverbotDate
+      });
+    }
 
-    // 3. Möbellift
+    // 3. Möbellift (NUR wenn im Angebot gebucht oder in der Logistik aktiviert)
     const hasLiftService = Array.isArray(order?.services) && order.services.some((s: any) => 
       (s.name || '').toLowerCase().includes('möbellift') || (s.name || '').toLowerCase().includes('moebellift') || (s.name || '').toLowerCase().includes('lift')
     );
-    const floorA = parseInt(logistics?.a_floor || logistics?.from?.floor || '0');
-    const floorB = parseInt(logistics?.b_floor || logistics?.to?.floor || '0');
-    const highFloorWithoutElevatorA = floorA > 3 && !logistics?.a_elevator && !logistics?.from?.hasElevator;
-    const highFloorWithoutElevatorB = floorB > 3 && !logistics?.b_elevator && !logistics?.to?.hasElevator;
     const needsLift = Boolean(
       logistics?.a_furnitureLift || 
       logistics?.b_furnitureLift || 
@@ -283,23 +285,32 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
       hasLiftService || 
       services?.moebellift || 
       order?.orderMeta?.moebelliftDate ||
-      logistics?.moebelliftDate ||
-      (floorA > 0 && highFloorWithoutElevatorA) || 
-      (floorB > 0 && highFloorWithoutElevatorB)
+      logistics?.moebelliftDate
     );
 
     const isLiftDone = isTaskCompleted(order, 'moebellift');
     if (needsLift || isLiftDone) {
       checklist.push({
         id: 'moebellift',
-        label: isLiftDone ? 'Möbellift reserviert' : 'Möbellift reservieren (Erforderlich)',
+        label: isLiftDone ? 'Möbellift reserviert' : 'Möbellift reservieren (Gebucht)',
         done: isLiftDone,
         type: 'moebellift',
         isAutomated: false,
-        missingReason: !isLiftDone ? 'Möbellift wird benötigt, ist aber noch nicht reserviert.' : undefined,
+        missingReason: !isLiftDone ? 'Möbellift ist gebucht, aber noch nicht reserviert.' : undefined,
         date: order?.orderMeta?.moebelliftDate || logistics?.moebelliftDate
       });
     }
+
+    // 4. Fahrzeug- & Team-Disposition im Kalender
+    const isTeamDone = isTaskCompleted(order, 'team');
+    checklist.push({
+      id: 'team',
+      label: isTeamDone ? 'Fahrzeug & Team disponiert' : 'Disposition im Kalender (Fahrzeug & Team einteilen)',
+      done: isTeamDone,
+      type: 'team',
+      isAutomated: false,
+      missingReason: !isTeamDone ? 'Noch kein LKW oder Team im Kalender für den Umzugstag zugewiesen.' : undefined
+    });
   }
 
   // =========================================================================
@@ -319,14 +330,21 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
     });
 
     // 2. Rechnung
-    const isInvoiceDone = isTaskCompleted(order, 'invoice') || Boolean(
-      order?.invoiceNumber || 
-      (Array.isArray(order?.invoices) && order.invoices.length > 0) || 
-      order?.status?.startsWith('invoice_')
+    const isInvoiceDone = !isInvoiceCancelled(order) && (
+      isTaskCompleted(order, 'invoice') || Boolean(
+        activeInvNum || 
+        (Array.isArray(order?.invoices) && order.invoices.some((i: any) => !isInvoiceCancelled(i) && !i.isStorno)) || 
+        order?.status === 'invoice_open' ||
+        order?.status === 'invoice_paid'
+      )
     );
     checklist.push({
       id: 'invoice',
-      label: isInvoiceDone ? `Rechnung ausgestellt (${order?.invoiceNumber || 'Erledigt'})` : 'Schlussrechnung ausstellen',
+      label: isInvoiceDone
+        ? `Rechnung ausgestellt (${activeInvNum || 'Erledigt'})`
+        : latestCancelledNum
+          ? `Korrekturrechnung ausstellen (Storno: ${latestCancelledNum})`
+          : 'Schlussrechnung ausstellen',
       done: isInvoiceDone,
       type: 'invoice',
       isAutomated: true,

@@ -69,6 +69,10 @@ For production deployment (e.g. Vercel):
 * **Modal Back Handling**: Always wrap modal components with `useModalBackHandler` so the browser/Android back button closes the active modal instead of navigating away.
 * **Theme Support**: The UI supports seamless Light Mode and Dark Mode. Respect semantic color tokens.
 
+### D. Wizard Flexibility & Empty Offer Guard
+* **Order Wizard Navigation (`OrderEditor.tsx`)**: Allow free progression to Step 3 (`Leistungen`) and Step 4 (`Inventar`) as soon as customer `Nachname` is set, even if Step 2 (`Logistik`) addresses are incomplete.
+* **Empty Offer Guard (`CustomerPremiumProfile.tsx` & `OrderDetailsDrawer.tsx`)**: Any quote with 0 services or 0,00 € price displays grayed-out PDF buttons with a `0 €` badge and triggers a confirmation dialog prompting to edit services or proceed anyway.
+
 ---
 
 ## 5. Additional Documentation

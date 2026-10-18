@@ -8,29 +8,50 @@ import { PDFWatermark } from './core/PDFWatermark';
 
 const styles = StyleSheet.create({
   ...pdfCommonStyles,
+  page: {
+    ...pdfCommonStyles.page,
+    paddingTop: 24,
+    paddingBottom: 82, // Protects fixed footer at top 762pt
+  },
+  pageComfort: {
+    paddingTop: 28,
+  },
   
   customerDateBox: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    marginBottom: 8,
+  },
+  customerDateBoxComfort: {
+    marginBottom: 12,
   },
   customerBox: {
     width: '52%',
     paddingRight: 10,
     backgroundColor: '#ffffff',
-    paddingVertical: 4,
+    paddingVertical: 2,
     paddingHorizontal: 4,
     borderRadius: 4,
   },
+  customerBoxComfort: {
+    paddingVertical: 4,
+  },
   customerName: {
-    fontSize: 10.5,
+    fontSize: 10,
     fontFamily: 'Helvetica-Bold',
     color: PDF_COLORS.textMain,
-    marginBottom: 3,
+    marginBottom: 2,
+  },
+  customerNameComfort: {
+    fontSize: 10.5,
   },
   customerAddress: {
-    fontSize: 9,
+    fontSize: 8.5,
     color: PDF_COLORS.textMain,
+    lineHeight: 1.3,
+  },
+  customerAddressComfort: {
+    fontSize: 9,
     lineHeight: 1.35,
   },
   
@@ -40,47 +61,69 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: PDF_COLORS.border,
     borderRadius: 4,
+    padding: 6,
+  },
+  docInfoBoxComfort: {
     padding: 8,
   },
   docRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 2.5,
+    marginBottom: 1.5,
+  },
+  docRowComfort: {
+    marginBottom: 2,
   },
   docLabel: {
-    fontSize: 8,
+    fontSize: 7.5,
     color: PDF_COLORS.textMuted,
   },
+  docLabelComfort: {
+    fontSize: 8,
+  },
   docValue: {
-    fontSize: 8.5,
+    fontSize: 8,
     fontFamily: 'Helvetica-Bold',
     color: PDF_COLORS.textMain,
     textAlign: 'right',
   },
+  docValueComfort: {
+    fontSize: 8.5,
+  },
   
   stornoBadge: {
-    fontSize: 7.5,
+    fontSize: 7,
     fontFamily: 'Helvetica-Bold',
     color: PDF_COLORS.primary,
-    marginTop: 3,
-    paddingTop: 3,
+    marginTop: 2,
+    paddingTop: 2,
     borderTopWidth: 0.5,
     borderTopColor: PDF_COLORS.border,
   },
   
   // Document Title & Salutation Spacing
   mainTitle: {
-    fontSize: 20,
+    fontSize: 16,
     fontFamily: 'Helvetica-Bold',
     color: PDF_COLORS.primary,
-    marginTop: 8,
-    marginBottom: 10,
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  mainTitleComfort: {
+    fontSize: 18,
+    marginTop: 4,
+    marginBottom: 6,
   },
   introText: {
-    fontSize: 9.5,
-    lineHeight: 1.5,
-    marginBottom: 14,
+    fontSize: 8.5,
+    lineHeight: 1.35,
+    marginBottom: 8,
     color: PDF_COLORS.textMain,
+  },
+  introTextComfort: {
+    fontSize: 9,
+    lineHeight: 1.4,
+    marginBottom: 12,
   },
   
   routeCard: {
@@ -90,75 +133,226 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     borderLeftColor: PDF_COLORS.primary,
     borderRadius: 4,
-    padding: 9,
-    marginBottom: 14,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+    marginBottom: 8,
+  },
+  routeCardComfort: {
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+    marginBottom: 12,
   },
   routeHeader: {
-    fontSize: 8,
+    fontSize: 7.5,
     fontFamily: 'Helvetica-Bold',
     color: PDF_COLORS.primary,
-    marginBottom: 4,
+    marginBottom: 2,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  routeRow: {
+  routeHeaderComfort: {
+    fontSize: 8,
+  },
+  routeCols: {
     flexDirection: 'row',
-    fontSize: 8.5,
+    justifyContent: 'space-between',
+  },
+  routeCol: {
+    width: '48%',
+  },
+  routeText: {
+    fontSize: 8,
     color: PDF_COLORS.textMain,
-    marginBottom: 2,
+  },
+  routeTextComfort: {
+    fontSize: 8.5,
+  },
+  
+  // Table
+  table: {
+    ...pdfCommonStyles.table,
+    marginBottom: 8,
+  },
+  tableComfort: {
+    marginBottom: 12,
+  },
+  tableHeader: {
+    ...pdfCommonStyles.tableHeader,
+    paddingVertical: 4.5,
+    paddingHorizontal: 6,
+    fontSize: 8,
+  },
+  tableHeaderComfort: {
+    paddingVertical: 5.5,
+    fontSize: 8.5,
+  },
+  tableRow: {
+    ...pdfCommonStyles.tableRow,
+    paddingVertical: 3.5,
+    paddingHorizontal: 6,
+  },
+  tableRowComfort: {
+    paddingVertical: 4.5,
   },
   
   // Table Columns
-  colPos: { width: '8%', textAlign: 'center' },
+  colPos: { width: '8%', textAlign: 'center', fontSize: 8, color: PDF_COLORS.textMuted },
+  colPosComfort: { fontSize: 8.5 },
   colDesc: { width: '47%', paddingRight: 6 },
   colDescFlat: { width: '70%', paddingRight: 6 },
-  colQty: { width: '15%', textAlign: 'center' },
-  colQtyFlat: { width: '22%', textAlign: 'center' },
-  colPrice: { width: '15%', textAlign: 'right' },
-  colTotal: { width: '15%', textAlign: 'right' },
+  colQty: { width: '15%', textAlign: 'center', fontSize: 8 },
+  colQtyComfort: { fontSize: 8.5 },
+  colQtyFlat: { width: '22%', textAlign: 'center', fontSize: 8 },
+  colQtyFlatComfort: { fontSize: 8.5 },
+  colPrice: { width: '15%', textAlign: 'right', fontSize: 8 },
+  colPriceComfort: { fontSize: 8.5 },
+  colTotal: { width: '15%', textAlign: 'right', fontSize: 8 },
+  colTotalComfort: { fontSize: 8.5 },
   
   itemName: {
-    fontSize: 9,
+    fontSize: 8.5,
     fontFamily: 'Helvetica-Bold',
     color: PDF_COLORS.textMain,
   },
+  itemNameComfort: {
+    fontSize: 9,
+  },
   itemNote: {
-    fontSize: 7.5,
+    fontSize: 7,
     color: PDF_COLORS.textMuted,
-    marginTop: 1.5,
+    marginTop: 1,
+  },
+  itemNoteComfort: {
+    fontSize: 7.5,
   },
   
-  paymentSection: {
-    marginTop: 6,
-    marginBottom: 12,
+  // Side-by-Side Finance & Payment Row (Compact Mode)
+  financeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
+  paymentCol: {
+    width: '52%',
+  },
+  totalsCol: {
+    width: '44%',
+    backgroundColor: '#ffffff',
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: PDF_COLORS.border,
+    padding: 6,
   },
   paymentHeader: {
-    fontSize: 9.5,
+    fontSize: 8.5,
     fontFamily: 'Helvetica-Bold',
     color: PDF_COLORS.primary,
-    marginBottom: 4,
+    marginBottom: 3,
   },
   paymentCard: {
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: PDF_COLORS.border,
     borderRadius: 4,
-    padding: 8,
-    marginTop: 4,
+    padding: 5,
   },
   bankRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    fontSize: 7.5,
+    marginBottom: 1,
+    color: PDF_COLORS.textMain,
+  },
+  textBlock: {
+    fontSize: 7.5,
+    lineHeight: 1.3,
+    color: PDF_COLORS.textMain,
+    marginBottom: 3,
+  },
+
+  // Comfort Mode Finance Blocks (Stacked, Full-Width & Rich Spacing)
+  totalsWrapperComfort: {
+    alignItems: 'flex-end',
+    marginBottom: 10,
+  },
+  totalsColComfort: {
+    width: '45%',
+    backgroundColor: '#ffffff',
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: PDF_COLORS.border,
+    padding: 8,
+  },
+  totalRowComfort: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 2,
+    fontSize: 8.5,
+    color: PDF_COLORS.textMuted,
+  },
+  totalRowGrandComfort: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 5,
+    marginTop: 3,
+    borderTopWidth: 1.5,
+    borderTopColor: PDF_COLORS.primary,
+    fontSize: 10.5,
+    fontFamily: 'Helvetica-Bold',
+    color: PDF_COLORS.primary,
+  },
+  paymentCardComfort: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: PDF_COLORS.border,
+    borderRadius: 4,
+    padding: 8,
+    marginBottom: 6,
+  },
+  bankRowComfort: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     fontSize: 8,
     marginBottom: 2,
     color: PDF_COLORS.textMain,
   },
-  textBlock: {
-    fontSize: 8.5,
-    lineHeight: 1.45,
+  paymentHeaderComfort: {
+    fontSize: 9,
+    fontFamily: 'Helvetica-Bold',
+    color: PDF_COLORS.primary,
+    marginBottom: 4,
+  },
+  textBlockComfort: {
+    fontSize: 8,
+    lineHeight: 1.35,
     color: PDF_COLORS.textMain,
-    marginBottom: 6,
-  }
+    marginBottom: 4,
+  },
+
+  legalNoticeBox: {
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+    borderRadius: 3,
+    borderWidth: 0.5,
+    borderColor: PDF_COLORS.border,
+    backgroundColor: '#fafafa',
+    marginTop: 2,
+  },
+  legalNoticeBoxComfort: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    marginTop: 4,
+  },
+  legalNoticeText: {
+    fontSize: 6,
+    color: '#64748b',
+    lineHeight: 1.2,
+  },
+  legalNoticeTextComfort: {
+    fontSize: 6.5,
+    lineHeight: 1.25,
+  },
 });
 
 export const InvoicePDF = ({
@@ -176,6 +370,7 @@ export const InvoicePDF = ({
   const isStorno = order?.isStorno;
   const isKorrektur = Boolean(order?.isKorrektur || order?.isCorrection);
   const billing = order?.customerData || order?.billingAddress || customer;
+  const isCompact = (order?.services?.length || 0) >= 5;
 
   // Zahlungskonditionen & Fälligkeit
   const pmSettings =
@@ -213,58 +408,58 @@ export const InvoicePDF = ({
 
   return (
     <Document title={docTitle}>
-      <Page size="A4" style={styles.page}>
+      <Page size="A4" style={isCompact ? styles.page : [styles.page, styles.pageComfort]}>
         <PDFWatermark type="symbols" softRows={[1, 2, 6, 7, 8]} />
         <PDFHeader settings={settings} docTitle={isStorno ? 'Stornorechnung' : (isKorrektur ? 'Korrekturrechnung' : 'Rechnung')} />
         <PDFFooter settings={settings} />
 
         {/* Recipient Window & Document Meta Box */}
-        <View style={styles.customerDateBox}>
+        <View style={isCompact ? styles.customerDateBox : [styles.customerDateBox, styles.customerDateBoxComfort]}>
           {/* Left: Clean Customer Address (NO "Rechnungsempfänger" label!) */}
-          <View style={styles.customerBox}>
-            <Text style={styles.customerName}>
+          <View style={isCompact ? styles.customerBox : [styles.customerBox, styles.customerBoxComfort]}>
+            <Text style={isCompact ? styles.customerName : [styles.customerName, styles.customerNameComfort]}>
               {billing?.type === 'firma'
                 ? billing?.lastName
                 : `${billing?.firstName || ''} ${billing?.lastName || ''}`.trim()}
             </Text>
             {billing?.type === 'firma' && billing?.firstName && (
-              <Text style={{ fontSize: 8.5, color: PDF_COLORS.textMuted, marginBottom: 2 }}>
+              <Text style={{ fontSize: isCompact ? 8.5 : 9, color: PDF_COLORS.textMuted, marginBottom: 2 }}>
                 z.Hd. {billing.firstName}
               </Text>
             )}
-            <Text style={styles.customerAddress}>
+            <Text style={isCompact ? styles.customerAddress : [styles.customerAddress, styles.customerAddressComfort]}>
               {billing?.street ? `${billing.street} ${billing.houseNr || ''}`.trim() : billing?.address?.split(',')[0] || ''}
             </Text>
-            <Text style={styles.customerAddress}>
+            <Text style={isCompact ? styles.customerAddress : [styles.customerAddress, styles.customerAddressComfort]}>
               {billing?.zip ? `${billing.zip} ${billing.city || ''}`.trim() : billing?.address?.split(',')[1]?.trim() || ''}
             </Text>
           </View>
 
           {/* Right: Document Meta Box */}
-          <View style={styles.docInfoBox}>
-            <View style={styles.docRow}>
-              <Text style={styles.docLabel}>{isStorno ? 'Stornonummer' : 'Rechnungsnummer'}</Text>
-              <Text style={styles.docValue}>{order?.invoiceNumber || 'Entwurf'}</Text>
+          <View style={isCompact ? styles.docInfoBox : [styles.docInfoBox, styles.docInfoBoxComfort]}>
+            <View style={isCompact ? styles.docRow : [styles.docRow, styles.docRowComfort]}>
+              <Text style={isCompact ? styles.docLabel : [styles.docLabel, styles.docLabelComfort]}>{isStorno ? 'Stornonummer' : 'Rechnungsnummer'}</Text>
+              <Text style={isCompact ? styles.docValue : [styles.docValue, styles.docValueComfort]}>{order?.invoiceNumber || 'Entwurf'}</Text>
             </View>
-            <View style={styles.docRow}>
-              <Text style={styles.docLabel}>Rechnungsdatum</Text>
-              <Text style={styles.docValue}>
+            <View style={isCompact ? styles.docRow : [styles.docRow, styles.docRowComfort]}>
+              <Text style={isCompact ? styles.docLabel : [styles.docLabel, styles.docLabelComfort]}>Rechnungsdatum</Text>
+              <Text style={isCompact ? styles.docValue : [styles.docValue, styles.docValueComfort]}>
                 {order?.invoiceDate
                   ? new Date(order.invoiceDate).toLocaleDateString('de-DE')
                   : new Date().toLocaleDateString('de-DE')}
               </Text>
             </View>
-            <View style={styles.docRow}>
-              <Text style={styles.docLabel}>Leistungsdatum</Text>
-              <Text style={styles.docValue}>
+            <View style={isCompact ? styles.docRow : [styles.docRow, styles.docRowComfort]}>
+              <Text style={isCompact ? styles.docLabel : [styles.docLabel, styles.docLabelComfort]}>Leistungsdatum</Text>
+              <Text style={isCompact ? styles.docValue : [styles.docValue, styles.docValueComfort]}>
                 {order?.orderMeta?.movingDateFrom
                   ? new Date(order.orderMeta.movingDateFrom).toLocaleDateString('de-DE')
                   : 'Gemäß Absprache'}
               </Text>
             </View>
-            <View style={styles.docRow}>
-              <Text style={styles.docLabel}>Sachbearbeiter</Text>
-              <Text style={styles.docValue}>{employeeName || order?.orderMeta?.manager || settings?.manager || '-'}</Text>
+            <View style={isCompact ? styles.docRow : [styles.docRow, styles.docRowComfort]}>
+              <Text style={isCompact ? styles.docLabel : [styles.docLabel, styles.docLabelComfort]}>Sachbearbeiter</Text>
+              <Text style={isCompact ? styles.docValue : [styles.docValue, styles.docValueComfort]}>{employeeName || order?.orderMeta?.manager || settings?.manager || '-'}</Text>
             </View>
             {isStorno && (
               <Text style={styles.stornoBadge}>
@@ -280,10 +475,10 @@ export const InvoicePDF = ({
         </View>
 
         {/* Document Title with generous spacing */}
-        <Text style={styles.mainTitle}>{isStorno ? 'STORNORECHNUNG' : (isKorrektur ? 'KORREKTURRECHNUNG' : 'RECHNUNG')}</Text>
+        <Text style={isCompact ? styles.mainTitle : [styles.mainTitle, styles.mainTitleComfort]}>{isStorno ? 'STORNORECHNUNG' : (isKorrektur ? 'KORREKTURRECHNUNG' : 'RECHNUNG')}</Text>
         
         {/* Intro text */}
-        <Text style={styles.introText}>
+        <Text style={isCompact ? styles.introText : [styles.introText, styles.introTextComfort]}>
           {introGreeting}{'\n'}
           {isStorno
             ? `hiermit stornieren wir die Rechnung ${order?.stornoFor || ''}. Der unten ausgewiesene Betrag wird Ihrem Konto gutgeschrieben bzw. gleicht unsere Forderung aus.`
@@ -299,33 +494,35 @@ export const InvoicePDF = ({
 
         {/* Umzugswege / Leistungsort Card */}
         {hasRouteInfo && (
-          <View style={styles.routeCard}>
-            <Text style={styles.routeHeader}>Leistungsort / Umzugswege</Text>
-            <View style={styles.routeRow}>
-              <Text style={{ fontFamily: 'Helvetica-Bold', width: '12%' }}>Von:</Text>
-              <Text style={{ width: '88%' }}>
-                {order.logistics.a_street} {order.logistics.a_houseNr}, {order.logistics.a_zip} {order.logistics.a_city}
-              </Text>
-            </View>
-            <View style={styles.routeRow}>
-              <Text style={{ fontFamily: 'Helvetica-Bold', width: '12%' }}>Nach:</Text>
-              <Text style={{ width: '88%' }}>
-                {order.logistics.b_street} {order.logistics.b_houseNr}, {order.logistics.b_zip} {order.logistics.b_city}
-              </Text>
+          <View style={isCompact ? styles.routeCard : [styles.routeCard, styles.routeCardComfort]}>
+            <Text style={isCompact ? styles.routeHeader : [styles.routeHeader, styles.routeHeaderComfort]}>Leistungsort / Umzugswege</Text>
+            <View style={styles.routeCols}>
+              <View style={styles.routeCol}>
+                <Text style={isCompact ? styles.routeText : [styles.routeText, styles.routeTextComfort]}>
+                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>Von: </Text>
+                  {order?.logistics?.a_street} {order?.logistics?.a_houseNr}, {order?.logistics?.a_zip} {order?.logistics?.a_city}
+                </Text>
+              </View>
+              <View style={styles.routeCol}>
+                <Text style={isCompact ? styles.routeText : [styles.routeText, styles.routeTextComfort]}>
+                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>Nach: </Text>
+                  {order?.logistics?.b_street} {order?.logistics?.b_houseNr}, {order?.logistics?.b_zip} {order?.logistics?.b_city}
+                </Text>
+              </View>
             </View>
           </View>
         )}
 
         {/* ── LEISTUNGEN TABELLE ── */}
-        <View style={styles.table}>
-          <View style={styles.tableHeader} fixed>
-            <Text style={styles.colPos}>Pos.</Text>
+        <View style={isCompact ? styles.table : [styles.table, styles.tableComfort]}>
+          <View style={isCompact ? styles.tableHeader : [styles.tableHeader, styles.tableHeaderComfort]} fixed>
+            <Text style={isCompact ? styles.colPos : [styles.colPos, styles.colPosComfort]}>Pos.</Text>
             <Text style={isFlat ? styles.colDescFlat : styles.colDesc}>Leistungsbeschreibung</Text>
-            <Text style={isFlat ? styles.colQtyFlat : styles.colQty}>{isFlat ? 'Umfang' : 'Menge'}</Text>
+            <Text style={isCompact ? (isFlat ? styles.colQtyFlat : styles.colQty) : [isFlat ? styles.colQtyFlat : styles.colQty, isFlat ? styles.colQtyFlatComfort : styles.colQtyComfort]}>{isFlat ? 'Umfang' : 'Menge'}</Text>
             {!isFlat && (
               <>
-                <Text style={styles.colPrice}>Einzelpreis</Text>
-                <Text style={styles.colTotal}>Gesamt</Text>
+                <Text style={isCompact ? styles.colPrice : [styles.colPrice, styles.colPriceComfort]}>Einzelpreis</Text>
+                <Text style={isCompact ? styles.colTotal : [styles.colTotal, styles.colTotalComfort]}>Gesamt</Text>
               </>
             )}
           </View>
@@ -337,13 +534,13 @@ export const InvoicePDF = ({
               const isItemIncluded = Boolean(item.isIncluded || item.unitPrice === 0);
 
               return (
-                <View key={i} style={styles.tableRow} wrap={false}>
-                  <Text style={styles.colPos}>{i + 1}</Text>
+                <View key={i} style={isCompact ? styles.tableRow : [styles.tableRow, styles.tableRowComfort]} wrap={false}>
+                  <Text style={isCompact ? styles.colPos : [styles.colPos, styles.colPosComfort]}>{i + 1}</Text>
                   <View style={isFlat ? styles.colDescFlat : styles.colDesc}>
-                    <Text style={styles.itemName}>{item.name}</Text>
-                    {item.note ? <Text style={styles.itemNote}>{item.note}</Text> : null}
+                    <Text style={isCompact ? styles.itemName : [styles.itemName, styles.itemNameComfort]}>{item.name}</Text>
+                    {item.note ? <Text style={isCompact ? styles.itemNote : [styles.itemNote, styles.itemNoteComfort]}>{item.note}</Text> : null}
                   </View>
-                  <Text style={isFlat ? styles.colQtyFlat : styles.colQty}>
+                  <Text style={isCompact ? (isFlat ? styles.colQtyFlat : styles.colQty) : [isFlat ? styles.colQtyFlat : styles.colQty, isFlat ? styles.colQtyFlatComfort : styles.colQtyComfort]}>
                     {isFlat
                       ? showExactAmount
                         ? `${item.quantity} ${item.unit}`
@@ -354,10 +551,10 @@ export const InvoicePDF = ({
                   </Text>
                   {!isFlat && (
                     <>
-                      <Text style={styles.colPrice}>
+                      <Text style={isCompact ? styles.colPrice : [styles.colPrice, styles.colPriceComfort]}>
                         {isItemIncluded ? '—' : `${item.unitPrice?.toFixed(2)} €`}
                       </Text>
-                      <Text style={styles.colTotal}>
+                      <Text style={isCompact ? styles.colTotal : [styles.colTotal, styles.colTotalComfort]}>
                         {isItemIncluded ? 'Inklusiv' : `${(item.quantity * item.unitPrice)?.toFixed(2)} €`}
                       </Text>
                     </>
@@ -366,8 +563,8 @@ export const InvoicePDF = ({
               );
             })
           ) : isStorno ? (
-            <View style={styles.tableRow} wrap={false}>
-              <Text style={styles.colPos}>1</Text>
+            <View style={isCompact ? styles.tableRow : [styles.tableRow, styles.tableRowComfort]} wrap={false}>
+              <Text style={isCompact ? styles.colPos : [styles.colPos, styles.colPosComfort]}>1</Text>
               <Text style={[styles.colDesc, { width: '70%' }]}>
                 Stornierung der Rechnung {order?.stornoFor || ''}
               </Text>
@@ -382,104 +579,193 @@ export const InvoicePDF = ({
           ) : null}
         </View>
 
-        {/* Totals Summary */}
-        <View style={styles.totalsContainer} wrap={false}>
-          <View style={styles.totalsBox}>
-            <View style={styles.totalRow}>
-              <Text>Nettobetrag:</Text>
-              <Text>{isStorno ? `-${safeNet.toFixed(2)}` : safeNet.toFixed(2)} €</Text>
-            </View>
-            <View style={styles.totalRow}>
-              <Text>zzgl. 19% MwSt.:</Text>
-              <Text>{isStorno ? `-${safeTax.toFixed(2)}` : safeTax.toFixed(2)} €</Text>
-            </View>
-            <View style={styles.totalRowGrand}>
-              <Text>{isStorno ? 'Gutschriftsbetrag:' : 'Gesamtbetrag (inkl. MwSt.):'}</Text>
-              <Text>{isStorno ? `-${safeGross.toFixed(2)}` : safeGross.toFixed(2)} €</Text>
-            </View>
-          </View>
-        </View>
+        {/* ── FINANZEN & ZAHLUNG (Adaptive: Compact Side-by-Side vs. Comfort Stacked) ── */}
+        {isCompact ? (
+          <View style={styles.financeRow} wrap={false}>
+            {/* Left Column: Zahlungsinformationen */}
+            <View style={styles.paymentCol}>
+              <Text style={styles.paymentHeader}>Zahlungsinformationen</Text>
 
-        {/* ── ZAHLUNGSINFORMATIONEN & BANK (Smart Payment Info) ── */}
-        <View style={styles.paymentSection} wrap={false}>
-          <Text style={styles.paymentHeader}>Zahlungsinformationen</Text>
-
-          {isStorno ? (
-            <Text style={styles.textBlock}>
-              Der Gutschriftsbetrag wird Ihrem Bankkonto erstattet bzw. mit noch offenen Forderungen verrechnet.
-            </Text>
-          ) : isFullyPaid ? (
-            <Text style={{ ...styles.textBlock, color: PDF_COLORS.success, fontFamily: 'Helvetica-Bold' }}>
-              ✓ Der Rechnungsbetrag wurde bereits vollständig bezahlt. Vielen Dank für Ihre Zahlung!
-            </Text>
-          ) : totalPaid > 0 && remaining > 0 ? (
-            <View>
-              <Text style={styles.textBlock}>
-                Bereits angezahlt / bezahlt: {totalPaid.toFixed(2)} €
-              </Text>
-              <Text style={{ ...styles.textBlock, fontFamily: 'Helvetica-Bold', color: PDF_COLORS.primary }}>
-                Noch offener Restbetrag: {remaining.toFixed(2)} €
-              </Text>
-              <Text style={styles.textBlock}>
-                {invoiceOutro || 'Bitte überweisen Sie den noch offenen Betrag ohne Abzug auf unser unten aufgeführtes Konto.'}
-              </Text>
-            </View>
-          ) : (
-            <View>
-              <Text style={styles.textBlock}>
-                {pmSettings?.textInvoice ||
-                  invoiceOutro ||
-                  'Bitte überweisen Sie den fälligen Rechnungsbetrag auf unser Bankkonto:'}
-              </Text>
-              <View style={styles.paymentCard}>
-                <View style={styles.bankRow}>
-                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>Kontoinhaber:</Text>
-                  <Text>{settings?.companyName || 'Rothirsch Umzug'}</Text>
+              {isStorno ? (
+                <Text style={styles.textBlock}>
+                  Der Gutschriftsbetrag wird Ihrem Bankkonto erstattet bzw. mit noch offenen Forderungen verrechnet.
+                </Text>
+              ) : isFullyPaid ? (
+                <Text style={{ ...styles.textBlock, color: PDF_COLORS.success, fontFamily: 'Helvetica-Bold' }}>
+                  ✓ Der Rechnungsbetrag wurde bereits vollständig bezahlt. Vielen Dank!
+                </Text>
+              ) : totalPaid > 0 && remaining > 0 ? (
+                <View style={styles.paymentCard}>
+                  <View style={styles.bankRow}>
+                    <Text style={{ color: PDF_COLORS.textMuted }}>Bereits bezahlt:</Text>
+                    <Text style={{ fontFamily: 'Helvetica-Bold' }}>{totalPaid.toFixed(2)} €</Text>
+                  </View>
+                  <View style={{ ...styles.bankRow, borderTopWidth: 0.5, borderTopColor: PDF_COLORS.border, paddingTop: 2, marginTop: 1 }}>
+                    <Text style={{ fontFamily: 'Helvetica-Bold', color: PDF_COLORS.primary }}>Offener Restbetrag:</Text>
+                    <Text style={{ fontFamily: 'Helvetica-Bold', color: PDF_COLORS.primary }}>{remaining.toFixed(2)} €</Text>
+                  </View>
+                  <View style={{ ...styles.bankRow, marginTop: 2 }}>
+                    <Text style={{ fontFamily: 'Helvetica-Bold' }}>IBAN:</Text>
+                    <Text>{settings?.iban || ''}</Text>
+                  </View>
+                  <View style={styles.bankRow}>
+                    <Text style={{ fontFamily: 'Helvetica-Bold' }}>BIC / Bank:</Text>
+                    <Text>{settings?.bic || ''} • {settings?.bankName || ''}</Text>
+                  </View>
                 </View>
-                <View style={styles.bankRow}>
-                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>IBAN:</Text>
-                  <Text>{settings?.iban || ''}</Text>
-                </View>
-                <View style={styles.bankRow}>
-                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>BIC:</Text>
-                  <Text>{settings?.bic || ''}</Text>
-                </View>
-                <View style={styles.bankRow}>
-                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>Kreditinstitut:</Text>
-                  <Text>{settings?.bankName || ''}</Text>
-                </View>
-                <View style={{ ...styles.bankRow, marginTop: 4, paddingTop: 4, borderTopWidth: 0.5, borderTopColor: PDF_COLORS.border }}>
-                  <Text style={{ fontFamily: 'Helvetica-Bold', color: PDF_COLORS.primary }}>Zahlungsziel:</Text>
-                  <Text style={{ fontFamily: 'Helvetica-Bold' }}>
-                    {dueDays > 0
-                      ? `Innerhalb von ${dueDays} Tagen (bis zum ${dueDate.toLocaleDateString('de-DE')})`
-                      : 'Sofort nach Rechnungserhalt'}
+              ) : (
+                <View style={styles.paymentCard}>
+                  <Text style={{ fontSize: 7, color: PDF_COLORS.textMuted, marginBottom: 2 }}>
+                    {pmSettings?.textInvoice || invoiceOutro || 'Bitte überweisen Sie den Betrag auf unser Bankkonto:'}
                   </Text>
+                  <View style={styles.bankRow}>
+                    <Text style={{ fontFamily: 'Helvetica-Bold' }}>IBAN:</Text>
+                    <Text>{settings?.iban || ''}</Text>
+                  </View>
+                  <View style={styles.bankRow}>
+                    <Text style={{ fontFamily: 'Helvetica-Bold' }}>BIC / Bank:</Text>
+                    <Text>{settings?.bic || ''} • {settings?.bankName || ''}</Text>
+                  </View>
+                  <View style={{ ...styles.bankRow, borderTopWidth: 0.5, borderTopColor: PDF_COLORS.border, paddingTop: 2, marginTop: 1 }}>
+                    <Text style={{ fontFamily: 'Helvetica-Bold', color: PDF_COLORS.primary }}>Zahlungsziel:</Text>
+                    <Text style={{ fontFamily: 'Helvetica-Bold' }}>
+                      {dueDays > 0
+                        ? `Bis zum ${dueDate.toLocaleDateString('de-DE')}`
+                        : 'Sofort nach Rechnungserhalt'}
+                    </Text>
+                  </View>
                 </View>
+              )}
+
+              {invoiceGreeting ? (
+                <Text style={{ ...styles.textBlock, marginTop: 3 }}>
+                  {invoiceGreeting}
+                </Text>
+              ) : null}
+            </View>
+
+            {/* Right Column: Totals Summary */}
+            <View style={styles.totalsCol}>
+              <View style={styles.totalRow}>
+                <Text>Nettobetrag:</Text>
+                <Text>{isStorno ? `-${safeNet.toFixed(2)}` : safeNet.toFixed(2)} €</Text>
+              </View>
+              <View style={styles.totalRow}>
+                <Text>zzgl. 19% MwSt.:</Text>
+                <Text>{isStorno ? `-${safeTax.toFixed(2)}` : safeTax.toFixed(2)} €</Text>
+              </View>
+              <View style={styles.totalRowGrand}>
+                <Text>{isStorno ? 'Gutschriftsbetrag:' : 'Gesamtbetrag:'}</Text>
+                <Text>{isStorno ? `-${safeGross.toFixed(2)}` : safeGross.toFixed(2)} €</Text>
               </View>
             </View>
-          )}
-        </View>
+          </View>
+        ) : (
+          <View wrap={false}>
+            {/* Totals Box on Right */}
+            <View style={styles.totalsWrapperComfort}>
+              <View style={styles.totalsColComfort}>
+                <View style={styles.totalRowComfort}>
+                  <Text>Nettobetrag:</Text>
+                  <Text>{isStorno ? `-${safeNet.toFixed(2)}` : safeNet.toFixed(2)} €</Text>
+                </View>
+                <View style={styles.totalRowComfort}>
+                  <Text>zzgl. 19% MwSt.:</Text>
+                  <Text>{isStorno ? `-${safeTax.toFixed(2)}` : safeTax.toFixed(2)} €</Text>
+                </View>
+                <View style={styles.totalRowGrandComfort}>
+                  <Text>{isStorno ? 'Gutschriftsbetrag:' : 'Gesamtbetrag:'}</Text>
+                  <Text>{isStorno ? `-${safeGross.toFixed(2)}` : safeGross.toFixed(2)} €</Text>
+                </View>
+                {totalPaid > 0 && remaining > 0 && !isStorno && (
+                  <>
+                    <View style={{ ...styles.totalRowComfort, borderTopWidth: 0.5, borderTopColor: PDF_COLORS.border, paddingTop: 3, marginTop: 2 }}>
+                      <Text>Bereits bezahlt:</Text>
+                      <Text>-{totalPaid.toFixed(2)} €</Text>
+                    </View>
+                    <View style={{ ...styles.totalRowGrandComfort, paddingTop: 3, marginTop: 2, fontSize: 10 }}>
+                      <Text>Restbetrag offen:</Text>
+                      <Text>{remaining.toFixed(2)} €</Text>
+                    </View>
+                  </>
+                )}
+              </View>
+            </View>
 
-        {invoiceGreeting ? (
-          <Text style={{ ...styles.textBlock, marginTop: 6 }} wrap={false}>
-            {invoiceGreeting}
-          </Text>
-        ) : null}
+            {/* Payment Information Card (Full Width) */}
+            <View style={{ marginBottom: 6 }}>
+              <Text style={styles.paymentHeaderComfort}>Zahlungsinformationen</Text>
+
+              {isStorno ? (
+                <Text style={styles.textBlockComfort}>
+                  Der Gutschriftsbetrag wird Ihrem Bankkonto erstattet bzw. mit noch offenen Forderungen verrechnet.
+                </Text>
+              ) : isFullyPaid ? (
+                <Text style={{ ...styles.textBlockComfort, color: PDF_COLORS.success, fontFamily: 'Helvetica-Bold' }}>
+                  ✓ Der Rechnungsbetrag wurde bereits vollständig bezahlt. Vielen Dank!
+                </Text>
+              ) : (
+                <View style={styles.paymentCardComfort}>
+                  <Text style={{ fontSize: 8, color: PDF_COLORS.textMuted, marginBottom: 3 }}>
+                    {pmSettings?.textInvoice || invoiceOutro || 'Bitte überweisen Sie den fälligen Rechnungsbetrag auf unser Bankkonto:'}
+                  </Text>
+                  <View style={styles.bankRowComfort}>
+                    <Text style={{ fontFamily: 'Helvetica-Bold' }}>
+                      Kontoinhaber: <Text style={{ fontFamily: 'Helvetica' }}>{settings?.companyName || 'Rothirsch Umzug'}</Text>
+                    </Text>
+                    <Text style={{ fontFamily: 'Helvetica-Bold' }}>
+                      Kreditinstitut: <Text style={{ fontFamily: 'Helvetica' }}>{settings?.bankName || 'Sparkasse'}</Text>
+                    </Text>
+                  </View>
+                  <View style={styles.bankRowComfort}>
+                    <Text style={{ fontFamily: 'Helvetica-Bold' }}>
+                      IBAN: <Text style={{ fontFamily: 'Helvetica' }}>{settings?.iban || ''}</Text>
+                    </Text>
+                    <Text style={{ fontFamily: 'Helvetica-Bold' }}>
+                      BIC: <Text style={{ fontFamily: 'Helvetica' }}>{settings?.bic || ''}</Text>
+                    </Text>
+                  </View>
+                  <View style={{ ...styles.bankRowComfort, borderTopWidth: 0.5, borderTopColor: PDF_COLORS.border, paddingTop: 3, marginTop: 1 }}>
+                    <Text style={{ fontFamily: 'Helvetica-Bold', color: PDF_COLORS.primary }}>
+                      Zahlungsziel:{' '}
+                      <Text style={{ fontFamily: 'Helvetica' }}>
+                        {dueDays > 0
+                          ? `Bis zum ${dueDate.toLocaleDateString('de-DE')}`
+                          : 'Sofort nach Rechnungserhalt'}
+                      </Text>
+                    </Text>
+                    <Text style={{ color: PDF_COLORS.textMuted }}>
+                      Zahlungsart: {order?.orderMeta?.paymentMethod || 'Überweisung'}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {invoiceGreeting ? (
+                <Text style={styles.textBlockComfort}>
+                  {invoiceGreeting}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+        )}
 
         {/* Gesetzliche Hinweise (§ 14b Abs. 1 UStG & § 35a EStG) */}
         {!isStorno && (
-          <View style={{ marginTop: 6, padding: 5, backgroundColor: '#fcfcfc', borderRadius: 3, borderWidth: 0.5, borderColor: PDF_COLORS.border }} wrap={false}>
-            {billing?.type !== 'firma' && (
-              <Text style={{ fontSize: 6.5, color: '#666666', lineHeight: 1.25 }}>
-                <Text style={{ fontFamily: 'Helvetica-Bold' }}>Hinweis zur Aufbewahrungspflicht (§ 14b Abs. 1 UStG): </Text>
-                Für Privatpersonen gilt eine gesetzliche Aufbewahrungsfrist von 2 Jahren ab Ende des Ausstellungsjahres.
+          <View style={isCompact ? styles.legalNoticeBox : [styles.legalNoticeBox, styles.legalNoticeBoxComfort]} wrap={false}>
+            {billing?.type !== 'firma' ? (
+              <Text style={isCompact ? styles.legalNoticeText : [styles.legalNoticeText, styles.legalNoticeTextComfort]}>
+                <Text style={{ fontFamily: 'Helvetica-Bold' }}>Hinweis (§ 14b UStG): </Text>
+                Gesetzliche 2-jährige Aufbewahrungsfrist für Privatpersonen. • 
+                <Text style={{ fontFamily: 'Helvetica-Bold' }}> Steuerabzug (§ 35a EStG): </Text>
+                Umzugskosten (Arbeitslohn) sind steuerlich absetzbar (Zahlung per Überweisung).
+              </Text>
+            ) : (
+              <Text style={isCompact ? styles.legalNoticeText : [styles.legalNoticeText, styles.legalNoticeTextComfort]}>
+                <Text style={{ fontFamily: 'Helvetica-Bold' }}>Hinweis (§ 14b UStG): </Text>
+                Für Unternehmer gilt die gesetzliche Aufbewahrungsfrist von 8 Jahren (gem. § 14b Abs. 1 UStG / BEG IV).
               </Text>
             )}
-            <Text style={{ fontSize: 6.5, color: '#666666', lineHeight: 1.25, marginTop: billing?.type !== 'firma' ? 2 : 0 }}>
-              <Text style={{ fontFamily: 'Helvetica-Bold' }}>Steuerabzug (§ 35a EStG): </Text>
-              Aufwendungen für haushaltsnahe Dienstleistungen (Umzugsarbeitskosten) können steuerlich geltend gemacht werden (Zahlung per Überweisung erforderlich).
-            </Text>
           </View>
         )}
       </Page>

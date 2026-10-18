@@ -478,7 +478,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const modeParam = searchParams?.get('mode');
   const initialStep = (stepParam === 'inventory' || stepParam === '4' || modeParam === 'inspection') ? 4 : (stepParam ? parseInt(stepParam, 10) || 1 : 1);
   const [currentStep, setCurrentStep] = useState(initialStep);
-  const [unlockedByAdmin, setUnlockedByAdmin] = useState(false);
+  const [unlockedByAdmin, setUnlockedByAdmin] = useState(searchParams?.get('unlock') === 'true');
   const isContractLocked = (orderStatus === 'confirmed' || orderStatus === 'completed') && !unlockedByAdmin;
 
   const currentStepRef = useRef(currentStep);
@@ -581,7 +581,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const [isFlatRate, setIsFlatRate] = useState(true);
   const [flatRateNet, setFlatRateNet] = useState(0);
   const [services, setServices] = useState<{ id: string, name: string, quantity: number, unitPrice: number, unit: string, note?: string, location?: 'a' | 'b' | 'both' }[]>([]);
-  const [catalogSearch, setCatalogSearch] = useState('');
+  const [catalogSearch, setCatalogSearch] = useState(searchParams?.get('q') || '');
   const [activeCategoryTab, setActiveCategoryTab] = useState('Alle');
   const [invoicedWarning, setInvoicedWarning] = useState<string | null>(null);
   
@@ -612,7 +612,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
   // 9. Fuhrpark & Volumen (Schnell-Auswahl: Standard 3.5t Transporter) & Externe Signatur
   const [truckChoice, setTruckChoice] = useState<'1_transporter' | '1_lkw' | '2_lkw' | 'custom'>('1_transporter');
-  const [estimatedCbm, setEstimatedCbm] = useState<number>(18);
+  const [estimatedCbm, setEstimatedCbm] = useState<number>(0);
   const [isManuallySigned, setIsManuallySigned] = useState<boolean>(false);
   const [roomCounts, setRoomCounts] = useState<Record<string, number>>({});
   const [selectedRoomTab, setSelectedRoomTab] = useState('');
@@ -1069,7 +1069,11 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           setChecklist(data.checklist || []);
           setTexts(data.texts || {});
           if (data.truckChoice) setTruckChoice(data.truckChoice);
-          if (data.estimatedCbm) setEstimatedCbm(data.estimatedCbm);
+          if (data.estimatedCbm) {
+            const hasInv = Array.isArray(data.inventory) && data.inventory.length > 0;
+            const isLegacyDefault = (data.estimatedCbm === 18 || data.estimatedCbm === 30) && !hasInv && data.truckChoice !== 'custom';
+            setEstimatedCbm(isLegacyDefault ? 0 : data.estimatedCbm);
+          }
           if (data.isManuallySigned) setIsManuallySigned(data.isManuallySigned);
           if (data.roomCounts) {
             setRoomCounts(data.roomCounts);
@@ -1265,7 +1269,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     action();
   };
 
-  const saveOrder = async (status: 'draft' | 'quote' | 'invoice_open', generateQuote: boolean = false) => {
+  const saveOrder = async (status: 'draft' | 'quote' | 'confirmed' | 'invoice_open', generateQuote: boolean = false) => {
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       toast.error('Speichern fehlgeschlagen: Du bist offline!', { duration: 5000 });
       setErrorMessage('Kein Internet! Bitte warte auf eine Verbindung.');
@@ -1312,13 +1316,20 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       }
 
       let finalStatus: string = status;
-      // Prevent downgrading the order status to draft when simply saving.
-      // If generateQuote is true, status is already passed as 'quote' or changed later.
-      // If it's an invoice, status is 'invoice_open'.
-      if (orderId && orderStatus && orderStatus !== 'draft' && status === 'draft') {
-        finalStatus = orderStatus as any;
+      // If user explicitly toggled "Bereits unterschrieben / bestätigt", mark as confirmed
+      if (status === 'quote' && isManuallySigned) {
+        finalStatus = 'confirmed';
+      }
+      // Prevent downgrading an existing non-draft order when saving as draft or re-saving an already confirmed/completed order
+      if (orderId && orderStatus && orderStatus !== 'draft') {
+        if (status === 'draft') {
+          finalStatus = orderStatus as any;
+        } else if (status === 'quote' && (orderStatus === 'completed' || orderStatus?.startsWith('invoice_') || (orderStatus === 'confirmed' && isManuallySigned))) {
+          finalStatus = orderStatus as any;
+        }
       }
 
+      const calculatedCbmValue = calculateQuickCbm();
       const finalOrderMeta = {
         ...orderMeta,
         halteverbotDate: orderMeta.halteverbotDateA || orderMeta.halteverbotDate || logistics.hvzDateA || logistics.hvzDate || '',
@@ -1327,11 +1338,12 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       };
       const finalLogistics = {
         ...logistics,
+        estimatedVolume: calculatedCbmValue,
         hvzDate: logistics.hvzDateA || logistics.hvzDate || finalOrderMeta.halteverbotDate || '',
         hvzTime: logistics.hvzTimeA || logistics.hvzTime || finalOrderMeta.halteverbotTime || ''
       };
 
-      const payload = {
+      const payload: any = {
         customerId: finalCustomerId,
         customerName: customerData.type === 'firma' ? customerData.lastName : `${customerData.firstName} ${customerData.lastName}`.trim(),
         billingAddress: {
@@ -1361,8 +1373,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         texts,
         totals,
         truckChoice,
-        estimatedCbm,
+        estimatedCbm: calculatedCbmValue,
         isManuallySigned,
+        contractSigned: isManuallySigned ? true : false,
         updatedAt: serverTimestamp(),
         updatedBy: cleanCreatorName
       };
@@ -1374,7 +1387,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           
           if (generateQuote || finalStatus === 'quote' || finalStatus === 'confirmed') {
             try {
-              await changeOrderStatus(orderId, (finalStatus === 'draft' ? 'quote' : finalStatus) as any, { userId: profile?.uid });
+              await changeOrderStatus(orderId, (finalStatus === 'draft' ? 'quote' : finalStatus) as any, { userId: profile?.uid, additionalData: { isManuallySigned } });
             } catch (err: any) {
               console.error("Fehler bei der Angebotsstatus-Aktualisierung:", err);
             }
@@ -1389,7 +1402,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           
           if (generateQuote || finalStatus === 'quote' || finalStatus === 'confirmed') {
             try {
-              await changeOrderStatus(docRef.id, (finalStatus === 'draft' ? 'quote' : finalStatus) as any, { userId: profile?.uid });
+              await changeOrderStatus(docRef.id, (finalStatus === 'draft' ? 'quote' : finalStatus) as any, { userId: profile?.uid, additionalData: { isManuallySigned } });
             } catch (err: any) {
               console.error("Fehler bei der Angebotsstatus-Aktualisierung:", err);
             }
@@ -1397,8 +1410,18 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         }
       })(), { operationName: 'Angebot/Auftrag speichern', timeoutMs: 35000 });
 
+      try {
+        localStorage.removeItem(`rothirsch_order_draft_${orderId || 'new'}`);
+      } catch {}
+
       setSaveStatus('success');
-      toast.success(orderId ? "Änderungen erfolgreich gespeichert!" : "Neues Angebot erfolgreich erstellt!");
+      toast.success(
+        orderId
+          ? "Änderungen erfolgreich gespeichert!"
+          : finalStatus === 'confirmed'
+            ? "Auftrag bestätigt & gespeichert!"
+            : "Angebot erfolgreich erstellt!"
+      );
       router.push(`/dashboard/customers/${finalCustomerId}`);
     } catch (e: any) {
       console.error("OrderEditor save error:", e); 
@@ -2775,8 +2798,26 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                                 </button>
                               </div>
                             </td>
-                            <td className="p-2.5 pr-4 text-right font-bold text-text-main">
-                              {!isFlatRate && canViewPrices ? `${(svc.quantity * svc.unitPrice).toFixed(2)} €` : '—'}
+                            <td className="p-2.5 pr-4 text-right font-bold text-text-main pt-3">
+                              {!isFlatRate && canViewPrices ? (
+                                <div className="flex flex-col items-end gap-1">
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      disabled={!canEditPrices}
+                                      value={svc.unitPrice ?? 0}
+                                      onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, unitPrice: parseFloat(e.target.value) || 0 } : s))}
+                                      className="w-16 text-right bg-black/20 border border-structure/50 rounded px-1.5 py-0.5 text-xs font-mono text-text-main focus:outline-none focus:border-primary"
+                                      title="Einzelpreis (Netto)"
+                                    />
+                                    <span className="text-[10px] text-text-muted">€</span>
+                                  </div>
+                                  <span className="text-[10px] text-primary">
+                                    = {(svc.quantity * (svc.unitPrice || 0)).toFixed(2)} €
+                                  </span>
+                                </div>
+                              ) : '—'}
                             </td>
                             <td className="pr-2 text-right">
                               <button
@@ -3445,6 +3486,22 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       </button>
                     ))}
                   </div>
+                  {truckChoice === 'custom' && (
+                    <div className="mt-3 p-3 rounded-xl bg-white/[0.03] border border-structure/80">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-text-muted block mb-1.5">
+                        Manuelles Ladevolumen (m³)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={estimatedCbm || ''}
+                        onChange={(e) => setEstimatedCbm(Math.max(0, Number(e.target.value) || 0))}
+                        placeholder="z.B. 25"
+                        className="input-field w-full text-sm font-bold"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Next Step Controls */}
@@ -3504,7 +3561,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       </p>
                     </div>
                     <p className="text-xs text-text-muted mt-0.5">
-                      Beginn: {time || '08:00'} Uhr | Geschätzte Dauer: ~{calculatedDuration || 6}h
+                      {time ? `Beginn: ${time} Uhr` : 'Uhrzeit nach Absprache'}
+                      {calculatedDuration ? ` | Geschätzte Dauer: ~${calculatedDuration}h` : ''}
                     </p>
                   </div>
 
@@ -3875,7 +3933,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             </button>
           </div>
 
-          {/* RIGHT: Weiter or Buchen (Primary Action) */}
+          {/* RIGHT: Weiter or Angebot abschließen (Primary Action) */}
           <div className="flex items-center gap-2 shrink-0">
             {currentStep < 5 ? (
               <button
@@ -3890,7 +3948,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             ) : (
               <button
                 type="button"
-                onClick={() => handleQuoteActionWithCheck(() => saveOrder('confirmed' as any, true))}
+                onClick={() => handleQuoteActionWithCheck(() => saveOrder(isInvoice ? 'invoice_open' : (isManuallySigned ? 'confirmed' : 'quote'), true))}
                 disabled={isSaving}
                 className="bg-primary hover:brightness-110 text-white px-5 sm:px-7 py-2.5 rounded-xl font-headline font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2 shadow-xl shadow-primary/40 active:scale-95 transition-all cursor-pointer"
               >
@@ -3899,7 +3957,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 ) : (
                   <span className="material-symbols-outlined text-base">check_circle</span>
                 )}
-                <span>Umzug buchen</span>
+                <span>{isInvoice ? 'Rechnung abschließen' : isManuallySigned ? 'Auftrag bestätigt speichern' : 'Angebot abschließen'}</span>
               </button>
             )}
           </div>

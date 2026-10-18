@@ -11,46 +11,46 @@ interface PDFHeaderProps {
 const styles = StyleSheet.create({
   headerFull: {
     backgroundColor: '#ffffff',
-    paddingBottom: 14,
+    paddingBottom: 8,
   },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   brandLeftBox: {
     justifyContent: 'center',
     maxWidth: '68%',
   },
   companyName: {
-    fontSize: 21,
+    fontSize: 20,
     fontFamily: 'Helvetica-Bold',
     color: PDF_COLORS.primary,
-    letterSpacing: 1,
+    letterSpacing: 0.8,
     textTransform: 'uppercase',
   },
   blackCircleWrapper: {
     backgroundColor: '#1a1a1a',
-    width: 90,
-    height: 90,
-    borderRadius: 45,
+    width: 74,
+    height: 74,
+    borderRadius: 37,
     justifyContent: 'center',
     alignItems: 'center',
   },
   logoImage: {
-    width: 65,
-    height: 65,
+    width: 54,
+    height: 54,
     objectFit: 'contain',
-    marginTop: -6, // Optically centers the deer and word Rothirsch inside the black circle
+    marginTop: -5, // Optically centers the deer and word Rothirsch inside the black circle
   },
   dividerLine: {
     borderBottomWidth: 1.2,
     borderBottomColor: PDF_COLORS.primary,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   senderLine: {
-    fontSize: 8,
+    fontSize: 7.5,
     color: PDF_COLORS.textMuted,
     backgroundColor: '#ffffff',
   },

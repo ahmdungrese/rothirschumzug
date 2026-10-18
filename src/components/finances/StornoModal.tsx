@@ -2,12 +2,13 @@
 
 import React, { useState } from 'react';
 import { db } from '@/lib/firebase';
-import { doc, collection, addDoc, updateDoc, getDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { doc, collection, getDoc, getDocs, query, where, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { XMarkIcon, ExclamationTriangleIcon, DocumentCheckIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 import { useAuth } from '@/context/AuthContext';
 import { logActivity } from '@/lib/activityLogger';
+import { calculateOrderTotals } from '@/lib/financeHelpers';
 
 interface StornoModalProps {
   invoice: any;
@@ -24,76 +25,179 @@ export function StornoModal({ invoice, onClose, onSuccess }: StornoModalProps) {
 
   if (!invoice) return null;
 
-  const invoiceNum = invoice.invoiceNumber || 'Rechnung ohne Nummer';
-  const parentOrderId = invoice.sourceOrderId || (invoice._collection !== 'invoices' ? invoice.id : null);
+  const invoiceNum = invoice.activeInvoiceNumber || invoice.invoiceNumber || 'Rechnung ohne Nummer';
+  const initialParentOrderId =
+    invoice.sourceOrderId ||
+    invoice.orderId ||
+    (invoice._collection !== 'invoices' ? invoice.id : null);
+  const effectiveTotals = calculateOrderTotals(invoice);
 
   const handleConfirmStorno = async () => {
     setIsProcessing(true);
     const finalReason = reason === 'Sonstiges' ? (customReason || 'Rechnung storniert') : reason;
 
     try {
-      const stornoNumber = `ST-${invoiceNum.replace(/^(RE-|R-)/, '')}`;
-      
+      const stornoNumber = `ST-${invoiceNum.replace(/^(RE-|R-|ST-)/, '')}`;
+
+      // 0. Resolve Parent Order & Original Invoice(s) before committing atomic batch
+      let resolvedOrderRef: any = null;
+      let resolvedOrderData: any = null;
+
+      if (initialParentOrderId) {
+        const candidateOrderRef = doc(db, 'orders', initialParentOrderId);
+        const candidateOrderSnap = await getDoc(candidateOrderRef);
+        if (candidateOrderSnap.exists()) {
+          resolvedOrderRef = candidateOrderRef;
+          resolvedOrderData = candidateOrderSnap.data();
+        }
+      }
+
+      if (!resolvedOrderRef && invoiceNum && invoiceNum !== 'Rechnung ohne Nummer') {
+        const qOrders = await getDocs(
+          query(collection(db, 'orders'), where('invoiceNumber', '==', invoiceNum))
+        );
+        if (!qOrders.empty) {
+          resolvedOrderRef = qOrders.docs[0].ref;
+          resolvedOrderData = qOrders.docs[0].data();
+        }
+      }
+
+      const finalParentOrderId = resolvedOrderRef ? resolvedOrderRef.id : (initialParentOrderId || null);
+
       const stornoPayload: any = {
         type: 'invoice',
         isStorno: true,
         stornoFor: invoiceNum,
         invoiceNumber: stornoNumber,
-        customerId: invoice.customerId || null,
-        sourceOrderId: parentOrderId || null,
-        customerName: invoice.customerName || '',
-        customerData: invoice.customerData || null,
-        orderMeta: invoice.orderMeta || null,
+        invoiceDate: new Date().toISOString(),
+        customerId: invoice.customerId || resolvedOrderData?.customerId || null,
+        sourceOrderId: finalParentOrderId,
+        customerName: invoice.customerName || resolvedOrderData?.customerName || '',
+        customerData: invoice.customerData || invoice.billingAddress || resolvedOrderData?.billingAddress || null,
+        logistics: invoice.logistics || resolvedOrderData?.logistics || null,
+        orderMeta: invoice.orderMeta || resolvedOrderData?.orderMeta || null,
         status: 'invoice_cancelled',
         isCanceled: true,
         stornoReason: finalReason,
-        services: invoice.services || [],
-        calcInput: invoice.calcInput || null,
-        isFlatRate: invoice.isFlatRate || false,
-        flatRateNet: invoice.flatRateNet || 0,
+        services: invoice.services || resolvedOrderData?.services || [],
+        calcInput: effectiveTotals,
+        totals: effectiveTotals,
+        isFlatRate: Boolean(invoice.isFlatRate ?? resolvedOrderData?.isFlatRate),
+        flatRateNet: invoice.flatRateNet ?? resolvedOrderData?.flatRateNet ?? 0,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       };
 
-      // 1. Create Storno Doc in invoices
-      const stornoRef = await addDoc(collection(db, 'invoices'), stornoPayload);
-
-      // 2. Mark original invoice as cancelled
-      if (invoice.id) {
-        const invRef = doc(db, 'invoices', invoice.id);
-        const invSnap = await getDoc(invRef);
-        if (invSnap.exists()) {
-          await updateDoc(invRef, {
-            status: 'invoice_cancelled',
-            isCanceled: true,
-            stornoReason: finalReason,
-            stornoNumber: stornoNumber,
-            updatedAt: serverTimestamp()
-          });
-        }
+      // Check if a Storno document with this stornoNumber already exists (e.g. from a previous interrupted click)
+      // Note: Firestore rules forbid updating existing docs where isStorno == true, so we reuse it if it exists!
+      let existingStornoId: string | null = null;
+      const existingStornoSnap = await getDocs(
+        query(collection(db, 'invoices'), where('invoiceNumber', '==', stornoNumber))
+      );
+      if (!existingStornoSnap.empty) {
+        const stornoDoc = existingStornoSnap.docs.find(d => d.data()?.isStorno === true) || existingStornoSnap.docs[0];
+        existingStornoId = stornoDoc.id;
       }
 
-      // 3. Update parent order in orders collection to rollback status and record history
-      if (parentOrderId) {
-        const orderRef = doc(db, 'orders', parentOrderId);
-        const orderSnap = await getDoc(orderRef);
-        if (orderSnap.exists()) {
-          const orderData = orderSnap.data();
-          const history = orderData.invoiceHistory || [];
-          history.push({
+      // Find all original invoice documents in 'invoices' collection to mark as cancelled
+      const invoiceRefsToCancel = new Map<string, any>();
+      if (invoice.id) {
+        const directInvRef = doc(db, 'invoices', invoice.id);
+        const directInvSnap = await getDoc(directInvRef);
+        if (directInvSnap.exists() && !directInvSnap.data()?.isStorno) {
+          invoiceRefsToCancel.set(directInvSnap.id, directInvRef);
+        }
+      }
+      if (invoiceNum && invoiceNum !== 'Rechnung ohne Nummer') {
+        const byNumSnap = await getDocs(
+          query(collection(db, 'invoices'), where('invoiceNumber', '==', invoiceNum))
+        );
+        byNumSnap.docs.forEach(d => {
+          if (!d.data()?.isStorno) {
+            invoiceRefsToCancel.set(d.id, d.ref);
+          }
+        });
+      }
+
+      // Prepare updated history for parent order
+      let baseOrderRollback: any = null;
+      if (resolvedOrderRef && resolvedOrderData) {
+        const existingHistory = Array.isArray(resolvedOrderData.invoiceHistory)
+          ? [...resolvedOrderData.invoiceHistory]
+          : [];
+        const alreadyInHistory = existingHistory.some(
+          (h: any) => h?.invoiceNumber === invoiceNum && h?.status === 'invoice_cancelled'
+        );
+        if (!alreadyInHistory) {
+          existingHistory.push({
             invoiceNumber: invoiceNum,
             status: 'invoice_cancelled',
             stornoNumber: stornoNumber,
             date: new Date().toISOString(),
             reason: finalReason
           });
+        }
 
-          await updateDoc(orderRef, {
-            status: 'confirmed', // Cleanly returns to Phase 3: ready to generate a corrected invoice
-            invoiceNumber: null,
-            invoiceHistory: history,
+        baseOrderRollback = {
+          status: 'confirmed', // Cleanly returns to Phase 3: ready to generate a corrected invoice
+          invoiceCancelled: true,
+          activeInvoiceNumber: null,
+          stornoNumber: stornoNumber,
+          stornoReason: finalReason,
+          invoiceHistory: existingHistory,
+          'ticketStates.invoice': false,
+          'checklistDone.invoice': false,
+          updatedAt: serverTimestamp()
+        };
+      }
+
+      const executeAtomicStorno = async (clearOrderInvoiceNumberField: boolean): Promise<string> => {
+        const batch = writeBatch(db);
+        let finalStornoId = existingStornoId;
+
+        // 1. Create Storno Doc in invoices (only if not already created)
+        if (!finalStornoId) {
+          const newStornoRef = doc(collection(db, 'invoices'));
+          finalStornoId = newStornoRef.id;
+          batch.set(newStornoRef, stornoPayload);
+        }
+
+        // 2. Mark original invoice(s) as cancelled
+        invoiceRefsToCancel.forEach((invRef) => {
+          batch.update(invRef, {
+            status: 'invoice_cancelled',
+            isCanceled: true,
+            stornoReason: finalReason,
+            stornoNumber: stornoNumber,
             updatedAt: serverTimestamp()
           });
+        });
+
+        // 3. Rollback parent order in orders collection
+        if (resolvedOrderRef && baseOrderRollback) {
+          const orderUpdatePayload = clearOrderInvoiceNumberField
+            ? { ...baseOrderRollback, invoiceNumber: null }
+            : { ...baseOrderRollback };
+          batch.update(resolvedOrderRef, orderUpdatePayload);
+        }
+
+        await batch.commit();
+        return finalStornoId!;
+      };
+
+      let committedStornoId: string;
+      try {
+        committedStornoId = await executeAtomicStorno(true);
+      } catch (firstErr: any) {
+        // Fallback if cloud firestore.rules still enforces immutable order.invoiceNumber
+        if (
+          resolvedOrderRef &&
+          (firstErr?.code === 'permission-denied' ||
+            String(firstErr?.message || '').toLowerCase().includes('permission'))
+        ) {
+          committedStornoId = await executeAtomicStorno(false);
+        } else {
+          throw firstErr;
         }
       }
 
@@ -104,11 +208,11 @@ export function StornoModal({ invoice, onClose, onSuccess }: StornoModalProps) {
         profile?.uid || 'unknown',
         cancellerName,
         'CANCEL_INVOICE',
-        `Rechnung ${invoiceNum} storniert (${stornoNumber}) für ${invoice.customerName || 'Kunde'}. Grund: ${finalReason}`
+        `Rechnung ${invoiceNum} storniert (${stornoNumber}) für ${invoice.customerName || resolvedOrderData?.customerName || 'Kunde'}. Grund: ${finalReason}`
       );
 
       if (onSuccess) {
-        onSuccess({ ...stornoPayload, id: stornoRef.id });
+        onSuccess({ ...stornoPayload, id: committedStornoId });
       }
       onClose();
     } catch (err: any) {
@@ -162,7 +266,7 @@ export function StornoModal({ invoice, onClose, onSuccess }: StornoModalProps) {
           <div className="flex items-center justify-between text-xs pt-1 border-t border-structure/40">
             <span className="text-text-muted">Rechnungsbetrag:</span>
             <span className="font-bold text-primary">
-              € {(invoice.calcInput?.gross || invoice.totals?.gross || 0).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              € {effectiveTotals.gross.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
         </div>

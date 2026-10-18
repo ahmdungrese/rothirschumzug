@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { 
   BanknotesIcon, 
   DocumentTextIcon, 
@@ -21,7 +21,7 @@ import Link from 'next/link';
 import { PaymentManager } from '@/components/orders/PaymentManager';
 import { StornoModal } from '@/components/finances/StornoModal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { calculateOrderTotals, calculateOpenAmount, calculateTotalPaid } from '@/lib/financeHelpers';
+import { calculateOrderTotals, calculateOpenAmount, calculateTotalPaid, isInvoiceCancelled } from '@/lib/financeHelpers';
 
 interface FinanceActionsDropdownProps {
   invoice: any;
@@ -75,7 +75,7 @@ function FinanceActionsDropdown({
     };
   }, [isOpen]);
 
-  const isCanceled = invoice.status === 'canceled' || invoice.status === 'invoice_cancelled' || invoice.isStorno;
+  const isCanceled = isInvoiceCancelled(invoice);
   const viewInvoiceUrl = `/dashboard/customers/${invoice.customerId || ''}?orderId=${invoice.id}&pdfType=invoice`;
   const editInvoiceUrl = invoice.customerId ? `/dashboard/customers/${invoice.customerId}/edit-invoice/${invoice.id}` : null;
   const customerProfileUrl = invoice.customerId ? `/dashboard/customers/${invoice.customerId}` : null;
@@ -120,7 +120,7 @@ function FinanceActionsDropdown({
               className="w-full flex items-center px-3.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-left"
             >
               <DocumentTextIcon className="w-4 h-4 mr-2.5 text-blue-500 shrink-0" />
-              <span>Rechnung öffnen (PDF)</span>
+              <span>{invoice.isStorno ? 'Storno-Beleg öffnen (PDF)' : 'Rechnung öffnen (PDF)'}</span>
             </Link>
 
             {!isCanceled && editInvoiceUrl && (
@@ -178,6 +178,7 @@ export default function FinancesPage() {
   const [selectedPaymentOrder, setSelectedPaymentOrder] = useState<any>(null);
   const [selectedStornoInvoice, setSelectedStornoInvoice] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'open' | 'all' | 'paid' | 'overdue'>('open');
+  const healedOrderIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     let invoicesData: any[] = [];
@@ -193,34 +194,132 @@ export default function FinancesPage() {
         }
       });
 
-      const merged = invoicesData
-        .filter(inv => !!inv.invoiceNumber)
-        .map(inv => {
-          const parentOrder = (inv.sourceOrderId ? ordersById.get(inv.sourceOrderId) : null) || ordersByInvNum.get(inv.invoiceNumber);
-          
-          if (!parentOrder) return inv;
+      const invoicesById = new Map<string, any>();
+      const invoicesByNumber = new Map<string, any>();
+      invoicesData.forEach(inv => {
+        invoicesById.set(inv.id, inv);
+        if (inv.invoiceNumber && !inv.isStorno) {
+          invoicesByNumber.set(inv.invoiceNumber, inv);
+        }
+      });
 
-          // Merge payments from parent order if parent order has payments and invoice doesn't (or parent has more)
-          const invPayments = Array.isArray(inv.payments) ? inv.payments : [];
-          const ordPayments = Array.isArray(parentOrder.payments) ? parentOrder.payments : [];
-          const bestPayments = ordPayments.length >= invPayments.length ? ordPayments : invPayments;
-
-          // Compute status
-          let bestStatus = inv.status;
-          if (parentOrder.status === 'invoice_paid') {
-            bestStatus = 'invoice_paid';
+      // Deduplicate Storno documents by invoiceNumber (in case earlier failed runs created duplicates)
+      const seenStornoNumbers = new Set<string>();
+      const deduplicatedInvoices = invoicesData.filter(inv => {
+        if (!inv.invoiceNumber) return false;
+        if (inv.isStorno || String(inv.invoiceNumber).startsWith('ST-')) {
+          if (seenStornoNumbers.has(inv.invoiceNumber)) {
+            return false;
           }
+          seenStornoNumbers.add(inv.invoiceNumber);
+        }
+        return true;
+      });
 
-          // Compute totals
-          const bestTotals = inv.totals || parentOrder.totals;
+      const merged = deduplicatedInvoices.map(inv => {
+        const origInv = inv.isStorno
+          ? (inv.originalInvoiceId ? invoicesById.get(inv.originalInvoiceId) : null) ||
+            (inv.cancelsInvoiceNumber ? invoicesByNumber.get(inv.cancelsInvoiceNumber) : null)
+          : null;
 
+        const resolvedSourceOrderId = inv.sourceOrderId || origInv?.sourceOrderId || null;
+        const parentOrder =
+          (resolvedSourceOrderId ? ordersById.get(resolvedSourceOrderId) : null) ||
+          ordersByInvNum.get(inv.invoiceNumber) ||
+          (inv.cancelsInvoiceNumber ? ordersByInvNum.get(inv.cancelsInvoiceNumber) : null);
+
+        // Self-heal parent order if its linked invoice was cancelled in an interrupted Storno
+        if (
+          !inv.isStorno &&
+          inv.status === 'invoice_cancelled' &&
+          parentOrder &&
+          !healedOrderIdsRef.current.has(parentOrder.id)
+        ) {
+          const hasOtherActiveInv = deduplicatedInvoices.some(
+            other =>
+              !isInvoiceCancelled(other) &&
+              (other.sourceOrderId === parentOrder.id || other.id === parentOrder.id)
+          );
+          if (
+            !hasOtherActiveInv &&
+            (parentOrder.status === 'invoice_open' ||
+              parentOrder.status === 'invoice_paid' ||
+              (!parentOrder.invoiceCancelled && parentOrder.invoiceNumber === inv.invoiceNumber))
+          ) {
+            healedOrderIdsRef.current.add(parentOrder.id);
+            const stornoNum = inv.stornoNumber || `ST-${String(inv.invoiceNumber).replace(/^R-/, '')}`;
+            const historyEntry = {
+              oldInvoiceNumber: inv.invoiceNumber,
+              stornoNumber: stornoNum,
+              cancelledAt: inv.cancelledAt || new Date().toISOString(),
+              reason: inv.cancellationReason || 'Storniert',
+              previousTotalGross: calculateOrderTotals(inv).gross
+            };
+            updateDoc(doc(db, 'orders', parentOrder.id), {
+              status: 'confirmed',
+              invoiceNumber: null,
+              activeInvoiceNumber: null,
+              invoiceCancelled: true,
+              cancelledInvoiceNumber: inv.invoiceNumber,
+              stornoNumber: stornoNum,
+              invoiceHistory: arrayUnion(historyEntry)
+            }).catch(() => {
+              updateDoc(doc(db, 'orders', parentOrder.id), {
+                status: 'confirmed',
+                activeInvoiceNumber: null,
+                invoiceCancelled: true,
+                cancelledInvoiceNumber: inv.invoiceNumber,
+                stornoNumber: stornoNum,
+                invoiceHistory: arrayUnion(historyEntry)
+              }).catch(() => {});
+            });
+          }
+        }
+
+        const fallbackTotals = inv.totals || origInv?.totals || parentOrder?.totals || origInv?.calcInput || parentOrder?.calcInput;
+        const fallbackCalcInput = inv.calcInput || origInv?.calcInput || parentOrder?.calcInput;
+        const fallbackCustomerData = inv.customerData || origInv?.customerData || parentOrder?.customerData;
+        const fallbackLogistics = inv.logistics || origInv?.logistics || parentOrder?.logistics;
+
+        if (!parentOrder) {
           return {
             ...inv,
-            payments: bestPayments,
-            status: bestStatus,
-            totals: bestTotals
+            sourceOrderId: resolvedSourceOrderId,
+            totals: fallbackTotals,
+            calcInput: fallbackCalcInput,
+            customerData: fallbackCustomerData,
+            logistics: fallbackLogistics
           };
-        });
+        }
+
+        const isCanceled = isInvoiceCancelled(inv);
+
+        // Merge payments from parent order only for active/original invoices, not Storno-Belege
+        const invPayments = Array.isArray(inv.payments) ? inv.payments : [];
+        const ordPayments = Array.isArray(parentOrder.payments) ? parentOrder.payments : [];
+        const bestPayments = inv.isStorno
+          ? []
+          : ordPayments.length >= invPayments.length
+          ? ordPayments
+          : invPayments;
+
+        // Compute status — never overwrite a cancelled invoice status with parentOrder status
+        let bestStatus = inv.status;
+        if (!isCanceled && parentOrder.status === 'invoice_paid') {
+          bestStatus = 'invoice_paid';
+        }
+
+        return {
+          ...inv,
+          sourceOrderId: resolvedSourceOrderId,
+          payments: bestPayments,
+          status: bestStatus,
+          totals: fallbackTotals,
+          calcInput: fallbackCalcInput,
+          customerData: fallbackCustomerData,
+          logistics: fallbackLogistics
+        };
+      });
 
       merged.sort((a: any, b: any) => {
         const timeA = a.createdAt?.toMillis?.() || (a.createdAt ? new Date(a.createdAt).getTime() : 0);
@@ -586,18 +685,22 @@ export default function FinancesPage() {
                       {/* Rechnungsnr */}
                       <td className="py-3.5 px-5 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                            <DocumentTextIcon className="w-4 h-4 text-primary" />
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${inv.isStorno ? 'bg-red-500/10' : 'bg-primary/10'}`}>
+                            <DocumentTextIcon className={`w-4 h-4 ${inv.isStorno ? 'text-red-500' : 'text-primary'}`} />
                           </div>
                           <div>
                             <span className="font-bold font-headline text-text-main block">
                               {inv.invoiceNumber || '-'}
                             </span>
-                            {inv.isStorno && (
+                            {inv.isStorno ? (
                               <span className="text-[9px] font-bold text-red-500 uppercase tracking-widest">
-                                Storno-Beleg
+                                Storno-Beleg{inv.cancelsInvoiceNumber ? ` (zu ${inv.cancelsInvoiceNumber})` : ''}
                               </span>
-                            )}
+                            ) : isCanceled ? (
+                              <span className="text-[9px] font-bold text-red-500 uppercase tracking-widest">
+                                Storniert{inv.stornoNumber ? ` (${inv.stornoNumber})` : ''}
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                       </td>
@@ -619,7 +722,11 @@ export default function FinancesPage() {
 
                       {/* Status */}
                       <td className="py-3.5 px-5 whitespace-nowrap">
-                        {isCanceled ? (
+                        {inv.isStorno ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold font-headline bg-red-500/10 text-red-500 border border-red-500/20 uppercase tracking-wider">
+                            <XCircleIcon className="w-3 h-3" /> Storno-Beleg
+                          </span>
+                        ) : isCanceled ? (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold font-headline bg-red-500/10 text-red-500 border border-red-500/20 uppercase tracking-wider">
                             <XCircleIcon className="w-3 h-3" /> Storniert
                           </span>
@@ -638,8 +745,8 @@ export default function FinancesPage() {
                       </td>
 
                       {/* Brutto */}
-                      <td className="py-3.5 px-5 text-right font-medium text-text-main whitespace-nowrap">
-                        € {gross.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <td className={`py-3.5 px-5 text-right font-medium whitespace-nowrap ${inv.isStorno ? 'text-red-500 font-semibold' : isCanceled ? 'text-text-muted line-through' : 'text-text-main'}`}>
+                        {inv.isStorno ? '- ' : ''}€ {gross.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
 
                       {/* Bezahlt */}

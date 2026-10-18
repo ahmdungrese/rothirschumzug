@@ -40,20 +40,45 @@ export function KanbanOrderCard({ order, customer, columnId, onSelect }: KanbanO
 
   const urgency = getMoveUrgency();
 
-  // Ambient border & status based on column and logistics completion
-  let borderLeftColor = 'border-l-blue-500';
-  let statusDotColor = 'bg-blue-500';
+  // Check data completeness for Phase 1 & Phase 2
+  const hasPhone = Boolean(customer?.phone || order.customerPhone || order.billingAddress?.phone);
+  const hasFromAddr = Boolean(order.logistics?.a_street || order.logistics?.a_city || order.logistics?.from?.street || order.logistics?.from?.city);
+  const hasToAddr = Boolean(order.logistics?.b_street || order.logistics?.b_city || order.logistics?.to?.street || order.logistics?.to?.city);
+  const hasMoveDate = Boolean(order.orderMeta?.movingDateFrom || order.movingDate || order.logistics?.movingDate);
+  const hasPricedServices = Boolean(
+    (order.isFlatRate && Number(order.flatRateNet) > 0) ||
+    (Array.isArray(order.services) && order.services.length > 0 && order.services.some((s: any) => (Number(s.quantity) || 0) * (Number(s.unitPrice) || 0) > 0)) ||
+    Number(order.totals?.gross) > 0
+  );
+
+  // Ambient border & status based on column and phase completion
+  let borderLeftColor = 'border-l-amber-500';
+  let statusDotColor = 'bg-amber-500';
   let statusText = 'Neu';
 
   if (columnId === 'neu') {
-    borderLeftColor = 'border-l-[#6E8F64]';
-    statusDotColor = 'bg-[#6E8F64]';
-    statusText = evaluation.leadSource || 'Neu';
+    const isPhase1Complete = hasPhone && hasFromAddr && hasToAddr && hasMoveDate;
+    if (isPhase1Complete) {
+      borderLeftColor = 'border-l-[#6E8F64]';
+      statusDotColor = 'bg-[#6E8F64]';
+      statusText = evaluation.leadSource || 'Daten vollständig';
+    } else {
+      borderLeftColor = 'border-l-amber-500';
+      statusDotColor = 'bg-amber-500';
+      statusText = 'Angaben fehlen';
+    }
   } else if (columnId === 'verhandlung') {
-    borderLeftColor = 'border-l-amber-500';
-    statusDotColor = 'bg-amber-500';
+    const isPhase2Ready = hasFromAddr && hasToAddr && hasMoveDate && hasPricedServices;
     const hasViewing = Boolean(order.orderMeta?.viewingDate && order.orderMeta.viewingDate !== 'erledigt_fotos');
-    statusText = hasViewing ? 'Besichtigung' : 'In Verhandlung';
+    if (isPhase2Ready) {
+      borderLeftColor = 'border-l-[#6E8F64]';
+      statusDotColor = 'bg-[#6E8F64]';
+      statusText = hasViewing ? 'Besichtigung geplant' : 'Angebot bereit';
+    } else {
+      borderLeftColor = 'border-l-amber-500';
+      statusDotColor = 'bg-amber-500';
+      statusText = !hasPricedServices ? '0 € / Offen' : 'Angaben fehlen';
+    }
   } else if (columnId === 'bestaetigt') {
     if (evaluation.isComplete) {
       borderLeftColor = 'border-l-[#6E8F64]';
@@ -66,9 +91,15 @@ export function KanbanOrderCard({ order, customer, columnId, onSelect }: KanbanO
     }
   } else if (columnId === 'abgeschlossen') {
     const hasInvoice = Boolean(order.invoiceNumber || (order.status && order.status.startsWith('invoice_')));
-    borderLeftColor = 'border-l-slate-400';
-    statusDotColor = hasInvoice ? 'bg-[#6E8F64]' : 'bg-amber-500';
-    statusText = hasInvoice ? 'Abgerechnet' : 'Rechnung offen';
+    if (hasInvoice) {
+      borderLeftColor = 'border-l-[#6E8F64]';
+      statusDotColor = 'bg-[#6E8F64]';
+      statusText = order.status === 'invoice_paid' ? 'Bezahlt ✓' : 'Abgerechnet';
+    } else {
+      borderLeftColor = 'border-l-amber-500';
+      statusDotColor = 'bg-amber-500';
+      statusText = 'Rechnung offen';
+    }
   }
 
   return (

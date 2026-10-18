@@ -72,14 +72,23 @@ export async function changeOrderStatus(
     }
 
     if (currentStatus === targetStatus) {
-      if (context?.additionalData && Object.keys(context.additionalData).length > 0) {
+      const needsOrderNum = ['quote', 'confirmed', 'completed'].includes(targetStatus) && !order.orderNumber;
+      if ((context?.additionalData && Object.keys(context.additionalData).length > 0) || needsOrderNum) {
         const updatePayload: any = {
-          ...context.additionalData,
+          ...(context?.additionalData || {}),
           updatedAt: serverTimestamp(),
           version: increment(1)
         };
+        if (needsOrderNum) {
+          let nextQuoteNumber = 1771;
+          if (settingsDoc.exists() && settingsDoc.data().nextQuoteNumber !== undefined) {
+            nextQuoteNumber = Math.max(1771, Number(settingsDoc.data().nextQuoteNumber) || 1771);
+          }
+          transaction.update(settingsRef, { nextQuoteNumber: nextQuoteNumber + 1 });
+          updatePayload.orderNumber = `AN-${nextQuoteNumber}`;
+        }
         transaction.update(orderRef, updatePayload);
-        return { ...order, ...context.additionalData, version: currentVersion + 1 };
+        return { ...order, ...updatePayload, version: currentVersion + 1 };
       }
       return order; // No-op
     }

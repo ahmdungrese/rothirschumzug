@@ -5,7 +5,8 @@ service cloud.firestore {
 
     // ─── Helper Functions ───────────────────────────────────────
     function isAuthenticated() {
-      return request.auth != null;
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
     function getUserData() {
@@ -14,13 +15,11 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         getUserData().role == 'admin';
     }
 
     function isOfficeOrAdmin() {
       return isAuthenticated() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         (getUserData().role == 'admin' || getUserData().role == 'office');
     }
 
@@ -37,12 +36,19 @@ service cloud.firestore {
       // Create: Nur Admin und Büro dürfen neue Aufträge anlegen
       allow create: if isOfficeOrAdmin();
 
-      // Update: invoiceNumber darf niemals geändert werden; Status & Protokolle aktualisierbar
-      allow update: if isAuthenticated() &&
-        (
-          !('invoiceNumber' in resource.data) ||
-          resource.data.invoiceNumber == null ||
-          request.resource.data.invoiceNumber == resource.data.invoiceNumber
+      // Update:
+      // 1. Vollständige Bearbeitung (inkl. GoBD-Storno-Freigabe & Korrekturrechnung) für Admin und Büro (isOfficeOrAdmin).
+      // 2. Teamleiter (isAuthenticated) dürfen ausschließlich Protokoll-Felder aktualisieren,
+      //    ohne Zugriff auf Preise, Leistungen, Zahlungen, Status oder Rechnungsnummer.
+      allow update: if isOfficeOrAdmin() || (
+          isAuthenticated() &&
+          (
+            !('invoiceNumber' in resource.data) ||
+            resource.data.invoiceNumber == null ||
+            request.resource.data.invoiceNumber == resource.data.invoiceNumber
+          ) &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['protocols', 'signatureProtocol', 'updatedAt']) &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['totals', 'services', 'payments', 'status', 'invoiceNumber'])
         );
 
       // Delete: Strengstens verboten für alle — stattdessen Status 'archived' nutzen
@@ -84,16 +90,20 @@ service cloud.firestore {
 
     // ─── system / settings ──────────────────────────────────────
     match /system/{docId} {
-      allow read: if isAuthenticated();
-      // Admins und Büro dürfen Zähler und Einstellungen aktualisieren
-      allow write: if isOfficeOrAdmin();
+      // Sensible Daten schützen: Teamleiter dürfen keine Dokumente mit hinterlegtem smtpPass oder geheime System-Dokumente auslesen
+      allow read: if isOfficeOrAdmin() ||
+        (isAuthenticated() && docId == 'settings' && !('smtpPass' in resource.data) && !('smtpPassword' in resource.data));
+      // Admins und Büro dürfen Zähler und Einstellungen aktualisieren (ohne Klartext-SMTP-Passwörter in settings abzulegen)
+      allow write: if isOfficeOrAdmin() &&
+        (docId != 'settings' || (!('smtpPass' in request.resource.data) && !('smtpPassword' in request.resource.data)));
     }
 
     // ─── activity_logs ───────────────────────────────────────────
     match /activity_logs/{logId} {
       allow read: if isAdmin();
       allow create: if isAuthenticated();
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if isAdmin();
     }
 
     // ─── users ──────────────────────────────────────────────────

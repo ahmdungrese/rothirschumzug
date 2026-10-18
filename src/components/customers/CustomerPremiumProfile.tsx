@@ -1,7 +1,15 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { calculateOrderTotals, calculateTotalPaid, calculateOpenAmount } from '@/lib/financeHelpers';
+import {
+  calculateOrderTotals,
+  calculateTotalPaid,
+  calculateOpenAmount,
+  isInvoiceCancelled,
+  findActiveLinkedInvoice,
+  getActiveInvoiceNumber,
+  getLatestCancelledInvoiceNumber,
+} from '@/lib/financeHelpers';
 import { evaluateOrderLogistics } from '@/lib/orderValidation';
 import { toggleTaskCompletion, updateTaskSchedule, isTaskCompleted } from '@/lib/taskStateController';
 import { ensureOrderNumber } from '@/lib/orderStateMachine';
@@ -54,73 +62,73 @@ const DEFAULT_COMMUNICATION_TEMPLATES = [
     id: 't1',
     name: 'Erstkontakt (Bilder erhalten)',
     category: 'Erstkontakt',
-    body: 'Hallo [Name],\n\nvielen Dank für Ihr Interesse an unserem Service und für die Übersendung der Bilder.\n\nGerne erstellen wir Ihnen ein individuelles Angebot mit Festpreis und lassen Ihnen dieses zeitnah zukommen.\n\nSollten Sie vorab noch weitere Fragen haben, stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+    body: '[Anrede],\n\nvielen Dank für Ihr Interesse an unserem Service und für die Übersendung der Bilder.\n\nGerne erstellen wir Ihnen ein individuelles Angebot mit Festpreis und lassen Ihnen dieses zeitnah zukommen.\n\nSollten Sie vorab noch weitere Fragen haben, stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
   },
   {
     id: 't2',
     name: 'Erstkontakt (Details anfragen)',
     category: 'Erstkontakt',
-    body: 'Hallo [Name],\n\nvielen Dank für Ihr Interesse an unserem Service. Gerne erstellen wir für Sie ein Angebot mit einem fairen Festpreis. Bitte teilen Sie uns kurz eine Liste oder Bilder der Möbel und das gewünschte Umzugsdatum mit. Sie können uns auch jederzeit gerne anrufen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+    body: '[Anrede],\n\nvielen Dank für Ihr Interesse an unserem Service. Gerne erstellen wir für Sie ein Angebot mit einem fairen Festpreis. Bitte teilen Sie uns kurz eine Liste oder Bilder der Möbel und das gewünschte Umzugsdatum mit. Sie können uns auch jederzeit gerne anrufen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
   },
   {
     id: 't3',
     name: 'Angebot übermitteln',
     category: 'Angebot',
-    body: 'Guten Tag [Name],\n\nanbei sende ich Ihnen unser verbindliches Angebot mit Festpreis für Ihren bevorstehenden Umzug. Bei Rothirsch Umzüge sind alle Möbelstücke durch Profi-Decken und Schutzfolien optimal geschützt. Bitte prüfen Sie das Angebot und geben Sie uns kurz Bescheid, um Ihren Wunschtermin zu sichern!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+    body: '[Anrede],\n\nanbei sende ich Ihnen unser verbindliches Angebot mit Festpreis für Ihren bevorstehenden Umzug. Bei Rothirsch Umzüge sind alle Möbelstücke durch Profi-Decken und Schutzfolien optimal geschützt. Bitte prüfen Sie das Angebot und geben Sie uns kurz Bescheid, um Ihren Wunschtermin zu sichern!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
   },
   {
     id: 't4',
     name: 'Nachfrage zum Umzugsangebot',
     category: 'Nachfassen',
-    body: 'Hallo [Name],\n\nich wollte mich kurz erkundigen, ob Sie bereits eine Entscheidung zu unserem Angebot treffen konnten? Ihr Wunschtermin ist aktuell noch verfügbar. Sollten noch Fragen offen sein oder Sie Anpassungen wünschen, melden Sie sich gerne telefonisch oder per Nachricht!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+    body: '[Anrede],\n\nich wollte mich kurz erkundigen, ob Sie bereits eine Entscheidung zu unserem Angebot treffen konnten? Ihr Wunschtermin ist aktuell noch verfügbar. Sollten noch Fragen offen sein oder Sie Anpassungen wünschen, melden Sie sich gerne telefonisch oder per Nachricht!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
   },
   {
     id: 't5',
     name: 'Aktualisiertes Angebot senden',
     category: 'Angebot',
-    body: 'Sehr geehrte(r) [Name],\n\nvielen Dank für Ihre Rückmeldung. Anbei erhalten Sie das aktualisierte Umzugsangebot angepasst an Ihre Änderungswünsche.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+    body: '[Anrede],\n\nvielen Dank für Ihre Rückmeldung. Anbei erhalten Sie das aktualisierte Umzugsangebot angepasst an Ihre Änderungswünsche.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
   },
   {
     id: 't6',
     name: 'Freundliche Absage',
     category: 'Nachfassen',
-    body: 'Hallo [Name],\n\nes ist schade zu hören, dass es diesmal nicht geklappt hat. Wir wünschen Ihnen dennoch einen reibungslosen Umzug und alles Gute!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+    body: '[Anrede],\n\nes ist schade zu hören, dass es diesmal nicht geklappt hat. Wir wünschen Ihnen dennoch einen reibungslosen Umzug und alles Gute!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
   },
   {
     id: 't7',
     name: 'Auftragsbestätigung & Termin',
     category: 'Auftrag',
-    body: 'Hallo [Name],\n\nvielen Dank für Ihr Vertrauen und die Auftragsbestätigung! Hiermit bestätige ich Ihnen verbindlich Ihren Umzugstermin am [Datum]. Unser Team freut sich auf einen reibungslosen und professionellen Ablauf!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+    body: '[Anrede],\n\nvielen Dank für Ihr Vertrauen und die Auftragsbestätigung! Hiermit bestätige ich Ihnen verbindlich Ihren Umzugstermin am [Datum]. Unser Team freut sich auf einen reibungslosen und professionellen Ablauf!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
   },
   {
     id: 't8',
     name: 'Uhrzeit des Umzugs (Team-Eintreffen)',
     category: 'Auftrag',
-    body: 'Hallo [Name],\n\nkurze Information zu Ihrem Umzug am [Datum]: Unser Team wird voraussichtlich zwischen 8:00 und 9:00 Uhr bei Ihnen an der Beladestelle eintreffen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+    body: '[Anrede],\n\nkurze Information zu Ihrem Umzug am [Datum]: Unser Team wird voraussichtlich zwischen 8:00 und 9:00 Uhr bei Ihnen an der Beladestelle eintreffen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
   },
   {
     id: 'hvz_info',
     name: 'Halteverbotszone (HVZ) Info',
     category: 'Logistik',
-    body: 'Guten Tag [Name],\n\ndie amtlich genehmigte Halteverbotszone für Ihren Umzugstermin am [Datum] wurde beauftragt und wird rechtzeitig vorschriftsmäßig mit Protokoll aufgestellt.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+    body: '[Anrede],\n\ndie amtlich genehmigte Halteverbotszone für Ihren Umzugstermin am [Datum] wurde beauftragt und wird rechtzeitig vorschriftsmäßig mit Protokoll aufgestellt.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
   },
   {
     id: 'kartons_info',
     name: 'Umzugskartons Bereitstellung',
     category: 'Logistik',
-    body: 'Guten Tag [Name],\n\nIhre bestellten Umzugskartons stehen abholbereit bzw. werden wie vereinbart an Ihre Adresse geliefert.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+    body: '[Anrede],\n\nIhre bestellten Umzugskartons stehen abholbereit bzw. werden wie vereinbart an Ihre Adresse geliefert.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
   },
   {
     id: 't9',
     name: 'Rechnung übermitteln & Google-Bewertung',
     category: 'Abrechnung',
-    body: 'Sehr geehrte(r) [Name],\n\nvielen Dank für den erfolgreichen Umzug! Anbei erhalten Sie Ihre Rechnung. Wir hoffen, Sie haben sich in Ihrem neuen Zuhause gut eingelebt. Falls Sie zufrieden waren, würden wir uns riesig über eine kurze Google-Bewertung freuen!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
+    body: '[Anrede],\n\nvielen Dank für den erfolgreichen Umzug! Anbei erhalten Sie Ihre Rechnung. Wir hoffen, Sie haben sich in Ihrem neuen Zuhause gut eingelebt. Falls Sie zufrieden waren, würden wir uns riesig über eine kurze Google-Bewertung freuen!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
   },
   {
     id: 't10',
     name: 'Dankeschön für Bewertung',
     category: 'Nachbereitung',
-    body: 'Hallo [Name],\n\nvielen herzlichen Dank für Ihre wunderbare Bewertung! Wir haben uns sehr über Ihr Feedback gefreut und wünschen Ihnen alles Gute im neuen Heim.\n\nHerzliche Grüße\n[Mitarbeiter]\nRothirsch Umzüge'
+    body: '[Anrede],\n\nvielen herzlichen Dank für Ihre wunderbare Bewertung! Wir haben uns sehr über Ihr Feedback gefreut und wünschen Ihnen alles Gute im neuen Heim.\n\nHerzliche Grüße\n[Mitarbeiter]\nRothirsch Umzüge'
   }
 ];
 
@@ -260,23 +268,41 @@ export function CustomerPremiumProfile({
   const hasActiveProtocols = activeProtocols.length > 0;
 
   // Invoice detection for active order (from parent order or linked invoice document)
-  const linkedInvoice = (invoices || []).find((inv: any) => 
-    inv.sourceOrderId === activeOrder?.id || 
-    inv.orderId === activeOrder?.id || 
-    inv.id === activeOrder?.id ||
-    (activeOrder?.invoiceNumber && inv.invoiceNumber === activeOrder.invoiceNumber)
+  const linkedInvoice = findActiveLinkedInvoice(activeOrder, invoices);
+  const latestCancelledInvoiceNum = getLatestCancelledInvoiceNumber(activeOrder, invoices);
+  const activeInvoiceNumber = getActiveInvoiceNumber(activeOrder, linkedInvoice);
+
+  // Check if all linked invoices for activeOrder in `invoices` are cancelled (e.g. if a previous Storno partially succeeded)
+  const allLinkedInvoicesForActiveOrder = (invoices || []).filter((inv: any) =>
+    !inv.isStorno && (
+      inv.sourceOrderId === activeOrder?.id ||
+      inv.orderId === activeOrder?.id ||
+      inv.id === activeOrder?.id ||
+      (activeOrder?.invoiceNumber && inv.invoiceNumber === activeOrder.invoiceNumber) ||
+      (activeOrder?.activeInvoiceNumber && inv.invoiceNumber === activeOrder.activeInvoiceNumber) ||
+      (inv.isKorrektur && inv.correctionFor && (
+        inv.correctionFor === activeOrder?.invoiceNumber ||
+        inv.correctionFor === activeOrder?.lastCancelledInvoiceNumber ||
+        inv.correctionFor === activeOrder?.cancelledInvoiceNumber
+      ))
+    )
   );
+  const isAllLinkedCancelled =
+    allLinkedInvoicesForActiveOrder.length > 0 &&
+    allLinkedInvoicesForActiveOrder.every((inv: any) => isInvoiceCancelled(inv));
 
   const hasInvoice = Boolean(
-    activeOrder?.invoiceNumber || 
-    activeOrder?.status?.startsWith('invoice_') ||
-    activeOrder?.status === 'invoice_open' ||
-    activeOrder?.status === 'invoice_paid' ||
     linkedInvoice ||
-    (activeOrder?.invoiceHistory && activeOrder.invoiceHistory.length > 0)
+    activeInvoiceNumber || (
+      !isAllLinkedCancelled &&
+      !isInvoiceCancelled(activeOrder) && (
+        activeOrder?.status === 'invoice_open' ||
+        activeOrder?.status === 'invoice_paid'
+      )
+    )
   );
 
-  const invoiceNumberDisplay = activeOrder?.invoiceNumber || linkedInvoice?.invoiceNumber || null;
+  const invoiceNumberDisplay = hasInvoice ? (linkedInvoice?.invoiceNumber || activeInvoiceNumber || null) : null;
 
   // Pre-invoice open tasks check modal state
   const [preInvoiceOpenTasks, setPreInvoiceOpenTasks] = useState<{ order: any; tasks: any[] } | null>(null);
@@ -348,6 +374,115 @@ export function CustomerPremiumProfile({
       }).catch(console.error);
     }
   }, [activeOrder?.id, activeOrder?.status, activeOrder?.orderNumber, onRefresh]);
+
+  // Self-heal:
+  // 1) Forward heal: if an active non-cancelled invoice (`linkedInvoice`) exists in `invoices`, ensure `activeOrder` reflects it
+  //    (and if a Korrekturrechnung accidentally got the same number as correctionFor, bump its number).
+  // 2) Backward heal: ONLY for legacy interrupted Stornos where `activeOrder.invoiceCancelled === undefined` and no active invoice exists.
+  useEffect(() => {
+    if (!activeOrder?.id) return;
+
+    if (linkedInvoice && linkedInvoice.invoiceNumber) {
+      let effectiveInvNum = linkedInvoice.invoiceNumber;
+      const corrTarget = linkedInvoice.correctionFor || latestCancelledInvoiceNum;
+      if (linkedInvoice.isKorrektur && corrTarget && effectiveInvNum === corrTarget) {
+        const numMatch = String(corrTarget).match(/(\d+)/);
+        const nextNum = numMatch ? parseInt(numMatch[1], 10) + 1 : 1772;
+        effectiveInvNum = `R-${nextNum}`;
+        updateDoc(doc(db, 'invoices', linkedInvoice.id), {
+          invoiceNumber: effectiveInvNum,
+          invoiceCancelled: false,
+          isCanceled: false,
+        }).catch(console.error);
+      }
+
+      if (
+        activeOrder.invoiceCancelled ||
+        activeOrder.activeInvoiceNumber !== effectiveInvNum ||
+        (activeOrder.status !== 'invoice_open' && activeOrder.status !== 'invoice_paid')
+      ) {
+        const orderRef = doc(db, 'orders', activeOrder.id);
+        const syncPayload: Record<string, any> = {
+          activeInvoiceNumber: effectiveInvNum,
+          invoiceCancelled: false,
+          isCanceled: false,
+          status: linkedInvoice.status === 'invoice_paid' ? 'invoice_paid' : 'invoice_open',
+          'ticketStates.invoice': true,
+          'checklistDone.invoice': true,
+          isKorrektur: Boolean(linkedInvoice.isKorrektur),
+          correctionFor: linkedInvoice.correctionFor || null,
+          totals: linkedInvoice.totals || activeOrder.totals,
+          calcInput: linkedInvoice.calcInput || activeOrder.calcInput,
+        };
+        updateDoc(orderRef, { ...syncPayload, invoiceNumber: effectiveInvNum })
+          .catch(() => updateDoc(orderRef, syncPayload))
+          .then(() => {
+            if (onRefresh) onRefresh();
+          })
+          .catch(console.error);
+      }
+      return;
+    }
+
+    if (
+      isAllLinkedCancelled &&
+      !linkedInvoice &&
+      activeOrder.invoiceCancelled === undefined &&
+      !activeOrder.activeInvoiceNumber &&
+      !activeOrder.isKorrektur
+    ) {
+      const cancelledInv = allLinkedInvoicesForActiveOrder[0];
+      const cancelledNum = cancelledInv?.invoiceNumber || activeOrder.invoiceNumber;
+      const stornoNum = cancelledInv?.stornoDocumentNumber || (cancelledNum ? `ST-${String(cancelledNum).replace(/^(RE-|R-)/i, '')}` : null);
+      const existingHistory = Array.isArray(activeOrder.invoiceHistory) ? activeOrder.invoiceHistory : [];
+      const alreadyInHistory = existingHistory.some((h: any) => h.invoiceNumber === cancelledNum);
+      const updatedHistory = alreadyInHistory
+        ? existingHistory
+        : [
+            ...existingHistory,
+            {
+              invoiceNumber: cancelledNum,
+              stornoNumber: stornoNum,
+              cancelledAt: cancelledInv?.cancelledAt || new Date().toISOString(),
+              cancelReason: cancelledInv?.cancelReason || 'Storniert',
+            }
+          ];
+
+      const orderRef = doc(db, 'orders', activeOrder.id);
+      updateDoc(orderRef, {
+        status: 'confirmed',
+        invoiceNumber: null,
+        activeInvoiceNumber: null,
+        invoiceCancelled: true,
+        stornoNumber: stornoNum,
+        lastCancelledInvoiceNumber: cancelledNum,
+        'ticketStates.invoice': false,
+        'checklistDone.invoice': false,
+        invoiceHistory: updatedHistory,
+      }).catch(() => {
+        return updateDoc(orderRef, {
+          status: 'confirmed',
+          activeInvoiceNumber: null,
+          invoiceCancelled: true,
+          stornoNumber: stornoNum,
+          lastCancelledInvoiceNumber: cancelledNum,
+          'ticketStates.invoice': false,
+          'checklistDone.invoice': false,
+          invoiceHistory: updatedHistory,
+        });
+      }).then(() => {
+        if (onRefresh) onRefresh();
+      }).catch(console.error);
+    }
+  }, [
+    activeOrder?.id,
+    isAllLinkedCancelled,
+    linkedInvoice?.id,
+    linkedInvoice?.invoiceNumber,
+    activeOrder?.status,
+    activeOrder?.invoiceCancelled,
+    activeOrder?.activeInvoiceNumber,
+  ]);
 
   const formatCustomerDate = (dateRaw?: string, timeRaw?: string) => {
     if (!dateRaw || dateRaw === 'requested') return '';
@@ -446,9 +581,11 @@ export function CustomerPremiumProfile({
   const totalPaid = calculateTotalPaid({ payments: combinedPayments });
   const openAmount = Math.max(0, totals.gross - totalPaid);
   const isInvoiceFullyPaid = Boolean(
-    (totals.gross > 0 && openAmount <= 0) || 
-    activeOrder?.status === 'invoice_paid' || 
-    linkedInvoice?.status === 'invoice_paid'
+    hasInvoice && (
+      (totals.gross > 0 && openAmount <= 0) || 
+      activeOrder?.status === 'invoice_paid' || 
+      linkedInvoice?.status === 'invoice_paid'
+    )
   );
 
   const logisticsEval = activeOrder ? evaluateOrderLogistics(activeOrder, customer) : null;
@@ -463,8 +600,8 @@ export function CustomerPremiumProfile({
     if (!ord) return { phase: 1, label: 'Entwurf', themeColor: 'blue' };
     const st = ord.status;
     
-    // If an invoice exists or status is completed / invoice_open / invoice_paid, it is Phase 4!
-    if (hasInvoice || st === 'completed' || st?.startsWith('invoice_') || st === 'archived') {
+    // If an active invoice exists or status is completed / invoice_open / invoice_paid (and not cancelled), it is Phase 4!
+    if (hasInvoice || st === 'completed' || st === 'archived') {
       return { 
         phase: 4, 
         label: isInvoiceFullyPaid ? 'Abgeschlossen & Bezahlt' : 'Rechnung gestellt', 
@@ -473,8 +610,12 @@ export function CustomerPremiumProfile({
     }
 
     const isSigned = isTaskCompleted(ord, 'signature');
-    if (st === 'confirmed' || isSigned) {
-      return { phase: 3, label: 'Auftrag bestätigt', themeColor: 'emerald' };
+    if (st === 'confirmed' || isSigned || latestCancelledInvoiceNum) {
+      return {
+        phase: 3,
+        label: latestCancelledInvoiceNum ? `Korrektur nach Storno (${latestCancelledInvoiceNum})` : 'Auftrag bestätigt',
+        themeColor: 'emerald'
+      };
     }
     
     if (st === 'quote' || st === 'clarification') return { phase: 2, label: 'Angebot versendet', themeColor: 'amber' };
@@ -485,7 +626,7 @@ export function CustomerPremiumProfile({
 
   // Moving Date Countdown calculation
   const getMoveCountdown = () => {
-    const rawDate = activeOrder?.logistics?.movingDate;
+    const rawDate = activeOrder?.orderMeta?.movingDateFrom || activeOrder?.movingDate || activeOrder?.logistics?.movingDate;
     if (!rawDate) return null;
     const moveDateObj = new Date(rawDate);
     if (isNaN(moveDateObj.getTime())) return null;
@@ -509,17 +650,39 @@ export function CustomerPremiumProfile({
   const handleRequestInvoice = (orderToInvoice: any) => {
     if (!orderToInvoice) return;
 
-    // Check if invoice ALREADY exists for this order!
-    const existingInv = (invoices || []).find((inv: any) => 
-      inv.sourceOrderId === orderToInvoice.id || 
-      inv.orderId === orderToInvoice.id || 
-      inv.id === orderToInvoice.id ||
-      (orderToInvoice.invoiceNumber && inv.invoiceNumber === orderToInvoice.invoiceNumber)
-    );
+    // Check if an ACTIVE (non-cancelled) invoice ALREADY exists for this order!
+    const existingInv = findActiveLinkedInvoice(orderToInvoice, invoices);
+    const activeInvNum = getActiveInvoiceNumber(orderToInvoice, existingInv);
 
-    if (existingInv || orderToInvoice.invoiceNumber) {
-      toast(`Rechnung ${orderToInvoice.invoiceNumber || existingInv?.invoiceNumber || ''} existiert bereits.`);
+    // If an active draft invoice exists without an official number yet, open it in InvoiceEditor to finalize
+    if (existingInv && !activeInvNum && existingInv.status === 'draft') {
+      router.push(`/dashboard/customers/${customer.id}/edit-invoice/${existingInv.id || orderToInvoice.id}`);
+      return;
+    }
+
+    if (existingInv || activeInvNum) {
+      toast(`Rechnung ${existingInv?.invoiceNumber || activeInvNum || ''} existiert bereits.`);
       onViewPdf(existingInv || orderToInvoice, 'invoice');
+      return;
+    }
+
+    const orderLinkedInvs = (invoices || []).filter((inv: any) =>
+      !inv.isStorno && (
+        inv.sourceOrderId === orderToInvoice.id ||
+        inv.orderId === orderToInvoice.id ||
+        inv.id === orderToInvoice.id ||
+        (orderToInvoice.invoiceNumber && inv.invoiceNumber === orderToInvoice.invoiceNumber) ||
+        (orderToInvoice.activeInvoiceNumber && inv.invoiceNumber === orderToInvoice.activeInvoiceNumber)
+      )
+    );
+    const allOrderInvsCancelled =
+      orderLinkedInvs.length > 0 &&
+      orderLinkedInvs.every((inv: any) => isInvoiceCancelled(inv));
+
+    // If a previous invoice for this order was cancelled (Storno), allow immediate Korrekturrechnung creation
+    const hasPreviousCancelledInv = Boolean(getLatestCancelledInvoiceNumber(orderToInvoice, invoices) || allOrderInvsCancelled);
+    if (hasPreviousCancelledInv) {
+      router.push(`/dashboard/customers/${customer.id}/edit-invoice/${orderToInvoice.id}`);
       return;
     }
 
@@ -555,17 +718,26 @@ export function CustomerPremiumProfile({
       orderToInvoice.status?.startsWith('invoice_') ||
       (orderToInvoice.protocols && orderToInvoice.protocols.length > 0) ||
       orderToInvoice.ticketStates?.protocol ||
-      orderToInvoice.checklistDone?.protocol ||
-      logisticsEval?.isComplete
+      orderToInvoice.checklistDone?.protocol
     );
 
-    if (!isContractSigned || !hasProtocolOrDone) {
-      // Intercept with warning modal ("Möchten Sie wirklich eine Rechnung erstellen, obwohl der Auftrag noch nicht abgeschlossen ist?")
+    const moveDateStr = orderToInvoice.orderMeta?.movingDateFrom || orderToInvoice.movingDate || orderToInvoice.logistics?.movingDate || orderToInvoice.date;
+    const isMoveInFuture = (() => {
+      if (!moveDateStr) return false;
+      const moveD = new Date(String(moveDateStr).split('T')[0] + 'T00:00:00');
+      if (isNaN(moveD.getTime())) return false;
+      const todayD = new Date();
+      todayD.setHours(0, 0, 0, 0);
+      return moveD.getTime() > todayD.getTime();
+    })();
+
+    if (isMoveInFuture || !isContractSigned || !hasProtocolOrDone) {
+      // Intercept with warning modal when move date is in the future or order is not yet completed
       setUnconfirmedInvoiceOrder(orderToInvoice);
       return;
     }
 
-    // Proceed directly if contract is signed and tasks/protocol are completed
+    // Proceed directly if contract is signed, move date has arrived, and protocol is completed
     router.push(`/dashboard/customers/${customer.id}/edit-invoice/${orderToInvoice.id}`);
   };
 
@@ -603,11 +775,17 @@ export function CustomerPremiumProfile({
       return;
     }
 
+    const orderActiveInv = findActiveLinkedInvoice(orderToPay, invoices);
+    const orderActiveInvNum = getActiveInvoiceNumber(orderToPay, orderActiveInv);
     const orderHasInvoice = Boolean(
-      orderToPay?.invoiceNumber || 
-      orderToPay?.status?.startsWith('invoice_') ||
-      orderToPay?.invoiceHistory?.length > 0 ||
-      linkedInvoice
+      orderActiveInv ||
+      orderActiveInvNum || (
+        !isAllLinkedCancelled &&
+        !isInvoiceCancelled(orderToPay) && (
+          orderToPay?.status === 'invoice_open' ||
+          orderToPay?.status === 'invoice_paid'
+        )
+      )
     );
 
     if (!orderHasInvoice) {
@@ -616,11 +794,11 @@ export function CustomerPremiumProfile({
     }
 
     // Pass the merged document so PaymentManager gets the authoritative totals & invoice number
-    const targetDoc = linkedInvoice
+    const targetDoc = orderActiveInv
       ? {
-          ...(orderToPay || linkedInvoice),
+          ...(orderToPay || orderActiveInv),
           totals,
-          invoiceNumber: linkedInvoice.invoiceNumber || orderToPay?.invoiceNumber,
+          invoiceNumber: orderActiveInv.invoiceNumber || orderActiveInvNum,
           payments: combinedPayments
         }
       : orderToPay;
@@ -761,15 +939,60 @@ export function CustomerPremiumProfile({
       };
     }
 
-    // Phase 3: Confirmed (before invoice is issued)
-    if (activeOrder.status === 'confirmed' && !hasInvoice) {
+    // Phase 3: Confirmed (before invoice is issued, or after previous invoice was cancelled via Storno)
+    if ((activeOrder.status === 'confirmed' || latestCancelledInvoiceNum) && !hasInvoice) {
+      if (latestCancelledInvoiceNum) {
+        return {
+          title: `Korrekturrechnung jetzt erstellen (nach Storno von ${latestCancelledInvoiceNum})`,
+          desc: `Die ursprüngliche Rechnung (${latestCancelledInvoiceNum}) wurde GoBD-konform storniert. Sie können den Auftrag nun prüfen und sofort eine korrigierte Rechnung ausstellen.`,
+          btnText: 'Korrekturrechnung jetzt erstellen',
+          secondaryBtnText: 'Angebot anpassen',
+          onSecondaryAction: () => router.push(`/dashboard/customers/${customer.id}/edit-order/${activeOrder.id}`),
+          badge: 'Phase 4: Korrektur nach Storno',
+          action: () => handleRequestInvoice(activeOrder)
+        };
+      }
+
+      const openPhase3Items = (logisticsEval?.checklist || []).filter(
+        (item: any) => !item.done && ['kartons', 'hvz', 'moebellift', 'team'].includes(item.id)
+      );
+      if (openPhase3Items.length > 0) {
+        return {
+          title: 'Logistik & Disposition vorbereiten',
+          desc: 'Der Auftrag ist vom Kunden bestätigt. Bitte planen Sie nun die offenen Vorbereitungen (Disposition im Kalender / gebuchte Zusatzleistungen) für den Umzugstag.',
+          btnText: 'Phase 3 im Cockpit öffnen',
+          secondaryBtnText: 'Laufzettel drucken',
+          onSecondaryAction: () => onViewPdf(activeOrder, 'employee'),
+          badge: 'Phase 3: Logistik-Vorbereitung',
+          action: () => setDrawerOrder(activeOrder)
+        };
+      }
+
+      const hasProtocol = Boolean(
+        (activeOrder.protocols && activeOrder.protocols.length > 0) ||
+        activeOrder.signatureProtocol ||
+        activeOrder.ticketStates?.protocol ||
+        activeOrder.checklistDone?.protocol
+      );
+      if (!hasProtocol) {
+        return {
+          title: 'Umzug durchführen & Abnahmeprotokoll erfassen',
+          desc: 'Alle Vorbereitungen sind abgeschlossen. Lassen Sie am Umzugstag das digitale Übergabeprotokoll unterschreiben oder erstellen Sie direkt die Schlussrechnung.',
+          btnText: 'Abnahmeprotokoll erfassen',
+          secondaryBtnText: 'Schlussrechnung erstellen',
+          onSecondaryAction: () => handleRequestInvoice(activeOrder),
+          badge: 'Phase 3 ➔ 4: Durchführung & Abnahme',
+          action: () => onOpenProtocolModal(activeOrder)
+        };
+      }
+
       return {
-        title: 'Umzug durchführen & Schlussrechnung erstellen',
-        desc: 'Der Vertrag ist bestätigt und der Auftrag disponiert. Nach oder während der Durchführung erstellen Sie hier direkt die Schlussrechnung.',
+        title: 'Schlussrechnung jetzt erstellen',
+        desc: 'Der Vertrag ist bestätigt und das Abnahmeprotokoll liegt vor. Erstellen Sie nun direkt die offizielle Schlussrechnung.',
         btnText: 'Schlussrechnung jetzt erstellen',
         secondaryBtnText: 'Laufzettel drucken',
         onSecondaryAction: () => onViewPdf(activeOrder, 'employee'),
-        badge: 'Phase 3: Umzugsdurchführung & Abrechnung',
+        badge: 'Phase 4: Abrechnung bereit',
         action: () => handleRequestInvoice(activeOrder)
       };
     }
@@ -830,12 +1053,27 @@ export function CustomerPremiumProfile({
 
   const formatTemplateText = (templateBody: string) => {
     let text = templateBody || '';
+    const lastName = (customer?.lastName || '').trim();
     const cName = customer?.type === 'firma' 
-      ? customer.lastName 
-      : `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim() || customer?.lastName || 'Kunde';
+      ? lastName 
+      : `${customer?.firstName || ''} ${lastName}`.trim() || lastName || 'Kunde';
+
+    const salutationRaw = (customer?.salutation || activeOrder?.orderMeta?.salutation || '').toLowerCase();
+    let formalAnrede = 'Sehr geehrte Damen und Herren';
+    if (customer?.type !== 'firma' && lastName) {
+      if (salutationRaw.includes('herr')) {
+        formalAnrede = `Sehr geehrter Herr ${lastName}`;
+      } else if (salutationRaw.includes('frau')) {
+        formalAnrede = `Sehr geehrte Frau ${lastName}`;
+      } else {
+        formalAnrede = `Guten Tag ${cName}`;
+      }
+    }
+
+    text = text.replace(/\[Anrede\]/g, formalAnrede);
     text = text.replace(/\[Name\]/g, cName);
 
-    const rawMoveDate = activeOrder?.logistics?.movingDate || activeOrder?.orderMeta?.movingDateFrom;
+    const rawMoveDate = activeOrder?.orderMeta?.movingDateFrom || activeOrder?.movingDate || activeOrder?.logistics?.movingDate;
     let moveDate = 'vereinbartem Datum';
     if (rawMoveDate) {
       try {
@@ -846,7 +1084,9 @@ export function CustomerPremiumProfile({
     }
     text = text.replace(/\[Datum\]/g, moveDate);
 
-    const employee = profile?.displayName || profile?.email?.split('@')[0] || 'Rothirsch Team';
+    const employee = profile?.displayName && !profile.displayName.includes('@')
+      ? profile.displayName
+      : 'Tarek Lababidi';
     text = text.replace(/\[Mitarbeiter\]/g, employee);
 
     return text;
@@ -1016,7 +1256,56 @@ export function CustomerPremiumProfile({
         </div>
 
         {/* 2. Move Schedule & Scope Card (Synchronized with Cockpit & Offer Form) */}
-        {activeOrder && (
+        {activeOrder && (() => {
+          const hasInventoryItems = Boolean(
+            (Array.isArray(activeOrder.inventory) && activeOrder.inventory.length > 0) ||
+            (Array.isArray(orderLogistics.items) && orderLogistics.items.length > 0)
+          );
+          const rawVol = Number(orderLogistics.estimatedVolume || activeOrder?.estimatedCbm || 0);
+          const isLegacyPhantomVol = !hasInventoryItems && activeOrder?.logistics?.truckChoice !== 'custom' && (rawVol === 18 || rawVol === 30);
+          const displayVol = isLegacyPhantomVol ? 0 : rawVol;
+
+          const hasHVZService = Array.isArray(activeOrder.services) && activeOrder.services.some((s: any) =>
+            (s.name || '').toLowerCase().includes('halteverbot') || (s.name || '').toLowerCase().includes('hvz')
+          );
+          const showHvzRow = Boolean(
+            activeOrder.logistics?.a_parking ||
+            activeOrder.logistics?.b_parking ||
+            activeOrder.logistics?.needHVZ ||
+            hasHVZService ||
+            activeOrder.services?.halteverbot ||
+            activeOrder.logistics?.hvzDate ||
+            activeOrder.orderMeta?.halteverbotDate ||
+            isTaskCompleted(activeOrder, 'hvz')
+          );
+
+          const hasKartonService = Array.isArray(activeOrder.services) && activeOrder.services.some((s: any) => {
+            const n = (s.name || '').toLowerCase();
+            return n.includes('karton') || n.includes('packmaterial') || n.includes('box');
+          });
+          const showKartonRow = Boolean(
+            hasKartonService ||
+            (Array.isArray(activeOrder.logistics?.materials) && activeOrder.logistics.materials.length > 0) ||
+            Number(activeOrder.orderMeta?.boxesCount || activeOrder.logistics?.boxesCount || 0) > 0 ||
+            activeOrder.orderMeta?.kartonDeliveryDate ||
+            activeOrder.logistics?.boxDeliveryDate ||
+            isTaskCompleted(activeOrder, 'kartons')
+          );
+
+          const hasLiftService = Array.isArray(activeOrder.services) && activeOrder.services.some((s: any) =>
+            (s.name || '').toLowerCase().includes('möbellift') || (s.name || '').toLowerCase().includes('moebellift') || (s.name || '').toLowerCase().includes('lift')
+          );
+          const showLiftRow = Boolean(
+            activeOrder.logistics?.a_furnitureLift ||
+            activeOrder.logistics?.b_furnitureLift ||
+            activeOrder.logistics?.needLift ||
+            hasLiftService ||
+            activeOrder.orderMeta?.moebelliftDate ||
+            activeOrder.logistics?.moebelliftDate ||
+            isTaskCompleted(activeOrder, 'moebellift')
+          );
+
+          return (
           <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-headline">
@@ -1034,36 +1323,36 @@ export function CustomerPremiumProfile({
                   {logisticsEval?.movingDateDisplay || 'Kein Termin eingetragen'}
                 </div>
               </div>
-              {(orderLogistics.estimatedVolume || activeOrder?.estimatedCbm) && (
+              {displayVol > 0 && (
                 <span className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 shrink-0">
-                  {orderLogistics.estimatedVolume || activeOrder?.estimatedCbm} m³
+                  {displayVol} m³
                 </span>
               )}
             </div>
 
-            {activeOrder && (
-              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-xs">
-                {/* 1. Besichtigungstermin */}
-                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                  <span className="text-slate-500 dark:text-slate-400 font-medium">Besichtigung:</span>
-                  <button
-                    type="button"
-                    onClick={() => setScheduleModalTodo({ id: 'viewing_requested', name: 'Besichtigung' })}
-                    className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
-                    title="Klicken zum Planen oder Ändern des Besichtigungstermins"
-                  >
-                    {activeOrder.orderMeta?.viewingDate && activeOrder.orderMeta?.viewingDate !== 'requested' ? (
-                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                        <CheckIcon className="w-3.5 h-3.5 shrink-0" />
-                        <span>{formatCustomerDate(activeOrder.orderMeta.viewingDate, activeOrder.orderMeta.viewingTime)}</span>
-                      </span>
-                    ) : (
-                      <span className="text-primary underline">+ Termin planen</span>
-                    )}
-                  </button>
-                </div>
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-xs">
+              {/* 1. Besichtigungstermin */}
+              <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                <span className="text-slate-500 dark:text-slate-400 font-medium">Besichtigung:</span>
+                <button
+                  type="button"
+                  onClick={() => setScheduleModalTodo({ id: 'viewing_requested', name: 'Besichtigung' })}
+                  className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
+                  title="Klicken zum Planen oder Ändern des Besichtigungstermins"
+                >
+                  {activeOrder.orderMeta?.viewingDate && activeOrder.orderMeta?.viewingDate !== 'requested' ? (
+                    <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <CheckIcon className="w-3.5 h-3.5 shrink-0" />
+                      <span>{formatCustomerDate(activeOrder.orderMeta.viewingDate, activeOrder.orderMeta.viewingTime)}</span>
+                    </span>
+                  ) : (
+                    <span className="text-primary underline">+ Termin planen</span>
+                  )}
+                </button>
+              </div>
 
-                {/* 2. Halteverbotszone (HVZ) */}
+              {/* 2. Halteverbotszone (HVZ) - nur wenn gebucht oder geplant */}
+              {showHvzRow && (
                 <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
                   <span className="text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1">
                     <span>Halteverbot (HVZ):</span>
@@ -1089,8 +1378,10 @@ export function CustomerPremiumProfile({
                     )}
                   </button>
                 </div>
+              )}
 
-                {/* 3. Kartonlieferung */}
+              {/* 3. Kartonlieferung - nur wenn gebucht oder geplant */}
+              {showKartonRow && (
                 <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
                   <span className="text-slate-500 dark:text-slate-400 font-medium">Kartonlieferung:</span>
                   <button
@@ -1109,32 +1400,33 @@ export function CustomerPremiumProfile({
                     )}
                   </button>
                 </div>
+              )}
 
-                {/* 4. Möbellift (if needed or scheduled) */}
-                {(activeOrder.logistics?.a_furnitureLift || activeOrder.logistics?.b_furnitureLift || activeOrder.orderMeta?.moebelliftDate) && (
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                    <span className="text-slate-500 dark:text-slate-400 font-medium">Möbellift:</span>
-                    <button
-                      type="button"
-                      onClick={() => setScheduleModalTodo({ id: 'moebellift_buchen', kanbanCategory: 'moebellift', name: 'Möbellift' })}
-                      className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
-                      title="Klicken zum Planen oder Ändern des Möbellifts"
-                    >
-                      {activeOrder.orderMeta?.moebelliftDate ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                          <CheckIcon className="w-3.5 h-3.5 shrink-0" />
-                          <span>{formatCustomerDate(activeOrder.orderMeta.moebelliftDate, activeOrder.orderMeta.moebelliftTime)}</span>
-                        </span>
-                      ) : (
-                        <span className="text-primary underline">+ Termin planen</span>
-                      )}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+              {/* 4. Möbellift - nur wenn gebucht oder geplant */}
+              {showLiftRow && (
+                <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                  <span className="text-slate-500 dark:text-slate-400 font-medium">Möbellift:</span>
+                  <button
+                    type="button"
+                    onClick={() => setScheduleModalTodo({ id: 'moebellift_buchen', kanbanCategory: 'moebellift', name: 'Möbellift' })}
+                    className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Klicken zum Planen oder Ändern des Möbellifts"
+                  >
+                    {activeOrder.orderMeta?.moebelliftDate ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckIcon className="w-3.5 h-3.5 shrink-0" />
+                        <span>{formatCustomerDate(activeOrder.orderMeta.moebelliftDate, activeOrder.orderMeta.moebelliftTime)}</span>
+                      </span>
+                    ) : (
+                      <span className="text-primary underline">+ Termin planen</span>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* 3. Financial Health Card with Visual Progress */}
         {activeOrder && (
@@ -1165,7 +1457,7 @@ export function CustomerPremiumProfile({
                 <span>Bezahlt: €{totalPaid.toLocaleString('de-DE')} ({paidPercentage}%)</span>
                 <span className={!hasInvoice ? 'text-slate-400 font-semibold' : openAmount > 0 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-emerald-600 font-bold'}>
                   {!hasInvoice 
-                    ? 'Rechnung noch offen' 
+                    ? latestCancelledInvoiceNum ? `Storniert (${latestCancelledInvoiceNum}) – Korrektur offen` : 'Rechnung noch offen' 
                     : openAmount > 0 
                       ? `Offen: €${openAmount.toLocaleString('de-DE')}` 
                       : 'Ausgeglichen'}
@@ -1268,7 +1560,7 @@ export function CustomerPremiumProfile({
                   title="Rechnung als PDF ansehen"
                 >
                   <DocumentCheckIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                  <span>Rechnung {invoiceNumberDisplay ? `(${invoiceNumberDisplay})` : 'PDF'}</span>
+                  <span>{(linkedInvoice?.isKorrektur || activeOrder?.isKorrektur) ? 'Korrekturrechnung' : 'Rechnung'} {invoiceNumberDisplay ? `(${invoiceNumberDisplay})` : 'PDF'}</span>
                 </button>
                 {!activeOrder?.isStorno && activeOrder?.status !== 'invoice_cancelled' && activeOrder?.status !== 'canceled' && (
                   <button
@@ -1285,11 +1577,15 @@ export function CustomerPremiumProfile({
               <button
                 type="button"
                 onClick={() => handleRequestInvoice(activeOrder)}
-                className="px-3.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-semibold border border-dashed border-slate-300 dark:border-slate-700 transition-all flex items-center gap-1.5 cursor-pointer"
-                title="Noch keine Rechnung ausgestellt. Klicken zum Erstellen."
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                  latestCancelledInvoiceNum
+                    ? 'bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 font-bold'
+                    : 'bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 border-dashed border-slate-300 dark:border-slate-700'
+                }`}
+                title={latestCancelledInvoiceNum ? `Rechnung ${latestCancelledInvoiceNum} wurde storniert. Klicken, um eine Korrekturrechnung zu erstellen.` : "Noch keine Rechnung ausgestellt. Klicken zum Erstellen."}
               >
-                <DocumentCheckIcon className="w-4 h-4 text-slate-400" />
-                <span>+ Rechnung erstellen</span>
+                <DocumentCheckIcon className={`w-4 h-4 ${latestCancelledInvoiceNum ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400'}`} />
+                <span>{latestCancelledInvoiceNum ? '+ Korrekturrechnung erstellen' : '+ Rechnung erstellen'}</span>
               </button>
             )}
 
@@ -1751,7 +2047,7 @@ export function CustomerPremiumProfile({
                           {ord.orderNumber || `Auftrag #${ord.id.slice(-5).toUpperCase()}`}
                         </span>
                         <span className="text-[10px] font-normal text-slate-400">
-                          {ord.logistics?.movingDate || 'Ohne Datum'}
+                          {ord.orderMeta?.movingDateFrom || ord.movingDate || ord.logistics?.movingDate || 'Ohne Datum'}
                         </span>
                       </div>
                       <div className="text-right shrink-0">
@@ -1923,24 +2219,35 @@ export function CustomerPremiumProfile({
             {orders.map((ord: any) => {
               const ordTotals = calculateOrderTotals(ord);
               const ordNumber = ord.orderNumber || ord.orderIdShort || (ord.id ? `#${ord.id.slice(-5).toUpperCase()}` : '#AUFTRAG');
-              const dateDisplay = ord.logistics?.movingDate || ord.createdAt?.toDate?.()?.toLocaleDateString('de-DE') || 'Kein Datum';
+              const dateDisplay = ord.orderMeta?.movingDateFrom || ord.movingDate || ord.logistics?.movingDate || ord.createdAt?.toDate?.()?.toLocaleDateString('de-DE') || 'Kein Datum';
               const routeDisplay = ord.logistics?.a_city && ord.logistics?.b_city 
                 ? `${ord.logistics.a_city} ➔ ${ord.logistics.b_city}`
                 : 'Lokaler Auftrag';
 
-              const ordLinkedInv = (invoices || []).find((inv: any) => 
-                inv.sourceOrderId === ord.id || 
-                inv.orderId === ord.id || 
-                inv.id === ord.id || 
-                (ord.invoiceNumber && inv.invoiceNumber === ord.invoiceNumber)
+              const ordLinkedInv = findActiveLinkedInvoice(ord, invoices);
+              const ordLatestCancelledNum = getLatestCancelledInvoiceNumber(ord, invoices);
+              const ordActiveInvNum = getActiveInvoiceNumber(ord, ordLinkedInv);
+              const ordAllInvs = (invoices || []).filter((inv: any) =>
+                !inv.isStorno && (
+                  inv.sourceOrderId === ord.id ||
+                  inv.orderId === ord.id ||
+                  inv.id === ord.id ||
+                  (ord.invoiceNumber && inv.invoiceNumber === ord.invoiceNumber)
+                )
               );
+              const ordAllInvsCancelled =
+                ordAllInvs.length > 0 && ordAllInvs.every((inv: any) => isInvoiceCancelled(inv));
+
               const ordHasInvoice = Boolean(
-                ord.invoiceNumber || 
-                ord.status?.startsWith('invoice_') || 
-                ordLinkedInv ||
-                (ord.invoiceHistory && ord.invoiceHistory.length > 0)
+                !ordAllInvsCancelled &&
+                !isInvoiceCancelled(ord) && (
+                  ordActiveInvNum ||
+                  ordLinkedInv ||
+                  ord.status === 'invoice_open' ||
+                  ord.status === 'invoice_paid'
+                )
               );
-              const ordInvoiceNum = ord.invoiceNumber || ordLinkedInv?.invoiceNumber;
+              const ordInvoiceNum = ordHasInvoice ? (ordLinkedInv?.invoiceNumber || ordActiveInvNum) : null;
 
               const getStatusBadge = (st: string) => {
                 switch (st) {
@@ -2075,7 +2382,7 @@ export function CustomerPremiumProfile({
                     )}
 
                     {/* 5. Intelligente Phase-spezifische Aktion (Signatur vs Rechnung) */}
-                    {['quote', 'clarification', 'verhandlung'].includes(ord.status) && !(ord.signature || ord.orderMeta?.customerSignature) ? (
+                    {['quote', 'clarification', 'verhandlung'].includes(ord.status) && !(ord.signature || ord.orderMeta?.customerSignature) && !ordLatestCancelledNum ? (
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
@@ -2123,10 +2430,10 @@ export function CustomerPremiumProfile({
                         type="button"
                         onClick={() => handleRequestInvoice(ord)}
                         className="px-3 py-2 rounded-xl text-xs font-bold bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition-all flex items-center gap-1.5 cursor-pointer"
-                        title="Rechnung für diesen bestätigten Auftrag erstellen"
+                        title={ordLatestCancelledNum ? `Rechnung ${ordLatestCancelledNum} wurde storniert. Klicken für Korrekturrechnung.` : "Rechnung für diesen bestätigten Auftrag erstellen"}
                       >
                         <DocumentCheckIcon className="w-3.5 h-3.5" />
-                        <span>Rechnung erstellen</span>
+                        <span>{ordLatestCancelledNum ? 'Korrekturrechnung erstellen' : 'Rechnung erstellen'}</span>
                       </button>
                     ) : null}
                   </div>
@@ -2212,86 +2519,120 @@ export function CustomerPremiumProfile({
       )}
 
       {/* STEP 1 PRIORITY: Unconfirmed / Incomplete Order Invoice Warning Confirmation Modal */}
-      {unconfirmedInvoiceOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-6">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                <ExclamationTriangleIcon className="w-6 h-6" />
-              </div>
-              <div className="flex-1">
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 uppercase tracking-wider">
-                  Sicherheitsprüfung
-                </span>
-                <h3 className="font-headline font-bold text-lg text-slate-900 dark:text-white mt-1">
-                  Rechnung vorzeitig erstellen?
-                </h3>
-              </div>
-            </div>
+      {unconfirmedInvoiceOrder && (() => {
+        const moveDateRaw = unconfirmedInvoiceOrder.orderMeta?.movingDateFrom || unconfirmedInvoiceOrder.movingDate || unconfirmedInvoiceOrder.logistics?.movingDate || unconfirmedInvoiceOrder.date;
+        const isMoveInFuture = (() => {
+          if (!moveDateRaw) return false;
+          const moveD = new Date(String(moveDateRaw).split('T')[0] + 'T00:00:00');
+          if (isNaN(moveD.getTime())) return false;
+          const todayD = new Date();
+          todayD.setHours(0, 0, 0, 0);
+          return moveD.getTime() > todayD.getTime();
+        })();
+        const formattedMoveDate = moveDateRaw ? new Date(moveDateRaw).toLocaleDateString('de-DE') : null;
 
-            <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 space-y-2">
-              <p className="font-semibold text-sm">
-                Möchten Sie wirklich eine Rechnung erstellen, obwohl der Vertrag bzw. die vorherigen Aufgaben noch nicht vollständig abgeschlossen sind?
-              </p>
-              <p className="text-amber-800/80 dark:text-amber-300/80 leading-relaxed">
-                Normalerweise wird die Rechnung erst nach unterschriebenem Auftrag, erledigten Logistik-Aufgaben und durchgeführtem Umzug (Abnahmeprotokoll) generiert.
-              </p>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 text-xs space-y-1">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Betroffener Auftrag:</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200">
-                  #{unconfirmedInvoiceOrder.orderNumber || unconfirmedInvoiceOrder.id.slice(-5).toUpperCase()}
-                </span>
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-6">
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                  <ExclamationTriangleIcon className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                    Sicherheitsprüfung
+                  </span>
+                  <h3 className="font-headline font-bold text-lg text-slate-900 dark:text-white mt-1">
+                    {isMoveInFuture ? 'Umzugstermin liegt noch in der Zukunft!' : 'Rechnung vorzeitig erstellen?'}
+                  </h3>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Aktueller Status:</span>
-                <span className="font-bold uppercase text-amber-600 dark:text-amber-400">
-                  {unconfirmedInvoiceOrder.status || 'Entwurf'}
-                </span>
+
+              <div className="p-4 rounded-2xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 text-xs text-amber-900 dark:text-amber-200 space-y-2">
+                {isMoveInFuture ? (
+                  <>
+                    <p className="font-semibold text-sm">
+                      Achtung: Der Umzugstermin ({formattedMoveDate}) hat noch nicht stattgefunden!
+                    </p>
+                    <p className="text-amber-800/80 dark:text-amber-300/80 leading-relaxed">
+                      Wenn Sie jetzt eine Rechnung ausstellen, wird dieser Auftrag bzw. die Kundenakte als abgeschlossen eingestuft. Möchten Sie diesen Auftrag trotzdem jetzt abschließen?
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-semibold text-sm">
+                      Möchten Sie wirklich eine Rechnung erstellen, obwohl der Vertrag bzw. die vorherigen Aufgaben noch nicht vollständig abgeschlossen sind?
+                    </p>
+                    <p className="text-amber-800/80 dark:text-amber-300/80 leading-relaxed">
+                      Normalerweise wird die Rechnung erst nach unterschriebenem Auftrag, erledigten Logistik-Aufgaben und durchgeführtem Umzug (Abnahmeprotokoll) generiert.
+                    </p>
+                  </>
+                )}
               </div>
-            </div>
 
-            <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setUnconfirmedInvoiceOrder(null)}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                Abbrechen
-              </button>
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 text-xs space-y-1">
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Betroffener Auftrag:</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">
+                    #{unconfirmedInvoiceOrder.orderNumber || unconfirmedInvoiceOrder.id.slice(-5).toUpperCase()}
+                  </span>
+                </div>
+                {formattedMoveDate && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Umzugstermin:</span>
+                    <span className={`font-bold ${isMoveInFuture ? 'text-amber-600 dark:text-amber-400' : 'text-slate-800 dark:text-slate-200'}`}>
+                      {formattedMoveDate} {isMoveInFuture ? '(Noch offen)' : ''}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-slate-400">Aktueller Status:</span>
+                  <span className="font-bold uppercase text-amber-600 dark:text-amber-400">
+                    {unconfirmedInvoiceOrder.status || 'Entwurf'}
+                  </span>
+                </div>
+              </div>
 
-              {onOpenSignatureModal && !(unconfirmedInvoiceOrder.signatureOrder || unconfirmedInvoiceOrder.orderMeta?.signedContractScan || unconfirmedInvoiceOrder.isManuallySigned || unconfirmedInvoiceOrder.contractSigned) && (
+              <div className="flex flex-col sm:flex-row items-center justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setUnconfirmedInvoiceOrder(null)}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Abbrechen
+                </button>
+
+                {onOpenSignatureModal && !(unconfirmedInvoiceOrder.signatureOrder || unconfirmedInvoiceOrder.orderMeta?.signedContractScan || unconfirmedInvoiceOrder.isManuallySigned || unconfirmedInvoiceOrder.contractSigned) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ord = unconfirmedInvoiceOrder;
+                      setUnconfirmedInvoiceOrder(null);
+                      onOpenSignatureModal(ord);
+                    }}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <CheckCircleIcon className="w-4 h-4" />
+                    <span>Zuerst digital / per Foto signieren</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => {
-                    const ord = unconfirmedInvoiceOrder;
+                    const ordId = unconfirmedInvoiceOrder.id;
                     setUnconfirmedInvoiceOrder(null);
-                    onOpenSignatureModal(ord);
+                    router.push(`/dashboard/customers/${customer.id}/edit-invoice/${ordId}`);
                   }}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs transition-colors flex items-center justify-center gap-1.5"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 shadow-md transition-colors"
                 >
-                  <CheckCircleIcon className="w-4 h-4" />
-                  <span>Zuerst digital / per Foto signieren</span>
+                  Trotzdem abschließen & Rechnung erstellen
                 </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  const ordId = unconfirmedInvoiceOrder.id;
-                  setUnconfirmedInvoiceOrder(null);
-                  router.push(`/dashboard/customers/${customer.id}/edit-invoice/${ordId}`);
-                }}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-full text-xs font-bold bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 shadow-md transition-colors"
-              >
-                Trotzdem Rechnung erstellen
-              </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Empty Offer Warning Modal (No services or 0,00 €) */}
       {emptyOfferWarningModal && (

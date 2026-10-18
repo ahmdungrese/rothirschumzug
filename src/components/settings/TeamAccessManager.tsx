@@ -1,11 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
-import { db } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { toast } from "react-hot-toast";
-import { CheckIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { CheckIcon, XMarkIcon, LockClosedIcon } from "@heroicons/react/24/outline";
 
 // Create secondary app to prevent logging out the admin
 const createSecondaryApp = () => {
@@ -32,6 +32,11 @@ export function TeamAccessManager() {
   const [canEditPrices, setCanEditPrices] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Chef-PIN Bestätigung vor dem Anlegen eines neuen Mitarbeiters
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [ownerPin, setOwnerPin] = useState("");
+  const [pinError, setPinError] = useState("");
+
   const [editingUid, setEditingUid] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
 
@@ -43,12 +48,46 @@ export function TeamAccessManager() {
     return () => unsub();
   }, []);
 
-  const handleCreateUser = async (e: React.FormEvent) => {
+  // Schritt 1: Formular-Validierung & Öffnen der Chef-PIN-Abfrage
+  const handleRequestCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !loginId || !password) return;
+    if (password.length < 6) {
+      toast.error("Start-Passwort des Mitarbeiters muss mind. 6 Zeichen haben!");
+      return;
+    }
+    setOwnerPin("");
+    setPinError("");
+    setShowPinModal(true);
+  };
+
+  // Schritt 2: Server-seitige Prüfung des Chef-PINs (0777) & Anlegen des Mitarbeiters
+  const handleConfirmPinAndCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ownerPin.trim() || isSubmitting) return;
+    setPinError("");
     setIsSubmitting(true);
 
     try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const verifyRes = await fetch('/api/admin/verify-pin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ pin: ownerPin.trim(), scope: 'mitarbeiter' })
+      });
+
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok || !verifyData.valid) {
+        const msg = verifyData.error || "Falscher Chef-PIN! Zugriff verweigert.";
+        setPinError(msg);
+        toast.error(msg);
+        setIsSubmitting(false);
+        return;
+      }
+
       const finalEmail = loginId.includes("@") ? loginId : `${loginId.replace(/[^0-9]/g, '')}@rothirsch-app.de`;
 
       const secondaryApp = createSecondaryApp();
@@ -69,6 +108,8 @@ export function TeamAccessManager() {
       });
 
       toast.success(`Mitarbeiter ${name} erfolgreich angelegt!`);
+      setShowPinModal(false);
+      setOwnerPin("");
       setName("");
       setLoginId("");
       setPassword("");
@@ -115,7 +156,7 @@ export function TeamAccessManager() {
 
       <div className="bg-bg-dark border border-structure rounded-xl p-6">
         <h3 className="text-text-main font-semibold mb-4">Neuen Mitarbeiter anlegen</h3>
-        <form onSubmit={handleCreateUser} className="space-y-4">
+        <form onSubmit={handleRequestCreateUser} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-text-muted mb-1">Name / Anzeigename</label>
@@ -158,11 +199,84 @@ export function TeamAccessManager() {
               </div>
             )}
           </div>
-          <button type="submit" disabled={isSubmitting} className="btn-primary w-full md:w-auto mt-4">
-            {isSubmitting ? 'Wird angelegt...' : 'Mitarbeiter Zugang erstellen'}
+          <button type="submit" disabled={isSubmitting} className="btn-primary w-full md:w-auto mt-4 flex items-center justify-center gap-2">
+            <LockClosedIcon className="w-4 h-4" />
+            <span>{isSubmitting ? 'Wird angelegt...' : 'Mitarbeiter Zugang erstellen'}</span>
           </button>
         </form>
       </div>
+
+      {/* Sicherheits-Modal: Chef-PIN (0777) erforderlich */}
+      {showPinModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => !isSubmitting && setShowPinModal(false)}
+        >
+          <div
+            className="bg-bg-panel border border-structure rounded-2xl p-6 w-full max-w-sm shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-structure pb-3">
+              <div className="flex items-center gap-2 text-text-main font-bold">
+                <LockClosedIcon className="w-5 h-5 text-primary" />
+                <span>Inhaber-Freigabe erforderlich</span>
+              </div>
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={() => setShowPinModal(false)}
+                className="p-1 text-text-muted hover:text-text-main rounded-lg"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmPinAndCreateUser} className="space-y-4">
+              <p className="text-xs text-text-muted leading-relaxed">
+                Bitte geben Sie das Inhaber-Passwort (PIN) ein, um den neuen Mitarbeiter{" "}
+                <strong className="text-text-main">{name}</strong> anzulegen:
+              </p>
+
+              <input
+                type="password"
+                value={ownerPin}
+                onChange={(e) => {
+                  setOwnerPin(e.target.value);
+                  setPinError("");
+                }}
+                placeholder="••••"
+                maxLength={8}
+                autoFocus
+                disabled={isSubmitting}
+                className="input-field w-full text-center tracking-widest font-mono text-xl py-2.5"
+                required
+              />
+
+              {pinError && (
+                <p className="text-xs text-red-400 font-semibold text-center">{pinError}</p>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => setShowPinModal(false)}
+                  className="btn-secondary flex-1 py-2 text-sm"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmitting || !ownerPin.trim()}
+                  className="btn-primary flex-1 py-2 text-sm font-bold"
+                >
+                  {isSubmitting ? "Prüfe..." : "Bestätigen & Anlegen"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <div className="bg-bg-dark border border-structure rounded-xl overflow-hidden">
         <table className="w-full text-left border-collapse">

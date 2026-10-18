@@ -28,6 +28,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/navigation';
 import { evaluateOrderLogistics } from '@/lib/orderValidation';
+import { getActiveInvoiceNumber, isInvoiceCancelled, getLatestCancelledInvoiceNumber } from '@/lib/financeHelpers';
 import { toggleTaskCompletion, isTaskCompleted } from '@/lib/taskStateController';
 import { TaskScheduleModal } from '@/components/logistics/TaskScheduleModal';
 import { SignatureModal } from '@/components/orders/SignatureModal';
@@ -75,8 +76,8 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
   // Determine initial phase from status
   const getInitialPhase = (st: string, ord: any) => {
-    if (st === 'completed' || st?.startsWith('invoice_') || st === 'archived') return 4;
-    if (st === 'confirmed' || ord?.isManuallySigned || ord?.contractSigned || ord?.signatureOrder || ord?.orderMeta?.signedContractScan) return 3;
+    if ((st === 'completed' || st === 'invoice_open' || st === 'invoice_paid' || st === 'archived') && !isInvoiceCancelled(ord)) return 4;
+    if (st === 'confirmed' || ord?.isManuallySigned || ord?.contractSigned || ord?.signatureOrder || ord?.orderMeta?.signedContractScan || getLatestCancelledInvoiceNumber(ord)) return 3;
     if (st === 'quote' || st === 'verhandlung' || Boolean(ord?.orderMeta?.viewingDate || ord?.viewingDate)) return 2;
     return 1;
   };
@@ -206,7 +207,19 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
     order.checklistDone?.protocol ||
     order.status === 'completed'
   );
-  const isReadyForInvoice = Boolean(order.invoiceNumber) || (isContractSigned && (hasProtocol || evaluation.isComplete || order.status === 'completed'));
+  const isMoveDateInFuture = (() => {
+    const rawMoveDate = order.orderMeta?.movingDateFrom || order.movingDate || order.logistics?.movingDate;
+    if (!rawMoveDate) return false;
+    const d = new Date(rawMoveDate);
+    if (isNaN(d.getTime())) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime() > today.getTime();
+  })();
+  const activeInvNum = getActiveInvoiceNumber(order);
+  const latestCancelledInvNum = getLatestCancelledInvoiceNumber(order);
+  const isReadyForInvoice = Boolean(activeInvNum || latestCancelledInvNum) || (isContractSigned && !isMoveDateInFuture && (hasProtocol || order.status === 'completed'));
 
   const handleNavigate = (url: string, e?: React.MouseEvent) => {
     if (e) {
@@ -587,6 +600,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           ].map(tab => {
             const isActive = activePhaseTab === tab.phase;
             const isCurrent = currentOrderPhase === tab.phase;
+            const isCompletedPhase = tab.phase < currentOrderPhase;
             return (
               <button
                 key={tab.phase}
@@ -594,11 +608,16 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                 className={`py-3 px-4 text-xs font-bold font-headline whitespace-nowrap border-b-2 transition-all flex flex-col items-center relative ${
                   isActive 
                     ? 'border-primary text-primary' 
-                    : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                    : isCompletedPhase
+                      ? 'border-transparent text-emerald-600 dark:text-emerald-400 hover:text-emerald-700'
+                      : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
               >
                 <div className="flex items-center gap-1.5">
                   <span>{tab.label}</span>
+                  {isCompletedPhase && (
+                    <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-500 shrink-0" title="Phase abgeschlossen" />
+                  )}
                   {isCurrent && (
                     <span className="w-1.5 h-1.5 rounded-full bg-primary" title="Aktuelle Phase des Auftrags" />
                   )}
@@ -771,18 +790,42 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           {/* ========================================================================= */}
           {activePhaseTab === 2 && (
             <div className="space-y-6">
-              <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/40">
-                <h3 className="text-sm font-bold text-amber-900 dark:text-amber-300 font-headline mb-1">
-                  Phase 2: In Verhandlung & Besichtigung
-                </h3>
-                <p className="text-xs text-amber-700 dark:text-amber-400">
-                  Verwalte Besichtigungstermine, versende das Angebot oder lass den Kunden direkt digital unterschreiben!
-                </p>
-              </div>
+              {(() => {
+                const isContractAlreadySigned = Boolean(
+                  currentOrderPhase >= 3 ||
+                  order.signatureOrder ||
+                  order.signature ||
+                  order.isManuallySigned ||
+                  order.contractSigned ||
+                  order.status === 'confirmed' ||
+                  order.orderMeta?.signedContractScan
+                );
+                return isContractAlreadySigned ? (
+                  <div className="p-4 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800">
+                    <h3 className="text-sm font-bold text-emerald-900 dark:text-emerald-300 font-headline mb-1 flex items-center gap-1.5">
+                      <CheckCircleIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span>Phase 2 abgeschlossen: Auftrag bestätigt</span>
+                    </h3>
+                    <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                      Der Kunde hat das Angebot angenommen. Die Vertragsbestätigung ist hinterlegt – alle weiteren Schritte findest du in Phase 3 (Bestätigt).
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/40">
+                    <h3 className="text-sm font-bold text-amber-900 dark:text-amber-300 font-headline mb-1">
+                      Phase 2: In Verhandlung & Besichtigung
+                    </h3>
+                    <p className="text-xs text-amber-700 dark:text-amber-400">
+                      Verwalte Besichtigungstermine, versende das Angebot oder lass den Kunden direkt digital unterschreiben!
+                    </p>
+                  </div>
+                );
+              })()}
 
               {/* Digital Signature & Signed Photo Upload Card */}
               {(() => {
                 const isSigned = Boolean(
+                  currentOrderPhase >= 3 ||
                   order.signatureOrder ||
                   order.signature ||
                   order.isManuallySigned ||
@@ -1079,7 +1122,12 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
             const isHvzDone = isTaskCompleted(order, 'hvz');
             const isLiftDone = isTaskCompleted(order, 'moebellift');
 
+            const hasExplicitKartonService = Array.isArray(order.services) && order.services.some((s: any) => {
+              const n = (s.name || '').toLowerCase();
+              return n.includes('karton') || n.includes('packmaterial') || n.includes('box');
+            });
             const needsKartons = Boolean(
+              hasExplicitKartonService ||
               matSummary.total > 0 ||
               order.logistics?.boxDeliveryDate ||
               order.orderMeta?.kartonDeliveryDate ||
@@ -1112,11 +1160,14 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
               isLiftDone
             );
 
+            const showKartons = needsKartons;
+            const showHvz = needsHvz;
+            const showLift = needsLift;
+
             const isPhase3Ready =
-              (!needsKartons || isKartonsDone) &&
-              (!needsHvz || isHvzDone) &&
-              (!needsLift || isLiftDone) &&
-              (isKartonsDone || isHvzDone || isLiftDone || (!needsKartons && !needsHvz && !needsLift));
+              (!showKartons || isKartonsDone) &&
+              (!showHvz || isHvzDone) &&
+              (!showLift || isLiftDone);
 
             return (
             <div className="space-y-6">
@@ -1131,26 +1182,39 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                     {isPhase3Ready ? 'verified' : 'warning'}
                   </span>
                   <h3 className="text-sm font-bold font-headline">
-                    {isPhase3Ready ? 'Logistik vollständig bereit!' : 'Logistik-Vorbereitung unvollständig'}
+                    {isPhase3Ready ? 'Logistik vollständig bereit!' : 'Logistik-Vorbereitung offen'}
                   </h3>
                 </div>
                 <p className="text-xs opacity-90">
                   {isPhase3Ready 
-                    ? 'Alle Termine und Vorbereitungen für den Umzugstag sind abgeschlossen.'
-                    : 'Bitte plane die Termine für Kartons, Halteverbotszone oder Möbellift und hake die erledigten Aufgaben ab.'}
+                    ? (!showKartons && !showHvz && !showLift
+                        ? 'Keine Zusatzlogistik (Kartons, Halteverbotszone oder Möbellift) im Angebot gebucht. Der Umzug kann direkt disponiert werden.'
+                        : 'Alle gebuchten Termine und Vorbereitungen für den Umzugstag sind abgeschlossen.')
+                    : 'Bitte plane die Termine für die gebuchten Zusatzleistungen und hake erledigte Aufgaben ab.'}
                 </p>
               </div>
 
               {/* Task Cards */}
               <div className="panel p-4 space-y-4">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 font-headline">
-                  Operative Logistik-Aufgaben
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 font-headline">
+                    Gebuchte Logistik-Aufgaben
+                  </h4>
+                </div>
 
-                <div className="space-y-3">
-                  {/* Task: Kartons */}
-                  {(() => {
-                    return (
+                {!showKartons && !showHvz && !showLift ? (
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-200 dark:border-slate-700 text-center space-y-1">
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Keine Zusatz-Aufgaben im Angebot enthalten
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Weder Kartonlieferung noch Halteverbotszone oder Möbellift wurden im Angebot gebucht. Über die Schnellauswahl unten gelangen Sie direkt zu den Angebots-Leistungen (Schritt 3), um sie im Angebot hinzuzufügen.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Task: Kartons */}
+                    {showKartons && (
                       <div className={`p-3.5 rounded-xl border-2 transition-all flex flex-col gap-2.5 ${
                         isKartonsDone
                           ? 'bg-emerald-500/10 dark:bg-emerald-950/40 border-emerald-500 shadow-xs'
@@ -1176,7 +1240,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                                     <span>{matSummary.total} Kartons ({matSummary.standard > 0 ? `${matSummary.standard}x Standard` : ''}{matSummary.buecher > 0 ? `, ${matSummary.buecher}x Bücher` : ''}{matSummary.kleider > 0 ? `, ${matSummary.kleider}x Kleider` : ''})</span>
                                   </span>
                                 ) : (
-                                  'Materialbedarf offen'
+                                  'Kartonlieferung gebucht'
                                 )}
                               </span>
                             </div>
@@ -1212,57 +1276,144 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                           )}
                         </div>
                       </div>
-                    );
-                  })()}
+                    )}
 
-                  {/* Task: Halteverbot (HVZ) */}
-                  {(() => {
-                    const resolvedHvzMethod = order.orderMeta?.hvzMethod || order.logistics?.hvzMethod || 'selbst';
-                    const resolvedHvzLoc = order.orderMeta?.hvzLocation || order.logistics?.hvzLocation || 
-                      (order.logistics?.a_parking && order.logistics?.b_parking ? 'both' : order.logistics?.b_parking ? 'b' : 'a');
-                    return (
-                      <div className={`p-3.5 rounded-xl border-2 transition-all flex flex-col gap-2.5 ${
-                        isHvzDone
-                          ? 'bg-emerald-500/10 dark:bg-emerald-950/40 border-emerald-500 shadow-xs'
-                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
-                      }`}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2.5">
-                            <input
-                              type="checkbox"
-                              checked={isHvzDone}
-                              onChange={() => handleToggleTask('halteverbot', 'Halteverbotszone')}
-                              disabled={isUpdatingTask}
-                              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                            />
-                            <div>
-                              <span className={`text-xs font-bold block ${isHvzDone ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-900 dark:text-white'}`}>
-                                Halteverbotszone (HVZ) {isHvzDone && '✓'}
-                              </span>
-                              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                                  {resolvedHvzMethod === 'extern' ? (
-                                    <>
-                                      <BuildingOfficeIcon className="w-3 h-3 text-slate-500" />
-                                      <span>Externe Firma</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <TruckIcon className="w-3 h-3 text-primary" />
-                                      <span>Selbst aufstellen</span>
-                                    </>
-                                  )}
+                    {/* Task: Halteverbot (HVZ) */}
+                    {showHvz && (() => {
+                      const resolvedHvzMethod = order.orderMeta?.hvzMethod || order.logistics?.hvzMethod || 'selbst';
+                      const resolvedHvzLoc = order.orderMeta?.hvzLocation || order.logistics?.hvzLocation || 
+                        (order.logistics?.a_parking && order.logistics?.b_parking ? 'both' : order.logistics?.b_parking ? 'b' : 'a');
+                      return (
+                        <div className={`p-3.5 rounded-xl border-2 transition-all flex flex-col gap-2.5 ${
+                          isHvzDone
+                            ? 'bg-emerald-500/10 dark:bg-emerald-950/40 border-emerald-500 shadow-xs'
+                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <input
+                                type="checkbox"
+                                checked={isHvzDone}
+                                onChange={() => handleToggleTask('halteverbot', 'Halteverbotszone')}
+                                disabled={isUpdatingTask}
+                                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                              />
+                              <div>
+                                <span className={`text-xs font-bold block ${isHvzDone ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-900 dark:text-white'}`}>
+                                  Halteverbotszone (HVZ) {isHvzDone && '✓'}
                                 </span>
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary flex items-center gap-1">
-                                  {resolvedHvzLoc === 'b' ? (
+                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                                    {resolvedHvzMethod === 'extern' ? (
+                                      <>
+                                        <BuildingOfficeIcon className="w-3 h-3 text-slate-500" />
+                                        <span>Externe Firma</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <TruckIcon className="w-3 h-3 text-primary" />
+                                        <span>Selbst aufstellen</span>
+                                      </>
+                                    )}
+                                  </span>
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary flex items-center gap-1">
+                                    {resolvedHvzLoc === 'b' ? (
+                                      <>
+                                        <HomeIcon className="w-3 h-3" />
+                                        <span>Einzugsort (B)</span>
+                                      </>
+                                    ) : resolvedHvzLoc === 'both' ? (
+                                      <>
+                                        <ArrowPathIcon className="w-3 h-3" />
+                                        <span>Beide Orte (A & B)</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <BuildingOfficeIcon className="w-3 h-3" />
+                                        <span>Auszugsort (A)</span>
+                                      </>
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <button
+                              onClick={() => handleOpenSchedule({ id: 'halteverbot', kanbanCategory: 'halteverbot', name: 'Halteverbot' })}
+                              className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                            >
+                              <CalendarDaysIcon className="w-3.5 h-3.5" />
+                              <span>Termin planen</span>
+                            </button>
+                          </div>
+
+                          {/* Address & Navigation */}
+                          <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-xs flex items-center justify-between gap-2">
+                            <span className="text-[11px] text-slate-600 dark:text-slate-300 truncate flex items-center gap-1">
+                              <MapPinIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+                              <span className="truncate">{resolvedHvzLoc === 'b' ? (addressB || 'Einzugsadresse') : (addressA || 'Auszugsadresse')}</span>
+                            </span>
+                            <a
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(resolvedHvzLoc === 'b' ? addressB : addressA)}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-primary hover:text-white text-slate-700 dark:text-slate-300 text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors"
+                              title="In Google Maps öffnen"
+                            >
+                              <MapPinIcon className="w-3 h-3" />
+                              <span>Maps</span>
+                            </a>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-700">
+                            <span>
+                              Aufbau: {formatScheduleDate(order.orderMeta?.halteverbotDate || order.logistics?.hvzDate, order.orderMeta?.halteverbotTime || order.logistics?.hvzTime) || 'Noch nicht terminiert'}
+                            </span>
+                            {(order.orderMeta?.halteverbotDate || order.logistics?.hvzDate) && (
+                              <button
+                                onClick={() => {
+                                  const date = formatScheduleDate(order.orderMeta?.halteverbotDate || order.logistics?.hvzDate, order.orderMeta?.halteverbotTime || order.logistics?.hvzTime);
+                                  handleDirectWhatsApp(`Guten Tag, die Halteverbotszone für Ihren Umzug wird am ${date} vorschriftsmäßig aufgestellt.`);
+                                }}
+                                className="text-emerald-600 hover:underline flex items-center gap-1 font-bold"
+                                title="WhatsApp Nachricht senden"
+                              >
+                                <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
+                                <span>WhatsApp</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {/* Task: Möbellift */}
+                    {showLift && (() => {
+                      const resolvedLiftLoc = order.orderMeta?.moebelliftLocation || order.logistics?.moebelliftLocation || (order.logistics?.b_furnitureLift && !order.logistics?.a_furnitureLift ? 'b' : 'a');
+                      return (
+                        <div className={`p-3.5 rounded-xl border-2 transition-all flex flex-col gap-2.5 ${
+                          isLiftDone
+                            ? 'bg-emerald-500/10 dark:bg-emerald-950/40 border-emerald-500 shadow-xs'
+                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <input
+                                type="checkbox"
+                                checked={isLiftDone}
+                                onChange={() => handleToggleTask('moebellift_buchen', 'Möbellift')}
+                                disabled={isUpdatingTask}
+                                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                              />
+                              <div>
+                                <span className={`text-xs font-bold block ${isLiftDone ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-900 dark:text-white'}`}>
+                                  Möbellift disponieren {isLiftDone && '✓'}
+                                </span>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                                  {resolvedLiftLoc === 'b' ? (
                                     <>
                                       <HomeIcon className="w-3 h-3" />
                                       <span>Einzugsort (B)</span>
-                                    </>
-                                  ) : resolvedHvzLoc === 'both' ? (
-                                    <>
-                                      <ArrowPathIcon className="w-3 h-3" />
-                                      <span>Beide Orte (A & B)</span>
                                     </>
                                   ) : (
                                     <>
@@ -1273,120 +1424,69 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                                 </span>
                               </div>
                             </div>
-                          </div>
 
-                          <button
-                            onClick={() => handleOpenSchedule({ id: 'halteverbot', kanbanCategory: 'halteverbot', name: 'Halteverbot' })}
-                            className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-                          >
-                            <CalendarDaysIcon className="w-3.5 h-3.5" />
-                            <span>Termin planen</span>
-                          </button>
-                        </div>
-
-                        {/* Address & Navigation */}
-                        <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 text-xs flex items-center justify-between gap-2">
-                          <span className="text-[11px] text-slate-600 dark:text-slate-300 truncate flex items-center gap-1">
-                            <MapPinIcon className="w-3.5 h-3.5 text-primary shrink-0" />
-                            <span className="truncate">{resolvedHvzLoc === 'b' ? (addressB || 'Einzugsadresse') : (addressA || 'Auszugsadresse')}</span>
-                          </span>
-                          <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(resolvedHvzLoc === 'b' ? addressB : addressA)}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-primary hover:text-white text-slate-700 dark:text-slate-300 text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors"
-                            title="In Google Maps öffnen"
-                          >
-                            <MapPinIcon className="w-3 h-3" />
-                            <span>Maps</span>
-                          </a>
-                        </div>
-
-                        <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-700">
-                          <span>
-                            Aufbau: {formatScheduleDate(order.orderMeta?.halteverbotDate || order.logistics?.hvzDate, order.orderMeta?.halteverbotTime || order.logistics?.hvzTime) || 'Noch nicht terminiert'}
-                          </span>
-                          {(order.orderMeta?.halteverbotDate || order.logistics?.hvzDate) && (
                             <button
-                              onClick={() => {
-                                const date = formatScheduleDate(order.orderMeta?.halteverbotDate || order.logistics?.hvzDate, order.orderMeta?.halteverbotTime || order.logistics?.hvzTime);
-                                handleDirectWhatsApp(`Guten Tag, die Halteverbotszone für Ihren Umzug wird am ${date} vorschriftsmäßig aufgestellt.`);
-                              }}
-                              className="text-emerald-600 hover:underline flex items-center gap-1 font-bold"
-                              title="WhatsApp Nachricht senden"
+                              onClick={() => handleOpenSchedule({ id: 'moebellift_buchen', kanbanCategory: 'moebellift', name: 'Möbellift' })}
+                              className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
                             >
-                              <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
-                              <span>WhatsApp</span>
+                              <CalendarDaysIcon className="w-3.5 h-3.5" />
+                              <span>Termin planen</span>
                             </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Task: Möbellift */}
-                  {(() => {
-                    const resolvedLiftLoc = order.orderMeta?.moebelliftLocation || order.logistics?.moebelliftLocation || (order.logistics?.b_furnitureLift && !order.logistics?.a_furnitureLift ? 'b' : 'a');
-                    return (
-                      <div className={`p-3.5 rounded-xl border-2 transition-all flex flex-col gap-2.5 ${
-                        isLiftDone
-                          ? 'bg-emerald-500/10 dark:bg-emerald-950/40 border-emerald-500 shadow-xs'
-                          : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
-                      }`}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2.5">
-                            <input
-                              type="checkbox"
-                              checked={isLiftDone}
-                              onChange={() => handleToggleTask('moebellift_buchen', 'Möbellift')}
-                              disabled={isUpdatingTask}
-                              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                            />
-                            <div>
-                              <span className={`text-xs font-bold block ${isLiftDone ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-900 dark:text-white'}`}>
-                                Möbellift disponieren {isLiftDone && '✓'}
-                              </span>
-                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                                {resolvedLiftLoc === 'b' ? (
-                                  <>
-                                    <HomeIcon className="w-3 h-3" />
-                                    <span>Einzugsort (B)</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <BuildingOfficeIcon className="w-3 h-3" />
-                                    <span>Auszugsort (A)</span>
-                                  </>
-                                )}
-                              </span>
-                            </div>
                           </div>
 
-                          <button
-                            onClick={() => handleOpenSchedule({ id: 'moebellift_buchen', kanbanCategory: 'moebellift', name: 'Möbellift' })}
-                            className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-                          >
-                            <CalendarDaysIcon className="w-3.5 h-3.5" />
-                            <span>Termin planen</span>
-                          </button>
+                          <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-slate-700">
+                            <span>
+                              {order.orderMeta?.moebelliftDate ? (
+                                <>
+                                  Geplant: <strong className="text-slate-900 dark:text-white">{formatScheduleDate(order.orderMeta.moebelliftDate)}</strong>
+                                  {order.orderMeta?.moebelliftTime && ` • ${order.orderMeta.moebelliftTime} - ${order.orderMeta.moebelliftEndTime || ''} Uhr (${order.orderMeta.moebelliftDuration || '3'} Std.)`}
+                                </>
+                              ) : (
+                                'Termin noch nicht festgelegt'
+                              )}
+                            </span>
+                          </div>
                         </div>
+                      );
+                    })()}
+                  </div>
+                )}
 
-                        <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-slate-700">
-                          <span>
-                            {order.orderMeta?.moebelliftDate ? (
-                              <>
-                                Geplant: <strong className="text-slate-900 dark:text-white">{formatScheduleDate(order.orderMeta.moebelliftDate)}</strong>
-                                {order.orderMeta?.moebelliftTime && ` • ${order.orderMeta.moebelliftTime} - ${order.orderMeta.moebelliftEndTime || ''} Uhr (${order.orderMeta.moebelliftDuration || '3'} Std.)`}
-                              </>
-                            ) : (
-                              'Bedarfsprüfung ausstehend'
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
+                {/* Direct jump to Offer Editor Step 3 (Leistungen) to add unbooked services into the Angebot */}
+                {(!showKartons || !showHvz || !showLift) && (
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">
+                      Im Angebot ergänzen (Schritt 3):
+                    </span>
+                    {!showKartons && (
+                      <Link
+                        href={`${editOrderUrl}${editOrderUrl.includes('?') ? '&' : '?'}step=3&unlock=true&q=Karton`}
+                        className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-primary/10 hover:text-primary text-slate-600 dark:text-slate-300 text-[11px] font-bold transition-colors flex items-center gap-1"
+                        title="Öffnet das Angebot direkt bei '3. Leistungen', um Kartons inkl. Anzahl & Preis hinzuzufügen"
+                      >
+                        <span>+ Kartons liefern</span>
+                      </Link>
+                    )}
+                    {!showHvz && (
+                      <Link
+                        href={`${editOrderUrl}${editOrderUrl.includes('?') ? '&' : '?'}step=3&unlock=true&q=Halteverbot`}
+                        className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-primary/10 hover:text-primary text-slate-600 dark:text-slate-300 text-[11px] font-bold transition-colors flex items-center gap-1"
+                        title="Öffnet das Angebot direkt bei '3. Leistungen', um eine Halteverbotszone hinzuzufügen"
+                      >
+                        <span>+ Halteverbotszone</span>
+                      </Link>
+                    )}
+                    {!showLift && (
+                      <Link
+                        href={`${editOrderUrl}${editOrderUrl.includes('?') ? '&' : '?'}step=3&unlock=true&q=Möbellift`}
+                        className="px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-primary/10 hover:text-primary text-slate-600 dark:text-slate-300 text-[11px] font-bold transition-colors flex items-center gap-1"
+                        title="Öffnet das Angebot direkt bei '3. Leistungen', um einen Möbellift hinzuzufügen"
+                      >
+                        <span>+ Möbellift</span>
+                      </Link>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Vorlagen Quick Actions for Phase 3 */}
@@ -1436,14 +1536,34 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           {/* ========================================================================= */}
           {activePhaseTab === 4 && (
             <div className="space-y-6">
-              <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-900/40">
-                <h3 className="text-sm font-bold text-emerald-900 dark:text-emerald-300 font-headline mb-1">
-                  Phase 4: Durchführung & Abschluss
-                </h3>
-                <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                  Umzug erfolgreich durchgeführt! Unterzeichne das Abnahmeprotokoll, erstelle die Rechnung und bitte um eine Kundenbewertung.
-                </p>
-              </div>
+              {(() => {
+                const isPhase4Reached = Boolean(
+                  currentOrderPhase >= 4 ||
+                  (order.protocols && order.protocols.length > 0) ||
+                  order.signatureProtocol ||
+                  activeInvNum ||
+                  latestCancelledInvNum
+                );
+                return isPhase4Reached ? (
+                  <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-900/40">
+                    <h3 className="text-sm font-bold text-emerald-900 dark:text-emerald-300 font-headline mb-1">
+                      Phase 4: Durchführung & Abschluss
+                    </h3>
+                    <p className="text-xs text-emerald-700 dark:text-emerald-400">
+                      Umzug erfolgreich durchgeführt! Unterzeichne das Abnahmeprotokoll, erstelle die Rechnung und bitte um eine Kundenbewertung.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-2xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 font-headline mb-1">
+                      Phase 4: Durchführung & Abrechnung (Am Umzugstag)
+                    </h3>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                      Dieser Auftrag befindet sich aktuell in Phase {currentOrderPhase}. Am Umzugstag kannst du hier das digitale Abnahmeprotokoll unterschreiben lassen und anschließend die Schlussrechnung erstellen.
+                    </p>
+                  </div>
+                );
+              })()}
 
               {/* Action Buttons: Protocol & Invoice */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1480,7 +1600,13 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                     receipt_long
                   </span>
                   <span className="text-xs font-bold flex items-center gap-1.5">
-                    <span>{order.invoiceNumber ? `Rechnung (${order.invoiceNumber}) bearbeiten` : 'Rechnung erstellen'}</span>
+                    <span>
+                      {activeInvNum
+                        ? `Rechnung (${activeInvNum}) ansehen`
+                        : latestCancelledInvNum
+                          ? `Korrekturrechnung erstellen (Storno: ${latestCancelledInvNum})`
+                          : 'Rechnung erstellen'}
+                    </span>
                     {!isReadyForInvoice && (
                       <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300">
                         Vorzeitig
@@ -1612,16 +1738,26 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
               </div>
               <div>
                 <h3 className="text-base font-bold font-headline text-slate-900 dark:text-white">
-                  Rechnung vorzeitig erstellen?
+                  {isMoveDateInFuture
+                    ? 'Umzugstermin liegt noch in der Zukunft!'
+                    : 'Auftrag vorzeitig abschließen & abrechnen?'}
                 </h3>
                 <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
-                  Möchten Sie wirklich eine Rechnung erstellen, obwohl der Vertrag bzw. die vorherigen Aufgaben noch nicht vollständig abgeschlossen sind?
+                  {isMoveDateInFuture
+                    ? `Achtung: Der Umzugstermin (${evaluation.movingDateDisplay}) hat noch nicht stattgefunden. Wenn Sie jetzt die Rechnung erstellen, wird dieser Auftrag abgeschlossen. Möchten Sie den Auftrag für diesen Kunden trotzdem jetzt abschließen?`
+                    : 'Der Umzug bzw. die vorherigen Aufgaben sind noch nicht vollständig als erledigt markiert. Möchten Sie den Auftrag trotzdem jetzt abschließen und abrechnen?'}
                 </p>
               </div>
             </div>
 
             <div className="p-3 rounded-2xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 space-y-1.5 text-xs">
-              <p className="font-bold text-amber-900 dark:text-amber-300">Noch offene Punkte:</p>
+              <p className="font-bold text-amber-900 dark:text-amber-300">Wichtige Hinweise:</p>
+              {isMoveDateInFuture && (
+                <p className="text-red-700 dark:text-red-400 font-bold flex items-center gap-1.5">
+                  <span>•</span>
+                  <span>Der geplante Umzugstermin ({evaluation.movingDateDisplay}) hat noch nicht stattgefunden!</span>
+                </p>
+              )}
               {!isContractSigned && (
                 <p className="text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
                   <span>•</span>
@@ -1658,7 +1794,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                 }}
                 className="px-4 py-2.5 rounded-xl bg-[#D91E2A] hover:bg-[#b51822] text-white text-xs font-bold shadow-md transition-colors cursor-pointer"
               >
-                Trotzdem Rechnung erstellen
+                Trotzdem abschließen & zur Rechnung
               </button>
             </div>
           </div>

@@ -21,7 +21,24 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.5.0 (Current) – Stability, Claims-to-Finance Integration & Automated State Machine
+### Version 2.6.0 (Current) – Wizard Flexibility, Empty Offer Guard & Network/Login Hardening
+*   **Empty Offer Guard & Visual PDF Status (`CustomerPremiumProfile.tsx` & `OrderDetailsDrawer.tsx`)**:
+    *   PDF preview buttons (`Angebot PDF` & `PDF`) automatically display in muted gray with an explicit `0 €` badge if the offer has no services or its price is `0,00 €`.
+    *   Clicking an empty offer triggers an informative confirmation modal with 1-click jump to the editor (`Leistungen im Editor bearbeiten`) or explicit bypass (`Trotzdem PDF ansehen`), preventing unintentional transmission of empty 0€ quotes.
+*   **Flexible 5-Step Order Wizard (`OrderEditor.tsx`)**:
+    *   Disponents can freely jump to Step 3 (`Leistungen`) and Step 4 (`Inventar`) as soon as the customer's `Nachname` is entered, without being blocked by empty Step 2 (`Logistik`) address fields.
+    *   Step 3 and Step 5 provide visual indicators and modal confirmations when saving offers with 0 services.
+*   **Login Hardening & Brute-Force Rate Limiting (`page.tsx`)**:
+    *   5 failed login attempts trigger an automatic 10-minute security lockout.
+    *   Persistent countdown timer across page reloads via `localStorage` with bilingual alerts (German/Arabic).
+*   **Network Watchdog & Database Timeout Guard (`NetworkMonitor.tsx` & `networkWatchdog.ts`)**:
+    *   Real-time detection of connectivity drops and database request stalls.
+    *   Data loss prevention on accidental page refresh during offline state (`beforeunload` listener).
+*   **Production Deployment Cleanup**:
+    *   Removed obsolete debug scripts, unused mockups, and ghost route handlers.
+    *   Added standard `firestore.indexes.json`, `firebase.json`, `vercel.json`, and Next.js `global-error.tsx`.
+
+### Version 2.5.0 – Stability, Claims-to-Finance Integration & Automated State Machine
 *   **Claims & Invoicing Integration (`SettleClaimModal`)**:
     *   Direct settlement of customer complaints and damages against open invoices.
     *   Two compliant settlement paths:

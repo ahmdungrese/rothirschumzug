@@ -27,6 +27,7 @@ export default function CustomerProfilePage() {
   const customerId = params.id as string;
   const action = searchParams?.get('action');
   const actionOrderId = searchParams?.get('orderId');
+  const queryPdfType = searchParams?.get('pdfType');
 
   const [customer, setCustomer] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
@@ -70,8 +71,42 @@ export default function CustomerProfilePage() {
 
     const qInvoices = query(collection(db, 'invoices'), where('customerId', '==', customerId));
     const unsubInvoices = onSnapshot(qInvoices, (snap) => {
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      setFreeInvoices(list);
+      const rawList: any[] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const byId = new Map<string, any>();
+      const byNum = new Map<string, any>();
+      rawList.forEach(inv => {
+        byId.set(inv.id, inv);
+        if (inv.invoiceNumber && !inv.isStorno) {
+          byNum.set(inv.invoiceNumber, inv);
+        }
+      });
+
+      const seenStorno = new Set<string>();
+      const deduped = rawList
+        .filter(inv => {
+          if (inv.isStorno || String(inv.invoiceNumber || '').startsWith('ST-')) {
+            const key = inv.invoiceNumber || inv.id;
+            if (seenStorno.has(key)) return false;
+            seenStorno.add(key);
+          }
+          return true;
+        })
+        .map(inv => {
+          if (!inv.isStorno) return inv;
+          const orig = (inv.originalInvoiceId ? byId.get(inv.originalInvoiceId) : null) ||
+            (inv.cancelsInvoiceNumber ? byNum.get(inv.cancelsInvoiceNumber) : null);
+          if (!orig) return inv;
+          return {
+            ...inv,
+            sourceOrderId: inv.sourceOrderId || orig.sourceOrderId,
+            totals: inv.totals || orig.totals || orig.calcInput,
+            calcInput: inv.calcInput || orig.calcInput,
+            logistics: inv.logistics || orig.logistics,
+            customerData: inv.customerData || orig.customerData
+          };
+        });
+
+      setFreeInvoices(deduped);
     });
 
     return () => {
@@ -92,8 +127,16 @@ export default function CustomerProfilePage() {
           setProtocolOrder(target);
         }
       }
+    } else if (queryPdfType && actionOrderId && (orders.length > 0 || freeInvoices.length > 0)) {
+      const targetInv = freeInvoices.find(inv => inv.id === actionOrderId);
+      const targetOrd = orders.find(o => o.id === actionOrderId);
+      const target = targetInv || targetOrd;
+      if (target) {
+        setPdfType(queryPdfType);
+        setPdfModalOrder(target);
+      }
     }
-  }, [action, actionOrderId, orders]);
+  }, [action, actionOrderId, queryPdfType, orders, freeInvoices]);
 
   const handleSaveCustomer = async (e: React.FormEvent) => {
     e.preventDefault();

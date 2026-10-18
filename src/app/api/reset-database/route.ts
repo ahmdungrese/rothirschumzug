@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, adminStorage, adminFieldValue } from '@/lib/firebaseAdmin';
 
 const COLLECTIONS_TO_DELETE = [
-  'orders', 'invoices', 'customers', 'activity_logs'
+  'orders',
+  'invoices',
+  'customers',
+  'claims',
+  'time_entries',
+  'services',
+  'activity_logs'
 ];
 
 // Hilfsfunktion: Überprüft das Auth-Token und die Admin-Rolle
@@ -89,7 +95,7 @@ export async function POST(req: NextRequest) {
 
       // 2. Storage Dateien löschen
       const prefixes = [
-        'orders/', 'invoices/', 'customers/'
+        'orders/', 'invoices/', 'customers/', 'claims/'
       ];
       let totalFiles = 0;
       for (const prefix of prefixes) {
