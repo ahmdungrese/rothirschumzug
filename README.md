@@ -25,6 +25,12 @@ A modern, high-performance ERP and logistics management application purpose-buil
   * Standalone material sales & free invoices.
 * **Integrated Claims & Damage Management (`v2.5.0`)**:
   * Automated settlement against open invoices via tax-compliant damage offsetting (`schaden_verrechnung`) or service deduction (`service_deduction`).
+* **Cockpit Financial Integrity, DST Calendar Math & Logistics Engine (`v2.7.0`)**:
+  * Daylight Saving Time (DST) immunity using pure UTC calendar math (`Date.UTC`), preventing 1-hour shifts from skewing countdown calculations.
+  * Real-time financial balance synchronization (`calculateOpenAmount`), auto-completing paid invoices and eliminating "Zahlung erfassen" on settled orders.
+  * 100% Phase 4 progress bar alignment upon order completion and payment settlement.
+  * Strict accounting segregation: GoBD Storno workflows isolated in the Customer Profile (`Kundenakte`), keeping the operational Cockpit lightweight and fast.
+  * Enhanced 5-Step Wizard ergonomics with direct numeric quantity inputs, clean price fields, modal-aware bottom navigation, and native in-app confirmation dialogs.
 
 ---
 
