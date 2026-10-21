@@ -126,7 +126,7 @@ export const ProtocolPDF = ({
   return (
     <Document title={docTitle}>
       <Page size="A4" style={styles.page}>
-        <PDFWatermark type="single_logo" />
+        <PDFWatermark pageVariant="page1" />
         <PDFHeader settings={settings} docTitle="Arbeitsprotokoll & Dokumentation" />
         <PDFFooter settings={settings} />
 

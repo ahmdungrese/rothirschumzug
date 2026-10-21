@@ -123,23 +123,25 @@ const styles = StyleSheet.create({
   },
   
   // Table Columns
-  colPos: { width: '8%', textAlign: 'center' },
-  colDesc: { width: '47%', paddingRight: 6 },
-  colDescFlat: { width: '70%', paddingRight: 6 },
-  colQty: { width: '15%', textAlign: 'center' },
-  colQtyFlat: { width: '22%', textAlign: 'center' },
-  colPrice: { width: '15%', textAlign: 'right' },
-  colTotal: { width: '15%', textAlign: 'right' },
+  colPos: { width: '7%', textAlign: 'center', paddingTop: 1, fontFamily: 'Helvetica-Bold', color: '#8F1627' },
+  colDesc: { width: '49%', paddingRight: 8 },
+  colDescFlat: { width: '71%', paddingRight: 8 },
+  colQty: { width: '14%', textAlign: 'center', paddingTop: 1 },
+  colQtyFlat: { width: '22%', textAlign: 'center', paddingTop: 1 },
+  colPrice: { width: '15%', textAlign: 'right', paddingTop: 1 },
+  colTotal: { width: '15%', textAlign: 'right', paddingTop: 1, fontFamily: 'Helvetica-Bold', color: '#0f172a' },
   
   itemName: {
-    fontSize: 9,
+    fontSize: 9.5,
     fontFamily: 'Helvetica-Bold',
-    color: PDF_COLORS.textMain,
+    color: '#0f172a',
+    lineHeight: 1.25,
   },
   itemNote: {
-    fontSize: 7.5,
-    color: PDF_COLORS.textMuted,
-    marginTop: 1.5,
+    fontSize: 8,
+    color: '#475569',
+    marginTop: 2.5,
+    lineHeight: 1.35,
   },
   
   textBlock: {
@@ -283,7 +285,7 @@ export const OrderPDF = ({
       {/* PAGE 1: Header, Route Details (BEFORE Table), Services & Pricing Summary  */}
       {/* ───────────────────────────────────────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
-        <PDFWatermark type="single_logo" y={480} />
+        <PDFWatermark pageVariant="page1" />
         <PDFHeader settings={settings} docTitle={docTypeTitle} />
         <PDFFooter settings={settings} />
 
@@ -415,7 +417,7 @@ export const OrderPDF = ({
         <View style={styles.table}>
           <View style={styles.tableHeader} fixed>
             <Text style={styles.colPos}>Pos.</Text>
-            <Text style={isFlat ? styles.colDescFlat : styles.colDesc}>Bezeichnung / Leistung</Text>
+            <Text style={isFlat ? styles.colDescFlat : styles.colDesc}>Bezeichnung & Leistungsumfang</Text>
             <Text style={isFlat ? styles.colQtyFlat : styles.colQty}>{isFlat ? 'Umfang' : 'Menge'}</Text>
             {!isFlat && (
               <>
@@ -435,6 +437,13 @@ export const OrderPDF = ({
                 <View style={isFlat ? styles.colDescFlat : styles.colDesc}>
                   <Text style={styles.itemName}>{item.name}</Text>
                   {item.note ? <Text style={styles.itemNote}>{item.note}</Text> : null}
+                  {item.location && item.location !== 'both' && (
+                    <View style={{ marginTop: 2, flexDirection: 'row' }}>
+                      <Text style={{ fontSize: 7, fontFamily: 'Helvetica-Bold', color: '#8F1627', backgroundColor: '#fdf2f4', paddingHorizontal: 3, paddingVertical: 1, borderRadius: 2 }}>
+                        Ort: {item.location === 'a' ? 'A (Beladung)' : 'B (Entladung)'}
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 <Text style={isFlat ? styles.colQtyFlat : styles.colQty}>
                   {isFlat
@@ -481,7 +490,7 @@ export const OrderPDF = ({
       {/* PAGE 2: Terms, Insurance, Payment Conditions & Customer Signature          */}
       {/* ───────────────────────────────────────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
-        <PDFWatermark type="single_logo" />
+        <PDFWatermark pageVariant="page2" />
         <PDFHeader settings={settings} minimal docTitle={isContract ? 'Auftragsdetails & Bestätigung' : 'Angebotsdetails & Bestätigung'} />
         <PDFFooter settings={settings} />
 
@@ -534,7 +543,7 @@ export const OrderPDF = ({
       {/* PAGE 3: Allgemeine Geschäftsbedingungen (AGB)                             */}
       {/* ───────────────────────────────────────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
-        <PDFWatermark type="text" text={settings?.companyName || 'Rothirsch Umzug'} />
+        <PDFWatermark pageVariant="agb" />
         <PDFHeader settings={settings} minimal docTitle="Allgemeine Geschäftsbedingungen" />
         <PDFFooter settings={settings} />
 
@@ -573,7 +582,7 @@ export const OrderPDF = ({
       {/* ───────────────────────────────────────────────────────────────────────── */}
       {order?.appendInventoryToPDF && order?.inventory?.length > 0 && (
         <Page size="A4" style={styles.page}>
-          <PDFWatermark type="single_logo" />
+          <PDFWatermark pageVariant="dense" />
           <PDFHeader settings={settings} minimal docTitle="Anlage: Umzugsgut / Inventarliste" />
           <PDFFooter settings={settings} />
 

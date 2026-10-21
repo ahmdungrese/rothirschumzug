@@ -196,34 +196,36 @@ const styles = StyleSheet.create({
   },
   
   // Table Columns
-  colPos: { width: '8%', textAlign: 'center', fontSize: 8, color: PDF_COLORS.textMuted },
+  colPos: { width: '7%', textAlign: 'center', fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#8F1627', paddingTop: 1 },
   colPosComfort: { fontSize: 8.5 },
-  colDesc: { width: '47%', paddingRight: 6 },
-  colDescFlat: { width: '70%', paddingRight: 6 },
-  colQty: { width: '15%', textAlign: 'center', fontSize: 8 },
+  colDesc: { width: '49%', paddingRight: 8 },
+  colDescFlat: { width: '71%', paddingRight: 8 },
+  colQty: { width: '14%', textAlign: 'center', fontSize: 8, paddingTop: 1 },
   colQtyComfort: { fontSize: 8.5 },
-  colQtyFlat: { width: '22%', textAlign: 'center', fontSize: 8 },
+  colQtyFlat: { width: '22%', textAlign: 'center', fontSize: 8, paddingTop: 1 },
   colQtyFlatComfort: { fontSize: 8.5 },
-  colPrice: { width: '15%', textAlign: 'right', fontSize: 8 },
+  colPrice: { width: '15%', textAlign: 'right', fontSize: 8, paddingTop: 1 },
   colPriceComfort: { fontSize: 8.5 },
-  colTotal: { width: '15%', textAlign: 'right', fontSize: 8 },
-  colTotalComfort: { fontSize: 8.5 },
+  colTotal: { width: '15%', textAlign: 'right', fontSize: 8.5, fontFamily: 'Helvetica-Bold', color: '#0f172a', paddingTop: 1 },
+  colTotalComfort: { fontSize: 9 },
   
   itemName: {
-    fontSize: 8.5,
+    fontSize: 9,
     fontFamily: 'Helvetica-Bold',
-    color: PDF_COLORS.textMain,
+    color: '#0f172a',
+    lineHeight: 1.25,
   },
   itemNameComfort: {
-    fontSize: 9,
+    fontSize: 9.5,
   },
   itemNote: {
-    fontSize: 7,
-    color: PDF_COLORS.textMuted,
-    marginTop: 1,
+    fontSize: 7.8,
+    color: '#475569',
+    marginTop: 2,
+    lineHeight: 1.35,
   },
   itemNoteComfort: {
-    fontSize: 7.5,
+    fontSize: 8,
   },
   
   // Side-by-Side Finance & Payment Row (Compact Mode)
@@ -409,7 +411,7 @@ export const InvoicePDF = ({
   return (
     <Document title={docTitle}>
       <Page size="A4" style={isCompact ? styles.page : [styles.page, styles.pageComfort]}>
-        <PDFWatermark type="single_logo" />
+        <PDFWatermark pageVariant="page1" />
         <PDFHeader settings={settings} docTitle={isStorno ? 'Stornorechnung' : (isKorrektur ? 'Korrekturrechnung' : 'Rechnung')} />
         <PDFFooter settings={settings} />
 
@@ -517,7 +519,7 @@ export const InvoicePDF = ({
         <View style={isCompact ? styles.table : [styles.table, styles.tableComfort]}>
           <View style={isCompact ? styles.tableHeader : [styles.tableHeader, styles.tableHeaderComfort]} fixed>
             <Text style={isCompact ? styles.colPos : [styles.colPos, styles.colPosComfort]}>Pos.</Text>
-            <Text style={isFlat ? styles.colDescFlat : styles.colDesc}>Leistungsbeschreibung</Text>
+            <Text style={isFlat ? styles.colDescFlat : styles.colDesc}>Bezeichnung & Leistungsumfang</Text>
             <Text style={isCompact ? (isFlat ? styles.colQtyFlat : styles.colQty) : [isFlat ? styles.colQtyFlat : styles.colQty, isFlat ? styles.colQtyFlatComfort : styles.colQtyComfort]}>{isFlat ? 'Umfang' : 'Menge'}</Text>
             {!isFlat && (
               <>
@@ -539,6 +541,13 @@ export const InvoicePDF = ({
                   <View style={isFlat ? styles.colDescFlat : styles.colDesc}>
                     <Text style={isCompact ? styles.itemName : [styles.itemName, styles.itemNameComfort]}>{item.name}</Text>
                     {item.note ? <Text style={isCompact ? styles.itemNote : [styles.itemNote, styles.itemNoteComfort]}>{item.note}</Text> : null}
+                    {item.location && item.location !== 'both' && (
+                      <View style={{ marginTop: 2, flexDirection: 'row' }}>
+                        <Text style={{ fontSize: 6.8, fontFamily: 'Helvetica-Bold', color: '#8F1627', backgroundColor: '#fdf2f4', paddingHorizontal: 3, paddingVertical: 1, borderRadius: 2 }}>
+                          Ort: {item.location === 'a' ? 'A (Beladung)' : 'B (Entladung)'}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                   <Text style={isCompact ? (isFlat ? styles.colQtyFlat : styles.colQty) : [isFlat ? styles.colQtyFlat : styles.colQty, isFlat ? styles.colQtyFlatComfort : styles.colQtyComfort]}>
                     {isFlat

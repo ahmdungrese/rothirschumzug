@@ -41,7 +41,7 @@ export const pdfCommonStyles = StyleSheet.create({
   table: {
     width: '100%',
     marginBottom: 14,
-    backgroundColor: 'transparent',
+    backgroundColor: '#ffffff',
     position: 'relative',
   },
   tableHeader: {
@@ -52,18 +52,19 @@ export const pdfCommonStyles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: PDF_COLORS.border,
     paddingVertical: 6,
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     fontFamily: 'Helvetica-Bold',
     fontSize: 8.5,
-    color: PDF_COLORS.textMain,
+    color: '#0f172a',
   },
   tableRow: {
     flexDirection: 'row',
     borderBottomWidth: 1,
     borderBottomColor: PDF_COLORS.border,
-    paddingVertical: 5,
-    paddingHorizontal: 6,
-    alignItems: 'center',
+    paddingVertical: 5.5,
+    paddingHorizontal: 8,
+    alignItems: 'flex-start',
+    backgroundColor: '#ffffff',
   },
   
   // Totals Section

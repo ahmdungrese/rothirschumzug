@@ -34,23 +34,31 @@ export function PdfModal({ order, customer, type, onClose, forceLiveQuote = fals
   return (
     <div className="fixed inset-0 z-[100] flex flex-col bg-bg-dark/95 backdrop-blur-sm animate-in fade-in duration-200">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-structure bg-bg-panel shadow-md shrink-0">
-        <h2 className="text-xl font-bold text-text-main flex items-center gap-3">
-          Dokumenten Ansicht
-          <span className="text-sm font-normal text-text-muted bg-white/5 px-2 py-1 rounded">
-            {type === 'invoice' ? 'Rechnung' : type === 'protocol' ? 'Protokoll' : 'Angebot/Auftrag'}
+      <div className="flex items-center justify-between p-3 sm:p-4 border-b border-structure bg-bg-panel shadow-md shrink-0">
+        <h2 className="text-base sm:text-xl font-bold text-text-main flex items-center gap-2 sm:gap-3">
+          Dokumenten-Vorschau
+          <span className="text-xs font-normal text-text-muted bg-white/5 px-2 py-0.5 rounded">
+            {type === 'invoice' ? 'Rechnung' : type === 'protocol' ? 'Protokoll' : type === 'employee' ? 'Laufzettel' : 'Angebot/Auftrag'}
           </span>
         </h2>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Open in new tab (desktop & tablet) */}
           <PDFDownloadButton 
             order={order} 
             customer={customer} 
             type={type} 
-            className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md hover:bg-primary/90 transition-colors" 
+            openInNewTab={true}
+            className="hidden sm:flex items-center gap-1.5 bg-white/10 hover:bg-white/15 text-text-main px-3 py-2 rounded-xl text-xs font-semibold border border-structure transition-colors" 
+          />
+          <PDFDownloadButton 
+            order={order} 
+            customer={customer} 
+            type={type} 
+            className="flex items-center gap-1.5 sm:gap-2 bg-primary text-white px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md hover:bg-primary/90 transition-colors cursor-pointer" 
           />
           <button 
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-white/10 text-text-muted hover:text-white transition-colors border border-structure bg-bg-dark"
+            className="p-2 rounded-full hover:bg-white/10 text-text-muted hover:text-white transition-colors border border-structure bg-bg-dark cursor-pointer"
             title="Schließen"
           >
             <XMarkIcon className="w-5 h-5" />
@@ -59,7 +67,7 @@ export function PdfModal({ order, customer, type, onClose, forceLiveQuote = fals
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-4 md:p-8 flex justify-center bg-black/20 custom-scrollbar">
+      <div className="flex-1 overflow-auto p-2 sm:p-4 md:p-8 flex justify-center bg-black/20 custom-scrollbar">
         <div className="w-full h-full flex items-start justify-center pb-12">
           {settings ? (
             <InlinePDFViewer 

@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from 'react';
 import { PDFDownloadLink } from '@react-pdf/renderer';
-import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 import { OrderPDF } from './OrderPDF';
 import { EmployeeSheetPDF } from './EmployeeSheetPDF';
 import { InvoicePDF } from './InvoicePDF';
@@ -10,7 +10,23 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { useAuth } from '@/context/AuthContext';
 
-export default function PDFDownloadButtonWrapper({ order, customer, type = 'order', className = '', iconOnly = false, customIcon = null }: { order: any, customer: any, type?: 'order' | 'employee' | 'invoice' | 'contract' | 'protocol', className?: string, iconOnly?: boolean, customIcon?: React.ReactNode }) {
+export default function PDFDownloadButtonWrapper({ 
+  order, 
+  customer, 
+  type = 'order', 
+  className = '', 
+  iconOnly = false, 
+  customIcon = null,
+  openInNewTab = false
+}: { 
+  order: any, 
+  customer: any, 
+  type?: 'order' | 'employee' | 'invoice' | 'contract' | 'protocol', 
+  className?: string, 
+  iconOnly?: boolean, 
+  customIcon?: React.ReactNode,
+  openInNewTab?: boolean
+}) {
   const [settings, setSettings] = useState<any>(null);
   const { profile } = useAuth();
   
@@ -34,7 +50,14 @@ export default function PDFDownloadButtonWrapper({ order, customer, type = 'orde
     });
   }, []);
 
-  if (!settings) return <button disabled className={`flex items-center justify-center gap-2 opacity-50 ${className}`} title="Lade...">{customIcon || <ArrowDownTrayIcon className="w-4 h-4" />}{!iconOnly && " Lade..."}</button>;
+  if (!settings) {
+    return (
+      <button disabled className={`flex items-center justify-center gap-2 opacity-50 ${className}`} title="Lade...">
+        {customIcon || (openInNewTab ? <ArrowTopRightOnSquareIcon className="w-4 h-4" /> : <ArrowDownTrayIcon className="w-4 h-4" />)}
+        {!iconOnly && " Lade..."}
+      </button>
+    );
+  }
 
   const getDocument = () => {
     if (type === 'employee') return <EmployeeSheetPDF order={order} customer={customer} employeeName={employeeName} settings={settings} />;
@@ -76,6 +99,29 @@ export default function PDFDownloadButtonWrapper({ order, customer, type = 'orde
     if (type === 'protocol') return `Protokoll ${order?.contractNumber || orderNum} - ${suffix}.pdf`;
     return `Angebot ${orderNum} - ${suffix}.pdf`;
   };
+
+  if (openInNewTab) {
+    return (
+      <PDFDownloadLink document={getDocument()} fileName={getFileName()}>
+        {/* @ts-ignore */}
+        {({ url, loading }) => (
+          <a
+            href={url || '#'}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => {
+              if (loading || !url) e.preventDefault();
+            }}
+            className={`flex items-center justify-center gap-1.5 cursor-pointer ${loading ? 'opacity-50 pointer-events-none' : ''} ${className}`}
+            title="In neuem Tab / Vollbild öffnen"
+          >
+            {customIcon || <ArrowTopRightOnSquareIcon className="w-4 h-4" />}
+            {!iconOnly && (loading ? 'Lade...' : 'Neuer Tab')}
+          </a>
+        )}
+      </PDFDownloadLink>
+    );
+  }
 
   return (
     <PDFDownloadLink document={getDocument()} fileName={getFileName()}>
