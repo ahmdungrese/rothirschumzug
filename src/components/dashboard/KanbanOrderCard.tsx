@@ -7,11 +7,12 @@ interface KanbanOrderCardProps {
   order: any;
   customer?: any;
   columnId: 'neu' | 'verhandlung' | 'bestaetigt' | 'abgeschlossen';
+  hasOpenClaim?: boolean;
   onSelect?: (order: any) => void;
   onRefresh?: () => void;
 }
 
-export function KanbanOrderCard({ order, customer, columnId, onSelect }: KanbanOrderCardProps) {
+export function KanbanOrderCard({ order, customer, columnId, hasOpenClaim, onSelect }: KanbanOrderCardProps) {
   const evaluation = evaluateOrderLogistics(order, customer);
   const custName = customer 
     ? `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || customer.company || 'Kunde ohne Name'
@@ -80,18 +81,27 @@ export function KanbanOrderCard({ order, customer, columnId, onSelect }: KanbanO
       statusText = !hasPricedServices ? '0 € / Offen' : 'Angaben fehlen';
     }
   } else if (columnId === 'bestaetigt') {
-    if (evaluation.isComplete) {
+    const isPhase3Ready = hasFromAddr && hasToAddr && hasMoveDate;
+    if (hasOpenClaim) {
+      borderLeftColor = 'border-l-red-500';
+      statusDotColor = 'bg-red-500 animate-pulse';
+      statusText = 'Schaden offen';
+    } else if (isPhase3Ready) {
       borderLeftColor = 'border-l-[#6E8F64]';
       statusDotColor = 'bg-[#6E8F64]';
       statusText = 'Bereit';
     } else {
       borderLeftColor = 'border-l-amber-500';
       statusDotColor = 'bg-amber-500 animate-pulse';
-      statusText = 'Aufgaben offen';
+      statusText = 'Angaben fehlen';
     }
   } else if (columnId === 'abgeschlossen') {
     const hasInvoice = Boolean(order.invoiceNumber || (order.status && order.status.startsWith('invoice_')));
-    if (hasInvoice) {
+    if (hasOpenClaim) {
+      borderLeftColor = 'border-l-red-500';
+      statusDotColor = 'bg-red-500 animate-pulse';
+      statusText = 'Schaden offen';
+    } else if (hasInvoice) {
       borderLeftColor = 'border-l-[#6E8F64]';
       statusDotColor = 'bg-[#6E8F64]';
       statusText = order.status === 'invoice_paid' ? 'Bezahlt ✓' : 'Abgerechnet';

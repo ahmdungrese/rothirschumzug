@@ -93,8 +93,29 @@ export default function SettingsPage() {
           { name: 'Kellerräumung', price: 0, unit: 'Pauschal' },
           { name: 'Garagenräumung', price: 0, unit: 'Pauschal' },
           { name: 'Deckenlampen montieren', price: 0, unit: 'Stk' },
-          { name: 'Einpacken der Möbel mit Decken und Schutzfolien', price: 0, unit: 'Std' },
-          { name: 'Neue Leistung', price: 0, unit: 'Std' }
+          { name: 'Einpacken der Möbel mit Decken und Schutzfolien', price: 0, unit: 'Std' }
+        ]
+      },
+      {
+        category: 'Beladestelle (A)',
+        items: [
+          { name: 'Kartonlieferung vorab', price: 65, unit: 'Pauschal' },
+          { name: 'Möbelabbau', price: 150, unit: 'Pauschal' },
+          { name: 'Abbau von Küche', price: 280, unit: 'Pauschal' },
+          { name: 'Einpackservice', price: 190, unit: 'Pauschal' },
+          { name: 'Halteverbot A', price: 95, unit: 'Zone' },
+          { name: 'Endreinigung', price: 220, unit: 'Pauschal' }
+        ]
+      },
+      {
+        category: 'Entladestelle (B)',
+        items: [
+          { name: 'Möbelaufbau', price: 180, unit: 'Pauschal' },
+          { name: 'Aufbau von Küche', price: 320, unit: 'Pauschal' },
+          { name: 'Auspackservice', price: 160, unit: 'Pauschal' },
+          { name: 'Bohr- & Dübelarb.', price: 90, unit: 'Pauschal' },
+          { name: 'Halteverbot B', price: 95, unit: 'Zone' },
+          { name: 'Müllentsorgung', price: 120, unit: 'Pauschal' }
         ]
       },
       {
@@ -509,6 +530,28 @@ export default function SettingsPage() {
     // Fügt die neue Kategorie GANZ OBEN in die Liste ein, damit man sie sofort sieht
     setSettings({ ...settings, catalog: [{ category: 'Neue Kategorie', items: [] }, ...settings.catalog] });
   };
+
+  if (profile && profile.role !== 'admin') {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-[400px] p-6 text-center">
+        <div className="max-w-md bg-bg-panel border border-structure rounded-3xl p-8 space-y-4 shadow-xl">
+          <div className="w-16 h-16 rounded-2xl bg-rose-500/10 text-rose-500 border border-rose-500/20 flex items-center justify-center mx-auto">
+            <Cog6ToothIcon className="w-8 h-8" />
+          </div>
+          <h2 className="text-lg font-bold text-text-main">Keine Berechtigung / غير مصرح بالدخول</h2>
+          <p className="text-xs text-text-muted leading-relaxed">
+            Dieser Bereich ist ausschließlich für Administratoren zugänglich.
+          </p>
+          <button
+            onClick={() => { window.location.href = '/dashboard'; }}
+            className="btn-primary py-2 px-6 text-xs font-bold"
+          >
+            Zum Dashboard / العودة للرئيسية
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-4 md:space-y-6 pb-20 animate-in fade-in duration-500">

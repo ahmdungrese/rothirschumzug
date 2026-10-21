@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, TruckIcon, MapPinIcon, ExclamationTriangleIcon, StarIcon, BuildingOffice2Icon, HomeIcon, BriefcaseIcon, BuildingLibraryIcon, ArchiveBoxIcon, WrenchIcon, SparklesIcon, PlusCircleIcon, TagIcon, ArrowsUpDownIcon, NoSymbolIcon, ArrowUpTrayIcon, MagnifyingGlassIcon, ShoppingCartIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, TruckIcon, MapPinIcon, ExclamationTriangleIcon, StarIcon, BuildingOffice2Icon, HomeIcon, BriefcaseIcon, BuildingLibraryIcon, ArchiveBoxIcon, WrenchIcon, SparklesIcon, PlusCircleIcon, TagIcon, ArrowsUpDownIcon, NoSymbolIcon, ArrowUpTrayIcon, MagnifyingGlassIcon, ShoppingCartIcon, XMarkIcon, PhotoIcon, CalendarDaysIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 import { useAuth } from '@/context/AuthContext';
 import { logActivity } from '@/lib/activityLogger';
@@ -484,18 +484,46 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const currentStepRef = useRef(currentStep);
   currentStepRef.current = currentStep;
 
+  const scrollToTop = () => {
+    if (typeof window === 'undefined') return;
+    const mainEl = document.querySelector('main');
+    if (mainEl) {
+      mainEl.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+    document.body.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToTop();
+  }, [currentStep]);
+
   const goToStep = (stepNum: number) => {
     setCurrentStep(stepNum);
-    if (typeof window !== 'undefined') {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    scrollToTop();
   };
 
   const handleStepBack = () => {
     if (currentStep > 1) {
       setCurrentStep(prev => Math.max(1, prev - 1));
-      if (typeof window !== 'undefined') {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+      scrollToTop();
+    }
+  };
+
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const isBypassingCancelGuard = useRef(false);
+
+  const executeExit = () => {
+    isBypassingCancelGuard.current = true;
+    setShowCancelModal(false);
+    if (urlCustomerId) {
+      router.push(`/dashboard/customers/${urlCustomerId}`);
+    } else {
+      if (typeof window !== 'undefined' && document.referrer && document.referrer.includes(window.location.origin)) {
+        router.back();
+      } else {
+        router.push('/dashboard');
       }
     }
   };
@@ -510,21 +538,11 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     );
 
     if (isDirty) {
-      const confirmLeave = window.confirm(
-        "Möchten Sie die Bearbeitung wirklich abbrechen? Nicht gespeicherte Änderungen gehen verloren."
-      );
-      if (!confirmLeave) return;
+      setShowCancelModal(true);
+      return;
     }
 
-    if (urlCustomerId) {
-      router.push(`/dashboard/customers/${urlCustomerId}`);
-    } else {
-      if (typeof window !== 'undefined' && document.referrer && document.referrer.includes(window.location.origin)) {
-        router.back();
-      } else {
-        router.push('/dashboard');
-      }
-    }
+    executeExit();
   };
 
   // 1. Kundeninformationen
@@ -634,6 +652,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     if (typeof window === 'undefined') return;
 
     const handlePopState = (e: PopStateEvent) => {
+      if (isBypassingCancelGuard.current) return;
+
       // If modalManager is handling a modal or a silent history rollback, ignore this popstate
       if (modalManager.isHandlingModal()) {
         return;
@@ -650,13 +670,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           servicesRef.current.length > 0
         );
         if (isDirty) {
-          const confirmLeave = window.confirm(
-            "Möchten Sie die Bearbeitung wirklich verlassen? Nicht gespeicherte Änderungen gehen verloren."
-          );
-          if (!confirmLeave) {
-            window.history.pushState({ orderStep: 1 }, '');
-            return;
-          }
+          window.history.pushState({ orderStep: 1 }, '');
+          setShowCancelModal(true);
         }
       }
     };
@@ -749,13 +764,83 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     return DEFAULT_ALLGEMEIN_SERVICES;
   }, [settings?.catalog]);
 
+  const servicesA = useMemo(() => {
+    const fromCatalogA = settings?.catalog?.find((c: any) => {
+      const cat = (c.category || '').trim().toLowerCase();
+      return cat.includes('beladestelle') || cat.includes('auszug') || cat === 'beladung (a)';
+    })?.items;
+
+    if (fromCatalogA && Array.isArray(fromCatalogA) && fromCatalogA.length > 0) {
+      return fromCatalogA.map((item: any, idx: number) => ({
+        id: item.id || `a_${idx}`,
+        name: item.name,
+        price: item.price ?? item.defaultPrice ?? 0,
+        unit: item.unit || 'pauschal',
+        icon: item.icon || getServiceIcon(item.name),
+        defaultDesc: item.description || item.defaultDesc || ''
+      }));
+    }
+
+    return STANDARD_SERVICES_A.map(base => {
+      const match = settings?.catalog?.flatMap((c: any) => c.items || []).find((it: any) => 
+        (it.name || '').trim().toLowerCase() === base.name.toLowerCase()
+      );
+      if (match) {
+        return {
+          ...base,
+          price: match.price !== undefined ? match.price : base.price,
+          unit: match.unit || base.unit,
+          defaultDesc: match.description || match.defaultDesc || base.defaultDesc
+        };
+      }
+      return base;
+    });
+  }, [settings?.catalog]);
+
+  const servicesB = useMemo(() => {
+    const fromCatalogB = settings?.catalog?.find((c: any) => {
+      const cat = (c.category || '').trim().toLowerCase();
+      return cat.includes('entladestelle') || cat.includes('einzug') || cat === 'entladung (b)';
+    })?.items;
+
+    if (fromCatalogB && Array.isArray(fromCatalogB) && fromCatalogB.length > 0) {
+      return fromCatalogB.map((item: any, idx: number) => ({
+        id: item.id || `b_${idx}`,
+        name: item.name,
+        price: item.price ?? item.defaultPrice ?? 0,
+        unit: item.unit || 'pauschal',
+        icon: item.icon || getServiceIcon(item.name),
+        defaultDesc: item.description || item.defaultDesc || ''
+      }));
+    }
+
+    return STANDARD_SERVICES_B.map(base => {
+      const match = settings?.catalog?.flatMap((c: any) => c.items || []).find((it: any) => 
+        (it.name || '').trim().toLowerCase() === base.name.toLowerCase()
+      );
+      if (match) {
+        return {
+          ...base,
+          price: match.price !== undefined ? match.price : base.price,
+          unit: match.unit || base.unit,
+          defaultDesc: match.description || match.defaultDesc || base.defaultDesc
+        };
+      }
+      return base;
+    });
+  }, [settings?.catalog]);
+
   const otherCatalogCategories = useMemo(() => {
     if (!settings?.catalog || !Array.isArray(settings.catalog)) {
       return ['Küchenservice', 'Kartonservice', 'Möbelservice'];
     }
     const cats = settings.catalog
       .map((c: any) => c.category)
-      .filter((c: string) => c && c.trim().toLowerCase() !== 'allgemein');
+      .filter((c: string) => {
+        if (!c) return false;
+        const lower = c.trim().toLowerCase();
+        return lower !== 'allgemein' && !lower.includes('beladestelle') && !lower.includes('entladestelle');
+      });
     return cats.length > 0 ? cats : ['Küchenservice', 'Kartonservice', 'Möbelservice'];
   }, [settings?.catalog]);
 
@@ -774,7 +859,10 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       ];
     }
     return settings.catalog
-      .filter((cat: any) => (cat.category || '').trim().toLowerCase() !== 'allgemein')
+      .filter((cat: any) => {
+        const lower = (cat.category || '').trim().toLowerCase();
+        return lower !== 'allgemein' && !lower.includes('beladestelle') && !lower.includes('entladestelle');
+      })
       .flatMap((cat: any) =>
         (cat.items || []).map((item: any) => ({
           ...item,
@@ -1702,31 +1790,44 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               </div>
             )}
           </div>
-          <div id="highlight-viewingDate" className="rounded-xl transition-all space-y-2">
-            <label className="flex items-center justify-between text-xs text-text-muted mb-1">
-              <span>Besichtigungstermin (Datum & Uhrzeit)</span>
+          <div id="highlight-viewingDate" className="rounded-xl transition-all">
+            <div className="flex items-center justify-between text-xs text-text-muted mb-1">
+              <span>Besichtigungstermin</span>
               {orderMeta.viewingDate !== 'erledigt_fotos' ? (
                 <button
                   type="button"
                   onClick={() => setOrderMeta({ ...orderMeta, viewingDate: 'erledigt_fotos', viewingTime: '' })}
-                  className="text-primary hover:opacity-70 transition-opacity underline text-[11px] font-bold"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#6E8F64]/10 hover:bg-[#6E8F64]/20 text-[#435E3A] dark:text-[#B5D1AC] border border-[#6E8F64]/30 shadow-2xs hover:shadow-xs transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
+                  title="Besichtigung entfällt – wurde bereits per Fotos/Inventarliste geklärt"
                 >
-                  Durch Fotos erledigt
+                  <PhotoIcon className="w-3 h-3 text-[#6E8F64]" />
+                  <span>Durch Fotos</span>
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={() => setOrderMeta({ ...orderMeta, viewingDate: '', viewingTime: '' })}
-                  className="text-text-muted hover:text-primary transition-colors underline text-[11px]"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-bg-panel hover:bg-slate-200 dark:hover:bg-slate-700 text-text-muted hover:text-text-main border border-structure shadow-2xs transition-all cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  Termin wählen
+                  <CalendarDaysIcon className="w-3 h-3 text-primary" />
+                  <span>Termin wählen</span>
                 </button>
               )}
-            </label>
+            </div>
 
             {orderMeta.viewingDate === 'erledigt_fotos' ? (
-              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center justify-between">
-                <span>✓ Erledigt durch Fotos / Inventarliste</span>
+              <div className="p-3 rounded-xl bg-[#6E8F64]/10 border border-[#6E8F64]/25 text-xs font-semibold text-[#435E3A] dark:text-[#B5D1AC] flex items-center justify-between shadow-2xs">
+                <div className="flex items-center gap-2">
+                  <CheckCircleIcon className="w-4 h-4 text-[#6E8F64] shrink-0" />
+                  <span>Besichtigung durch Fotos & Inventarliste erledigt</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setOrderMeta({ ...orderMeta, viewingDate: '', viewingTime: '' })}
+                  className="text-[11px] underline font-bold hover:opacity-80 text-[#435E3A] dark:text-[#B5D1AC] cursor-pointer"
+                >
+                  Ändern
+                </button>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1809,48 +1910,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       {currentStep === 2 && (
         <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
           {/* 2. Adressen (A -> B) */}
-      <div className="flex flex-col gap-4 mb-2">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h2 className="text-xl font-bold text-text-main flex items-center gap-2">Logistik & Route</h2>
-          <div className="flex flex-wrap gap-2">
-            <button 
-              type="button"
-              onClick={handleCalculateRoute}
-              disabled={isCalculatingRoute}
-              className="btn-primary py-1.5 px-3 text-sm flex items-center gap-2 shadow-lg"
-            >
-              <TruckIcon className="w-4 h-4" /> {isCalculatingRoute ? "Berechne..." : "Route direkt berechnen"}
-            </button>
-            <a 
-              href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(`${logistics.a_street || ''} ${logistics.a_houseNr || ''}, ${logistics.a_zip || ''} ${logistics.a_city || ''}`)}&destination=${encodeURIComponent(`${logistics.b_street || ''} ${logistics.b_houseNr || ''}, ${logistics.b_zip || ''} ${logistics.b_city || ''}`)}`}
-              target="_blank" 
-              rel="noreferrer" 
-              className="btn-secondary py-1.5 px-3 text-sm flex items-center gap-2 border-primary/50 text-primary hover:bg-primary/10 shadow-lg"
-              title="Google Maps Routenplanung öffnen"
-            >
-              <MapPinIcon className="w-4 h-4" /> Auf Maps öffnen
-            </a>
-          </div>
-        </div>
-        
-        {/* Direkte Entfernungsberechnung */}
-        {(isCalculatingRoute || routeInfo || routeError) && (
-          <div className={`border rounded-lg p-3 flex items-center justify-between text-sm animate-in fade-in duration-300 ${routeError ? 'bg-red-500/10 border-red-500/30' : 'bg-primary/10 border-primary/30'}`}>
-            <div className="flex items-center gap-3">
-              <TruckIcon className="w-6 h-6 text-text-muted" />
-              <div>
-                <span className="text-text-muted">Direkte Strecke: </span>
-                {isCalculatingRoute ? (
-                  <span className="text-primary font-medium animate-pulse">Berechne Route...</span>
-                ) : routeError ? (
-                  <span className="text-red-400 font-medium">{routeError}</span>
-                ) : routeInfo ? (
-                  <span className="text-primary font-bold">{routeInfo.distanceKm} km <span className="text-text-muted font-normal">(Fahrzeit: ca. {Math.floor(routeInfo.durationMinutes/60)}h {routeInfo.durationMinutes%60}min)</span></span>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        )}
+      <div className="flex flex-col gap-1 mb-2">
+        <h2 className="text-xl font-bold text-text-main flex items-center gap-2">Logistik &amp; Adressen</h2>
+        <p className="text-xs text-text-muted">Geben Sie Auszugs- und Einzugsadresse ein. Die Strecken- und Fahrzeitberechnung erfolgt direkt darunter.</p>
       </div>
 
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -2344,12 +2406,12 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             </div>
           </div>
           
-          <div className="flex flex-wrap items-center gap-3 pt-4 border-t border-structure">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 pt-4 border-t border-structure">
             <button 
               type="button"
               onClick={handleCalculateRoute}
               disabled={isCalculatingRoute}
-              className="py-2.5 px-6 bg-primary text-white text-xs font-bold rounded-full hover:brightness-110 transition-all flex items-center gap-2 shadow-md shadow-primary/20"
+              className="py-2.5 px-6 bg-primary text-white text-xs font-bold rounded-full hover:brightness-110 transition-all flex items-center justify-center gap-2 shadow-md shadow-primary/20 cursor-pointer"
             >
               <span className="material-symbols-outlined text-base">directions_car</span>
               {isCalculatingRoute ? "Berechne Route..." : "Strecke & Fahrzeit berechnen"}
@@ -2358,7 +2420,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               href={`https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(`${logistics.a_street || ''} ${logistics.a_houseNr || ''}, ${logistics.a_zip || ''} ${logistics.a_city || ''}`)}&destination=${encodeURIComponent(`${logistics.b_street || ''} ${logistics.b_houseNr || ''}, ${logistics.b_zip || ''} ${logistics.b_city || ''}`)}`}
               target="_blank" 
               rel="noreferrer" 
-              className="py-2.5 px-6 bg-slate-100 dark:bg-slate-800 text-text-main text-xs font-bold rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center gap-2 border border-structure"
+              className="py-2.5 px-6 bg-slate-100 dark:bg-slate-800 text-text-main text-xs font-bold rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center justify-center gap-2 border border-structure cursor-pointer"
             >
               <span className="material-symbols-outlined text-base">open_in_new</span>
               Auf Google Maps öffnen
@@ -2619,7 +2681,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       </h4>
                     </div>
                     <div className="flex flex-col gap-2">
-                      {STANDARD_SERVICES_A.map((svc) => {
+                      {servicesA.map((svc) => {
                         const isSelected = isStandardServiceSelected(svc.id, svc.name);
                         return (
                           <button
@@ -2636,7 +2698,14 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                               <span className={`material-symbols-outlined text-xl ${isSelected ? 'text-primary' : 'text-text-muted'}`}>
                                 {svc.icon}
                               </span>
-                              <span className="text-xs font-semibold">{svc.name}</span>
+                              <div className="flex flex-col">
+                                <span className="text-xs font-semibold">{svc.name}</span>
+                                {!isFlatRate && svc.price > 0 && (
+                                  <span className="text-[10px] text-text-muted font-normal">
+                                    {svc.price.toFixed(2)} € {svc.unit ? `(${svc.unit})` : ''}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <span className={`material-symbols-outlined text-base ${isSelected ? 'text-primary' : 'text-text-muted/60'}`}>
                               {isSelected ? 'check_circle' : 'add_circle'}
@@ -2658,7 +2727,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       </h4>
                     </div>
                     <div className="flex flex-col gap-2">
-                      {STANDARD_SERVICES_B.map((svc) => {
+                      {servicesB.map((svc) => {
                         const isSelected = isStandardServiceSelected(svc.id, svc.name);
                         return (
                           <button
@@ -2675,7 +2744,14 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                               <span className={`material-symbols-outlined text-xl ${isSelected ? 'text-primary' : 'text-text-muted'}`}>
                                 {svc.icon}
                               </span>
-                              <span className="text-xs font-semibold">{svc.name}</span>
+                              <div className="flex flex-col">
+                                <span className="text-xs font-semibold">{svc.name}</span>
+                                {!isFlatRate && svc.price > 0 && (
+                                  <span className="text-[10px] text-text-muted font-normal">
+                                    {svc.price.toFixed(2)} € {svc.unit ? `(${svc.unit})` : ''}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <span className={`material-symbols-outlined text-base ${isSelected ? 'text-primary' : 'text-text-muted/60'}`}>
                               {isSelected ? 'check_circle' : 'add_circle'}
@@ -2788,7 +2864,18 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                                 >
                                   -
                                 </button>
-                                <span className="font-bold w-6 text-center text-text-main">{svc.quantity}</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={svc.quantity === 0 ? '' : svc.quantity}
+                                  onChange={e => {
+                                    const val = parseInt(e.target.value, 10);
+                                    setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: isNaN(val) ? 0 : Math.max(0, val) } : s));
+                                  }}
+                                  onFocus={e => e.target.select()}
+                                  placeholder="0"
+                                  className="font-bold w-12 text-center text-text-main bg-transparent focus:bg-black/20 rounded focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-xs"
+                                />
                                 <button 
                                   type="button"
                                   onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: s.quantity + 1 } : s))} 
@@ -2806,8 +2893,13 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                                       type="number"
                                       step="0.01"
                                       disabled={!canEditPrices}
-                                      value={svc.unitPrice ?? 0}
-                                      onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, unitPrice: parseFloat(e.target.value) || 0 } : s))}
+                                      value={svc.unitPrice === 0 ? '' : (svc.unitPrice ?? '')}
+                                      onChange={e => {
+                                        const val = parseFloat(e.target.value);
+                                        setServices(prev => prev.map((s, i) => i === idx ? { ...s, unitPrice: isNaN(val) ? 0 : val } : s));
+                                      }}
+                                      onFocus={e => e.target.select()}
+                                      placeholder="0.00"
                                       className="w-16 text-right bg-black/20 border border-structure/50 rounded px-1.5 py-0.5 text-xs font-mono text-text-main focus:outline-none focus:border-primary"
                                       title="Einzelpreis (Netto)"
                                     />
@@ -2858,8 +2950,12 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       <div className="relative">
                         <input 
                           type="number" 
-                          value={flatRateNet} 
-                          onChange={e => setFlatRateNet(parseFloat(e.target.value)||0)} 
+                          value={flatRateNet === 0 ? '' : flatRateNet} 
+                          onChange={e => {
+                            const val = parseFloat(e.target.value);
+                            setFlatRateNet(isNaN(val) ? 0 : val);
+                          }} 
+                          onFocus={e => e.target.select()}
                           disabled={!canEditPrices} 
                           className="input-field w-full text-right font-bold text-base pr-8 py-2" 
                           placeholder="0.00" 
@@ -2996,7 +3092,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                     </div>
                   </div>
 
-                  {/* Button: Detaillierter Assistent */}
+                  {/* Button: Räume jetzt auswählen / Räume anpassen */}
                   <div className="shrink-0">
                     <button
                       type="button"
@@ -3006,8 +3102,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       }}
                       className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-primary text-white font-headline font-bold text-xs uppercase tracking-wider shadow-lg shadow-primary/20 flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition-all cursor-pointer"
                     >
-                      <span className="material-symbols-outlined text-base">tune</span>
-                      <span>Detaillierter Assistent</span>
+                      <span className="material-symbols-outlined text-base">meeting_room</span>
+                      <span>{totalConfiguredRoomsCount > 0 ? 'Räume anpassen' : 'Räume jetzt auswählen'}</span>
                     </button>
                   </div>
                 </div>
@@ -3047,27 +3143,27 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                     </>
                   ) : (
                     <span className="text-xs text-text-muted italic">
-                      Noch keine Räume ausgewählt. Klicken Sie auf <strong>„Detaillierter Assistent“</strong>, um die Zimmer der Auszugsadresse festzulegen.
+                      Noch keine Räume ausgewählt. Klicken Sie auf <strong>„Räume jetzt auswählen“</strong>, um die Zimmer der Auszugsadresse festzulegen.
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Section 2: 2. Raum-Auswahl (Raumauswahl) */}
-              <div className="bg-bg-card rounded-2xl p-5 border border-structure shadow-md">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-headline font-bold text-text-main flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary">door_front</span>
-                    2. Raum-Auswahl
-                  </h3>
-                  {selectedRoomTab && (
-                    <span className="text-xs text-text-muted">
-                      Ausgewählt: <strong className="text-primary">{selectedRoomTab}</strong>
-                    </span>
-                  )}
-                </div>
+              {/* Section 2: 2. Raum-Auswahl (erscheint erst als 2. Schritt nach Auswahl der Räume) */}
+              {availableRoomTabs.length > 0 && (
+                <div className="bg-bg-card rounded-2xl p-5 border border-structure shadow-md animate-fadeIn">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-headline font-bold text-text-main flex items-center gap-2">
+                      <span className="material-symbols-outlined text-primary">door_front</span>
+                      2. Raum-Auswahl
+                    </h3>
+                    {selectedRoomTab && (
+                      <span className="text-xs text-text-muted">
+                        Ausgewählt: <strong className="text-primary">{selectedRoomTab}</strong>
+                      </span>
+                    )}
+                  </div>
 
-                {availableRoomTabs.length > 0 ? (
                   <div className="flex gap-2.5 overflow-x-auto pb-2 custom-scrollbar">
                     {availableRoomTabs.map((room: any) => {
                       const isSelected = selectedRoomTab.toLowerCase() === room.name.toLowerCase();
@@ -3096,27 +3192,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       );
                     })}
                   </div>
-                ) : (
-                  <div className="text-center py-7 px-4 rounded-xl border border-dashed border-structure/80 bg-white/[0.01]">
-                    <span className="material-symbols-outlined text-3xl text-text-muted mb-2">meeting_room</span>
-                    <p className="text-xs font-bold text-text-main">Noch keine Räume für den Auszugsort festgelegt</p>
-                    <p className="text-[11px] text-text-muted mt-1 max-w-sm mx-auto mb-3">
-                      Legen Sie zuerst über <strong>„Detaillierter Assistent“</strong> die Räume Ihrer Auszugsadresse fest. Es werden ausschließlich die von Ihnen ausgewählten Räume angezeigt.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setInitialWizardRoom(null);
-                        setIsInventoryWizardOpen(true);
-                      }}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-white text-xs font-bold shadow hover:brightness-110 active:scale-95 transition-all cursor-pointer"
-                    >
-                      <span className="material-symbols-outlined text-sm">tune</span>
-                      <span>Räume jetzt auswählen</span>
-                    </button>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Section 3: Möbel-Katalog mit Zählern (nur sichtbar wenn Raum gewählt) */}
               {availableRoomTabs.length > 0 && selectedRoomTab ? (
@@ -3134,10 +3211,10 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   <button
                     type="button"
                     onClick={() => { setInitialWizardRoom(null); setIsInventoryWizardOpen(true); }}
-                    className="text-primary text-xs font-bold flex items-center gap-1 hover:underline px-2.5 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all"
+                    className="text-primary text-xs font-bold flex items-center gap-1 hover:underline px-2.5 py-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 transition-all cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-sm">open_in_new</span>
-                    Detaillierter Assistent
+                    Inventar-Assistent
                   </button>
                 </div>
 
@@ -3875,94 +3952,99 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       )}
 
       {/* Docked Material Action Bar (Mobile & Desktop Ergonomic) */}
-      <div className="fixed bottom-0 left-0 right-0 md:left-64 z-[70] bg-bg-panel/98 backdrop-blur-xl border-t border-structure shadow-[0_-8px_30px_rgba(0,0,0,0.35)] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-all">
-        {errorMessage && (
-          <div className="max-w-7xl mx-auto mb-2">
-            <span className="text-red-400 text-xs font-semibold bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 block text-center">
-              {errorMessage}
-            </span>
-          </div>
-        )}
+      {!isInventoryWizardOpen && !showNoServicesModal && !showCancelModal && (
+        <div 
+          style={{ left: 'var(--sidebar-width, 0px)' }}
+          className="fixed bottom-0 right-0 z-[70] bg-bg-panel/98 backdrop-blur-xl border-t border-structure shadow-[0_-8px_30px_rgba(0,0,0,0.35)] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-all"
+        >
+          {errorMessage && (
+            <div className="max-w-7xl mx-auto mb-2">
+              <span className="text-red-400 text-xs font-semibold bg-red-500/10 px-3 py-1.5 rounded-lg border border-red-500/20 block text-center">
+                {errorMessage}
+              </span>
+            </div>
+          )}
 
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-          {/* LEFT: Zurück or Abbrechen */}
-          <div className="flex items-center gap-2 shrink-0">
-            {currentStep > 1 ? (
-              <button
-                type="button"
-                onClick={handleStepBack}
-                disabled={isSaving}
-                className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline bg-structure/50 hover:bg-structure text-text-main transition-all flex items-center gap-1.5 border border-structure active:scale-95 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-sm">arrow_back</span>
-                <span>Zurück</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={handleSafeCancel}
-                disabled={isSaving}
-                className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline text-text-muted hover:text-text-main transition-colors flex items-center gap-1 cursor-pointer"
-              >
-                <span className="material-symbols-outlined text-sm">close</span>
-                <span className="hidden xs:inline">Abbrechen</span>
-              </button>
-            )}
-          </div>
-
-          {/* CENTER: Step Indicator & Quick Save */}
-          <div className="flex items-center gap-2 sm:gap-4">
-            <span className="text-[11px] font-bold font-headline uppercase tracking-wider text-text-muted px-2.5 py-1 rounded-full bg-structure/40 border border-structure hidden xs:inline-block">
-              Schritt {currentStep}/5
-            </span>
-
-            <button
-              type="button"
-              onClick={() => saveOrder(isInvoice ? 'invoice_open' : 'draft', false)}
-              disabled={isSaving}
-              className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline bg-structure/40 hover:bg-structure text-text-main transition-all flex items-center gap-1.5 border border-structure cursor-pointer active:scale-95"
-              title="Als Entwurf zwischenspeichern"
-            >
-              {isSaving ? (
-                <span className="w-3.5 h-3.5 border-2 border-primary/40 border-t-primary rounded-full animate-spin" />
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+            {/* LEFT: Zurück or Abbrechen */}
+            <div className="flex items-center gap-2 shrink-0">
+              {currentStep > 1 ? (
+                <button
+                  type="button"
+                  onClick={handleStepBack}
+                  disabled={isSaving}
+                  className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline bg-structure/50 hover:bg-structure text-text-main transition-all flex items-center gap-1.5 border border-structure active:scale-95 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-sm">arrow_back</span>
+                  <span>Zurück</span>
+                </button>
               ) : (
-                <span className="material-symbols-outlined text-sm text-primary">save</span>
+                <button
+                  type="button"
+                  onClick={handleSafeCancel}
+                  disabled={isSaving}
+                  className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline text-text-muted hover:text-text-main transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-sm">close</span>
+                  <span className="hidden xs:inline">Abbrechen</span>
+                </button>
               )}
-              <span className="hidden sm:inline">{isSaving ? 'Speichert...' : 'Entwurf speichern'}</span>
-              <span className="sm:hidden">{isSaving ? '...' : 'Speichern'}</span>
-            </button>
-          </div>
+            </div>
 
-          {/* RIGHT: Weiter or Angebot abschließen (Primary Action) */}
-          <div className="flex items-center gap-2 shrink-0">
-            {currentStep < 5 ? (
+            {/* CENTER: Step Indicator & Quick Save */}
+            <div className="flex items-center gap-2 sm:gap-4">
+              <span className="text-[11px] font-bold font-headline uppercase tracking-wider text-text-muted px-2.5 py-1 rounded-full bg-structure/40 border border-structure hidden xs:inline-block">
+                Schritt {currentStep}/5
+              </span>
+
               <button
                 type="button"
-                onClick={() => validateAndSetStep(currentStep + 1)}
+                onClick={() => saveOrder(isInvoice ? 'invoice_open' : 'draft', false)}
                 disabled={isSaving}
-                className="btn-primary px-4 sm:px-6 py-2 rounded-xl text-xs font-bold font-headline flex items-center gap-1.5 shadow-md shadow-primary/30 active:scale-95 transition-all cursor-pointer"
-              >
-                <span>Weiter</span>
-                <span className="material-symbols-outlined text-sm">arrow_forward</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => handleQuoteActionWithCheck(() => saveOrder(isInvoice ? 'invoice_open' : (isManuallySigned ? 'confirmed' : 'quote'), true))}
-                disabled={isSaving}
-                className="bg-primary hover:brightness-110 text-white px-5 sm:px-7 py-2.5 rounded-xl font-headline font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2 shadow-xl shadow-primary/40 active:scale-95 transition-all cursor-pointer"
+                className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline bg-structure/40 hover:bg-structure text-text-main transition-all flex items-center gap-1.5 border border-structure cursor-pointer active:scale-95"
+                title="Als Entwurf zwischenspeichern"
               >
                 {isSaving ? (
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span className="w-3.5 h-3.5 border-2 border-primary/40 border-t-primary rounded-full animate-spin" />
                 ) : (
-                  <span className="material-symbols-outlined text-base">check_circle</span>
+                  <span className="material-symbols-outlined text-sm text-primary">save</span>
                 )}
-                <span>{isInvoice ? 'Rechnung abschließen' : isManuallySigned ? 'Auftrag bestätigt speichern' : 'Angebot abschließen'}</span>
+                <span className="hidden sm:inline">{isSaving ? 'Speichert...' : 'Entwurf speichern'}</span>
+                <span className="sm:hidden">{isSaving ? '...' : 'Speichern'}</span>
               </button>
-            )}
+            </div>
+
+            {/* RIGHT: Weiter or Angebot abschließen (Primary Action) */}
+            <div className="flex items-center gap-2 shrink-0">
+              {currentStep < 5 ? (
+                <button
+                  type="button"
+                  onClick={() => validateAndSetStep(currentStep + 1)}
+                  disabled={isSaving}
+                  className="btn-primary px-4 sm:px-6 py-2 rounded-xl text-xs font-bold font-headline flex items-center gap-1.5 shadow-md shadow-primary/30 active:scale-95 transition-all cursor-pointer"
+                >
+                  <span>Weiter</span>
+                  <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => handleQuoteActionWithCheck(() => saveOrder(isInvoice ? 'invoice_open' : (isManuallySigned ? 'confirmed' : 'quote'), true))}
+                  disabled={isSaving}
+                  className="bg-primary hover:brightness-110 text-white px-5 sm:px-7 py-2.5 rounded-xl font-headline font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2 shadow-xl shadow-primary/40 active:scale-95 transition-all cursor-pointer"
+                >
+                  {isSaving ? (
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <span className="material-symbols-outlined text-base">check_circle</span>
+                  )}
+                  <span>{isInvoice ? 'Rechnung abschließen' : isManuallySigned ? 'Auftrag bestätigt speichern' : 'Angebot abschließen'}</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Modal: Keine Leistungen Warnung vor Angebotserstellung */}
       {showNoServicesModal && (
@@ -4033,6 +4115,48 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 className="text-[11px] text-text-muted hover:text-text-main underline pt-1 cursor-pointer"
               >
                 Abbrechen / إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* In-App Confirmation Modal: Bearbeitung abbrechen */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-bg-panel border-2 border-red-500/30 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-5 text-center animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 rounded-2xl bg-red-500/10 text-red-400 border border-red-500/25 flex items-center justify-center mx-auto shadow-inner">
+              <span className="material-symbols-outlined text-3xl">warning</span>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xl font-headline font-bold text-text-main">
+                {isInvoice ? 'Rechnungserstellung abbrechen?' : 'Angebotserstellung abbrechen?'}
+              </h3>
+              <p className="text-xs font-semibold text-red-400">
+                هل أنت متأكد من رغبتك في إلغاء العملية؟
+              </p>
+              <p className="text-xs text-text-muted leading-relaxed pt-1">
+                Nicht gespeicherte Eingaben gehen verloren. Möchten Sie die Bearbeitung wirklich verlassen?
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={executeExit}
+                className="w-full py-3 px-4 rounded-xl text-xs font-bold font-headline bg-red-600 hover:bg-red-500 text-white flex items-center justify-center gap-2 shadow-lg shadow-red-600/30 transition-all cursor-pointer active:scale-95"
+              >
+                <span className="material-symbols-outlined text-sm">delete_forever</span>
+                <span>Verwerfen & Verlassen / إلغاء ومغادرة</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowCancelModal(false)}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-text-muted hover:text-text-main bg-white/[0.04] hover:bg-white/[0.08] border border-structure transition-all cursor-pointer"
+              >
+                Weiter bearbeiten / البقاء ومتابعة العمل
               </button>
             </div>
           </div>

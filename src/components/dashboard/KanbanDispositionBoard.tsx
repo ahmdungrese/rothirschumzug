@@ -34,6 +34,7 @@ function getViewingUrgency(order: any): 'upcoming' | 'overdue' | 'none' {
 export function KanbanDispositionBoard() {
   const [orders, setOrders] = useState<any[]>([]);
   const [customers, setCustomers] = useState<Record<string, any>>({});
+  const [claims, setClaims] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sourceFilter, setSourceFilter] = useState('all');
@@ -43,6 +44,7 @@ export function KanbanDispositionBoard() {
   useEffect(() => {
     const qOrders = query(collection(db, 'orders'));
     const qCustomers = query(collection(db, 'customers'));
+    const qClaims = query(collection(db, 'claims'));
 
     const unsubCustomers = onSnapshot(qCustomers, (snap) => {
       const map: Record<string, any> = {};
@@ -50,6 +52,11 @@ export function KanbanDispositionBoard() {
         map[d.id] = { id: d.id, ...d.data() };
       });
       setCustomers(map);
+    });
+
+    const unsubClaims = onSnapshot(qClaims, (snap) => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setClaims(list);
     });
 
     const unsubOrders = onSnapshot(qOrders, (snap) => {
@@ -60,9 +67,25 @@ export function KanbanDispositionBoard() {
 
     return () => {
       unsubCustomers();
+      unsubClaims();
       unsubOrders();
     };
   }, []);
+
+  const openClaimsByOrder = useMemo(() => {
+    const map = new Set<string>();
+    claims.forEach(c => {
+      if (c.status !== 'Erledigt') {
+        if (c.orderId) map.add(c.orderId);
+        if (c.customerId) map.add(`cust_${c.customerId}`);
+      }
+    });
+    return map;
+  }, [claims]);
+
+  const checkHasOpenClaim = (ord: any) => {
+    return openClaimsByOrder.has(ord.id) || openClaimsByOrder.has(`cust_${ord.customerId}`);
+  };
 
   // Filter orders by search query and source
   const filteredOrders = useMemo(() => {
@@ -296,6 +319,7 @@ export function KanbanDispositionBoard() {
                   order={order}
                   customer={customers[order.customerId]}
                   columnId="neu"
+                  hasOpenClaim={checkHasOpenClaim(order)}
                   onSelect={(ord) => setSelectedOrderForDrawer(ord)}
                 />
               ))
@@ -331,6 +355,7 @@ export function KanbanDispositionBoard() {
                   order={order}
                   customer={customers[order.customerId]}
                   columnId="verhandlung"
+                  hasOpenClaim={checkHasOpenClaim(order)}
                   onSelect={(ord) => setSelectedOrderForDrawer(ord)}
                 />
               ))
@@ -368,6 +393,7 @@ export function KanbanDispositionBoard() {
                     order={order}
                     customer={customers[order.customerId]}
                     columnId="bestaetigt"
+                    hasOpenClaim={checkHasOpenClaim(order)}
                     onSelect={(ord) => setSelectedOrderForDrawer(ord)}
                   />
                 ))}
@@ -385,6 +411,7 @@ export function KanbanDispositionBoard() {
                         order={order}
                         customer={customers[order.customerId]}
                         columnId="bestaetigt"
+                        hasOpenClaim={checkHasOpenClaim(order)}
                         onSelect={(ord) => setSelectedOrderForDrawer(ord)}
                       />
                     ))}
@@ -423,6 +450,7 @@ export function KanbanDispositionBoard() {
                   order={order}
                   customer={customers[order.customerId]}
                   columnId="abgeschlossen"
+                  hasOpenClaim={checkHasOpenClaim(order)}
                   onSelect={(ord) => setSelectedOrderForDrawer(ord)}
                 />
               ))

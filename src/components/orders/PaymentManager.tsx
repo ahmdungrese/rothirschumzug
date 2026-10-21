@@ -174,8 +174,8 @@ export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpd
     try {
       const hasInvoiceNumber = Boolean(order.invoiceNumber || targetCol === 'invoices' || order.status?.startsWith('invoice_'));
       const newStatus2 = hasInvoiceNumber 
-        ? (newTotalPaid >= totalGross ? 'invoice_paid' : 'invoice_open')
-        : (newTotalPaid >= totalGross ? 'completed' : (order.status || 'confirmed'));
+        ? (newTotalPaid >= (totalGross - 0.01) ? 'invoice_paid' : 'invoice_open')
+        : (newTotalPaid >= (totalGross - 0.01) ? 'completed' : (order.status || 'confirmed'));
       
       await syncPaymentToFirestore(updatedPayments, newStatus2);
 
@@ -199,7 +199,7 @@ export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpd
     try {
       const hasInvoiceNumber = Boolean(order.invoiceNumber || targetCol === 'invoices' || order.status?.startsWith('invoice_'));
       const newStatus2 = hasInvoiceNumber
-        ? (newTotalPaid >= totalGross ? 'invoice_paid' : 'invoice_open')
+        ? (newTotalPaid >= (totalGross - 0.01) ? 'invoice_paid' : 'invoice_open')
         : (order.status || 'confirmed');
       
       await syncPaymentToFirestore(updatedPayments, newStatus2);

@@ -18,6 +18,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
+import { autoCompletePreMoveTasks } from '@/lib/taskStateController';
 
 interface ProtocolModalProps {
   order: any;
@@ -218,6 +219,10 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
       }
 
       await updateDoc(doc(db, 'orders', order.id), updates);
+
+      if (markAsCompleted) {
+        await autoCompletePreMoveTasks(order.id);
+      }
 
       toast.success(
         markAsCompleted

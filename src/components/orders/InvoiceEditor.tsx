@@ -17,6 +17,7 @@ import {
 } from '@/lib/financeHelpers';
 import { StornoModal } from '@/components/finances/StornoModal';
 import { getServiceIcon } from './OrderEditor';
+import { autoCompletePreMoveTasks } from '@/lib/taskStateController';
 
 const STANDARD_SERVICES_A = [
   { id: 'kartonlieferung', name: 'Kartonlieferung vorab', price: 65, unit: 'pauschal', icon: 'inventory_2', defaultDesc: 'Anlieferung von Umzugskartons und Packmaterial vor dem Umzugstermin.' },
@@ -72,11 +73,27 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
   const currentStepRef = useRef(currentStep);
   currentStepRef.current = currentStep;
 
+  const scrollToTop = () => {
+    if (typeof window === 'undefined') return;
+    const mainEl = document.querySelector('main');
+    if (mainEl) {
+      mainEl.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+    document.body.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToTop();
+  }, [currentStep]);
+
   const goToStep = (stepNum: number) => {
     if (stepNum > currentStepRef.current && typeof window !== 'undefined') {
       window.history.pushState({ invoiceStep: stepNum }, '');
     }
     setCurrentStep(stepNum);
+    scrollToTop();
   };
 
   const handleStepBack = () => {
@@ -86,26 +103,17 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
       } else {
         setCurrentStep(prev => Math.max(1, prev - 1));
       }
+      scrollToTop();
     }
   };
 
   const [resolvedCustomerId, setResolvedCustomerId] = useState<string | null>(urlCustomerId || null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const isBypassingCancelGuard = useRef(false);
 
-  const handleSafeCancel = () => {
-    const isDirty = Boolean(
-      flatRateNet > 0 ||
-      services.length > 0 ||
-      texts.quoteIntro ||
-      customerData.lastName
-    );
-
-    if (isDirty) {
-      const confirmLeave = window.confirm(
-        "Möchten Sie die Rechnungsbearbeitung wirklich abbrechen? Nicht gespeicherte Änderungen gehen verloren."
-      );
-      if (!confirmLeave) return;
-    }
-
+  const executeExit = () => {
+    isBypassingCancelGuard.current = true;
+    setShowCancelModal(false);
     const targetCustId = resolvedCustomerId || urlCustomerId;
     if (targetCustId) {
       router.push(`/dashboard/customers/${targetCustId}`);
@@ -116,6 +124,22 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
         router.push('/dashboard');
       }
     }
+  };
+
+  const handleSafeCancel = () => {
+    const isDirty = Boolean(
+      flatRateNet > 0 ||
+      services.length > 0 ||
+      texts.quoteIntro ||
+      customerData.lastName
+    );
+
+    if (isDirty) {
+      setShowCancelModal(true);
+      return;
+    }
+
+    executeExit();
   };
 
   const [status, setStatus] = useState('draft'); // invoice_open if final
@@ -195,6 +219,8 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
     if (typeof window === 'undefined') return;
 
     const handlePopState = (e: PopStateEvent) => {
+      if (isBypassingCancelGuard.current) return;
+
       if (currentStepRef.current > 1) {
         setCurrentStep(prev => Math.max(1, prev - 1));
       } else {
@@ -205,13 +231,8 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
           customerDataRef.current.lastName
         );
         if (isDirty) {
-          const confirmLeave = window.confirm(
-            "Möchten Sie die Rechnungsbearbeitung wirklich abbrechen? Nicht gespeicherte Änderungen gehen verloren."
-          );
-          if (!confirmLeave) {
-            window.history.pushState({ invoiceStep: 1 }, '');
-            return;
-          }
+          window.history.pushState({ invoiceStep: 1 }, '');
+          setShowCancelModal(true);
         }
       }
     };
@@ -226,15 +247,18 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
     const init = async () => {
       // 1. Load System Settings
       const settingsSnap = await getDoc(doc(db, 'system', 'settings'));
+      let s: any = null;
       if (settingsSnap.exists()) {
-        const s = settingsSnap.data();
+        s = settingsSnap.data();
         setSettings(s);
-        if (s.invoiceIntro) setTexts(t => ({...t, quoteIntro: s.invoiceIntro}));
-        if (s.invoiceOutro) setTexts(t => ({...t, quoteOutro: s.invoiceOutro}));
+        const intro = s.texts?.invoiceIntro || s.invoiceIntro;
+        const outro = s.texts?.invoiceOutro || s.invoiceOutro;
+        if (intro) setTexts(t => ({...t, quoteIntro: intro}));
+        if (outro) setTexts(t => ({...t, quoteOutro: outro}));
         
         if (!orderId && !sourceOrderId && s.paymentMethods && s.paymentMethods.length > 0) {
           setOrderMeta(prev => ({...prev, paymentMethod: s.paymentMethods[0].name}));
-          setTexts(t => ({...t, paymentTerms: s.paymentMethods[0].textInvoice || s.paymentMethods[0].textQuote}));
+          setTexts(t => ({...t, paymentTerms: s.paymentMethods[0].textInvoice || s.paymentMethods[0].textQuote || ''}));
         }
       }
 
@@ -327,7 +351,22 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
           if (baseDoc.flatRateNet !== undefined) setFlatRateNet(baseDoc.flatRateNet);
           if (baseDoc.services) setServices(baseDoc.services);
           if (baseDoc.calcInput) setCalcInput(baseDoc.calcInput);
-          if (activeInvDoc?.texts) setTexts(prev => ({ ...prev, ...activeInvDoc.texts }));
+          
+          const savedTexts = activeInvDoc?.texts || {};
+          const selectedMethod = activeInvDoc?.orderMeta?.paymentMethod || orderData?.orderMeta?.paymentMethod || s?.paymentMethods?.[0]?.name || '';
+          let terms = savedTexts.paymentTerms;
+          if (!terms && s?.paymentMethods?.length) {
+            const pm = s.paymentMethods.find((p: any) => p.name === selectedMethod) || s.paymentMethods[0];
+            terms = pm?.textInvoice || pm?.textQuote || '';
+          }
+          setTexts(prev => ({
+            ...prev,
+            ...savedTexts,
+            ...(terms ? { paymentTerms: terms } : {})
+          }));
+          if (!baseDoc.orderMeta?.paymentMethod && !orderData.orderMeta?.paymentMethod && selectedMethod) {
+            setOrderMeta(prev => ({ ...prev, paymentMethod: selectedMethod }));
+          }
 
           if (activeInvDoc) {
             setResolvedInvoiceId(activeInvDoc.id);
@@ -385,7 +424,22 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
           if (o.flatRateNet) setFlatRateNet(o.flatRateNet);
           if (o.services) setServices(o.services);
           if (o.calcInput) setCalcInput(o.calcInput);
-          if (o.texts) setTexts(prev => ({ ...prev, ...o.texts }));
+          
+          const savedTexts = o.texts || {};
+          const selectedMethod = o.orderMeta?.paymentMethod || s?.paymentMethods?.[0]?.name || '';
+          let terms = savedTexts.paymentTerms;
+          if (!terms && s?.paymentMethods?.length) {
+            const pm = s.paymentMethods.find((p: any) => p.name === selectedMethod) || s.paymentMethods[0];
+            terms = pm?.textInvoice || pm?.textQuote || '';
+          }
+          setTexts(prev => ({
+            ...prev,
+            ...savedTexts,
+            ...(terms ? { paymentTerms: terms } : {})
+          }));
+          if (!o.orderMeta?.paymentMethod && selectedMethod) {
+            setOrderMeta(prev => ({ ...prev, paymentMethod: selectedMethod }));
+          }
           if (o.isKorrektur !== undefined) {
             setIsKorrektur(Boolean(o.isKorrektur));
             setCorrectionFor(o.correctionFor || '');
@@ -402,6 +456,25 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
     };
     init();
   }, [orderId, sourceOrderId, urlCustomerId]);
+
+  // Ensure payment terms are automatically filled from selected/default payment method if empty
+  useEffect(() => {
+    if (isLocked || !settings?.paymentMethods || settings.paymentMethods.length === 0) return;
+
+    if (!texts.paymentTerms || texts.paymentTerms.trim() === '') {
+      const activeMethod = orderMeta.paymentMethod || settings.paymentMethods[0]?.name;
+      const pm = settings.paymentMethods.find((p: any) => p.name === activeMethod) || settings.paymentMethods[0];
+      if (pm) {
+        const termsText = pm.textInvoice || pm.textQuote || '';
+        if (termsText) {
+          setTexts(prev => (prev.paymentTerms && prev.paymentTerms.trim() !== '') ? prev : { ...prev, paymentTerms: termsText });
+        }
+        if (!orderMeta.paymentMethod && pm.name) {
+          setOrderMeta(prev => prev.paymentMethod ? prev : { ...prev, paymentMethod: pm.name });
+        }
+      }
+    }
+  }, [settings, orderMeta.paymentMethod, texts.paymentTerms, isLocked]);
 
   const addService = (template: any) => {
     if (isLocked) return;
@@ -461,13 +534,83 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
     return DEFAULT_ALLGEMEIN_SERVICES;
   }, [settings?.catalog]);
 
+  const servicesA = useMemo(() => {
+    const fromCatalogA = settings?.catalog?.find((c: any) => {
+      const cat = (c.category || '').trim().toLowerCase();
+      return cat.includes('beladestelle') || cat.includes('auszug') || cat === 'beladung (a)';
+    })?.items;
+
+    if (fromCatalogA && Array.isArray(fromCatalogA) && fromCatalogA.length > 0) {
+      return fromCatalogA.map((item: any, idx: number) => ({
+        id: item.id || `a_${idx}`,
+        name: item.name,
+        price: item.price ?? item.defaultPrice ?? 0,
+        unit: item.unit || 'pauschal',
+        icon: item.icon || getServiceIcon(item.name),
+        defaultDesc: item.description || item.defaultDesc || ''
+      }));
+    }
+
+    return STANDARD_SERVICES_A.map(base => {
+      const match = settings?.catalog?.flatMap((c: any) => c.items || []).find((it: any) => 
+        (it.name || '').trim().toLowerCase() === base.name.toLowerCase()
+      );
+      if (match) {
+        return {
+          ...base,
+          price: match.price !== undefined ? match.price : base.price,
+          unit: match.unit || base.unit,
+          defaultDesc: match.description || match.defaultDesc || base.defaultDesc
+        };
+      }
+      return base;
+    });
+  }, [settings?.catalog]);
+
+  const servicesB = useMemo(() => {
+    const fromCatalogB = settings?.catalog?.find((c: any) => {
+      const cat = (c.category || '').trim().toLowerCase();
+      return cat.includes('entladestelle') || cat.includes('einzug') || cat === 'entladung (b)';
+    })?.items;
+
+    if (fromCatalogB && Array.isArray(fromCatalogB) && fromCatalogB.length > 0) {
+      return fromCatalogB.map((item: any, idx: number) => ({
+        id: item.id || `b_${idx}`,
+        name: item.name,
+        price: item.price ?? item.defaultPrice ?? 0,
+        unit: item.unit || 'pauschal',
+        icon: item.icon || getServiceIcon(item.name),
+        defaultDesc: item.description || item.defaultDesc || ''
+      }));
+    }
+
+    return STANDARD_SERVICES_B.map(base => {
+      const match = settings?.catalog?.flatMap((c: any) => c.items || []).find((it: any) => 
+        (it.name || '').trim().toLowerCase() === base.name.toLowerCase()
+      );
+      if (match) {
+        return {
+          ...base,
+          price: match.price !== undefined ? match.price : base.price,
+          unit: match.unit || base.unit,
+          defaultDesc: match.description || match.defaultDesc || base.defaultDesc
+        };
+      }
+      return base;
+    });
+  }, [settings?.catalog]);
+
   const otherCatalogCategories = useMemo(() => {
     if (!settings?.catalog || !Array.isArray(settings.catalog)) {
       return ['Küchenservice', 'Kartonservice', 'Möbelservice'];
     }
     const cats = settings.catalog
       .map((c: any) => c.category)
-      .filter((c: string) => c && c.trim().toLowerCase() !== 'allgemein');
+      .filter((c: string) => {
+        if (!c) return false;
+        const lower = c.trim().toLowerCase();
+        return lower !== 'allgemein' && !lower.includes('beladestelle') && !lower.includes('entladestelle');
+      });
     return cats.length > 0 ? cats : ['Küchenservice', 'Kartonservice', 'Möbelservice'];
   }, [settings?.catalog]);
 
@@ -486,7 +629,10 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
       ];
     }
     return settings.catalog
-      .filter((cat: any) => (cat.category || '').trim().toLowerCase() !== 'allgemein')
+      .filter((cat: any) => {
+        const lower = (cat.category || '').trim().toLowerCase();
+        return lower !== 'allgemein' && !lower.includes('beladestelle') && !lower.includes('entladestelle');
+      })
       .flatMap((cat: any) =>
         (cat.items || []).map((item: any) => ({
           ...item,
@@ -716,6 +862,12 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
         const customerFullName = `${customerData?.firstName || ''} ${customerData?.lastName || 'Kunde'}`.trim();
         await logActivity(user?.uid || '', editorActorName, 'CREATE_INVOICE', `${isKorrektur ? 'Korrekturrechnung' : 'Rechnung'} ${payload.invoiceNumber} ausgestellt für Kunde ${customerFullName}`);
         toast.success(isKorrektur ? `Korrekturrechnung ${payload.invoiceNumber} erfolgreich ausgestellt!` : `Rechnung ${payload.invoiceNumber} erfolgreich ausgestellt!`);
+
+        // Safely complete pre-move preparatory tasks for the linked order without data loss
+        const linkedOrderToComplete = activeSourceOrderId || orderId || sourceOrderId;
+        if (linkedOrderToComplete) {
+          autoCompletePreMoveTasks(linkedOrderToComplete).catch(err => console.error('Error auto-completing pre-move tasks:', err));
+        }
       } else if (finalStatus === 'invoice_open' && payload.invoiceNumber) {
         // Re-saving already finalized invoice
         const editorActorName = profile?.displayName || profile?.email?.split('@')[0] || 'Team';
@@ -1322,7 +1474,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
                       </h4>
                     </div>
                     <div className="flex flex-col gap-2">
-                      {STANDARD_SERVICES_A.map((svc) => {
+                      {servicesA.map((svc) => {
                         const isSelected = isStandardServiceSelected(svc.id, svc.name);
                         return (
                           <button
@@ -1340,7 +1492,14 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
                               <span className={`material-symbols-outlined text-xl ${isSelected ? 'text-primary' : 'text-text-muted'}`}>
                                 {svc.icon}
                               </span>
-                              <span className="text-xs font-semibold">{svc.name}</span>
+                              <div className="flex flex-col">
+                                <span className="text-xs font-semibold">{svc.name}</span>
+                                {!isFlatRate && svc.price > 0 && (
+                                  <span className="text-[10px] text-text-muted font-normal">
+                                    {svc.price.toFixed(2)} € {svc.unit ? `(${svc.unit})` : ''}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <span className={`material-symbols-outlined text-base ${isSelected ? 'text-primary' : 'text-text-muted/60'}`}>
                               {isSelected ? 'check_circle' : 'add_circle'}
@@ -1362,7 +1521,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
                       </h4>
                     </div>
                     <div className="flex flex-col gap-2">
-                      {STANDARD_SERVICES_B.map((svc) => {
+                      {servicesB.map((svc) => {
                         const isSelected = isStandardServiceSelected(svc.id, svc.name);
                         return (
                           <button
@@ -1380,7 +1539,14 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
                               <span className={`material-symbols-outlined text-xl ${isSelected ? 'text-primary' : 'text-text-muted'}`}>
                                 {svc.icon}
                               </span>
-                              <span className="text-xs font-semibold">{svc.name}</span>
+                              <div className="flex flex-col">
+                                <span className="text-xs font-semibold">{svc.name}</span>
+                                {!isFlatRate && svc.price > 0 && (
+                                  <span className="text-[10px] text-text-muted font-normal">
+                                    {svc.price.toFixed(2)} € {svc.unit ? `(${svc.unit})` : ''}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             <span className={`material-symbols-outlined text-base ${isSelected ? 'text-primary' : 'text-text-muted/60'}`}>
                               {isSelected ? 'check_circle' : 'add_circle'}
@@ -1505,7 +1671,19 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
                                 >
                                   -
                                 </button>
-                                <span className="font-bold w-6 text-center text-text-main">{svc.quantity}</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  disabled={isLocked}
+                                  value={!svc.quantity ? '' : svc.quantity}
+                                  onChange={e => {
+                                    const val = parseInt(e.target.value, 10);
+                                    setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: isNaN(val) ? 0 : Math.max(0, val) } : s));
+                                  }}
+                                  onFocus={e => e.target.select()}
+                                  placeholder="0"
+                                  className="font-bold w-12 text-center text-text-main bg-transparent focus:bg-black/20 rounded focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-xs disabled:opacity-50"
+                                />
                                 <button 
                                   type="button"
                                   disabled={isLocked}
@@ -1527,8 +1705,13 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
                                         type="number"
                                         step="0.01"
                                         disabled={!canEditPrices || isLocked}
-                                        value={svc.unitPrice ?? 0}
-                                        onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, unitPrice: parseFloat(e.target.value) || 0 } : s))}
+                                        value={svc.unitPrice === 0 ? '' : (svc.unitPrice ?? '')}
+                                        onChange={e => {
+                                          const val = parseFloat(e.target.value);
+                                          setServices(prev => prev.map((s, i) => i === idx ? { ...s, unitPrice: isNaN(val) ? 0 : val } : s));
+                                        }}
+                                        onFocus={e => e.target.select()}
+                                        placeholder="0.00"
                                         className="w-16 text-right bg-black/20 border border-structure/50 rounded px-1.5 py-0.5 text-xs font-mono text-text-main focus:outline-none focus:border-primary disabled:opacity-60"
                                         title="Einzelpreis (Netto)"
                                       />
@@ -1584,8 +1767,12 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
                       <div className="relative">
                         <input 
                           type="number" 
-                          value={flatRateNet} 
-                          onChange={e => setFlatRateNet(parseFloat(e.target.value) || 0)} 
+                          value={flatRateNet === 0 ? '' : flatRateNet} 
+                          onChange={e => {
+                            const val = parseFloat(e.target.value);
+                            setFlatRateNet(isNaN(val) ? 0 : val);
+                          }} 
+                          onFocus={e => e.target.select()}
                           disabled={!canEditPrices || isLocked} 
                           className="input-field w-full text-right font-bold text-base pr-8 py-2 disabled:opacity-60" 
                           placeholder="0.00" 
@@ -1692,7 +1879,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
                   {settings.paymentMethods?.map((pm:any) => (
                     <button key={pm.name} onClick={() => {
                       setOrderMeta({...orderMeta, paymentMethod: pm.name});
-                      setTexts({...texts, paymentTerms: pm.textInvoice || pm.textQuote});
+                      setTexts({...texts, paymentTerms: pm.textInvoice || pm.textQuote || ''});
                     }} className={`text-xs px-3 py-1.5 rounded-lg border ${orderMeta.paymentMethod === pm.name ? 'bg-primary/20 border-primary text-primary' : 'bg-bg-panel border-structure text-text-muted hover:border-primary/50'}`}>
                       {pm.name}
                     </button>
@@ -1803,6 +1990,48 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
           </div>
         );
       })()}
+
+      {/* In-App Confirmation Modal: Bearbeitung abbrechen */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-bg-panel border-2 border-red-500/30 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-5 text-center animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 rounded-2xl bg-red-500/10 text-red-400 border border-red-500/25 flex items-center justify-center mx-auto shadow-inner">
+              <span className="material-symbols-outlined text-3xl">warning</span>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xl font-headline font-bold text-text-main">
+                Rechnungserstellung abbrechen?
+              </h3>
+              <p className="text-xs font-semibold text-red-400">
+                هل أنت متأكد من رغبتك في إلغاء عملية الفاتورة؟
+              </p>
+              <p className="text-xs text-text-muted leading-relaxed pt-1">
+                Nicht gespeicherte Eingaben gehen verloren. Möchten Sie die Rechnungsbearbeitung wirklich verlassen?
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={executeExit}
+                className="w-full py-3 px-4 rounded-xl text-xs font-bold font-headline bg-red-600 hover:bg-red-500 text-white flex items-center justify-center gap-2 shadow-lg shadow-red-600/30 transition-all cursor-pointer active:scale-95"
+              >
+                <span className="material-symbols-outlined text-sm">delete_forever</span>
+                <span>Verwerfen & Verlassen / إلغاء ومغادرة</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowCancelModal(false)}
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-text-muted hover:text-text-main bg-white/[0.04] hover:bg-white/[0.08] border border-structure transition-all cursor-pointer"
+              >
+                Weiter bearbeiten / البقاء ومتابعة العمل
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showStornoModal && (
         <StornoModal

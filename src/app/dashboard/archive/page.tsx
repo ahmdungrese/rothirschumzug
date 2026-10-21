@@ -5,8 +5,10 @@ import { collection, query, onSnapshot, where, deleteDoc, doc, updateDoc } from 
 import { ArchiveBoxIcon, ArrowUturnLeftIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { useAuth } from '@/context/AuthContext';
 
 export default function ArchivePage() {
+  const { profile } = useAuth();
   const [archivedCustomers, setArchivedCustomers] = useState<any[]>([]);
   const [archivedOrders, setArchivedOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,6 +17,11 @@ export default function ArchivePage() {
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState<{collectionName: string, id: string} | null>(null);
 
   useEffect(() => {
+    if (profile?.role !== 'admin') {
+      setLoading(false);
+      return;
+    }
+
     // Fetch archived customers
     const qCust = query(collection(db, 'customers'), where('isArchived', '==', true));
     const unsubCust = onSnapshot(qCust, (snapshot) => {
@@ -32,7 +39,7 @@ export default function ArchivePage() {
       unsubCust();
       unsubOrd();
     };
-  }, []);
+  }, [profile]);
 
   const handleRestore = async (collectionName: string, id: string) => {
     try {
@@ -72,6 +79,16 @@ export default function ArchivePage() {
     o.customerName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     o.orderNumber?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (profile && profile.role !== 'admin') {
+    return (
+      <div className="max-w-4xl mx-auto flex flex-col items-center justify-center min-h-[50vh] text-center p-8 bg-bg-panel border border-structure rounded-3xl">
+        <ArchiveBoxIcon className="w-16 h-16 text-amber-500 mb-3" />
+        <h1 className="text-2xl font-bold font-headline text-text-main mb-2">Zugriff verweigert / غير مصرح بالدخول</h1>
+        <p className="text-xs text-text-muted">Nur Administratoren haben Zugriff auf das Archiv.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 animate-in fade-in duration-500 pb-20">

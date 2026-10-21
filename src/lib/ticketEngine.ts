@@ -1,4 +1,5 @@
 import { isTaskCompleted } from './taskStateController';
+import { calculateOpenAmount } from './financeHelpers';
 
 export type SystemTicket = {
   id: string;
@@ -27,11 +28,9 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
     try {
       const targetDate = new Date(targetDateStr);
       const now = new Date();
-      targetDate.setHours(0, 0, 0, 0);
-      now.setHours(0, 0, 0, 0);
-      
-      const diffTime = targetDate.getTime() - now.getTime();
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const utcTarget = Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+      const utcNow = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+      const diffDays = Math.round((utcTarget - utcNow) / (1000 * 60 * 60 * 24));
       
       if (diffDays < 0) return { status: 'overdue', text: 'ÜBERFÄLLIG' };
       if (diffDays <= 2) return { status: 'due', text: `FÄLLIG IN ${diffDays} TAGEN` };
@@ -53,8 +52,9 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
   if (order.orderMeta?.movingDateFrom) {
     const moveDate = new Date(order.orderMeta.movingDateFrom);
     const now = new Date();
-    const diffTime = moveDate.getTime() - now.getTime();
-    daysToMove = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const utcMove = Date.UTC(moveDate.getFullYear(), moveDate.getMonth(), moveDate.getDate());
+    const utcNow = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+    daysToMove = Math.round((utcMove - utcNow) / (1000 * 60 * 60 * 24));
   }
 
   const addTicket = (
@@ -136,8 +136,8 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
     const viewingDateStr = order.orderMeta?.viewingDate || order.viewingDate;
     if (viewingDateStr && !order.orderMeta?.viewingCanceled) {
        const isPhotos = viewingDateStr === 'erledigt_fotos';
-       const isViewingDone = isPhotos || isTaskCompleted(order, 'viewing_requested');
-       const customViewingStatus = isPhotos ? undefined : calculateTargetDateStatus(viewingDateStr === 'requested' ? null : viewingDateStr);
+       const isViewingDone = isPhotos || isTaskCompleted(order, 'viewing_requested') || status === 'confirmed' || status === 'completed' || status?.startsWith('invoice_') || status === 'archived';
+       const customViewingStatus = isPhotos || isViewingDone ? undefined : calculateTargetDateStatus(viewingDateStr === 'requested' ? null : viewingDateStr);
        const title = isPhotos ? 'Besichtigung (durch Fotos erledigt)' : 'Besichtigungstermin durchführen';
        addTicket('viewing_requested', title, 1, 'action', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}?highlight=viewingDate`, customViewingStatus || undefined, isViewingDone);
     }
@@ -220,15 +220,24 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
   }
 
   // === Phase 5: Nach Umzug (completed, invoice_*) ===
-  if (status === 'completed' || status === 'invoice_open' || status === 'invoice_paid') {
-    if (status === 'completed') {
-      // Invoice: overdue if daysToMove is <= -5 (5 days after move)
+  if (status === 'completed' || status === 'invoice_open' || status === 'invoice_paid' || status === 'invoice_overdue') {
+    const hasActiveInvoice = Boolean(order.invoiceNumber || order.activeInvoiceNumber || status.startsWith('invoice_'));
+    const openAmt = calculateOpenAmount(order);
+    const isPaid = status === 'invoice_paid' || (hasActiveInvoice && openAmt <= 0.01);
+
+    if (!hasActiveInvoice) {
+      // Invoice is truly missing!
       let dueStatus = calculateDueDateStatus(daysToMove, -1, -5);
       addTicket('invoice_missing', 'Rechnung erstellen (Umzug beendet)', 5, 'warning', 'rechnung', `/dashboard/customers/${order.customerId}`, dueStatus, false);
-    }
-
-    if (status === 'invoice_open' || status === 'invoice_overdue') {
-      addTicket('payment_check', 'Zahlungseingang prüfen (Rechnung ist noch offen)', 5, 'action', 'rechnung', `/dashboard/customers/${order.customerId}`, undefined, false);
+    } else {
+      // Invoice exists!
+      if (isPaid) {
+        // FULLY PAID: Marked as completed/done!
+        addTicket('payment_check', `Rechnung ${order.invoiceNumber || ''} vollständig bezahlt`, 5, 'action', 'rechnung', `/dashboard/customers/${order.customerId}`, undefined, true);
+      } else {
+        // UNPAID: Payment check is still open!
+        addTicket('payment_check', `Zahlungseingang prüfen (Offen: € ${openAmt.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`, 5, 'action', 'rechnung', `/dashboard/customers/${order.customerId}`, undefined, false);
+      }
     }
 
     if (status !== 'invoice_cancelled') {

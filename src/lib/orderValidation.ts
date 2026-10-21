@@ -1,5 +1,5 @@
 import { isTaskCompleted } from './taskStateController';
-import { getActiveInvoiceNumber, isInvoiceCancelled, getLatestCancelledInvoiceNumber } from './financeHelpers';
+import { getActiveInvoiceNumber, isInvoiceCancelled, getLatestCancelledInvoiceNumber, calculateOpenAmount } from './financeHelpers';
 
 export interface LogisticsCheckItem {
   id: string;
@@ -318,17 +318,6 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
   // (KEINE Adressen! Keine Kartons! Nur Protokoll, Rechnung & Zahlung)
   // =========================================================================
   else if (phase === 4) {
-    // 1. Übergabeprotokoll
-    const isProtocolDone = isTaskCompleted(order, 'protocol') || Boolean(order?.protocols?.length > 0);
-    checklist.push({
-      id: 'protocol',
-      label: isProtocolDone ? 'Übergabeprotokoll erstellt' : 'Übergabeprotokoll erstellen / abnehmen',
-      done: isProtocolDone,
-      type: 'protocol',
-      isAutomated: false,
-      missingReason: !isProtocolDone ? 'Noch kein Abnahmeprotokoll für diesen Umzug erfasst.' : undefined
-    });
-
     // 2. Rechnung
     const isInvoiceDone = !isInvoiceCancelled(order) && (
       isTaskCompleted(order, 'invoice') || Boolean(
@@ -338,6 +327,31 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
         order?.status === 'invoice_paid'
       )
     );
+
+    // 3. Zahlung
+    const openAmount = calculateOpenAmount(order);
+    const isPaymentDone = isTaskCompleted(order, 'payment') || 
+                          Boolean(order?.status === 'invoice_paid') || 
+                          (isInvoiceDone && openAmount <= 0.01);
+
+    // 1. Übergabeprotokoll
+    const isProtocolDone = isTaskCompleted(order, 'protocol') || 
+                           Boolean(order?.protocols?.length > 0) || 
+                           Boolean(order?.signatureProtocol) ||
+                           order?.status === 'completed' ||
+                           order?.status === 'invoice_paid' ||
+                           order?.status === 'archived' ||
+                           (isInvoiceDone && isPaymentDone);
+
+    checklist.push({
+      id: 'protocol',
+      label: isProtocolDone ? 'Übergabeprotokoll erstellt' : 'Übergabeprotokoll erstellen / abnehmen',
+      done: isProtocolDone,
+      type: 'protocol',
+      isAutomated: false,
+      missingReason: !isProtocolDone ? 'Noch kein Abnahmeprotokoll für diesen Umzug erfasst.' : undefined
+    });
+
     checklist.push({
       id: 'invoice',
       label: isInvoiceDone
@@ -351,8 +365,6 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
       missingReason: !isInvoiceDone ? 'Rechnung wurde noch nicht final generiert.' : undefined
     });
 
-    // 3. Zahlung
-    const isPaymentDone = isTaskCompleted(order, 'payment') || Boolean(order?.status === 'invoice_paid');
     checklist.push({
       id: 'payment',
       label: isPaymentDone ? 'Zahlung vollständig eingegangen' : 'Zahlung erfassen / offen',

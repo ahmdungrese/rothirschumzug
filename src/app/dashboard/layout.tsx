@@ -19,13 +19,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user, loading, router]);
 
-  // Route-Protection für Teamleiter: Nur Kalender & Handbuch erlaubt
+  // Route-Protection nach Benutzerrollen (Verhindert unberechtigte Zugriffe und Berechtigungsfehler)
   useEffect(() => {
-    if (!loading && user && profile?.role === 'teamlead') {
-      const allowedPaths = ['/dashboard/calendar', '/dashboard/manual'];
-      const isAllowed = allowedPaths.some(p => pathname === p || pathname.startsWith(p + '/'));
-      if (!isAllowed) {
-        router.replace('/dashboard/calendar');
+    if (!loading && user && profile?.role) {
+      if (profile.role === 'teamlead') {
+        const allowedPaths = ['/dashboard/calendar', '/dashboard/manual'];
+        const isAllowed = allowedPaths.some(p => pathname === p || pathname.startsWith(p + '/'));
+        if (!isAllowed) {
+          router.replace('/dashboard/calendar');
+        }
+      } else if (profile.role === 'office') {
+        const adminOnlyPaths = ['/dashboard/settings', '/dashboard/statistics', '/dashboard/archive'];
+        const isForbidden = adminOnlyPaths.some(p => pathname === p || pathname.startsWith(p + '/'));
+        if (isForbidden) {
+          router.replace('/dashboard');
+        }
       }
     }
   }, [user, profile, loading, pathname, router]);

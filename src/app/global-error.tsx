@@ -10,6 +10,7 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
+    // Internal logging only, never leaked into the rendered HTML
     console.error("Critical Global Application Error:", error);
   }, [error]);
 
@@ -28,6 +29,9 @@ export default function GlobalError({
       window.location.reload();
     }
   };
+
+  const rawMsg = (error?.message || "").toLowerCase();
+  const isPermissionError = rawMsg.includes("permission") || rawMsg.includes("berechtigung") || rawMsg.includes("forbidden") || rawMsg.includes("unauthorized");
 
   return (
     <html lang="de">
@@ -48,7 +52,7 @@ export default function GlobalError({
         boxSizing: "border-box"
       }}>
         <div style={{
-          maxWidth: "480px",
+          maxWidth: "460px",
           width: "90%",
           backgroundColor: "#1e293b",
           border: "1px solid #334155",
@@ -63,68 +67,46 @@ export default function GlobalError({
             height: "56px",
             margin: "0 auto 20px",
             borderRadius: "16px",
-            backgroundColor: "rgba(239, 68, 68, 0.15)",
-            border: "1px solid rgba(239, 68, 68, 0.3)",
+            backgroundColor: isPermissionError ? "rgba(244, 63, 94, 0.15)" : "rgba(234, 179, 8, 0.15)",
+            border: isPermissionError ? "1px solid rgba(244, 63, 94, 0.3)" : "1px solid rgba(234, 179, 8, 0.3)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            color: "#ef4444",
-            fontSize: "28px"
+            color: isPermissionError ? "#f43f5e" : "#eab308",
+            fontSize: "26px"
           }}>
-            ⚠️
+            {isPermissionError ? "🔒" : "⚠️"}
           </div>
 
           <h1 style={{
-            fontSize: "20px",
+            fontSize: "19px",
             fontWeight: "bold",
-            margin: "0 0 8px 0",
+            margin: "0 0 10px 0",
             color: "#ffffff"
           }}>
-            System-Wiederherstellung / استعادة النظام
+            {isPermissionError ? "Zugriff eingeschränkt / صلاحية مقيدة" : "Systemhinweis / تنبيه بالنظام"}
           </h1>
 
           <p style={{
             fontSize: "13px",
             color: "#94a3b8",
             lineHeight: 1.6,
-            margin: "0 0 20px 0"
+            margin: "0 0 24px 0"
           }}>
-            Ein unerwarteter technischer Fehler ist aufgetreten. Ihre gespeicherten Daten in der Datenbank sind vollständig gesichert.
-            <br />
-            حدث خطأ فني أثناء تحميل الصفحة. بياناتك في قاعدة البيانات محفوظة بأمان تام.
+            {isPermissionError ? (
+              <>
+                Sie haben keine Berechtigung für diese Ansicht. Bitte wenden Sie sich an die Administration.
+                <br />
+                ليس لديك الصلاحية الكافية للوصول لهذا القسم.
+              </>
+            ) : (
+              <>
+                Ein unerwarteter technischer Fehler ist aufgetreten. Ihre gespeicherten Daten in der Datenbank sind vollständig gesichert.
+                <br />
+                حدث خطأ أثناء تحميل الصفحة. بياناتك في قاعدة البيانات محفوظة بأمان تام.
+              </>
+            )}
           </p>
-
-          {error?.message && (
-            <div style={{
-              backgroundColor: "rgba(0, 0, 0, 0.3)",
-              border: "1px solid #334155",
-              borderRadius: "10px",
-              padding: "10px 14px",
-              marginBottom: "24px",
-              textAlign: "left"
-            }}>
-              <span style={{
-                fontSize: "10px",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                color: "#f87171",
-                display: "block",
-                marginBottom: "4px",
-                fontWeight: "bold"
-              }}>
-                Fehler-Details / تفاصيل الخطأ:
-              </span>
-              <code style={{
-                fontSize: "11px",
-                color: "#fca5a5",
-                fontFamily: "monospace",
-                wordBreak: "break-word",
-                display: "block"
-              }}>
-                {error.message}
-              </code>
-            </div>
-          )}
 
           <div style={{
             display: "flex",
@@ -132,23 +114,25 @@ export default function GlobalError({
             justifyContent: "center",
             flexWrap: "wrap"
           }}>
-            <button
-              onClick={handleReset}
-              style={{
-                flex: "1 1 140px",
-                padding: "12px 18px",
-                borderRadius: "12px",
-                backgroundColor: "#8F1627",
-                color: "#ffffff",
-                fontSize: "13px",
-                fontWeight: "bold",
-                border: "none",
-                cursor: "pointer",
-                boxShadow: "0 4px 12px rgba(143, 22, 39, 0.4)"
-              }}
-            >
-              Erneut versuchen / إعادة المحاولة
-            </button>
+            {!isPermissionError && (
+              <button
+                onClick={handleReset}
+                style={{
+                  flex: "1 1 140px",
+                  padding: "12px 18px",
+                  borderRadius: "12px",
+                  backgroundColor: "#8F1627",
+                  color: "#ffffff",
+                  fontSize: "13px",
+                  fontWeight: "bold",
+                  border: "none",
+                  cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(143, 22, 39, 0.4)"
+                }}
+              >
+                Erneut versuchen
+              </button>
+            )}
             <button
               onClick={handleReload}
               style={{
@@ -163,7 +147,7 @@ export default function GlobalError({
                 cursor: "pointer"
               }}
             >
-              Seite neu laden / تحديث الصفحة
+              Zum Dashboard / العودة للرئيسية
             </button>
           </div>
         </div>

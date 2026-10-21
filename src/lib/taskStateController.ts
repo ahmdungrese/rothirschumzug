@@ -1,5 +1,6 @@
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { calculateOpenAmount } from './financeHelpers';
 
 /**
  * Task mappings across different historical and UI representations:
@@ -63,7 +64,12 @@ export function isTaskCompleted(order: any, taskId: string): boolean {
       return Boolean(
         ticketStates.viewing_requested ||
         checklistDone.viewing_requested ||
+        checklistDone.viewing_date ||
         viewingVal === 'erledigt_fotos' ||
+        order.status === 'confirmed' ||
+        order.status === 'completed' ||
+        order.status?.startsWith('invoice_') ||
+        order.status === 'archived' ||
         order.checklistDone?.dataVerified
       );
 
@@ -102,7 +108,11 @@ export function isTaskCompleted(order: any, taskId: string): boolean {
       if (checklistDone.protocol !== undefined) return Boolean(checklistDone.protocol);
       return Boolean(
         ticketStates.protocol ||
-        (Array.isArray(order.protocols) && order.protocols.length > 0)
+        order.signatureProtocol ||
+        (Array.isArray(order.protocols) && order.protocols.length > 0) ||
+        order.status === 'completed' ||
+        order.status === 'invoice_paid' ||
+        order.status === 'archived'
       );
 
     case 'invoice':
@@ -119,6 +129,7 @@ export function isTaskCompleted(order: any, taskId: string): boolean {
       return Boolean(
         ticketStates.payment ||
         order.status === 'invoice_paid' ||
+        calculateOpenAmount(order) <= 0.01 ||
         (order.totals?.gross > 0 && ((order.totals?.gross || 0) - (order.totalPaid || 0) <= 0))
       );
 
@@ -366,4 +377,50 @@ export async function updateTaskSchedule(
   }
 
   await updateDoc(orderRef, updates);
+}
+
+/**
+ * Safely marks pre-move operational preparation tasks as completed when a move
+ * is completed or invoiced, WITHOUT deleting or overwriting any dates, times,
+ * notes, disposition, or historical records.
+ */
+export async function autoCompletePreMoveTasks(orderId: string): Promise<void> {
+  if (!orderId) return;
+  const orderRef = doc(db, 'orders', orderId);
+
+  const updates: Record<string, any> = {
+    updatedAt: serverTimestamp(),
+    // 1. Viewing task (Besichtigungstermin erledigt)
+    'ticketStates.viewing_requested': true,
+    'checklistDone.viewing_requested': true,
+    'checklistDone.viewing_date': true,
+    // 2. Halteverbot (HVZ erledigt/abgeschlossen)
+    'ticketStates.halteverbot': true,
+    'checklistDone.hvz': true,
+    'checklistDone.halteverbot': true,
+    'logistics.hvzConfirmed': true,
+    'logistics.hvzStatus': 'confirmed',
+    'logisticsState.hvz_aufgestellt': true,
+    // 3. Karton-Lieferung (Kartons ausgeliefert)
+    'ticketStates.kartons_liefern': true,
+    'checklistDone.kartons': true,
+    'checklistDone.kartons_liefern': true,
+    'logistics.boxesDelivered': true,
+    'logisticsState.kartons_geliefert': true,
+    // 4. Möbellift (Lift reserviert/erledigt)
+    'ticketStates.moebellift_buchen': true,
+    'checklistDone.moebellift': true,
+    'checklistDone.moebellift_buchen': true,
+    'logistics.liftReserved': true,
+    'logistics.liftStatus': 'confirmed',
+    // 5. Team disposition
+    'checklistDone.team': true,
+    'teamAssigned': true
+  };
+
+  try {
+    await updateDoc(orderRef, updates);
+  } catch (err) {
+    console.error('Error auto-completing pre-move tasks for order', orderId, err);
+  }
 }

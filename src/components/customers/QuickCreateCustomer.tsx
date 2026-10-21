@@ -22,20 +22,13 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
   const [source, setSource] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+  const [showConfirmCancel, setShowConfirmCancel] = useState(false);
   const { profile } = useAuth();
 
   const handleSafeClose = () => {
     const hasData = Boolean(lastName.trim() || firstName.trim() || phone.trim() || email.trim() || street.trim());
     if (hasData) {
-      if (window.confirm("Möchten Sie das Anlegen des Kunden wirklich abbrechen? Eingegebene Daten gehen verloren.")) {
-        onClose();
-      } else {
-        if (typeof window !== 'undefined' && !window.history.state?.rothirschModal) {
-          try {
-            window.history.pushState({ rothirschModal: true, modalId: 'quick-create-customer' }, '');
-          } catch {}
-        }
-      }
+      setShowConfirmCancel(true);
     } else {
       onClose();
     }
@@ -249,6 +242,39 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
           {isSubmitting ? 'Speichert...' : 'Erstellen & Akte öffnen'}
         </button>
       </div>
+
+      {showConfirmCancel && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-bg-panel border border-red-500/30 rounded-2xl p-5 max-w-sm w-full shadow-2xl space-y-4 text-center">
+            <div className="w-12 h-12 rounded-xl bg-red-500/10 text-red-400 border border-red-500/25 flex items-center justify-center mx-auto">
+              <span className="material-symbols-outlined text-2xl">warning</span>
+            </div>
+            <div>
+              <h4 className="text-base font-bold text-text-main">Erfassung abbrechen?</h4>
+              <p className="text-xs text-text-muted mt-1">Eingegebene Daten gehen verloren. Möchten Sie wirklich abbrechen?</p>
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowConfirmCancel(false)}
+                className="btn-secondary flex-1 text-xs py-2"
+              >
+                Weiter erfassen
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowConfirmCancel(false);
+                  onClose();
+                }}
+                className="bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl flex-1 text-xs py-2"
+              >
+                Ja, abbrechen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 }

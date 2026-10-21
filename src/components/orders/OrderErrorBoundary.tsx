@@ -73,16 +73,7 @@ export class OrderErrorBoundary extends Component<Props, State> {
             )}
           </p>
 
-          {this.state.error?.message && (
-            <div className="bg-black/30 border border-structure/60 rounded-xl p-3 mb-6 text-left max-w-md mx-auto">
-              <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider block mb-0.5">
-                Technischer Hinweis / تفاصيل الخطأ
-              </span>
-              <code className="text-xs font-mono text-amber-200/90 break-words block">
-                {this.state.error.message}
-              </code>
-            </div>
-          )}
+
 
           <div className="flex flex-wrap items-center justify-center gap-3">
             <button

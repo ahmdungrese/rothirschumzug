@@ -53,6 +53,18 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
     } catch {}
   }, []);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const updateWidth = () => {
+      const isMobile = window.innerWidth < 768;
+      const width = isMobile ? '0px' : (isSlim ? '68px' : '256px');
+      document.documentElement.style.setProperty('--sidebar-width', width);
+    };
+    updateWidth();
+    window.addEventListener('resize', updateWidth);
+    return () => window.removeEventListener('resize', updateWidth);
+  }, [isSlim]);
+
   const toggleSlim = () => {
     setIsSlim(prev => {
       const next = !prev;

@@ -21,6 +21,7 @@
   --color-text-main:          #0F172A;
   --color-text-muted:         #64748B;
   --color-doc-bg:             #F8FAFC;
+  --sidebar-width:            68px;
 
   /* Google Studio Mockup Tokens (Light) */
   --surface-container-lowest: #FFFFFF;
@@ -67,6 +68,7 @@
   --color-text-main:          #F8FAFC;
   --color-text-muted:         #94A3B8;
   --color-doc-bg:             #161F2C;
+  --sidebar-width:            68px;
 
   /* Google Studio Mockup Tokens (Dark) */
   --surface-container-lowest: #10161F;
@@ -226,4 +228,10 @@ body {
 }
 .highlight-idle {
   border-color: var(--color-primary) !important;
+}
+
+@media (max-width: 767px) {
+  :root {
+    --sidebar-width: 0px !important;
+  }
 }

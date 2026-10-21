@@ -18,11 +18,15 @@ import {
   ChevronDownIcon,
   ChevronUpIcon,
   Squares2X2Icon,
-  QueueListIcon
+  QueueListIcon,
+  BanknotesIcon,
+  DocumentTextIcon
 } from '@heroicons/react/24/outline';
 import { generateTickets, SystemTicket } from '@/lib/ticketEngine';
 import { toggleTaskCompletion } from '@/lib/taskStateController';
 import { TaskScheduleModal } from '@/components/logistics/TaskScheduleModal';
+import { PaymentManager } from '@/components/orders/PaymentManager';
+import { calculateOpenAmount } from '@/lib/financeHelpers';
 import toast from 'react-hot-toast';
 
 export default function LogisticsPage() {
@@ -33,6 +37,7 @@ export default function LogisticsPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [customers, setCustomers] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
+  const [paymentModalOrder, setPaymentModalOrder] = useState<any | null>(null);
 
   // Status Tab: 'offen' (default) vs 'erledigt'
   const [statusTab, setStatusTab] = useState<'offen' | 'erledigt'>('offen');
@@ -69,6 +74,19 @@ export default function LogisticsPage() {
         const customerData = currentCustomers[o.customerId] || null;
         const systemTickets = generateTickets(o, customerData);
         systemTickets.forEach(t => {
+          if (t.id === 'payment_check') {
+            const openAmt = calculateOpenAmount(o);
+            const isPaid = o.status === 'invoice_paid' || (o.invoiceNumber && openAmt <= 0.01);
+            if (isPaid) {
+              t.done = true;
+            }
+          }
+          if (t.id === 'invoice_missing') {
+            const hasInv = Boolean(o.invoiceNumber || o.activeInvoiceNumber || o.status?.startsWith('invoice_'));
+            if (hasInv) {
+              t.done = true;
+            }
+          }
           allTodos.push(t);
         });
 
@@ -201,6 +219,12 @@ export default function LogisticsPage() {
     e.stopPropagation();
     const parentOrder = orders.find(o => o.id === todo.orderId) || { id: todo.orderId };
     
+    // For payment check, directly open PaymentManager to avoid arbitrary desynchronization with accounting
+    if (todo.id === 'payment_check') {
+      setPaymentModalOrder(parentOrder);
+      return;
+    }
+
     // Optimistic UI update
     setActiveTodos(prev => prev.map(t => (t.id === todo.id && t.orderId === todo.orderId) ? { ...t, done: !t.done } : t));
 
@@ -796,22 +820,80 @@ export default function LogisticsPage() {
                               </Link>
                             )}
 
-                            {/* Erledigt markieren */}
-                            <button
-                              type="button"
-                              onClick={(e) => handleToggleTask(todo, e)}
-                              className={`h-7 px-2.5 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shrink-0 ${
-                                todo.done
-                                  ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300'
-                                  : isViewing && parentOrder?.customerId
-                                    ? 'bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] border border-[#6E8F64]/35 hover:bg-[#6E8F64] hover:text-white'
-                                    : 'bg-[#6E8F64] hover:bg-[#5C7A53] text-white shadow-xs shadow-[#6E8F64]/20'
-                              }`}
-                              title={todo.done ? 'Wiedereröffnen' : 'Als erledigt markieren'}
-                            >
-                              <CheckIcon className="w-3.5 h-3.5" />
-                              <span>{todo.done ? 'Offen' : 'Erledigt'}</span>
-                            </button>
+                            {/* Dynamic Action Buttons for Invoicing & Payments vs Standard Tasks */}
+                            {todo.id === 'payment_check' ? (() => {
+                              const openAmt = calculateOpenAmount(parentOrder);
+                              const isOrderPaid = todo.done || parentOrder.status === 'invoice_paid' || (parentOrder.invoiceNumber && openAmt <= 0.01);
+                              
+                              if (isOrderPaid) {
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setPaymentModalOrder(parentOrder);
+                                    }}
+                                    className="h-7 px-2.5 rounded-lg text-[11px] font-bold flex items-center gap-1 bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] border border-[#6E8F64]/30 hover:bg-[#6E8F64] hover:text-white transition-all cursor-pointer shrink-0"
+                                    title="Zahlungsdetails anzeigen (Vollständig bezahlt)"
+                                  >
+                                    <CheckIcon className="w-3.5 h-3.5" />
+                                    <span>Bezahlt ✓</span>
+                                  </button>
+                                );
+                              }
+
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPaymentModalOrder(parentOrder);
+                                  }}
+                                  className="h-7 px-2.5 rounded-lg text-[11px] font-bold flex items-center gap-1 bg-[#6E8F64] hover:bg-[#5C7A53] text-white shadow-xs transition-all cursor-pointer shrink-0"
+                                  title={`Offener Rechnungsbetrag: € ${openAmt.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                                >
+                                  <BanknotesIcon className="w-3.5 h-3.5" />
+                                  <span>Zahlung erfassen{openAmt > 0 ? ` (${openAmt.toFixed(0)} €)` : ''}</span>
+                                </button>
+                              );
+                            })() : todo.id === 'invoice_missing' ? (() => {
+                              const hasInv = Boolean(parentOrder.invoiceNumber || parentOrder.activeInvoiceNumber || parentOrder.status?.startsWith('invoice_'));
+                              if (hasInv) {
+                                return (
+                                  <span className="h-7 px-2.5 rounded-lg text-[11px] font-bold flex items-center gap-1 bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] border border-[#6E8F64]/30 shrink-0">
+                                    <CheckIcon className="w-3.5 h-3.5" />
+                                    <span>Rechnung erstellt ✓</span>
+                                  </span>
+                                );
+                              }
+                              return (
+                                <Link
+                                  href={`/dashboard/customers/${parentOrder.customerId}/invoice/${parentOrder.id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="h-7 px-2.5 rounded-lg text-[11px] font-bold flex items-center gap-1 bg-amber-500 hover:bg-amber-600 text-white shadow-xs transition-all shrink-0"
+                                  title="Rechnung erstellen"
+                                >
+                                  <DocumentTextIcon className="w-3.5 h-3.5" />
+                                  <span>Rechnung erstellen</span>
+                                </Link>
+                              );
+                            })() : (
+                              <button
+                                type="button"
+                                onClick={(e) => handleToggleTask(todo, e)}
+                                className={`h-7 px-2.5 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer shrink-0 ${
+                                  todo.done
+                                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-300'
+                                    : isViewing && parentOrder?.customerId
+                                      ? 'bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] border border-[#6E8F64]/35 hover:bg-[#6E8F64] hover:text-white'
+                                      : 'bg-[#6E8F64] hover:bg-[#5C7A53] text-white shadow-xs shadow-[#6E8F64]/20'
+                                }`}
+                                title={todo.done ? 'Wiedereröffnen' : 'Als erledigt markieren'}
+                              >
+                                <CheckIcon className="w-3.5 h-3.5" />
+                                <span>{todo.done ? 'Offen' : 'Erledigt'}</span>
+                              </button>
+                            )}
                           </div>
                         </div>
 
@@ -998,9 +1080,67 @@ export default function LogisticsPage() {
                   )}
                 </div>
 
-                {/* Card Bottom: Light Olive-Sage Green Action Buttons */}
+                {/* Card Bottom: Dynamic Action Buttons */}
                 <div className="mt-3.5 pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
-                  {!todo.done ? (
+                  {todo.id === 'payment_check' ? (() => {
+                    const openAmt = calculateOpenAmount(parentOrder);
+                    const isOrderPaid = todo.done || parentOrder.status === 'invoice_paid' || (parentOrder.invoiceNumber && openAmt <= 0.01);
+
+                    if (isOrderPaid) {
+                      return (
+                        <div className="w-full flex items-center justify-between">
+                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#6E8F64]">
+                            <CheckIcon className="w-4 h-4" />
+                            <span>Bezahlt ✓</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPaymentModalOrder(parentOrder);
+                            }}
+                            className="text-xs text-[#527048] dark:text-[#B5D1AC] hover:underline font-bold cursor-pointer"
+                          >
+                            Zahlungsdetails
+                          </button>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPaymentModalOrder(parentOrder);
+                        }}
+                        className="w-full py-2 px-4 bg-[#6E8F64] hover:bg-[#5C7A53] text-white shadow-xs rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <BanknotesIcon className="w-4 h-4" />
+                        <span>Zahlung erfassen{openAmt > 0 ? ` (${openAmt.toFixed(2)} € offen)` : ''}</span>
+                      </button>
+                    );
+                  })() : todo.id === 'invoice_missing' ? (() => {
+                    const hasInv = Boolean(parentOrder.invoiceNumber || parentOrder.activeInvoiceNumber || parentOrder.status?.startsWith('invoice_'));
+                    if (hasInv) {
+                      return (
+                        <div className="w-full flex items-center gap-1.5 text-xs font-bold text-[#6E8F64]">
+                          <CheckIcon className="w-4 h-4" />
+                          <span>Rechnung erstellt ✓</span>
+                        </div>
+                      );
+                    }
+                    return (
+                      <Link
+                        href={`/dashboard/customers/${parentOrder.customerId}/invoice/${parentOrder.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-full py-2 px-4 bg-amber-500 hover:bg-amber-600 text-white shadow-xs rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+                      >
+                        <DocumentTextIcon className="w-4 h-4" />
+                        <span>Rechnung erstellen</span>
+                      </Link>
+                    );
+                  })() : !todo.done ? (
                     <>
                       {isViewing && parentOrder?.customerId && (
                         <Link
@@ -1056,6 +1196,16 @@ export default function LogisticsPage() {
           todo={modalTodo}
           parentOrder={modalOrder}
           onSaved={() => {}}
+        />
+      )}
+
+      {/* Payment Manager Modal */}
+      {paymentModalOrder && (
+        <PaymentManager
+          order={paymentModalOrder}
+          allOrders={orders}
+          onClose={() => setPaymentModalOrder(null)}
+          onUpdate={() => setPaymentModalOrder(null)}
         />
       )}
     </div>

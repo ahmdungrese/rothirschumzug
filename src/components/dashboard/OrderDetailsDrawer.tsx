@@ -232,6 +232,12 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
   };
 
   const handleInvoiceClick = () => {
+    if (activeInvNum) {
+      setPdfModalType('invoice');
+      setPdfModalOpen(true);
+      return;
+    }
+
     if (isReadyForInvoice) {
       handleNavigate(editInvoiceUrl);
     } else {
@@ -1591,13 +1597,15 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                   type="button"
                   onClick={handleInvoiceClick}
                   className={`p-4 rounded-2xl flex flex-col items-center text-center gap-2 shadow-sm transition-all group font-headline cursor-pointer ${
-                    isReadyForInvoice
-                      ? 'bg-[#D91E2A] text-white hover:bg-[#b51822] shadow-md'
-                      : 'bg-slate-200 dark:bg-slate-800/90 text-slate-600 dark:text-slate-300 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-amber-500'
+                    activeInvNum
+                      ? 'bg-[#6E8F64] hover:bg-[#5C7A53] text-white shadow-md'
+                      : isReadyForInvoice
+                        ? 'bg-[#D91E2A] text-white hover:bg-[#b51822] shadow-md'
+                        : 'bg-slate-200 dark:bg-slate-800/90 text-slate-600 dark:text-slate-300 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-amber-500'
                   }`}
                 >
                   <span className="material-symbols-outlined text-3xl group-hover:scale-110 transition-transform">
-                    receipt_long
+                    {activeInvNum ? 'visibility' : 'receipt_long'}
                   </span>
                   <span className="text-xs font-bold flex items-center gap-1.5">
                     <span>
@@ -1607,16 +1615,20 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                           ? `Korrekturrechnung erstellen (Storno: ${latestCancelledInvNum})`
                           : 'Rechnung erstellen'}
                     </span>
-                    {!isReadyForInvoice && (
+                    {!isReadyForInvoice && !activeInvNum && (
                       <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-300">
                         Vorzeitig
                       </span>
                     )}
                   </span>
-                  <span className={`text-[10px] ${isReadyForInvoice ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'}`}>
-                    {isReadyForInvoice
-                      ? '1-Klick Abrechnung mit allen Leistungen'
-                      : 'Auftrag noch offen – Klicken für vorzeitige Erstellung'}
+                  <span className={`text-[10px] ${activeInvNum || isReadyForInvoice ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'}`}>
+                    {activeInvNum
+                      ? 'Offizielle PDF-Rechnung anzeigen & drucken'
+                      : latestCancelledInvNum
+                        ? 'Neue korrigierte Rechnung ausstellen'
+                        : isReadyForInvoice
+                          ? '1-Klick Abrechnung mit allen Leistungen'
+                          : 'Auftrag noch offen – Klicken für vorzeitige Erstellung'}
                   </span>
                 </button>
               </div>

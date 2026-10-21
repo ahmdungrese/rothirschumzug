@@ -199,21 +199,12 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
     }
   };
 
-  const handleSafeCancel = () => {
-    const isDirty = Boolean(
-      customer.lastName?.trim() ||
-      customer.phone?.trim() ||
-      customer.street?.trim() ||
-      inventory.length > 0
-    );
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const isBypassingCancelGuard = useRef(false);
 
-    if (isDirty) {
-      const confirmLeave = window.confirm(
-        "Möchten Sie die Besichtigung / das Angebot wirklich abbrechen? Eingegebene Daten bleiben lokal als Entwurf gesichert."
-      );
-      if (!confirmLeave) return false;
-    }
-
+  const executeExit = () => {
+    isBypassingCancelGuard.current = true;
+    setShowCancelModal(false);
     if (onClose) {
       onClose();
     } else if (urlCustomerId) {
@@ -225,6 +216,22 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
         router.push('/dashboard');
       }
     }
+  };
+
+  const handleSafeCancel = () => {
+    const isDirty = Boolean(
+      customer.lastName?.trim() ||
+      customer.phone?.trim() ||
+      customer.street?.trim() ||
+      inventory.length > 0
+    );
+
+    if (isDirty) {
+      setShowCancelModal(true);
+      return false;
+    }
+
+    executeExit();
     return true;
   };
 
@@ -233,6 +240,8 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
     if (typeof window === 'undefined') return;
 
     const handlePopState = (e: PopStateEvent) => {
+      if (isBypassingCancelGuard.current) return;
+
       if (stepRef.current > 1) {
         // Step back inside wizard without leaving the page
         setStep(prev => Math.max(1, prev - 1));
@@ -244,19 +253,13 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
           inventoryRef.current.length > 0
         );
         if (isDirty) {
-          const confirmLeave = window.confirm(
-            "Möchten Sie die Eingabe wirklich verlassen? Nicht gespeicherte Änderungen bleiben als lokaler Entwurf gesichert."
-          );
-          if (!confirmLeave) {
-            window.history.pushState({ wizardStep: 1 }, '');
-            return;
-          }
+          window.history.pushState({ wizardStep: 1 }, '');
+          setShowCancelModal(true);
+          return;
         }
         if (onCloseRef.current) {
           onCloseRef.current();
         }
-        // If not in a modal, the browser history has already popped to the referrer.
-        // We never force router.push('/dashboard') which would overwrite their natural origin!
       }
     };
 
@@ -1583,6 +1586,47 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
           <option value="Kleinanzeigen" />
           <option value="Stammkunde" />
         </datalist>
+
+        {showCancelModal && (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
+            <div className="bg-bg-panel border-2 border-red-500/30 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-5 text-center animate-in zoom-in-95 duration-200">
+              <div className="w-16 h-16 rounded-2xl bg-red-500/10 text-red-400 border border-red-500/25 flex items-center justify-center mx-auto shadow-inner">
+                <span className="material-symbols-outlined text-3xl">warning</span>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-xl font-headline font-bold text-text-main">
+                  Besichtigung abbrechen?
+                </h3>
+                <p className="text-xs font-semibold text-red-400">
+                  هل أنت متأكد من رغبتك في إلغاء العملية؟
+                </p>
+                <p className="text-xs text-text-muted leading-relaxed pt-1">
+                  Nicht gespeicherte Eingaben bleiben als lokaler Entwurf gesichert. Möchten Sie die Besichtigung wirklich verlassen?
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={executeExit}
+                  className="w-full py-3 px-4 rounded-xl text-xs font-bold font-headline bg-red-600 hover:bg-red-500 text-white flex items-center justify-center gap-2 shadow-lg shadow-red-600/30 transition-all cursor-pointer active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-sm">delete_forever</span>
+                  <span>Verlassen / مغادرة</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowCancelModal(false)}
+                  className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-text-muted hover:text-text-main bg-white/[0.04] hover:bg-white/[0.08] border border-structure transition-all cursor-pointer"
+                >
+                  Weiter bearbeiten / البقاء ومتابعة العمل
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

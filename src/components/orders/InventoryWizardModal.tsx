@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useMemo, useEffect } from "react";
 import { useModalBackHandler } from "@/hooks/useModalBackHandler";
@@ -313,8 +313,8 @@ export function InventoryWizardModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="bg-bg-panel w-full max-w-5xl h-[85vh] rounded-2xl shadow-2xl border border-structure flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-md p-3 sm:p-5 md:p-6 animate-in fade-in">
+      <div className="bg-bg-panel w-full max-w-5xl h-[92vh] sm:h-[86vh] max-h-[850px] rounded-2xl shadow-2xl border border-structure flex flex-col overflow-hidden">
         
         {/* Header */}
         <div className="flex items-center justify-between p-4 sm:p-6 border-b border-structure bg-bg-dark shrink-0">
@@ -576,17 +576,17 @@ export function InventoryWizardModal({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-structure bg-bg-panel flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
+        <div className="p-3 sm:p-4 border-t border-structure bg-bg-panel/95 backdrop-blur-md flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 shrink-0">
           {step === 1 ? (
             <>
               <button 
-                type="button"
+                type="button" 
                 onClick={onClose} 
-                className="btn-secondary text-sm px-4 py-2 border-structure text-text-muted w-full sm:w-auto"
+                className="btn-secondary text-xs sm:text-sm px-4 py-2.5 border-structure text-text-muted hover:text-white w-full sm:w-auto order-2 sm:order-1 cursor-pointer"
               >
                 Abbrechen
               </button>
-              <div className="flex flex-wrap items-center justify-end gap-2.5 w-full sm:w-auto">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-2.5 w-full sm:w-auto order-1 sm:order-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -594,35 +594,39 @@ export function InventoryWizardModal({
                     onClose();
                   }}
                   disabled={activeRooms.length === 0}
-                  className="px-4 py-2 rounded-xl bg-white/[0.05] hover:bg-white/10 text-text-main border border-structure text-xs font-bold transition-all disabled:opacity-40"
+                  className="px-4 py-2.5 rounded-xl bg-white/[0.06] hover:bg-white/10 text-text-main border border-structure/80 text-xs font-bold transition-all disabled:opacity-40 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
                 >
-                  Räume für Auszugsort übernehmen ({activeRooms.length})
+                  <span className="material-symbols-outlined text-sm text-primary">check_circle</span>
+                  <span>Räume übernehmen ({activeRooms.length})</span>
                 </button>
                 <button 
-                  type="button"
+                  type="button" 
                   onClick={() => setStep(2)} 
                   disabled={activeRooms.length === 0}
-                  className="btn-primary text-sm px-6 py-2 shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="btn-primary text-xs sm:text-sm px-5 py-2.5 shadow-lg shadow-primary/20 disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  Weiter zum Inventar <ChevronRightIcon className="w-4 h-4" />
+                  <span>Weiter zum Inventar</span>
+                  <ChevronRightIcon className="w-4 h-4" />
                 </button>
               </div>
             </>
           ) : (
             <>
               <button 
-                type="button"
+                type="button" 
                 onClick={() => setStep(1)} 
-                className="btn-secondary text-sm px-4 py-2 flex items-center gap-2 border-structure text-text-muted w-full sm:w-auto"
+                className="btn-secondary text-xs sm:text-sm px-4 py-2.5 flex items-center justify-center gap-2 border-structure text-text-muted hover:text-white w-full sm:w-auto order-2 sm:order-1 cursor-pointer"
               >
-                <ChevronLeftIcon className="w-4 h-4" /> Zurück zu Räumen
+                <ChevronLeftIcon className="w-4 h-4" />
+                <span>Zurück zu Räumen</span>
               </button>
               <button 
-                type="button"
+                type="button" 
                 onClick={handleApply} 
-                className="btn-primary text-sm px-6 py-2 shadow-lg bg-[#33412a] hover:bg-[#3d4d32] border border-primary/50 text-white w-full sm:w-auto"
+                className="btn-primary text-xs sm:text-sm px-6 py-2.5 shadow-xl shadow-primary/30 text-white font-bold w-full sm:w-auto order-1 sm:order-2 flex items-center justify-center gap-2 cursor-pointer"
               >
-                Speichern & Übernehmen
+                <span className="material-symbols-outlined text-base">check</span>
+                <span>Inventar speichern & übernehmen</span>
               </button>
             </>
           )}
