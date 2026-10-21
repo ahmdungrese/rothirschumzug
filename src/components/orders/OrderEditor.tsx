@@ -3390,7 +3390,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   </span>
                 </div>
 
-                <div className="max-h-72 overflow-y-auto custom-scrollbar divide-y divide-structure/40">
+                <div className="max-h-96 overflow-y-auto overflow-x-auto custom-scrollbar divide-y divide-structure/40">
                   {services.length === 0 ? (
                     <div className="p-8 text-center text-text-muted text-xs">
                       Keine Leistungen gewählt. Klicken Sie links auf Leistungen zum Hinzufügen.
@@ -3434,7 +3434,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                                 >
                                   drag_indicator
                                 </span>
-                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex items-center gap-0.5 opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                   <button
                                     type="button"
                                     disabled={idx === 0}
