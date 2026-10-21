@@ -32,6 +32,7 @@ export default function CalendarPage() {
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [orders, setOrders] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<Record<string, any>>({});
   const [settings, setSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
@@ -57,13 +58,25 @@ export default function CalendarPage() {
       setLoading(false);
     });
 
+    const qCust = query(collection(db, 'customers'));
+    const unsubCust = onSnapshot(qCust, (snapshot) => {
+      const map: Record<string, any> = {};
+      snapshot.docs.forEach(doc => {
+        map[doc.id] = { id: doc.id, ...doc.data() };
+      });
+      setCustomers(map);
+    });
+
     getDoc(doc(db, 'system', 'settings')).then(docSnap => {
       if (docSnap.exists()) {
         setSettings(docSnap.data());
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      unsubCust();
+    };
   }, []);
 
   const getDaysInMonth = (date: Date) => {
@@ -111,6 +124,8 @@ export default function CalendarPage() {
 
     orders.forEach(o => {
       if (o.isArchived === true || o.status === 'archived') return;
+      const cust = customers[o.customerId];
+      if (cust?.isArchived === true) return;
       const effectiveMovingDate = o.orderMeta?.movingDateFrom || o.movingDate || o.disposition?.movingDate;
       const isConfirmed = !['draft', 'quote'].includes(o.status);
       const custShortName = o.customerName || 'Kunde';
@@ -282,7 +297,7 @@ export default function CalendarPage() {
         all: isTeamLead ? totalMoves : (totalMoves + totalViewings + totalLogistics)
       }
     };
-  }, [orders, currentDate, daysInMonth, isTeamLead]);
+  }, [orders, customers, currentDate, daysInMonth, isTeamLead]);
 
   // Filter helper for a day's events
   const getFilteredDayEvents = (dateStr: string) => {
