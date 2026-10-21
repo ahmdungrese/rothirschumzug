@@ -21,7 +21,30 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.6.0 (Current) – Wizard Flexibility, Empty Offer Guard & Network/Login Hardening
+### Version 2.7.0 (Current) – Cockpit Financial Integrity, DST Calendar Math & Strict Accounting Segregation
+*   **Inviolable UTC Calendar Math (`CustomerPremiumProfile.tsx` & `ticketEngine.ts`)**:
+    *   Replaced local timestamp `Math.ceil(diffTime / 86400000)` with UTC calendar arithmetic (`Date.UTC(y, m, d)` and `Math.round`).
+    *   Completely eliminates the Daylight Saving Time (DST Sommerzeit/Winterzeit) 1-hour shift bug that previously rounded a 40-day difference (40.04 days) up to 41 days.
+*   **Cockpit 100% Progress Synchronization (`orderValidation.ts` & `taskStateController.ts`)**:
+    *   In Phase 4, when an invoice is fully settled (`openAmount <= 0.01` or `status === 'invoice_paid'` / `completed`), both payment and handover protocol (`Übergabeprotokoll`) are marked as completed.
+    *   Eliminates the contradiction where the header showed "Phase 4: Abgeschlossen & Bezahlt" while the progress bar was stuck at 67% (2 von 3 Aufgaben).
+*   **Smart Dynamic Logistics Actions (`ticketEngine.ts` & `logistics/page.tsx`)**:
+    *   Guaranteed that fully paid invoices never display "Zahlung erfassen" or stay in the "Offen" (open tasks) list.
+    *   Four operational milestones feature dedicated smart dynamic states:
+        1.  *Rechnung & Zahlung*: `Rechnung erstellen` if missing; `Zahlung erfassen (Offen: €X)` if unpaid; `Bezahlt ✓` (read-only audit) if paid.
+        2.  *Halteverbotszone (HVZ)*: `HVZ planen` if unscheduled; `Als beantragt markieren` 1-click completion.
+        3.  *Umzugskartons*: `Lieferung planen` if unscheduled; `Geliefert ✓` 1-click delivery.
+        4.  *Besichtigung*: Marked complete immediately if `Durch Fotos` or if order is already confirmed/completed.
+*   **Strict Accounting Segregation (No Storno in Cockpit Drawer)**:
+    *   Removed GoBD lock warning banner and "Storno erstellen" buttons from `OrderDetailsDrawer.tsx`.
+    *   The Cockpit is strictly reserved for operational delivery, logistics checklist, and PDF inspection. Storno cancellations belong exclusively inside the customer profile (`CustomerPremiumProfile.tsx` / `Kundenakte`) and finances module (`finances/page.tsx`).
+*   **Order Wizard Ergonomics & In-App Modals (`OrderEditor.tsx`)**:
+    *   Direct numeric input for item quantities (`Menge`) without requiring repeated clicks on plus button.
+    *   Removed persistent sticky `0` from Netto price inputs.
+    *   Hidden bottom navigation bar during modal dialogs to avoid UI overlap.
+    *   Replaced native browser `window.confirm` dialogs with custom bilingual in-app modals with single-prompt cancellation.
+
+### Version 2.6.0 – Wizard Flexibility, Empty Offer Guard & Network/Login Hardening
 *   **Empty Offer Guard & Visual PDF Status (`CustomerPremiumProfile.tsx` & `OrderDetailsDrawer.tsx`)**:
     *   PDF preview buttons (`Angebot PDF` & `PDF`) automatically display in muted gray with an explicit `0 €` badge if the offer has no services or its price is `0,00 €`.
     *   Clicking an empty offer triggers an informative confirmation modal with 1-click jump to the editor (`Leistungen im Editor bearbeiten`) or explicit bypass (`Trotzdem PDF ansehen`), preventing unintentional transmission of empty 0€ quotes.
@@ -116,6 +139,20 @@ draft ──► quote ──► confirmed ──► completed ──► invoice_
 ### C. UI & UX Guidelines
 *   **No Drag & Drop on Kanban**: The Kanban columns (`neu`, `verhandlung`, `bestaetigt`, `abgeschlossen`) are strictly calculated and populated based on order status and logistics evaluation. Do not add drag-and-drop unless requested.
 *   **Modal History**: Always use `useModalBackHandler` on mobile modals so pressing Android/browser back closes the modal rather than navigating away.
+
+### D. Inviolable Calendar Math (DST Immunity)
+*   **NEVER use local date millisecond division with `Math.ceil`**: In Germany/Europe, Daylight Saving Time (DST) changes in late March and late October. When crossing a DST boundary, local millisecond difference is off by $\pm 1$ hour (e.g. 40 days + 1 hour = 40.04 days), and `Math.ceil(40.04)` falsely yields 41 days!
+*   **ALWAYS use UTC calendar arithmetic**:
+    ```ts
+    const utcToday = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+    const utcTarget = Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+    const diffDays = Math.round((utcTarget - utcToday) / (1000 * 60 * 60 * 24));
+    ```
+
+### E. Cockpit vs. Customer Folder Separation of Concerns
+*   **Cockpit Drawer (`OrderDetailsDrawer.tsx`)**: Strictly operational. Shows moving route, team/vehicle dispatch, logistical checklist status, and a button to view the official invoice PDF (`Rechnung ansehen`).
+*   **Customer Profile (`CustomerPremiumProfile.tsx`)**: Contains full financial administration and GoBD accounting workflows (issuing invoices, payments, and GoBD Storno cancellation). Never leak Storno or accounting lock banners into the operational Cockpit!
+*   **Progress Bar Synchronization**: When an order is completed and fully paid, all Phase 4 items (`invoice`, `protocol`, `payment`) must evaluate to 100% completed so the progress bar never contradicts the completed badge.
 
 ---
 

@@ -72,6 +72,25 @@ For production deployment (e.g. Vercel):
 ### D. Wizard Flexibility & Empty Offer Guard
 * **Order Wizard Navigation (`OrderEditor.tsx`)**: Allow free progression to Step 3 (`Leistungen`) and Step 4 (`Inventar`) as soon as customer `Nachname` is set, even if Step 2 (`Logistik`) addresses are incomplete.
 * **Empty Offer Guard (`CustomerPremiumProfile.tsx` & `OrderDetailsDrawer.tsx`)**: Any quote with 0 services or 0,00 € price displays grayed-out PDF buttons with a `0 €` badge and triggers a confirmation dialog prompting to edit services or proceed anyway.
+* **Ergonomic Quantity & Price Inputs**: Item quantity (`Menge`) must support direct numeric typing. Price inputs (`Netto`) must not retain a persistent zero. Bottom navigation bar must hide when modal dialogs are open.
+
+### E. Inviolable Calendar Math (DST Immunity)
+* **NEVER use local date millisecond division with `Math.ceil`**: In Germany/Europe, Daylight Saving Time (DST) changes causes $\pm 1$ hour shifts that erroneously turns 40 days into 41.
+* **ALWAYS use UTC calendar arithmetic**:
+  ```ts
+  const utcToday = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  const utcTarget = Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+  const diffDays = Math.round((utcTarget - utcToday) / (1000 * 60 * 60 * 24));
+  ```
+
+### F. Separation of Concerns & Cockpit Consistency
+* **Cockpit Drawer (`OrderDetailsDrawer.tsx`)**: Operational only (route, vehicle/team, checklist, invoice PDF view). NEVER place GoBD lock banners or "Storno erstellen" buttons here.
+* **Customer Profile (`CustomerPremiumProfile.tsx`)**: Financial hub where Storno cancellation and detailed invoice management reside.
+* **Progress Bar 100% Alignment**: In Phase 4, when the order is completed and paid, all tasks (`invoice`, `protocol`, `payment`) must evaluate to completed (100%), matching the "Abgeschlossen & Bezahlt" status.
+
+### G. Smart Dynamic Logistics Actions (`ticketEngine.ts` & `logistics/page.tsx`)
+* Never show "Zahlung erfassen" on settled invoices (`openAmount <= 0.01`). Display `Bezahlt ✓` and auto-archive to the completed tasks tab.
+* In Phase 3/4, pre-move inspections (`Besichtigung`) are automatically treated as completed.
 
 ---
 
