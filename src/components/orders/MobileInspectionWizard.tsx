@@ -86,8 +86,8 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
 
   // 3. Logistik
   const [logistics, setLogistics] = useState<any>({
-    a_type: 'Wohnung', a_street: '', a_houseNr: '', a_zip: '', a_city: '', a_floor: 'Erdgeschoss', a_elevator: false, a_parking: false, a_furnitureLift: false, a_distance: 0,
-    b_type: 'Wohnung', b_street: '', b_houseNr: '', b_zip: '', b_city: '', b_floor: 'Erdgeschoss', b_elevator: false, b_parking: false, b_furnitureLift: false, b_distance: 0,
+    a_type: 'Wohnung', a_street: '', a_houseNr: '', a_zip: '', a_city: '', a_floor: '', a_elevator: false, a_parking: false, a_furnitureLift: false, a_distance: 0,
+    b_type: 'Wohnung', b_street: '', b_houseNr: '', b_zip: '', b_city: '', b_floor: '', b_elevator: false, b_parking: false, b_furnitureLift: false, b_distance: 0,
     hvzDateA: '', hvzTimeA: '', hvzDateB: '', hvzTimeB: '', hvzSameAsA: false
   });
 
@@ -819,10 +819,11 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
                     <div id="highlight-floorA">
                       <label className="block text-sm text-text-muted mb-2 font-medium">Etage (A)</label>
                       <select
-                        value={logistics.a_floor || 'Erdgeschoss'}
+                        value={logistics.a_floor || ''}
                         onChange={e => setLogistics({...logistics, a_floor: e.target.value})}
                         className="input-field w-full text-base py-3"
                       >
+                        <option value="">Noch nicht zugewiesen / Bitte wählen...</option>
                         {logistics.a_floor && !FLOOR_OPTIONS.includes(logistics.a_floor) && (
                           <option value={logistics.a_floor}>{logistics.a_floor}</option>
                         )}
@@ -949,10 +950,11 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
                     <div id="highlight-floorB">
                       <label className="block text-sm text-text-muted mb-2 font-medium">Etage (B)</label>
                       <select
-                        value={logistics.b_floor || 'Erdgeschoss'}
+                        value={logistics.b_floor || ''}
                         onChange={e => setLogistics({...logistics, b_floor: e.target.value})}
                         className="input-field w-full text-base py-3"
                       >
+                        <option value="">Noch nicht zugewiesen / Bitte wählen...</option>
                         {logistics.b_floor && !FLOOR_OPTIONS.includes(logistics.b_floor) && (
                           <option value={logistics.b_floor}>{logistics.b_floor}</option>
                         )}

@@ -590,8 +590,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
   // 2. Adressen
   const [logistics, setLogistics] = useState<any>({
-    a_street: '', a_houseNr: '', a_zip: '', a_city: '', a_floor: 'Erdgeschoss', a_distance: 0, a_type: '', a_elevator: false, a_parking: false, a_furnitureLift: false,
-    b_street: '', b_houseNr: '', b_zip: '', b_city: '', b_floor: 'Erdgeschoss', b_distance: 0, b_type: '', b_elevator: false, b_parking: false, b_furnitureLift: false,
+    a_street: '', a_houseNr: '', a_zip: '', a_city: '', a_floor: '', a_distance: 0, a_type: '', a_elevator: false, a_parking: false, a_furnitureLift: false,
+    b_street: '', b_houseNr: '', b_zip: '', b_city: '', b_floor: '', b_distance: 0, b_type: '', b_elevator: false, b_parking: false, b_furnitureLift: false,
     hvzDateA: '', hvzTimeA: '', hvzDateB: '', hvzTimeB: '', hvzSameAsA: false
   });
 
@@ -1123,7 +1123,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             a_houseNr: data.logistics?.a_houseNr || data.logistics?.from?.houseNumber || '',
             a_zip: data.logistics?.a_zip || data.logistics?.from?.postalCode || '',
             a_city: data.logistics?.a_city || data.logistics?.from?.city || '',
-            a_floor: data.logistics?.a_floor || data.logistics?.from?.floor || 'Erdgeschoss',
+            a_floor: data.logistics?.a_floor || data.logistics?.from?.floor || '',
             a_distance: data.logistics?.a_distance || 0,
             a_type: data.logistics?.a_type || '',
             a_elevator: data.logistics?.a_elevator || false,
@@ -1133,7 +1133,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             b_houseNr: data.logistics?.b_houseNr || data.logistics?.to?.houseNumber || '',
             b_zip: data.logistics?.b_zip || data.logistics?.to?.postalCode || '',
             b_city: data.logistics?.b_city || data.logistics?.to?.city || '',
-            b_floor: data.logistics?.b_floor || data.logistics?.to?.floor || 'Erdgeschoss',
+            b_floor: data.logistics?.b_floor || data.logistics?.to?.floor || '',
             b_distance: data.logistics?.b_distance || 0,
             b_type: data.logistics?.b_type || '',
             b_elevator: data.logistics?.b_elevator || false,
@@ -1969,10 +1969,11 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               <label className="block text-xs text-text-muted mb-1">Etage</label>
               <select
                 id="input-a_floor"
-                value={logistics.a_floor || 'Erdgeschoss'}
+                value={logistics.a_floor || ''}
                 onChange={e => setLogistics({...logistics, a_floor: e.target.value})}
                 className="input-field w-full"
               >
+                <option value="">Noch nicht zugewiesen / Bitte wählen...</option>
                 {FLOOR_OPTIONS.map(opt => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
@@ -2175,10 +2176,11 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               <label className="block text-xs text-text-muted mb-1">Etage</label>
               <select
                 id="input-b_floor"
-                value={logistics.b_floor || 'Erdgeschoss'}
+                value={logistics.b_floor || ''}
                 onChange={e => setLogistics({...logistics, b_floor: e.target.value})}
                 className="input-field w-full"
               >
+                <option value="">Noch nicht zugewiesen / Bitte wählen...</option>
                 {FLOOR_OPTIONS.map(opt => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}

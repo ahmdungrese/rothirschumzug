@@ -225,7 +225,7 @@ export const EmployeeSheetPDF = ({
               {order?.logistics?.a_zip ? `${order.logistics.a_zip} ${order.logistics.a_city || ''}` : ''}
             </Text>
             <Text style={styles.addressMeta}>
-              Etage: {order?.logistics?.a_floor || '0'} {order?.logistics?.a_elevator ? '(Aufzug)' : '(ohne Aufzug)'}
+              Etage: {order?.logistics?.a_floor || 'k.A.'} {order?.logistics?.a_elevator ? '(Aufzug)' : '(ohne Aufzug)'}
               {'\n'}Laufweg: {order?.logistics?.a_distance || '< 10'} Meter
               {order?.logistics?.a_type ? `\nImmo: ${order.logistics.a_type}` : ''}
             </Text>
@@ -241,7 +241,7 @@ export const EmployeeSheetPDF = ({
               {order?.logistics?.b_zip ? `${order.logistics.b_zip} ${order.logistics.b_city || ''}` : ''}
             </Text>
             <Text style={styles.addressMeta}>
-              Etage: {order?.logistics?.b_floor || '0'} {order?.logistics?.b_elevator ? '(Aufzug)' : '(ohne Aufzug)'}
+              Etage: {order?.logistics?.b_floor || 'k.A.'} {order?.logistics?.b_elevator ? '(Aufzug)' : '(ohne Aufzug)'}
               {'\n'}Laufweg: {order?.logistics?.b_distance || '< 10'} Meter
               {order?.logistics?.b_type ? `\nImmo: ${order.logistics.b_type}` : ''}
             </Text>
