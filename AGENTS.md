@@ -31,12 +31,19 @@ This document provides definitive guidance for any AI coding agent working on th
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
 ### Version 2.8.0 (Current) – Halteverbotszone Auto-Pricing & GoBD Customer Archival Guard
-*   **Halteverbotszone (HVZ) Automated Pricing & Two-Way Sync (`OrderEditor.tsx`)**:
-    *   Toggling Halteverbotszone in Step 2 automatically adds/removes the service in `services` (Angebot / Rechnung).
-    *   **Strict Pricing Rules**:
-        *   Default fallback is **125 € Netto for 1 address (Zone)** and **250 € Netto for both addresses (125 € each)**.
-        *   Custom price input is rendered directly in Step 2 under the address particulars, allowing immediate inline price customization.
-        *   Full two-way synchronization: changes in Step 3 (`Leistungen`) immediately reflect in Step 2, and deleting the service in Step 3 unchecks the toggle in Step 2.
+*   **Consolidated Logistics Services: Single-Line Positions for Halteverbot & Möbellift (`OrderEditor.tsx`)**:
+    *   **Unified Halteverbotszone (HVZ)**:
+        *   Instead of cluttering the offer with separate entries for A and B, a single unified line item `Halteverbotszone (HVZ)` is generated.
+        *   When both A and B are active: `Ort: Beide`, `Menge: 2`, `Einzelpreis: 125 €`, `Summe: 250 €`.
+        *   When only A is active: `Ort: A (Beladung)`, `Menge: 1`, `Summe: 125 €`.
+        *   When only B is active: `Ort: B (Entladung)`, `Menge: 1`, `Summe: 125 €`.
+    *   **Möbellift (Außenaufzug) Automated Sync & Pricing**:
+        *   Toggling Möbellift in Step 2 under Address A and/or Address B automatically creates a unified service item `Möbellift (Außenaufzug)`.
+        *   Standard fallback is **150 € Netto per Einsatz** (300 € Netto for both addresses with `Menge: 2`).
+        *   Inline price editing rendered directly in Step 2 for immediate customization.
+    *   **Full Two-Way Sync (Step 2 ↔ Step 3)**:
+        *   Selecting `Ort` (`A`, `B`, or `Beide`) in Step 3 automatically updates `logistics` and quantities (`Menge: 1` or `2`).
+        *   Changing quantities or deleting the service in Step 3 automatically syncs the address toggles in Step 2.
 *   **GoBD-Compliant Customer Archiving & Invoice Protection Guard (`SmartCustomerTable.tsx`)**:
     *   Before archiving a customer, the system queries Firestore for all linked orders and official invoices.
     *   If active/un-stornierte invoices exist (`!isStorno && !isCanceled`):

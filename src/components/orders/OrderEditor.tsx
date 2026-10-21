@@ -607,88 +607,226 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const [calcInput, setCalcInput] = useState({ gross: 0, net: 0, tax: 0 });
 
   // Halteverbotszone (HVZ) Pricing & Two-Way Sync Logic
-  // Default: 125 € for 1 address (Zone), 250 € for both addresses (125 € each)
+  // Default prices for automated logistics services
   const DEFAULT_HVZ_PRICE = 125;
+  const DEFAULT_MOEBELLIFT_PRICE = 150;
+
+  // 1. Sync Halteverbotszone Service (Single unified line item)
+  const syncHvzService = (newA: boolean, newB: boolean, customUnitPrice?: number) => {
+    setServices(prev => {
+      const existingHvz = prev.find(s => s.id === 'hvz_service' || s.id === 'hvz_a' || s.id === 'hvz_b' || (s.name || '').toLowerCase().includes('halteverbot'));
+      const unitPrice = customUnitPrice !== undefined ? customUnitPrice : (existingHvz?.unitPrice ?? DEFAULT_HVZ_PRICE);
+      const cleanServices = prev.filter(s => s.id !== 'hvz_service' && s.id !== 'hvz_a' && s.id !== 'hvz_b' && !(s.name || '').toLowerCase().includes('halteverbot'));
+
+      if (!newA && !newB) {
+        return cleanServices;
+      }
+
+      const isBoth = newA && newB;
+      const location: 'a' | 'b' | 'both' = isBoth ? 'both' : newA ? 'a' : 'b';
+      const quantity = isBoth ? 2 : 1;
+      const note = isBoth
+        ? 'Behördliche Genehmigung & Beschilderung für Auszugs- und Einzugsadresse'
+        : newA
+          ? 'Behördliche Genehmigung & Beschilderung für Auszugsadresse'
+          : 'Behördliche Genehmigung & Beschilderung für Einzugsadresse';
+
+      const hvzItem: { id: string; name: string; quantity: number; unitPrice: number; unit: string; note?: string; location?: 'a' | 'b' | 'both' } = {
+        id: 'hvz_service',
+        name: 'Halteverbotszone (HVZ)',
+        quantity,
+        unitPrice,
+        unit: 'Zone',
+        note,
+        location
+      };
+
+      return [...cleanServices, hvzItem];
+    });
+  };
 
   const handleToggleHvz = (target: 'a' | 'b') => {
     if (target === 'a') {
       const nextA = !logistics.a_parking;
-      const nextLoc = nextA && logistics.b_parking ? 'both' : nextA ? 'a' : logistics.b_parking ? 'b' : 'a';
+      const nextB = !!logistics.b_parking;
+      const nextLoc = nextA && nextB ? 'both' : nextA ? 'a' : nextB ? 'b' : 'a';
       setLogistics((prev: any) => ({ ...prev, a_parking: nextA, hvzLocation: nextLoc }));
       setOrderMeta((prev: any) => ({ ...prev, hvzLocation: nextLoc }));
-
-      if (nextA) {
-        setServices(prev => {
-          const exists = prev.some(s => s.id === 'hvz_a' || (s.location === 'a' && (s.name || '').toLowerCase().includes('halteverbot')));
-          if (exists) return prev;
-          return [...prev, {
-            id: 'hvz_a',
-            name: 'Halteverbotszone Beladestelle (A)',
-            quantity: 1,
-            unitPrice: DEFAULT_HVZ_PRICE,
-            unit: 'Zone',
-            note: 'Behördliche Genehmigung & Beschilderung für Auszugsadresse',
-            location: 'a'
-          }];
-        });
-      } else {
-        setServices(prev => prev.filter(s => s.id !== 'hvz_a' && !(s.location === 'a' && (s.name || '').toLowerCase().includes('halteverbot'))));
-      }
+      syncHvzService(nextA, nextB);
     } else {
+      const nextA = !!logistics.a_parking;
       const nextB = !logistics.b_parking;
-      const nextLoc = logistics.a_parking && nextB ? 'both' : nextB ? 'b' : logistics.a_parking ? 'a' : 'b';
+      const nextLoc = nextA && nextB ? 'both' : nextB ? 'b' : nextA ? 'a' : 'b';
       setLogistics((prev: any) => ({ ...prev, b_parking: nextB, hvzLocation: nextLoc }));
       setOrderMeta((prev: any) => ({ ...prev, hvzLocation: nextLoc }));
-
-      if (nextB) {
-        setServices(prev => {
-          const exists = prev.some(s => s.id === 'hvz_b' || (s.location === 'b' && (s.name || '').toLowerCase().includes('halteverbot')));
-          if (exists) return prev;
-          return [...prev, {
-            id: 'hvz_b',
-            name: 'Halteverbotszone Entladestelle (B)',
-            quantity: 1,
-            unitPrice: DEFAULT_HVZ_PRICE,
-            unit: 'Zone',
-            note: 'Behördliche Genehmigung & Beschilderung für Einzugsadresse',
-            location: 'b'
-          }];
-        });
-      } else {
-        setServices(prev => prev.filter(s => s.id !== 'hvz_b' && !(s.location === 'b' && (s.name || '').toLowerCase().includes('halteverbot'))));
-      }
+      syncHvzService(nextA, nextB);
     }
   };
 
-  const handleUpdateHvzPrice = (target: 'a' | 'b', newPrice: number) => {
+  const handleUpdateHvzPrice = (newPrice: number) => {
+    const isA = !!logistics.a_parking;
+    const isB = !!logistics.b_parking;
+    syncHvzService(isA, isB, newPrice);
+  };
+
+  const getHvzPrice = () => {
+    const found = services.find(s => s.id === 'hvz_service' || s.id === 'hvz_a' || s.id === 'hvz_b' || (s.name || '').toLowerCase().includes('halteverbot'));
+    return found ? found.unitPrice : DEFAULT_HVZ_PRICE;
+  };
+
+  // 2. Sync Möbellift Service (Single unified line item)
+  const syncMoebelliftService = (newA: boolean, newB: boolean, customUnitPrice?: number) => {
     setServices(prev => {
-      const targetId = target === 'a' ? 'hvz_a' : 'hvz_b';
-      const exists = prev.some(s => s.id === targetId || (s.location === target && (s.name || '').toLowerCase().includes('halteverbot')));
-      if (exists) {
-        return prev.map(s => {
-          if (s.id === targetId || (s.location === target && (s.name || '').toLowerCase().includes('halteverbot'))) {
-            return { ...s, unitPrice: newPrice };
-          }
-          return s;
-        });
-      } else {
-        return [...prev, {
-          id: targetId,
-          name: target === 'a' ? 'Halteverbotszone Beladestelle (A)' : 'Halteverbotszone Entladestelle (B)',
-          quantity: 1,
-          unitPrice: newPrice,
-          unit: 'Zone',
-          note: target === 'a' ? 'Behördliche Genehmigung & Beschilderung für Auszugsadresse' : 'Behördliche Genehmigung & Beschilderung für Einzugsadresse',
-          location: target
-        }];
+      const existingLift = prev.find(s => s.id === 'moebellift_service' || s.id === 'moebellift' || (s.name || '').toLowerCase().includes('möbellift') || (s.name || '').toLowerCase().includes('moebellift'));
+      const unitPrice = customUnitPrice !== undefined ? customUnitPrice : (existingLift?.unitPrice ?? DEFAULT_MOEBELLIFT_PRICE);
+      const cleanServices = prev.filter(s => s.id !== 'moebellift_service' && s.id !== 'moebellift' && !(s.name || '').toLowerCase().includes('möbellift') && !(s.name || '').toLowerCase().includes('moebellift'));
+
+      if (!newA && !newB) {
+        return cleanServices;
       }
+
+      const isBoth = newA && newB;
+      const location: 'a' | 'b' | 'both' = isBoth ? 'both' : newA ? 'a' : 'b';
+      const quantity = isBoth ? 2 : 1;
+      const note = isBoth
+        ? 'Einsatz eines Außenaufzugs / Möbellifts an Auszugs- und Einzugsadresse'
+        : newA
+          ? 'Einsatz eines Außenaufzugs / Möbellifts an der Auszugsadresse'
+          : 'Einsatz eines Außenaufzugs / Möbellifts an der Einzugsadresse';
+
+      const liftItem: { id: string; name: string; quantity: number; unitPrice: number; unit: string; note?: string; location?: 'a' | 'b' | 'both' } = {
+        id: 'moebellift_service',
+        name: 'Möbellift (Außenaufzug)',
+        quantity,
+        unitPrice,
+        unit: 'Einsatz',
+        note,
+        location
+      };
+
+      return [...cleanServices, liftItem];
     });
   };
 
-  const getHvzPrice = (target: 'a' | 'b') => {
-    const targetId = target === 'a' ? 'hvz_a' : 'hvz_b';
-    const found = services.find(s => s.id === targetId || (s.location === target && (s.name || '').toLowerCase().includes('halteverbot')));
-    return found ? found.unitPrice : DEFAULT_HVZ_PRICE;
+  const handleToggleMoebellift = (target: 'a' | 'b') => {
+    if (target === 'a') {
+      const nextA = !logistics.a_furnitureLift;
+      const nextB = !!logistics.b_furnitureLift;
+      setLogistics((prev: any) => ({ ...prev, a_furnitureLift: nextA }));
+      syncMoebelliftService(nextA, nextB);
+    } else {
+      const nextA = !!logistics.a_furnitureLift;
+      const nextB = !logistics.b_furnitureLift;
+      setLogistics((prev: any) => ({ ...prev, b_furnitureLift: nextB }));
+      syncMoebelliftService(nextA, nextB);
+    }
+  };
+
+  const handleUpdateMoebelliftPrice = (newPrice: number) => {
+    const isA = !!logistics.a_furnitureLift;
+    const isB = !!logistics.b_furnitureLift;
+    syncMoebelliftService(isA, isB, newPrice);
+  };
+
+  const getMoebelliftPrice = () => {
+    const found = services.find(s => s.id === 'moebellift_service' || s.id === 'moebellift' || (s.name || '').toLowerCase().includes('möbellift') || (s.name || '').toLowerCase().includes('moebellift'));
+    return found ? found.unitPrice : DEFAULT_MOEBELLIFT_PRICE;
+  };
+
+  // Two-way sync handlers for Step 3 (Leistungen) Preiskalkulation table
+  const handleServiceLocationChange = (idx: number, newLoc: 'a' | 'b' | 'both') => {
+    const svc = services[idx];
+    if (!svc) return;
+
+    const isHvz = svc.id === 'hvz_service' || svc.id === 'hvz_a' || svc.id === 'hvz_b' || (svc.name || '').toLowerCase().includes('halteverbot');
+    const isLift = svc.id === 'moebellift_service' || svc.id === 'moebellift' || (svc.name || '').toLowerCase().includes('möbellift') || (svc.name || '').toLowerCase().includes('moebellift');
+
+    if (isHvz) {
+      const nextA = newLoc === 'a' || newLoc === 'both';
+      const nextB = newLoc === 'b' || newLoc === 'both';
+      setLogistics((l: any) => ({ ...l, a_parking: nextA, b_parking: nextB, hvzLocation: newLoc }));
+      setOrderMeta((m: any) => ({ ...m, hvzLocation: newLoc }));
+      syncHvzService(nextA, nextB);
+      return;
+    }
+
+    if (isLift) {
+      const nextA = newLoc === 'a' || newLoc === 'both';
+      const nextB = newLoc === 'b' || newLoc === 'both';
+      setLogistics((l: any) => ({ ...l, a_furnitureLift: nextA, b_furnitureLift: nextB }));
+      syncMoebelliftService(nextA, nextB);
+      return;
+    }
+
+    setServices(prev => prev.map((s, i) => i === idx ? { ...s, location: newLoc } : s));
+  };
+
+  const handleServiceQuantityChange = (idx: number, newQty: number) => {
+    const svc = services[idx];
+    if (!svc) return;
+
+    const isHvz = svc.id === 'hvz_service' || svc.id === 'hvz_a' || svc.id === 'hvz_b' || (svc.name || '').toLowerCase().includes('halteverbot');
+    const isLift = svc.id === 'moebellift_service' || svc.id === 'moebellift' || (svc.name || '').toLowerCase().includes('möbellift') || (svc.name || '').toLowerCase().includes('moebellift');
+
+    if (newQty <= 0) {
+      setServices(prev => prev.filter((_, i) => i !== idx));
+      if (isHvz) {
+        setLogistics((l: any) => ({ ...l, a_parking: false, b_parking: false }));
+      }
+      if (isLift) {
+        setLogistics((l: any) => ({ ...l, a_furnitureLift: false, b_furnitureLift: false }));
+      }
+      return;
+    }
+
+    if (isHvz) {
+      if (newQty >= 2) {
+        setLogistics((l: any) => ({ ...l, a_parking: true, b_parking: true, hvzLocation: 'both' }));
+        setOrderMeta((m: any) => ({ ...m, hvzLocation: 'both' }));
+        syncHvzService(true, true);
+      } else {
+        const targetLoc = svc.location === 'b' ? 'b' : 'a';
+        const nextA = targetLoc === 'a';
+        const nextB = targetLoc === 'b';
+        setLogistics((l: any) => ({ ...l, a_parking: nextA, b_parking: nextB, hvzLocation: targetLoc }));
+        setOrderMeta((m: any) => ({ ...m, hvzLocation: targetLoc }));
+        syncHvzService(nextA, nextB);
+      }
+      return;
+    }
+
+    if (isLift) {
+      if (newQty >= 2) {
+        setLogistics((l: any) => ({ ...l, a_furnitureLift: true, b_furnitureLift: true }));
+        syncMoebelliftService(true, true);
+      } else {
+        const targetLoc = svc.location === 'b' ? 'b' : 'a';
+        const nextA = targetLoc === 'a';
+        const nextB = targetLoc === 'b';
+        setLogistics((l: any) => ({ ...l, a_furnitureLift: nextA, b_furnitureLift: nextB }));
+        syncMoebelliftService(nextA, nextB);
+      }
+      return;
+    }
+
+    setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: newQty } : s));
+  };
+
+  const handleDeleteService = (idx: number) => {
+    const svc = services[idx];
+    if (!svc) return;
+
+    const isHvz = svc.id === 'hvz_service' || svc.id === 'hvz_a' || svc.id === 'hvz_b' || (svc.name || '').toLowerCase().includes('halteverbot');
+    const isLift = svc.id === 'moebellift_service' || svc.id === 'moebellift' || (svc.name || '').toLowerCase().includes('möbellift') || (svc.name || '').toLowerCase().includes('moebellift');
+
+    setServices(prev => prev.filter((_, i) => i !== idx));
+
+    if (isHvz) {
+      setLogistics((l: any) => ({ ...l, a_parking: false, b_parking: false }));
+    }
+    if (isLift) {
+      setLogistics((l: any) => ({ ...l, a_furnitureLift: false, b_furnitureLift: false }));
+    }
   };
 
   // 5. Inventarliste
@@ -804,15 +942,35 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   // Helper to toggle standard/catalog service in Step 3
   const toggleStandardService = (srv: { id?: string; name: string; price?: number; defaultPrice?: number; unit?: string; defaultDesc?: string; description?: string }) => {
     const srvName = (srv.name || '').trim();
+    const isHvzA = srv.id === 'hvz_a' || srvName.toLowerCase().includes('halteverbot a');
+    const isHvzB = srv.id === 'hvz_b' || srvName.toLowerCase().includes('halteverbot b');
+    const isLift = srv.id === 'moebellift' || srvName.toLowerCase().includes('möbellift') || srvName.toLowerCase().includes('moebellift');
+
+    if (isHvzA) {
+      handleToggleHvz('a');
+      return;
+    }
+    if (isHvzB) {
+      handleToggleHvz('b');
+      return;
+    }
+    if (isLift) {
+      const isAnyLift = logistics.a_furnitureLift || logistics.b_furnitureLift;
+      if (isAnyLift) {
+        setLogistics((l: any) => ({ ...l, a_furnitureLift: false, b_furnitureLift: false }));
+        syncMoebelliftService(false, false);
+      } else {
+        setLogistics((l: any) => ({ ...l, a_furnitureLift: true }));
+        syncMoebelliftService(true, false);
+      }
+      return;
+    }
+
     const existing = services.find(s => (srv.id && s.id === srv.id) || (s.name || '').trim().toLowerCase() === srvName.toLowerCase());
     if (existing) {
       setServices(prev => prev.filter(s => s.id !== existing.id));
-      if (srv.id === 'hvz_a' || srvName.toLowerCase().includes('halteverbot a')) setLogistics((l: any) => ({ ...l, a_parking: false }));
-      if (srv.id === 'hvz_b' || srvName.toLowerCase().includes('halteverbot b')) setLogistics((l: any) => ({ ...l, b_parking: false }));
     } else {
-      const isHvz = (srv.id && srv.id.startsWith('hvz')) || srvName.toLowerCase().includes('halteverbot');
-      const fallbackPrice = isHvz ? DEFAULT_HVZ_PRICE : 0;
-      const finalPrice = srv.price ?? srv.defaultPrice ?? fallbackPrice;
+      const finalPrice = srv.price ?? srv.defaultPrice ?? 0;
       setServices(prev => [...prev, {
         id: srv.id || (Date.now().toString() + Math.random().toString(36).substring(2, 6)),
         name: srvName,
@@ -822,18 +980,26 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         note: srv.defaultDesc || srv.description || '',
         location: 'both'
       }]);
-      if (srv.id === 'hvz_a' || srvName.toLowerCase().includes('halteverbot a')) setLogistics((l: any) => ({ ...l, a_parking: true }));
-      if (srv.id === 'hvz_b' || srvName.toLowerCase().includes('halteverbot b')) setLogistics((l: any) => ({ ...l, b_parking: true }));
     }
   };
 
   const isStandardServiceSelected = (srvId?: string, srvName?: string) => {
     const targetName = (srvName || srvId || '').trim().toLowerCase();
+    if (srvId === 'hvz_a' || targetName.includes('halteverbot a')) return Boolean(logistics.a_parking);
+    if (srvId === 'hvz_b' || targetName.includes('halteverbot b')) return Boolean(logistics.b_parking);
+    if (srvId === 'moebellift' || targetName.includes('möbellift') || targetName.includes('moebellift')) {
+      return Boolean(logistics.a_furnitureLift || logistics.b_furnitureLift);
+    }
     return services.some(s => (srvId && s.id === srvId) || (s.name || '').trim().toLowerCase() === targetName);
   };
 
   const getServiceQuantity = (srvId?: string, srvName?: string) => {
     const targetName = (srvName || srvId || '').trim().toLowerCase();
+    if (srvId === 'hvz_a' || targetName.includes('halteverbot a')) return logistics.a_parking ? 1 : 0;
+    if (srvId === 'hvz_b' || targetName.includes('halteverbot b')) return logistics.b_parking ? 1 : 0;
+    if (srvId === 'moebellift' || targetName.includes('möbellift') || targetName.includes('moebellift')) {
+      return (logistics.a_furnitureLift && logistics.b_furnitureLift) ? 2 : (logistics.a_furnitureLift || logistics.b_furnitureLift) ? 1 : 0;
+    }
     return services.find(s => (srvId && s.id === srvId) || (s.name || '').trim().toLowerCase() === targetName)?.quantity || 0;
   };
 
@@ -1235,11 +1401,49 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           }));
           setIsFlatRate(data.isFlatRate !== undefined ? data.isFlatRate : true);
           setFlatRateNet(data.flatRateNet || 0);
-          setServices((data.services || []).map((s: any) => ({
+          let loadedServices = (data.services || []).map((s: any) => ({
             ...s,
             note: s.note || s.description || '',
             location: s.location || 'both'
-          })));
+          }));
+
+          // Consolidate legacy separate HVZ items into a single unified item
+          const hvzItems = loadedServices.filter((s: any) => s.id === 'hvz_a' || s.id === 'hvz_b' || s.id === 'hvz_service' || (s.name || '').toLowerCase().includes('halteverbot'));
+          if (hvzItems.length > 1) {
+            const preservedPrice = hvzItems[0].unitPrice || DEFAULT_HVZ_PRICE;
+            loadedServices = [
+              ...loadedServices.filter((s: any) => !hvzItems.includes(s)),
+              {
+                id: 'hvz_service',
+                name: 'Halteverbotszone (HVZ)',
+                quantity: 2,
+                unitPrice: preservedPrice,
+                unit: 'Zone',
+                note: 'Behördliche Genehmigung & Beschilderung für Auszugs- und Einzugsadresse',
+                location: 'both'
+              }
+            ];
+          }
+
+          // Consolidate legacy separate Möbellift items into a single unified item
+          const liftItems = loadedServices.filter((s: any) => s.id === 'moebellift_service' || s.id === 'moebellift' || (s.name || '').toLowerCase().includes('möbellift') || (s.name || '').toLowerCase().includes('moebellift'));
+          if (liftItems.length > 1) {
+            const preservedPrice = liftItems[0].unitPrice || DEFAULT_MOEBELLIFT_PRICE;
+            loadedServices = [
+              ...loadedServices.filter((s: any) => !liftItems.includes(s)),
+              {
+                id: 'moebellift_service',
+                name: 'Möbellift (Außenaufzug)',
+                quantity: 2,
+                unitPrice: preservedPrice,
+                unit: 'Einsatz',
+                note: 'Einsatz eines Außenaufzugs / Möbellifts an Auszugs- und Einzugsadresse',
+                location: 'both'
+              }
+            ];
+          }
+
+          setServices(loadedServices);
           setInventory(data.inventory || []);
           setAppendInventoryToPDF(data.appendInventoryToPDF || false);
           setChecklist(data.checklist || []);
@@ -2169,8 +2373,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 </button>
                 <button 
                   type="button" 
-                  onClick={() => setLogistics({...logistics, a_furnitureLift: !logistics.a_furnitureLift})} 
-                  className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.a_furnitureLift ? 'border-primary bg-primary/20 text-primary shadow-lg shadow-primary/20' : 'border-structure bg-bg-dark text-text-muted hover:border-text-muted/30 hover:bg-bg-panel'}`}
+                  onClick={() => handleToggleMoebellift('a')} 
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.a_furnitureLift ? 'border-blue-500 bg-blue-500/20 text-blue-400 shadow-lg shadow-blue-500/20' : 'border-structure bg-bg-dark text-text-muted hover:border-text-muted/30 hover:bg-bg-panel'}`}
                 >
                   <ArrowUpTrayIcon className="w-6 h-6 mb-1" />
                   <span className="text-xs font-medium">Möbellift</span>
@@ -2209,17 +2413,17 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                         <span>HVZ-Preis (Auszug A)</span>
                         <span className="text-[10px] font-normal text-primary bg-primary/10 px-1.5 py-0.5 rounded">Angebot / Rechnung</span>
                       </span>
-                      <span className="text-[10px] text-text-muted">Standard: 125 € netto • Frei anpassbar</span>
+                      <span className="text-[10px] text-text-muted">Standard: 125 € netto • Bei beiden Zonen: 250 €</span>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <input
                         type="number"
                         min="0"
                         step="1"
-                        value={getHvzPrice('a')}
+                        value={getHvzPrice()}
                         onChange={e => {
                           const val = parseFloat(e.target.value);
-                          handleUpdateHvzPrice('a', isNaN(val) ? 0 : val);
+                          handleUpdateHvzPrice(isNaN(val) ? 0 : val);
                         }}
                         className="w-20 text-right bg-black/40 border border-primary/40 rounded-lg px-2 py-1 text-xs font-bold text-primary focus:outline-none focus:border-primary"
                       />
@@ -2291,6 +2495,46 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                         <option value="13:00 - 17:00">13:00 - 17:00 (Nachmittag)</option>
                         <option value="Ganztägig">Ganztägig (Flexibel)</option>
                       </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Inline Möbellift Configuration when Möbellift A is active */}
+              {logistics.a_furnitureLift && (
+                <div className="p-3.5 rounded-xl bg-blue-500/5 border border-blue-500/30 space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-blue-400 flex items-center gap-1.5">
+                      <ArrowUpTrayIcon className="w-4 h-4" />
+                      <span>Möbellift (Auszug A) aktiv</span>
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/15 text-blue-400">
+                      Im Angebot gebucht
+                    </span>
+                  </div>
+
+                  {/* Dedicated Price Input for Möbellift */}
+                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-bg-dark/90 border border-blue-500/20">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-text-main flex items-center gap-1.5">
+                        <span>Möbellift-Preis pro Einsatz</span>
+                        <span className="text-[10px] font-normal text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">Angebot / Rechnung</span>
+                      </span>
+                      <span className="text-[10px] text-text-muted">Standard: 150 € netto • Bei beiden Adressen: 300 €</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <input
+                        type="number"
+                        min="0"
+                        step="5"
+                        value={getMoebelliftPrice()}
+                        onChange={e => {
+                          const val = parseFloat(e.target.value);
+                          handleUpdateMoebelliftPrice(isNaN(val) ? 0 : val);
+                        }}
+                        className="w-20 text-right bg-black/40 border border-blue-500/40 rounded-lg px-2 py-1 text-xs font-bold text-blue-400 focus:outline-none focus:border-blue-500"
+                      />
+                      <span className="text-xs font-bold text-text-muted">€ Netto</span>
                     </div>
                   </div>
                 </div>
@@ -2396,8 +2640,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 </button>
                 <button 
                   type="button" 
-                  onClick={() => setLogistics({...logistics, b_furnitureLift: !logistics.b_furnitureLift})} 
-                  className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.b_furnitureLift ? 'border-primary bg-primary/20 text-primary shadow-lg shadow-primary/20' : 'border-structure bg-bg-dark text-text-muted hover:border-text-muted/30 hover:bg-bg-panel'}`}
+                  onClick={() => handleToggleMoebellift('b')} 
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.b_furnitureLift ? 'border-blue-500 bg-blue-500/20 text-blue-400 shadow-lg shadow-blue-500/20' : 'border-structure bg-bg-dark text-text-muted hover:border-text-muted/30 hover:bg-bg-panel'}`}
                 >
                   <ArrowUpTrayIcon className="w-6 h-6 mb-1" />
                   <span className="text-xs font-medium">Möbellift</span>
@@ -2436,17 +2680,17 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                         <span>HVZ-Preis (Einzug B)</span>
                         <span className="text-[10px] font-normal text-primary bg-primary/10 px-1.5 py-0.5 rounded">Angebot / Rechnung</span>
                       </span>
-                      <span className="text-[10px] text-text-muted">Standard: 125 € netto • Frei anpassbar</span>
+                      <span className="text-[10px] text-text-muted">Standard: 125 € netto • Bei beiden Zonen: 250 €</span>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
                       <input
                         type="number"
                         min="0"
                         step="1"
-                        value={getHvzPrice('b')}
+                        value={getHvzPrice()}
                         onChange={e => {
                           const val = parseFloat(e.target.value);
-                          handleUpdateHvzPrice('b', isNaN(val) ? 0 : val);
+                          handleUpdateHvzPrice(isNaN(val) ? 0 : val);
                         }}
                         className="w-20 text-right bg-black/40 border border-primary/40 rounded-lg px-2 py-1 text-xs font-bold text-primary focus:outline-none focus:border-primary"
                       />
@@ -2552,6 +2796,46 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       </div>
                     </>
                   )}
+                </div>
+              )}
+
+              {/* Inline Möbellift Configuration when Möbellift B is active */}
+              {logistics.b_furnitureLift && (
+                <div className="p-3.5 rounded-xl bg-blue-500/5 border border-blue-500/30 space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-blue-400 flex items-center gap-1.5">
+                      <ArrowUpTrayIcon className="w-4 h-4" />
+                      <span>Möbellift (Einzug B) aktiv</span>
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/15 text-blue-400">
+                      Im Angebot gebucht
+                    </span>
+                  </div>
+
+                  {/* Dedicated Price Input for Möbellift */}
+                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-bg-dark/90 border border-blue-500/20">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-text-main flex items-center gap-1.5">
+                        <span>Möbellift-Preis pro Einsatz</span>
+                        <span className="text-[10px] font-normal text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">Angebot / Rechnung</span>
+                      </span>
+                      <span className="text-[10px] text-text-muted">Standard: 150 € netto • Bei beiden Adressen: 300 €</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <input
+                        type="number"
+                        min="0"
+                        step="5"
+                        value={getMoebelliftPrice()}
+                        onChange={e => {
+                          const val = parseFloat(e.target.value);
+                          handleUpdateMoebelliftPrice(isNaN(val) ? 0 : val);
+                        }}
+                        className="w-20 text-right bg-black/40 border border-blue-500/40 rounded-lg px-2 py-1 text-xs font-bold text-blue-400 focus:outline-none focus:border-blue-500"
+                      />
+                      <span className="text-xs font-bold text-text-muted">€ Netto</span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -3007,7 +3291,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                                 <div className="inline-flex rounded-lg p-0.5 bg-structure/40 border border-white/5">
                                   <button
                                     type="button"
-                                    onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, location: 'a' } : s))}
+                                    onClick={() => handleServiceLocationChange(idx, 'a')}
                                     className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${
                                       svc.location === 'a' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main'
                                     }`}
@@ -3016,7 +3300,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, location: 'b' } : s))}
+                                    onClick={() => handleServiceLocationChange(idx, 'b')}
                                     className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${
                                       svc.location === 'b' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main'
                                     }`}
@@ -3025,7 +3309,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, location: 'both' } : s))}
+                                    onClick={() => handleServiceLocationChange(idx, 'both')}
                                     className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${
                                       !svc.location || svc.location === 'both' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main'
                                     }`}
@@ -3039,7 +3323,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                               <div className="inline-flex items-center gap-1 bg-structure/40 rounded-lg px-1.5 py-0.5">
                                 <button 
                                   type="button"
-                                  onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: Math.max(0, s.quantity - 1) } : s))} 
+                                  onClick={() => handleServiceQuantityChange(idx, Math.max(0, svc.quantity - 1))} 
                                   className="w-5 h-5 flex items-center justify-center text-text-muted hover:text-white font-bold"
                                 >
                                   -
@@ -3050,7 +3334,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                                   value={svc.quantity === 0 ? '' : svc.quantity}
                                   onChange={e => {
                                     const val = parseInt(e.target.value, 10);
-                                    setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: isNaN(val) ? 0 : Math.max(0, val) } : s));
+                                    handleServiceQuantityChange(idx, isNaN(val) ? 0 : Math.max(0, val));
                                   }}
                                   onFocus={e => e.target.select()}
                                   placeholder="0"
@@ -3058,7 +3342,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                                 />
                                 <button 
                                   type="button"
-                                  onClick={() => setServices(prev => prev.map((s, i) => i === idx ? { ...s, quantity: s.quantity + 1 } : s))} 
+                                  onClick={() => handleServiceQuantityChange(idx, svc.quantity + 1)} 
                                   className="w-5 h-5 flex items-center justify-center text-text-muted hover:text-white font-bold"
                                 >
                                   +
@@ -3094,14 +3378,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                             <td className="pr-2 text-right">
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setServices(prev => prev.filter(s => s.id !== svc.id));
-                                  const isHvzA = svc.id === 'hvz_a' || (svc.location === 'a' && (svc.name || '').toLowerCase().includes('halteverbot'));
-                                  const isHvzB = svc.id === 'hvz_b' || (svc.location === 'b' && (svc.name || '').toLowerCase().includes('halteverbot'));
-                                  const isHvzBoth = (!svc.location || svc.location === 'both') && (svc.name || '').toLowerCase().includes('halteverbot');
-                                  if (isHvzA || isHvzBoth) setLogistics((l: any) => ({ ...l, a_parking: false }));
-                                  if (isHvzB || isHvzBoth) setLogistics((l: any) => ({ ...l, b_parking: false }));
-                                }}
+                                onClick={() => handleDeleteService(idx)}
                                 className="text-text-muted hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                               >
                                 <XMarkIcon className="w-4 h-4" />
