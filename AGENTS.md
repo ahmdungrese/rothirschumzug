@@ -44,6 +44,9 @@ This document provides definitive guidance for any AI coding agent working on th
     *   **Full Two-Way Sync (Step 2 ↔ Step 3)**:
         *   Selecting `Ort` (`A`, `B`, or `Beide`) in Step 3 automatically updates `logistics` and quantities (`Menge: 1` or `2`).
         *   Changing quantities or deleting the service in Step 3 automatically syncs the address toggles in Step 2.
+    *   **Foundational Base Transport & Interactive Service Reordering (`OrderEditor.tsx`)**:
+        *   New quotes now automatically initialize with `Transport inkl. Be- & Entladen (Personal und Fahrzeug)` as the primary #1 position, ensuring standard logistics services (HVZ, Möbellift) appear beneath it rather than preceding it. Removable via `✕` button at any time.
+        *   Integrated native HTML5 drag-and-drop (`drag_indicator`) and touch-friendly 1-click Up/Down buttons (`▲`/`▼`) on each service row in `Preiskalkulation`, allowing arbitrary position ordering directly in the wizard and PDF outputs.
 *   **GoBD-Compliant Customer Archiving & Invoice Protection Guard (`SmartCustomerTable.tsx`)**:
     *   Before archiving a customer, the system queries Firestore for all linked orders and official invoices.
     *   If active/un-stornierte invoices exist (`!isStorno && !isCanceled`):

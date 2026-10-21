@@ -598,7 +598,21 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   // 3. Leistungen
   const [isFlatRate, setIsFlatRate] = useState(true);
   const [flatRateNet, setFlatRateNet] = useState(0);
-  const [services, setServices] = useState<{ id: string, name: string, quantity: number, unitPrice: number, unit: string, note?: string, location?: 'a' | 'b' | 'both' }[]>([]);
+  const [services, setServices] = useState<{ id: string, name: string, quantity: number, unitPrice: number, unit: string, note?: string, location?: 'a' | 'b' | 'both' }[]>(() => 
+    orderId ? [] : [
+      {
+        id: 'transport_base',
+        name: 'Transport inkl. Be- & Entladen (Personal und Fahrzeug)',
+        quantity: 1,
+        unitPrice: 0,
+        unit: 'Pauschal',
+        note: 'Fachgerechtes Be- und Entladen sowie versicherter Transport mit Umzugsfahrzeug und geschultem Personal.',
+        location: 'both'
+      }
+    ]
+  );
+  const [draggedServiceIndex, setDraggedServiceIndex] = useState<number | null>(null);
+  const [dragOverServiceIndex, setDragOverServiceIndex] = useState<number | null>(null);
   const [catalogSearch, setCatalogSearch] = useState(searchParams?.get('q') || '');
   const [activeCategoryTab, setActiveCategoryTab] = useState('Alle');
   const [invoicedWarning, setInvoicedWarning] = useState<string | null>(null);
@@ -827,6 +841,55 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     if (isLift) {
       setLogistics((l: any) => ({ ...l, a_furnitureLift: false, b_furnitureLift: false }));
     }
+  };
+
+  // Reordering handlers for Step 3 Preiskalkulation table
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedServiceIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+    try {
+      e.dataTransfer.setData('text/plain', index.toString());
+    } catch {}
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverServiceIndex !== index) {
+      setDragOverServiceIndex(index);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    if (draggedServiceIndex === null || draggedServiceIndex === targetIndex) {
+      setDraggedServiceIndex(null);
+      setDragOverServiceIndex(null);
+      return;
+    }
+
+    setServices(prev => {
+      const updated = [...prev];
+      const [movedItem] = updated.splice(draggedServiceIndex, 1);
+      updated.splice(targetIndex, 0, movedItem);
+      return updated;
+    });
+
+    setDraggedServiceIndex(null);
+    setDragOverServiceIndex(null);
+  };
+
+  const moveService = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= services.length) return;
+
+    setServices(prev => {
+      const updated = [...prev];
+      const temp = updated[index];
+      updated[index] = updated[targetIndex];
+      updated[targetIndex] = temp;
+      return updated;
+    });
   };
 
   // 5. Inventarliste
@@ -1317,6 +1380,20 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             quoteIntro: s.texts?.quoteIntro || '',
             paymentTerms: s.paymentMethods?.[0]?.textQuote || '',
             quoteOutro: s.texts?.quoteGreeting || ''
+          });
+
+          // Ensure default foundational Transport service exists on new quote if empty
+          setServices(prev => {
+            if (prev.length > 0) return prev;
+            return [{
+              id: 'transport_base',
+              name: 'Transport inkl. Be- & Entladen (Personal und Fahrzeug)',
+              quantity: 1,
+              unitPrice: 0,
+              unit: 'Pauschal',
+              note: 'Fachgerechtes Be- und Entladen sowie versicherter Transport mit Umzugsfahrzeug und geschultem Personal.',
+              location: 'both'
+            }];
           });
         }
       } else {
@@ -3263,7 +3340,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
                         <tr className="bg-white/[0.01] text-[10px] font-bold uppercase tracking-wider text-text-muted border-b border-structure/40">
-                          <th className="p-2.5 pl-4">Service</th>
+                          <th className="w-8 py-2.5 pl-2 text-center" title="Reihenfolge ändern"></th>
+                          <th className="p-2.5 pl-1">Service</th>
                           <th className="p-2.5 text-center w-24">Menge</th>
                           <th className="p-2.5 pr-4 text-right w-24">Summe</th>
                           <th className="w-8"></th>
@@ -3271,8 +3349,55 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       </thead>
                       <tbody className="divide-y divide-structure/30">
                         {services.map((svc, idx) => (
-                          <tr key={svc.id} className="hover:bg-white/[0.02] transition-colors group align-top">
-                            <td className="p-2.5 pl-4 flex flex-col gap-1.5">
+                          <tr 
+                            key={svc.id} 
+                            draggable
+                            onDragStart={e => handleDragStart(e, idx)}
+                            onDragOver={e => handleDragOver(e, idx)}
+                            onDrop={e => handleDrop(e, idx)}
+                            onDragEnd={() => {
+                              setDraggedServiceIndex(null);
+                              setDragOverServiceIndex(null);
+                            }}
+                            className={`transition-all group align-top ${
+                              draggedServiceIndex === idx 
+                                ? 'opacity-30 bg-primary/20 border-2 border-dashed border-primary' 
+                                : dragOverServiceIndex === idx
+                                  ? 'bg-primary/10 border-t-2 border-primary'
+                                  : 'hover:bg-white/[0.02]'
+                            }`}
+                          >
+                            <td className="py-2.5 px-1 pt-3.5 text-center select-none w-8">
+                              <div className="flex flex-col items-center justify-center gap-0.5">
+                                <span 
+                                  className="material-symbols-outlined text-text-muted/60 group-hover:text-primary cursor-grab active:cursor-grabbing text-base leading-none"
+                                  title="Gedrückt halten & ziehen zum Neuanordnen"
+                                >
+                                  drag_indicator
+                                </span>
+                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    type="button"
+                                    disabled={idx === 0}
+                                    onClick={() => moveService(idx, 'up')}
+                                    className="text-text-muted hover:text-white disabled:opacity-20 text-[9px] leading-none p-0.5 rounded hover:bg-white/10"
+                                    title="Nach oben verschieben"
+                                  >
+                                    ▲
+                                  </button>
+                                  <button
+                                    type="button"
+                                    disabled={idx === services.length - 1}
+                                    onClick={() => moveService(idx, 'down')}
+                                    className="text-text-muted hover:text-white disabled:opacity-20 text-[9px] leading-none p-0.5 rounded hover:bg-white/10"
+                                    title="Nach unten verschieben"
+                                  >
+                                    ▼
+                                  </button>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-2.5 pl-1 flex flex-col gap-1.5">
                               <input
                                 type="text"
                                 value={svc.name}
