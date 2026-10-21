@@ -1652,160 +1652,95 @@ export function CustomerPremiumProfile({
         </div>
       )}
 
-      {/* Streamlined Auftrags-Cockpit: 4-Phasen Stepper, Nächste Aktion & Cockpit/Prüfung Drawer */}
+      {/* Streamlined Executive Phase Bar: Ultra-Compact Single Row */}
       {activeOrder && (
-        <div className="bg-white dark:bg-slate-900 p-5 md:p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
+        <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
           
-          {/* 1. Cockpit Header: Phase, Progress & Prominent Cockpit & Prüfung Button */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-3">
-              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-xs ${
-                completedCount === checklist.length && checklist.length > 0
-                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                  : 'bg-primary/10 text-primary border border-primary/20'
-              }`}>
-                <ClipboardDocumentCheckIcon className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="font-headline font-extrabold text-base md:text-lg text-slate-900 dark:text-white">
-                    Auftrags-Cockpit & Phasensteuerung
-                  </h2>
-                  <span className="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                    Phase {currentPhaseInfo.phase}: {currentPhaseInfo.label}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Auftrag #{activeOrder.orderNumber || activeOrder.id?.slice(-5).toUpperCase()} • {completedCount} von {checklist.length} Aufgaben erledigt
-                </p>
-              </div>
+          {/* Left: 4 Interactive Phase Circles & Status Label */}
+          <div className="flex items-center gap-3 min-w-0">
+            {/* 4 Phase Circles with numbers and checkmarks */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              {[
+                { num: 1, label: '1. Entwurf' },
+                { num: 2, label: '2. Angebot' },
+                { num: 3, label: '3. Bestätigt' },
+                { num: 4, label: '4. Abrechnung' }
+              ].map((st, i) => {
+                const isDone = currentPhaseInfo.phase > st.num;
+                const isCurrent = currentPhaseInfo.phase === st.num;
+                return (
+                  <React.Fragment key={st.num}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDrawerInitialPhase(st.num);
+                        setDrawerOrder(activeOrder);
+                      }}
+                      title={`Phase ${st.num}: ${st.label} (${isDone ? 'Erledigt' : isCurrent ? 'Aktiv' : 'Offen'}) • Klicken für Details`}
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all cursor-pointer ${
+                        isCurrent
+                          ? 'bg-[#6E8F64] text-white ring-2 ring-[#6E8F64]/30 shadow-xs scale-105'
+                          : isDone
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      {isDone ? <CheckIcon className="w-3.5 h-3.5 stroke-[3]" /> : st.num}
+                    </button>
+                    {i < 3 && (
+                      <div className={`w-3 h-0.5 ${currentPhaseInfo.phase > st.num ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-800'}`} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </div>
 
-            <div className="flex items-center gap-3 self-end sm:self-auto flex-wrap sm:flex-nowrap">
-              {/* Progress Bar */}
+            {/* Current Phase Badge & Tasks Progress */}
+            <div className="min-w-0 truncate">
               <div className="flex items-center gap-2">
-                <div className="w-20 sm:w-28 bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                  <div 
-                    className="bg-emerald-500 h-2.5 rounded-full transition-all duration-300"
-                    style={{ width: `${checklist.length > 0 ? (completedCount / checklist.length) * 100 : 0}%` }}
-                  />
-                </div>
-                <span className="text-xs font-black text-slate-700 dark:text-slate-200">
-                  {checklist.length > 0 ? Math.round((completedCount / checklist.length) * 100) : 0}%
+                <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">
+                  Phase {currentPhaseInfo.phase}: {currentPhaseInfo.label}
+                </span>
+                <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 hidden sm:inline">
+                  • {completedCount}/{checklist.length} Aufgaben ({checklist.length > 0 ? Math.round((completedCount / checklist.length) * 100) : 0}%)
                 </span>
               </div>
-
-              {/* Prominent Cockpit & Prüfung (Drawer) Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setDrawerInitialPhase(currentPhaseInfo.phase);
-                  setDrawerOrder(activeOrder);
-                }}
-                className="px-4 py-2.5 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold transition-all flex items-center gap-2 cursor-pointer shadow-sm shadow-[#6E8F64]/20"
-                title="Operative Aufgaben, Checkliste und 4-Phasen-Prüfung öffnen"
-              >
-                <AdjustmentsHorizontalIcon className="w-4 h-4 text-white" />
-                <span>Cockpit & Prüfung</span>
-              </button>
             </div>
           </div>
 
-          {/* 2. 4-Phasen Stepper (Klickbar -> Öffnet Cockpit-Drawer direkt in der jeweiligen Phase) */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {[
-              { num: 1, label: '1. Entwurf' },
-              { num: 2, label: '2. Angebot' },
-              { num: 3, label: '3. Bestätigt' },
-              { num: 4, label: '4. Abrechnung' }
-            ].map((st) => {
-              const isDone = currentPhaseInfo.phase > st.num;
-              const isCurrent = currentPhaseInfo.phase === st.num;
-              return (
-                <button
-                  key={st.num}
-                  type="button"
-                  onClick={() => {
-                    setDrawerInitialPhase(st.num);
-                    setDrawerOrder(activeOrder);
-                  }}
-                  title={`Klicken, um Phase ${st.num} (${st.label}) im Cockpit & Prüfung zu öffnen`}
-                  className={`p-3 rounded-2xl border text-left transition-all flex items-center gap-3 cursor-pointer hover:scale-[1.01] ${
-                    isCurrent
-                      ? st.num === 3 
-                        ? 'bg-[#6E8F64]/12 border-[#6E8F64] text-[#3B5233] dark:text-[#B5D1AC] ring-2 ring-[#6E8F64]/20 shadow-xs' 
-                        : st.num === 2 
-                          ? 'bg-amber-500/10 border-amber-500 text-amber-900 dark:text-amber-200 ring-2 ring-amber-500/20 shadow-xs'
-                          : st.num === 4
-                            ? 'bg-purple-500/10 border-purple-500 text-purple-900 dark:text-purple-200 ring-2 ring-purple-500/20 shadow-xs'
-                            : 'bg-blue-500/10 border-blue-500 text-blue-900 dark:text-blue-200 ring-2 ring-blue-500/20 shadow-xs'
-                      : isDone
-                        ? 'bg-[#6E8F64]/8 dark:bg-[#6E8F64]/15 border-[#6E8F64]/30 text-[#4A6642] dark:text-[#A8C69F] hover:border-[#6E8F64]/60'
-                        : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-500 hover:border-slate-400'
-                  }`}
-                >
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-black shadow-xs ${
-                    isDone
-                      ? 'bg-[#6E8F64] text-white'
-                      : isCurrent
-                        ? st.num === 3 ? 'bg-[#6E8F64] text-white animate-pulse' : st.num === 2 ? 'bg-amber-500 text-white animate-pulse' : 'bg-[#6E8F64] text-white'
-                        : 'bg-slate-200 dark:bg-slate-700 text-slate-500'
-                  }`}>
-                    {isDone ? <CheckIcon className="w-4 h-4 stroke-[3]" /> : st.num}
-                  </div>
-                  <div className="truncate min-w-0">
-                    <span className="text-xs font-bold block truncate leading-tight">
-                      {st.label}
-                    </span>
-                    <span className="text-[10px] text-slate-500 dark:text-slate-400 block truncate">
-                      {isDone ? 'Erledigt (Prüfen)' : isCurrent ? 'Aktiv (Prüfen)' : 'Offen (Prüfen)'}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* 3. Nächste empfohlene Aktion */}
-          <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="space-y-1 min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#6E8F64] font-headline">
-                  Nächste empfohlene Aktion
-                </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#6E8F64]/15 text-[#4A6642] dark:text-[#A8C69F] border border-[#6E8F64]/30">
-                  {nextStep.badge}
-                </span>
-              </div>
-              <h4 className="text-sm font-extrabold text-slate-900 dark:text-white leading-snug">
-                {nextStep.title}
-              </h4>
-              {nextStep.desc && (
-                <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-1">
-                  {nextStep.desc}
-                </p>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
-              {nextStep.secondaryBtnText && nextStep.onSecondaryAction && (
-                <button
-                  type="button"
-                  onClick={nextStep.onSecondaryAction}
-                  className="py-2.5 px-4 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs border border-slate-200 dark:border-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0"
-                >
-                  <span>{nextStep.secondaryBtnText}</span>
-                </button>
-              )}
+          {/* Right: Direct Next Action Button & Cockpit Drawer Icon Button */}
+          <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
+            {nextStep.secondaryBtnText && nextStep.onSecondaryAction && (
               <button
                 type="button"
-                onClick={nextStep.action}
-                className="py-2.5 px-5 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-sm shadow-[#6E8F64]/20 cursor-pointer group shrink-0"
+                onClick={nextStep.onSecondaryAction}
+                className="py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors cursor-pointer"
               >
-                <span>{nextStep.btnText}</span>
-                <ArrowRightIcon className="w-4 h-4 group-hover:translate-x-0.5 transition-transform shrink-0" />
+                {nextStep.secondaryBtnText}
               </button>
-            </div>
+            )}
+
+            <button
+              type="button"
+              onClick={nextStep.action}
+              className="py-2 px-4 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs shadow-[#6E8F64]/20 cursor-pointer"
+            >
+              <span>{nextStep.btnText}</span>
+              <ArrowRightIcon className="w-3.5 h-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setDrawerInitialPhase(currentPhaseInfo.phase);
+                setDrawerOrder(activeOrder);
+              }}
+              className="py-2 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors flex items-center gap-1 text-xs font-bold cursor-pointer"
+              title="Operatives Cockpit & Checkliste öffnen"
+            >
+              <AdjustmentsHorizontalIcon className="w-4 h-4 text-[#6E8F64]" />
+              <span className="hidden sm:inline">Cockpit</span>
+            </button>
           </div>
 
         </div>

@@ -642,14 +642,15 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           {/* ========================================================================= */}
           {activePhaseTab === 1 && (
             <div className="space-y-6">
-              <div className="p-4 rounded-2xl bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/70 dark:border-blue-900/40">
-                <h3 className="text-sm font-bold text-blue-900 dark:text-blue-300 font-headline mb-1">
-                  Phase 1: Neue Anfrage & Stammdaten-Prüfung
-                </h3>
-                <p className="text-xs text-blue-700 dark:text-blue-400">
-                  Alle Daten sind live mit dem Kunden- & Angebotsformular verknüpft. Prüfe die Adressen und vereinbare bei Bedarf direkt den Besichtigungstermin.
-                </p>
-              </div>
+              {/* Context-aware alert only when critical contact data is missing */}
+              {(!custPhone || !custEmail) && (
+                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2.5 text-xs text-amber-700 dark:text-amber-400">
+                  <span className="material-symbols-outlined text-lg shrink-0">priority_high</span>
+                  <span>
+                    <strong>Unvollständige Kontaktdaten:</strong> {!custPhone && 'Telefonnummer fehlt'} {!custPhone && !custEmail && ' • '} {!custEmail && 'E-Mail fehlt'} für {custName}.
+                  </span>
+                </div>
+              )}
 
               {/* Data Verification Checklist */}
               <div className="panel p-4 space-y-3">
@@ -796,38 +797,6 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           {/* ========================================================================= */}
           {activePhaseTab === 2 && (
             <div className="space-y-6">
-              {(() => {
-                const isContractAlreadySigned = Boolean(
-                  currentOrderPhase >= 3 ||
-                  order.signatureOrder ||
-                  order.signature ||
-                  order.isManuallySigned ||
-                  order.contractSigned ||
-                  order.status === 'confirmed' ||
-                  order.orderMeta?.signedContractScan
-                );
-                return isContractAlreadySigned ? (
-                  <div className="p-4 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800">
-                    <h3 className="text-sm font-bold text-emerald-900 dark:text-emerald-300 font-headline mb-1 flex items-center gap-1.5">
-                      <CheckCircleIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                      <span>Phase 2 abgeschlossen: Auftrag bestätigt</span>
-                    </h3>
-                    <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                      Der Kunde hat das Angebot angenommen. Die Vertragsbestätigung ist hinterlegt – alle weiteren Schritte findest du in Phase 3 (Bestätigt).
-                    </p>
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/40">
-                    <h3 className="text-sm font-bold text-amber-900 dark:text-amber-300 font-headline mb-1">
-                      Phase 2: In Verhandlung & Besichtigung
-                    </h3>
-                    <p className="text-xs text-amber-700 dark:text-amber-400">
-                      Verwalte Besichtigungstermine, versende das Angebot oder lass den Kunden direkt digital unterschreiben!
-                    </p>
-                  </div>
-                );
-              })()}
-
               {/* Digital Signature & Signed Photo Upload Card */}
               {(() => {
                 const isSigned = Boolean(
@@ -1177,28 +1146,15 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
             return (
             <div className="space-y-6">
-              {/* Readiness Banner */}
-              <div className={`p-4 rounded-2xl border ${
-                isPhase3Ready
-                  ? 'bg-emerald-50/80 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-300'
-                  : 'bg-amber-50/80 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-300'
-              }`}>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="material-symbols-outlined text-lg">
-                    {isPhase3Ready ? 'verified' : 'warning'}
+              {/* Context-aware alert only when booked logistics tasks are actually open */}
+              {!isPhase3Ready && (showKartons || showHvz || showLift) && (
+                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-xs text-amber-800 dark:text-amber-300">
+                  <span className="material-symbols-outlined text-base shrink-0">priority_high</span>
+                  <span>
+                    <strong>Offene Logistik:</strong> Bitte Termine für gebuchte Zusatzleistungen planen und bestätigen.
                   </span>
-                  <h3 className="text-sm font-bold font-headline">
-                    {isPhase3Ready ? 'Logistik vollständig bereit!' : 'Logistik-Vorbereitung offen'}
-                  </h3>
                 </div>
-                <p className="text-xs opacity-90">
-                  {isPhase3Ready 
-                    ? (!showKartons && !showHvz && !showLift
-                        ? 'Keine Zusatzlogistik (Kartons, Halteverbotszone oder Möbellift) im Angebot gebucht. Der Umzug kann direkt disponiert werden.'
-                        : 'Alle gebuchten Termine und Vorbereitungen für den Umzugstag sind abgeschlossen.')
-                    : 'Bitte plane die Termine für die gebuchten Zusatzleistungen und hake erledigte Aufgaben ab.'}
-                </p>
-              </div>
+              )}
 
               {/* Task Cards */}
               <div className="panel p-4 space-y-4">
@@ -1542,35 +1498,6 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           {/* ========================================================================= */}
           {activePhaseTab === 4 && (
             <div className="space-y-6">
-              {(() => {
-                const isPhase4Reached = Boolean(
-                  currentOrderPhase >= 4 ||
-                  (order.protocols && order.protocols.length > 0) ||
-                  order.signatureProtocol ||
-                  activeInvNum ||
-                  latestCancelledInvNum
-                );
-                return isPhase4Reached ? (
-                  <div className="p-4 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-900/40">
-                    <h3 className="text-sm font-bold text-emerald-900 dark:text-emerald-300 font-headline mb-1">
-                      Phase 4: Durchführung & Abschluss
-                    </h3>
-                    <p className="text-xs text-emerald-700 dark:text-emerald-400">
-                      Umzug erfolgreich durchgeführt! Unterzeichne das Abnahmeprotokoll, erstelle die Rechnung und bitte um eine Kundenbewertung.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="p-4 rounded-2xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-                    <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 font-headline mb-1">
-                      Phase 4: Durchführung & Abrechnung (Am Umzugstag)
-                    </h3>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
-                      Dieser Auftrag befindet sich aktuell in Phase {currentOrderPhase}. Am Umzugstag kannst du hier das digitale Abnahmeprotokoll unterschreiben lassen und anschließend die Schlussrechnung erstellen.
-                    </p>
-                  </div>
-                );
-              })()}
-
               {/* Action Buttons: Protocol & Invoice */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button
