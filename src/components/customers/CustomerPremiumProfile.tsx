@@ -1695,16 +1695,44 @@ export function CustomerPremiumProfile({
               })}
             </div>
 
-            {/* Current Phase Badge & Tasks Progress */}
-            <div className="min-w-0 truncate">
+            {/* Current Phase Badge & Tasks Progress with Visual Percentage Bar */}
+            <div className="min-w-0 flex flex-col justify-center">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">
                   Phase {currentPhaseInfo.phase}: {currentPhaseInfo.label}
                 </span>
                 <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 hidden sm:inline">
-                  • {completedCount}/{checklist.length} Aufgaben ({checklist.length > 0 ? Math.round((completedCount / checklist.length) * 100) : 0}%)
+                  • {completedCount}/{checklist.length} Aufgaben
                 </span>
               </div>
+
+              {/* Visual Percentage Progress Bar */}
+              {checklist.length > 0 && (() => {
+                const percent = Math.round((completedCount / checklist.length) * 100);
+                return (
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="w-20 sm:w-28 bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          percent === 100
+                            ? 'bg-emerald-500'
+                            : percent >= 50
+                              ? 'bg-[#6E8F64]'
+                              : 'bg-amber-500'
+                        }`}
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                    <span className={`text-[10px] font-extrabold ${
+                      percent === 100
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-slate-600 dark:text-slate-300'
+                    }`}>
+                      {percent}%
+                    </span>
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

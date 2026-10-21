@@ -797,7 +797,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           {/* ========================================================================= */}
           {activePhaseTab === 2 && (
             <div className="space-y-6">
-              {/* Digital Signature & Signed Photo Upload Card */}
+              {/* Digital Signature & Signed Photo Upload - Compact Executive Row */}
               {(() => {
                 const isSigned = Boolean(
                   currentOrderPhase >= 3 ||
@@ -809,122 +809,145 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                   order.orderMeta?.signedContractScan
                 );
                 const hasUploadedScan = Boolean(order.orderMeta?.signedContractScan);
-                return (
-                  <div className={`panel p-4 border-2 transition-all space-y-3 ${
-                    isSigned
-                      ? 'border-emerald-500 bg-emerald-500/10 dark:bg-emerald-950/30'
-                      : 'border-primary/30'
-                  }`}>
-                    {/* Hidden File Input for Direct Photo/Scan Upload */}
-                    <input
-                      ref={scanInputRef}
-                      type="file"
-                      accept="image/*,application/pdf"
-                      onChange={handleDirectScanUpload}
-                      className="hidden"
-                    />
+                const isDraftWithoutOffer = !isSigned && (order.status === 'draft' || !Array.isArray(order.services) || order.services.length === 0);
 
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <DocumentCheckIcon className={`w-5 h-5 ${isSigned ? 'text-emerald-600' : 'text-primary'}`} />
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white font-headline">
-                          Vertragsbestätigung & Unterschrift
-                        </h4>
+                // Hidden File Input for Direct Photo/Scan Upload
+                const hiddenFileInput = (
+                  <input
+                    ref={scanInputRef}
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={handleDirectScanUpload}
+                    className="hidden"
+                  />
+                );
+
+                if (isDraftWithoutOffer) {
+                  return (
+                    <div className="panel p-3 border border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/20 rounded-xl flex items-center justify-between gap-3 flex-wrap">
+                      {hiddenFileInput}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <DocumentCheckIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate">
+                            Vertragsbestätigung
+                          </span>
+                          <span className="text-[11px] text-amber-700 dark:text-amber-400 block truncate">
+                            Noch im Entwurf – bitte zuerst Angebot erstellen.
+                          </span>
+                        </div>
                       </div>
-                      {isSigned ? (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500 text-white flex items-center gap-1">
-                          <CheckCircleIcon className="w-3.5 h-3.5" /> Bestätigt & Signiert ✓
+                      <Link
+                        href={`${editOrderUrl}${editOrderUrl.includes('?') ? '&' : '?'}step=3`}
+                        className="py-1.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-xs shrink-0"
+                      >
+                        Angebot bearbeiten
+                      </Link>
+                    </div>
+                  );
+                }
+
+                if (isSigned) {
+                  return (
+                    <div className="panel p-3 border-2 border-emerald-500 bg-emerald-500/10 dark:bg-emerald-950/30 rounded-xl flex items-center justify-between gap-2 flex-wrap">
+                      {hiddenFileInput}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <DocumentCheckIcon className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold text-emerald-800 dark:text-emerald-200 block truncate">
+                            Vertrag bestätigt ✓
+                          </span>
+                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 block truncate">
+                            {hasUploadedScan
+                              ? `Scan: ${order.orderMeta?.signedContractScanName || 'Angebot.jpg'}`
+                              : order.signatureOrder
+                                ? 'Digital signiert'
+                                : 'Manuell bestätigt'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {(hasUploadedScan || order.signatureOrder) && (
+                          <button
+                            type="button"
+                            onClick={() => setScanPreviewOpen(true)}
+                            className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center gap-1 cursor-pointer"
+                            title="Unterschrift oder Scan ansehen"
+                          >
+                            <EyeIcon className="w-3.5 h-3.5" />
+                            <span>Nachweis</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => scanInputRef.current?.click()}
+                          disabled={isUploadingScan}
+                          className="px-2 py-1 text-xs font-bold rounded-lg border border-emerald-500/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors flex items-center gap-1 cursor-pointer"
+                          title="Foto oder Scan anhängen / ändern"
+                        >
+                          <span className="material-symbols-outlined text-sm">add_a_photo</span>
+                          <span>{hasUploadedScan ? 'Ändern' : 'Scan'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSignatureModalOpen(true)}
+                          className="px-2 py-1 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                          title="Signatur-Pad öffnen"
+                        >
+                          Pad
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="panel p-3 border border-primary/30 rounded-xl flex items-center justify-between gap-2 flex-wrap">
+                    {hiddenFileInput}
+                    <div className="flex items-center gap-2">
+                      <DocumentCheckIcon className="w-4 h-4 text-primary shrink-0" />
+                      <div>
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                          Vertragsbestätigung
                         </span>
-                      ) : (
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                        <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold block">
                           Ausstehend
                         </span>
-                      )}
+                      </div>
                     </div>
 
-                    {isSigned ? (
-                      <div className="p-3 rounded-xl bg-white/80 dark:bg-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                            {hasUploadedScan
-                              ? `Unterschriebenes Foto / Scan hinterlegt (${order.orderMeta?.signedContractScanDate || 'Bestätigt'})`
-                              : order.signatureOrderPlace
-                                ? `${order.signatureOrderPlace}, ${order.signatureOrderDateString}`
-                                : 'Vertrag bestätigt (Phase 3 freigeschaltet)'}
-                          </p>
-                          <p className="text-[10px] text-slate-500">
-                            {hasUploadedScan
-                              ? `Datei: ${order.orderMeta?.signedContractScanName || 'Unterschriebenes_Angebot.jpg'}`
-                              : order.signatureOrder
-                                ? 'Digitale Unterschrift im PDF eingebettet'
-                                : 'Manuell bestätigt (WhatsApp / E-Mail)'}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          {(hasUploadedScan || order.signatureOrder) && (
-                            <button
-                              type="button"
-                              onClick={() => setScanPreviewOpen(true)}
-                              className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center gap-1 cursor-pointer"
-                            >
-                              <EyeIcon className="w-3.5 h-3.5" />
-                              <span>Nachweis ansehen</span>
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => scanInputRef.current?.click()}
-                            disabled={isUploadingScan}
-                            className="px-2.5 py-1.5 text-xs font-bold rounded-lg border border-emerald-500/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors flex items-center gap-1 cursor-pointer"
-                          >
-                            <span className="material-symbols-outlined text-sm">add_a_photo</span>
-                            <span>{hasUploadedScan ? 'Foto ändern' : 'Foto/Scan anhängen'}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setSignatureModalOpen(true)}
-                            className="px-2.5 py-1.5 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-                          >
-                            Signatur-Pad
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-2.5">
-                        <p className="text-xs text-slate-600 dark:text-slate-400">
-                          Wähle, wie der Kunde das Angebot bestätigt hat: Direkt auf dem Display unterschreiben, ein vom Kunden unterschriebenes Foto/Dokument hochladen oder manuell bestätigen.
-                        </p>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setSignatureModalOpen(true)}
-                            className="py-2.5 px-3 bg-gradient-to-r from-amber-600 to-amber-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow hover:brightness-110 transition-all font-headline cursor-pointer"
-                          >
-                            <PencilSquareIcon className="w-4 h-4 shrink-0" />
-                            <span>Digital signieren</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => scanInputRef.current?.click()}
-                            disabled={isUploadingScan}
-                            className="py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 shadow transition-all cursor-pointer"
-                            title="Foto oder Scan des vom Kunden unterschriebenen Angebots hochladen"
-                          >
-                            <span className="material-symbols-outlined text-base">add_a_photo</span>
-                            <span>{isUploadingScan ? 'Lädt...' : 'Foto / Scan hochladen'}</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleTask('signature', 'Vertragsbestätigung')}
-                            disabled={isUpdatingTask}
-                            className="py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                          >
-                            <CheckIcon className="w-4 h-4 shrink-0" />
-                            <span>Manuell bestätigen</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => setSignatureModalOpen(true)}
+                        className="py-1.5 px-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:brightness-110 text-white text-xs font-bold rounded-lg flex items-center gap-1 shadow-xs transition-all cursor-pointer font-headline"
+                        title="Digital auf dem Touch-Display signieren"
+                      >
+                        <PencilSquareIcon className="w-3.5 h-3.5" />
+                        <span>Signieren</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => scanInputRef.current?.click()}
+                        disabled={isUploadingScan}
+                        className="py-1.5 px-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                        title="Foto oder Scan des vom Kunden unterschriebenen Angebots hochladen"
+                      >
+                        <span className="material-symbols-outlined text-sm">add_a_photo</span>
+                        <span>{isUploadingScan ? '...' : 'Foto/Scan'}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleTask('signature', 'Vertragsbestätigung')}
+                        disabled={isUpdatingTask}
+                        className="py-1.5 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg flex items-center gap-1 shadow-xs transition-all cursor-pointer"
+                        title="Manuell bestätigen (z.B. per WhatsApp oder E-Mail)"
+                      >
+                        <CheckIcon className="w-3.5 h-3.5" />
+                        <span>Manuell</span>
+                      </button>
+                    </div>
                   </div>
                 );
               })()}
@@ -984,7 +1007,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                         className="flex-1 py-2 px-3 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors"
                       >
                         <span className="material-symbols-outlined text-sm">chair</span>
-                        <span>Besichtigung starten (Umzugsliste)</span>
+                        <span>Inventar erfassen (m³)</span>
                       </Link>
                       {custPhone && (
                         <button
@@ -1012,7 +1035,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                       className="w-full py-2 px-3 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs"
                     >
                       <span className="material-symbols-outlined text-sm">chair</span>
-                      <span>Besichtigung starten (Umzugsliste)</span>
+                      <span>Inventar erfassen (m³)</span>
                     </Link>
                   </div>
                 )}
