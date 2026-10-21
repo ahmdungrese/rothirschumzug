@@ -30,7 +30,24 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.7.0 (Current) – Cockpit Financial Integrity, DST Calendar Math & Strict Accounting Segregation
+### Version 2.8.0 (Current) – Halteverbotszone Auto-Pricing & GoBD Customer Archival Guard
+*   **Halteverbotszone (HVZ) Automated Pricing & Two-Way Sync (`OrderEditor.tsx`)**:
+    *   Toggling Halteverbotszone in Step 2 automatically adds/removes the service in `services` (Angebot / Rechnung).
+    *   **Strict Pricing Rules**:
+        *   Default fallback is **125 € Netto for 1 address (Zone)** and **250 € Netto for both addresses (125 € each)**.
+        *   Custom price input is rendered directly in Step 2 under the address particulars, allowing immediate inline price customization.
+        *   Full two-way synchronization: changes in Step 3 (`Leistungen`) immediately reflect in Step 2, and deleting the service in Step 3 unchecks the toggle in Step 2.
+*   **GoBD-Compliant Customer Archiving & Invoice Protection Guard (`SmartCustomerTable.tsx`)**:
+    *   Before archiving a customer, the system queries Firestore for all linked orders and official invoices.
+    *   If active/un-stornierte invoices exist (`!isStorno && !isCanceled`):
+        *   An explicit **GoBD Warning Modal** displays all affected invoices and totals, warning that customer deletion without cancellation violates GoBD / § 14b UStG.
+        *   Upon confirmation, the system creates atomic GoBD Storno records (`ST-XXXX`) in the `invoices` collection and sets counterpart statuses to `invoice_cancelled`.
+*   **Cascading Task & Calendar Cleanup (`SmartCustomerTable.tsx`, `logistics/page.tsx`, `calendar/page.tsx`, `ticketEngine.ts`)**:
+    *   Archiving a customer now cascades atomically to all their orders (`status: 'archived'`, `isArchived: true`).
+    *   `logistics/page.tsx` and `ticketEngine.ts` strictly filter out archived orders and tasks of archived customers, preventing completed or open tasks from lingering on the Logistics page.
+    *   `calendar/page.tsx` ignores archived orders, keeping the dispatch calendar clean.
+
+### Version 2.7.0 – Cockpit Financial Integrity, DST Calendar Math & Strict Accounting Segregation
 *   **Inviolable UTC Calendar Math (`CustomerPremiumProfile.tsx` & `ticketEngine.ts`)**:
     *   Replaced local timestamp `Math.ceil(diffTime / 86400000)` with UTC calendar arithmetic (`Date.UTC(y, m, d)` and `Math.round`).
     *   Completely eliminates the Daylight Saving Time (DST Sommerzeit/Winterzeit) 1-hour shift bug that previously rounded a 40-day difference (40.04 days) up to 41 days.

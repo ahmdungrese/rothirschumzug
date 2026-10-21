@@ -91,6 +91,7 @@ export function KanbanDispositionBoard() {
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       const cust = customers[order.customerId] || {};
+      if (order.status === 'archived' || order.isArchived || cust.isArchived) return false;
       const name = `${cust.firstName || ''} ${cust.lastName || ''} ${cust.company || ''} ${order.customerName || ''}`.toLowerCase();
       const city = `${order.logistics?.from?.city || ''} ${order.logistics?.to?.city || ''}`.toLowerCase();
       const orderNum = (order.orderNumber || order.id || '').toLowerCase();

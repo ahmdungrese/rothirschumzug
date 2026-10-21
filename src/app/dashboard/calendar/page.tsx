@@ -110,6 +110,7 @@ export default function CalendarPage() {
     }
 
     orders.forEach(o => {
+      if (o.isArchived === true || o.status === 'archived') return;
       const effectiveMovingDate = o.orderMeta?.movingDateFrom || o.movingDate || o.disposition?.movingDate;
       const isConfirmed = !['draft', 'quote'].includes(o.status);
       const custShortName = o.customerName || 'Kunde';

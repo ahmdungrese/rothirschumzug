@@ -18,6 +18,9 @@ export type SystemTicket = {
 };
 
 export function generateTickets(order: any, customer: any): SystemTicket[] {
+  if (!order || order.status === 'archived' || order.isArchived === true || customer?.isArchived === true) {
+    return [];
+  }
   const tickets: SystemTicket[] = [];
   const status = order.status || 'draft';
   const states = order.ticketStates || {}; 

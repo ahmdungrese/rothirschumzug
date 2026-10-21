@@ -606,6 +606,91 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   // 4. MwSt Rechner
   const [calcInput, setCalcInput] = useState({ gross: 0, net: 0, tax: 0 });
 
+  // Halteverbotszone (HVZ) Pricing & Two-Way Sync Logic
+  // Default: 125 € for 1 address (Zone), 250 € for both addresses (125 € each)
+  const DEFAULT_HVZ_PRICE = 125;
+
+  const handleToggleHvz = (target: 'a' | 'b') => {
+    if (target === 'a') {
+      const nextA = !logistics.a_parking;
+      const nextLoc = nextA && logistics.b_parking ? 'both' : nextA ? 'a' : logistics.b_parking ? 'b' : 'a';
+      setLogistics((prev: any) => ({ ...prev, a_parking: nextA, hvzLocation: nextLoc }));
+      setOrderMeta((prev: any) => ({ ...prev, hvzLocation: nextLoc }));
+
+      if (nextA) {
+        setServices(prev => {
+          const exists = prev.some(s => s.id === 'hvz_a' || (s.location === 'a' && (s.name || '').toLowerCase().includes('halteverbot')));
+          if (exists) return prev;
+          return [...prev, {
+            id: 'hvz_a',
+            name: 'Halteverbotszone Beladestelle (A)',
+            quantity: 1,
+            unitPrice: DEFAULT_HVZ_PRICE,
+            unit: 'Zone',
+            note: 'Behördliche Genehmigung & Beschilderung für Auszugsadresse',
+            location: 'a'
+          }];
+        });
+      } else {
+        setServices(prev => prev.filter(s => s.id !== 'hvz_a' && !(s.location === 'a' && (s.name || '').toLowerCase().includes('halteverbot'))));
+      }
+    } else {
+      const nextB = !logistics.b_parking;
+      const nextLoc = logistics.a_parking && nextB ? 'both' : nextB ? 'b' : logistics.a_parking ? 'a' : 'b';
+      setLogistics((prev: any) => ({ ...prev, b_parking: nextB, hvzLocation: nextLoc }));
+      setOrderMeta((prev: any) => ({ ...prev, hvzLocation: nextLoc }));
+
+      if (nextB) {
+        setServices(prev => {
+          const exists = prev.some(s => s.id === 'hvz_b' || (s.location === 'b' && (s.name || '').toLowerCase().includes('halteverbot')));
+          if (exists) return prev;
+          return [...prev, {
+            id: 'hvz_b',
+            name: 'Halteverbotszone Entladestelle (B)',
+            quantity: 1,
+            unitPrice: DEFAULT_HVZ_PRICE,
+            unit: 'Zone',
+            note: 'Behördliche Genehmigung & Beschilderung für Einzugsadresse',
+            location: 'b'
+          }];
+        });
+      } else {
+        setServices(prev => prev.filter(s => s.id !== 'hvz_b' && !(s.location === 'b' && (s.name || '').toLowerCase().includes('halteverbot'))));
+      }
+    }
+  };
+
+  const handleUpdateHvzPrice = (target: 'a' | 'b', newPrice: number) => {
+    setServices(prev => {
+      const targetId = target === 'a' ? 'hvz_a' : 'hvz_b';
+      const exists = prev.some(s => s.id === targetId || (s.location === target && (s.name || '').toLowerCase().includes('halteverbot')));
+      if (exists) {
+        return prev.map(s => {
+          if (s.id === targetId || (s.location === target && (s.name || '').toLowerCase().includes('halteverbot'))) {
+            return { ...s, unitPrice: newPrice };
+          }
+          return s;
+        });
+      } else {
+        return [...prev, {
+          id: targetId,
+          name: target === 'a' ? 'Halteverbotszone Beladestelle (A)' : 'Halteverbotszone Entladestelle (B)',
+          quantity: 1,
+          unitPrice: newPrice,
+          unit: 'Zone',
+          note: target === 'a' ? 'Behördliche Genehmigung & Beschilderung für Auszugsadresse' : 'Behördliche Genehmigung & Beschilderung für Einzugsadresse',
+          location: target
+        }];
+      }
+    });
+  };
+
+  const getHvzPrice = (target: 'a' | 'b') => {
+    const targetId = target === 'a' ? 'hvz_a' : 'hvz_b';
+    const found = services.find(s => s.id === targetId || (s.location === target && (s.name || '').toLowerCase().includes('halteverbot')));
+    return found ? found.unitPrice : DEFAULT_HVZ_PRICE;
+  };
+
   // 5. Inventarliste
   const [inventory, setInventory] = useState<{ id: string, name: string, quantity: number, note: string, showNoteInPdf?: boolean, room?: string, disassembly?: number, assembly?: number, disconnection?: number, connection?: number }[]>([]);
   const [appendInventoryToPDF, setAppendInventoryToPDF] = useState(false);
@@ -725,11 +810,14 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       if (srv.id === 'hvz_a' || srvName.toLowerCase().includes('halteverbot a')) setLogistics((l: any) => ({ ...l, a_parking: false }));
       if (srv.id === 'hvz_b' || srvName.toLowerCase().includes('halteverbot b')) setLogistics((l: any) => ({ ...l, b_parking: false }));
     } else {
+      const isHvz = (srv.id && srv.id.startsWith('hvz')) || srvName.toLowerCase().includes('halteverbot');
+      const fallbackPrice = isHvz ? DEFAULT_HVZ_PRICE : 0;
+      const finalPrice = srv.price ?? srv.defaultPrice ?? fallbackPrice;
       setServices(prev => [...prev, {
         id: srv.id || (Date.now().toString() + Math.random().toString(36).substring(2, 6)),
         name: srvName,
         quantity: 1,
-        unitPrice: srv.price ?? srv.defaultPrice ?? 0,
+        unitPrice: finalPrice,
         unit: srv.unit || 'pauschal',
         note: srv.defaultDesc || srv.description || '',
         location: 'both'
@@ -2023,12 +2111,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 </button>
                 <button 
                   type="button" 
-                  onClick={() => {
-                    const nextA = !logistics.a_parking;
-                    const nextLoc = nextA && logistics.b_parking ? 'both' : nextA ? 'a' : logistics.b_parking ? 'b' : 'a';
-                    setLogistics({...logistics, a_parking: nextA, hvzLocation: nextLoc});
-                    setOrderMeta({...orderMeta, hvzLocation: nextLoc});
-                  }} 
+                  onClick={() => handleToggleHvz('a')} 
                   className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.a_parking ? 'border-primary bg-primary/20 text-primary shadow-lg shadow-primary/20' : 'border-structure bg-bg-dark text-text-muted hover:border-text-muted/30 hover:bg-bg-panel'}`}
                 >
                   <NoSymbolIcon className="w-6 h-6 mb-1" />
@@ -2067,6 +2150,31 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                         4 Tage vor Umzug setzen
                       </button>
                     )}
+                  </div>
+
+                  {/* Dedicated Price Input for Zone A */}
+                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-bg-dark/90 border border-primary/20">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-text-main flex items-center gap-1.5">
+                        <span>HVZ-Preis (Auszug A)</span>
+                        <span className="text-[10px] font-normal text-primary bg-primary/10 px-1.5 py-0.5 rounded">Angebot / Rechnung</span>
+                      </span>
+                      <span className="text-[10px] text-text-muted">Standard: 125 € netto • Frei anpassbar</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={getHvzPrice('a')}
+                        onChange={e => {
+                          const val = parseFloat(e.target.value);
+                          handleUpdateHvzPrice('a', isNaN(val) ? 0 : val);
+                        }}
+                        className="w-20 text-right bg-black/40 border border-primary/40 rounded-lg px-2 py-1 text-xs font-bold text-primary focus:outline-none focus:border-primary"
+                      />
+                      <span className="text-xs font-bold text-text-muted">€ Netto</span>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
@@ -2230,12 +2338,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 </button>
                 <button 
                   type="button" 
-                  onClick={() => {
-                    const nextB = !logistics.b_parking;
-                    const nextLoc = logistics.a_parking && nextB ? 'both' : nextB ? 'b' : logistics.a_parking ? 'a' : 'b';
-                    setLogistics({...logistics, b_parking: nextB, hvzLocation: nextLoc});
-                    setOrderMeta({...orderMeta, hvzLocation: nextLoc});
-                  }} 
+                  onClick={() => handleToggleHvz('b')} 
                   className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.b_parking ? 'border-primary bg-primary/20 text-primary shadow-lg shadow-primary/20' : 'border-structure bg-bg-dark text-text-muted hover:border-text-muted/30 hover:bg-bg-panel'}`}
                 >
                   <NoSymbolIcon className="w-6 h-6 mb-1" />
@@ -2274,6 +2377,31 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                         4 Tage vor Umzug setzen
                       </button>
                     )}
+                  </div>
+
+                  {/* Dedicated Price Input for Zone B */}
+                  <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-bg-dark/90 border border-primary/20">
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-text-main flex items-center gap-1.5">
+                        <span>HVZ-Preis (Einzug B)</span>
+                        <span className="text-[10px] font-normal text-primary bg-primary/10 px-1.5 py-0.5 rounded">Angebot / Rechnung</span>
+                      </span>
+                      <span className="text-[10px] text-text-muted">Standard: 125 € netto • Frei anpassbar</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={getHvzPrice('b')}
+                        onChange={e => {
+                          const val = parseFloat(e.target.value);
+                          handleUpdateHvzPrice('b', isNaN(val) ? 0 : val);
+                        }}
+                        className="w-20 text-right bg-black/40 border border-primary/40 rounded-lg px-2 py-1 text-xs font-bold text-primary focus:outline-none focus:border-primary"
+                      />
+                      <span className="text-xs font-bold text-text-muted">€ Netto</span>
+                    </div>
                   </div>
 
                   {/* Sync with A Checkbox */}
@@ -2916,7 +3044,14 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                             <td className="pr-2 text-right">
                               <button
                                 type="button"
-                                onClick={() => setServices(services.filter(s => s.id !== svc.id))}
+                                onClick={() => {
+                                  setServices(prev => prev.filter(s => s.id !== svc.id));
+                                  const isHvzA = svc.id === 'hvz_a' || (svc.location === 'a' && (svc.name || '').toLowerCase().includes('halteverbot'));
+                                  const isHvzB = svc.id === 'hvz_b' || (svc.location === 'b' && (svc.name || '').toLowerCase().includes('halteverbot'));
+                                  const isHvzBoth = (!svc.location || svc.location === 'both') && (svc.name || '').toLowerCase().includes('halteverbot');
+                                  if (isHvzA || isHvzBoth) setLogistics((l: any) => ({ ...l, a_parking: false }));
+                                  if (isHvzB || isHvzBoth) setLogistics((l: any) => ({ ...l, b_parking: false }));
+                                }}
                                 className="text-text-muted hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
                               >
                                 <XMarkIcon className="w-4 h-4" />

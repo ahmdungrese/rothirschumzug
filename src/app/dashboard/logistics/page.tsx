@@ -71,7 +71,11 @@ export default function LogisticsPage() {
       let allTodos: SystemTicket[] = [];
 
       currentOrders.forEach((o: any) => {
+        // Exclude archived orders and orders belonging to archived customers
+        if (o.status === 'archived' || o.isArchived === true) return;
         const customerData = currentCustomers[o.customerId] || null;
+        if (customerData?.isArchived === true) return;
+
         const systemTickets = generateTickets(o, customerData);
         systemTickets.forEach(t => {
           if (t.id === 'payment_check') {

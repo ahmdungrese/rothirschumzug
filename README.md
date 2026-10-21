@@ -25,6 +25,10 @@ A modern, high-performance ERP and logistics management application purpose-buil
   * Standalone material sales & free invoices.
 * **Integrated Claims & Damage Management (`v2.5.0`)**:
   * Automated settlement against open invoices via tax-compliant damage offsetting (`schaden_verrechnung`) or service deduction (`service_deduction`).
+* **Halteverbotszone Auto-Pricing & GoBD Customer Archival Guard (`v2.8.0`)**:
+  * Automated Halteverbotszone (HVZ) service generation in Step 2 with strict fallback pricing (125 € for 1 zone, 250 € for both zones) and inline price override. Full two-way sync with Step 3 services.
+  * GoBD-compliant customer archiving with automatic active invoice detection, warning dialogs, and atomic Storno generation (`ST-XXXX`).
+  * Cascading archival of orders, removing orphaned tasks from Logistics and events from Calendar.
 * **Cockpit Financial Integrity, DST Calendar Math & Logistics Engine (`v2.7.0`)**:
   * Daylight Saving Time (DST) immunity using pure UTC calendar math (`Date.UTC`), preventing 1-hour shifts from skewing countdown calculations.
   * Real-time financial balance synchronization (`calculateOpenAmount`), auto-completing paid invoices and eliminating "Zahlung erfassen" on settled orders.
