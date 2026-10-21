@@ -1662,16 +1662,6 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     }
   };
 
-  const incompletePriorSteps = useMemo(() => {
-    const stepsConfig = [
-      { step: 1, label: '1. Kunde' },
-      { step: 2, label: '2. Logistik' },
-      { step: 3, label: '3. Leistungen' },
-      { step: 4, label: '4. Inventar' },
-    ];
-    return stepsConfig.filter(s => currentStep > s.step && !isStepComplete(s.step));
-  }, [currentStep, customerData, logistics, services, isFlatRate, flatRateNet, inventory]);
-
   if (!settings) return <div className="p-12 text-center text-text-main">Lade Einstellungen...</div>;
 
   const date = orderMeta?.movingDateFrom || "";
@@ -1788,18 +1778,15 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 <div 
                   onClick={() => validateAndSetStep(s.step)}
                   className="flex flex-col items-center cursor-pointer group select-none relative"
-                  title={isIncompleteWarning ? `${s.label} ist noch unvollständig (klicken zum Bearbeiten)` : s.label}
+                  title={isIncompleteWarning ? `${s.label}: Noch nicht vollständig ausgefüllt` : (isCompleted ? `${s.label}: Vollständig ausgefüllt` : s.label)}
                 >
                   <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${circleClass}`}>
                     <span className="material-symbols-outlined text-xl">
                       {iconName}
                     </span>
                   </div>
-                  <span className={`mt-2 text-xs font-display uppercase tracking-tight transition-colors flex items-center gap-1 ${labelClass}`}>
-                    <span>{s.label}</span>
-                    {isIncompleteWarning && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" title="Unvollständig" />
-                    )}
+                  <span className={`mt-2 text-xs font-display uppercase tracking-tight transition-colors ${labelClass}`}>
+                    {s.label}
                   </span>
                 </div>
                 {idx < 4 && (
@@ -1809,25 +1796,6 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             );
           })}
         </div>
-
-        {/* Subtle, helpful warning pill if past steps are incomplete without blocking navigation */}
-        {incompletePriorSteps.length > 0 && (
-          <div className="flex flex-wrap items-center justify-center gap-2 mt-4 px-4">
-            <div className="inline-flex items-center gap-2 py-1.5 px-3.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs shadow-xs animate-in fade-in">
-              <span className="material-symbols-outlined text-sm font-bold shrink-0">priority_high</span>
-              <span>
-                <strong>Hinweis:</strong> {incompletePriorSteps.map(s => s.label).join(', ')} noch nicht vollständig ausgefüllt.
-              </span>
-              <button
-                type="button"
-                onClick={() => goToStep(incompletePriorSteps[0].step)}
-                className="underline font-bold hover:text-amber-500 ml-1 cursor-pointer shrink-0"
-              >
-                Zu {incompletePriorSteps[0].label} springen
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
 
