@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
-import { PDFDownloadLink } from '@react-pdf/renderer';
+import { PDFDownloadLink, BlobProvider } from '@react-pdf/renderer';
 import { ArrowDownTrayIcon, ArrowTopRightOnSquareIcon } from '@heroicons/react/24/outline';
 import { OrderPDF } from './OrderPDF';
 import { EmployeeSheetPDF } from './EmployeeSheetPDF';
@@ -102,7 +102,7 @@ export default function PDFDownloadButtonWrapper({
 
   if (openInNewTab) {
     return (
-      <PDFDownloadLink document={getDocument()} fileName={getFileName()}>
+      <BlobProvider document={getDocument()}>
         {/* @ts-ignore */}
         {({ url, loading }) => (
           <a
@@ -119,18 +119,23 @@ export default function PDFDownloadButtonWrapper({
             {!iconOnly && (loading ? 'Lade...' : 'Neuer Tab')}
           </a>
         )}
-      </PDFDownloadLink>
+      </BlobProvider>
     );
   }
 
   return (
-    <PDFDownloadLink document={getDocument()} fileName={getFileName()}>
+    <PDFDownloadLink
+      document={getDocument()}
+      fileName={getFileName()}
+      className={`flex items-center justify-center gap-2 ${className}`}
+      title="Als PDF herunterladen"
+    >
       {/* @ts-ignore */}
       {({ loading }) => (
-        <button disabled={loading} className={`flex items-center justify-center gap-2 ${className}`} title={loading ? 'Generiere PDF...' : 'Als PDF herunterladen'}>
+        <>
           {customIcon || <ArrowDownTrayIcon className="w-4 h-4" />}
           {!iconOnly && (loading ? 'Generiere PDF...' : 'Als PDF herunterladen')}
-        </button>
+        </>
       )}
     </PDFDownloadLink>
   );

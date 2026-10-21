@@ -104,28 +104,31 @@ function renderLogisticsSymbol(
         </G>
       );
     case 3:
-      // 4. Kitchen assembly & disassembly tools: Cordless drill & wrench (عدة فك وتركيب المطبخ)
+      // 4. Küchenzeile & Arbeitsplatte (Küchenmontage / Küchenservice)
       return (
-        <G key={key} transform={`translate(${x - 36 * scale}, ${y - 36 * scale}) scale(${scale})`}>
-          <Rect x="22" y="18" width="16" height="8" rx="2" fill="none" stroke={color} strokeWidth={sw1} />
-          <Rect x="16" y="20" width="6" height="4" rx="1" fill="none" stroke={color} strokeWidth={sw1} />
-          <Line x1="10" y1="22" x2="16" y2="22" stroke={color} strokeWidth={1.5} />
-          <Path d="M28 26 L34 42 L28 44 L24 26 Z" fill="none" stroke={color} strokeWidth={sw1} />
-          <Rect x="26" y="42" width="12" height="6" rx="1.5" fill="none" stroke={color} strokeWidth={1.2} />
-          <Line x1="48" y1="14" x2="18" y2="52" stroke={color} strokeWidth={sw2} />
-          <Circle cx="18" cy="52" r="4.5" fill="none" stroke={color} strokeWidth={sw1} />
-          <Path d="M44 12 L52 18 L48 22 L42 16" fill="none" stroke={color} strokeWidth={sw1} />
+        <G key={key} transform={`translate(${x - 35 * scale}, ${y - 35 * scale}) scale(${scale})`}>
+          {/* Oberschrank / Wall cabinet */}
+          <Rect x="6" y="5" width="28" height="10" rx="1.5" fill="none" stroke={color} strokeWidth={sw1} />
+          <Line x1="20" y1="5" x2="20" y2="15" stroke={color} strokeWidth={1.0} />
+          {/* Arbeitsplatte & Unterschrank */}
+          <Rect x="4" y="20" width="32" height="16" rx="1.5" fill="none" stroke={color} strokeWidth={sw1} />
+          <Line x1="4" y1="24" x2="36" y2="24" stroke={color} strokeWidth={1.0} />
+          <Line x1="20" y1="24" x2="20" y2="36" stroke={color} strokeWidth={1.0} />
+          {/* Wasserhahn / Spüle */}
+          <Path d="M12 20 L12 17 C12 16, 14 16, 14 17" fill="none" stroke={color} strokeWidth={1.2} />
         </G>
       );
     case 4:
-      // 5. Toolbox / Werkzeugkoffer (صندوق عدة)
+      // 5. Kleiderschrank / Möbelmontage (Möbelservice)
       return (
-        <G key={key} transform={`translate(${x - 40 * scale}, ${y - 30 * scale}) scale(${scale})`}>
-          <Rect x="14" y="24" width="52" height="34" rx="3" fill="none" stroke={color} strokeWidth={sw1} />
-          <Line x1="14" y1="36" x2="66" y2="36" stroke={color} strokeWidth={1.2} />
-          <Path d="M30 24 L30 16 L50 16 L50 24" fill="none" stroke={color} strokeWidth={sw1} />
-          <Rect x="24" y="32" width="6" height="8" rx="1" fill="none" stroke={color} strokeWidth={1.0} />
-          <Rect x="50" y="32" width="6" height="8" rx="1" fill="none" stroke={color} strokeWidth={1.0} />
+        <G key={key} transform={`translate(${x - 35 * scale}, ${y - 35 * scale}) scale(${scale})`}>
+          <Rect x="7" y="5" width="26" height="30" rx="2" fill="none" stroke={color} strokeWidth={sw1} />
+          <Line x1="20" y1="5" x2="20" y2="29" stroke={color} strokeWidth={1.0} />
+          <Line x1="7" y1="29" x2="33" y2="29" stroke={color} strokeWidth={1.0} />
+          <Line x1="17" y1="15" x2="17" y2="19" stroke={color} strokeWidth={1.2} />
+          <Line x1="23" y1="15" x2="23" y2="19" stroke={color} strokeWidth={1.2} />
+          <Line x1="11" y1="35" x2="11" y2="38" stroke={color} strokeWidth={1.4} />
+          <Line x1="29" y1="35" x2="29" y2="38" stroke={color} strokeWidth={1.4} />
         </G>
       );
     case 5:

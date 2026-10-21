@@ -8,6 +8,7 @@ import { ActivityLogViewer } from '@/components/settings/ActivityLogViewer';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
 import { ResetDatabaseModal } from '@/components/settings/ResetDatabaseModal';
+import { ShowcaseServiceItem, DEFAULT_SHOWCASE_SERVICES, DEFAULT_SHOWCASE_TEXTS, AVAILABLE_SHOWCASE_ICONS } from '@/lib/showcaseDefaults';
 
 const TABS = [
   { id: 'basisdaten', name: 'Basisdaten', icon: BuildingOfficeIcon },
@@ -55,6 +56,8 @@ export default function SettingsPage() {
       buecher: 3.00,
       kleider: 12.00,
     },
+    showcaseServices: DEFAULT_SHOWCASE_SERVICES,
+    showcaseTexts: DEFAULT_SHOWCASE_TEXTS,
     taxRate: 19,
     dunningFee: 5,
     nextQuoteNumber: 1771,
@@ -290,6 +293,14 @@ export default function SettingsPage() {
           { id: 'cat2', name: 'Keine Schäden (Abschluss-Protokoll)', text: 'Der Kunde bestätigt hiermit ausdrücklich, dass der Umzug und alle vereinbarten Leistungen vollständig und zu seiner vollsten Zufriedenheit durchgeführt wurden. Es sind keine Schäden an Möbeln, dem Inventar oder in den Räumlichkeiten (Treppenhaus, Wände, Böden etc.) entstanden.' },
           { id: 'cat3', name: 'Schadensprotokoll', text: 'Folgende Vorschäden / Schäden wurden vor oder während den Arbeiten dokumentiert:\n1. \n2. \n' }
         ];
+      }
+
+      // Fallback for showcase services & texts
+      if (!data.showcaseServices || data.showcaseServices.length === 0) {
+        data.showcaseServices = DEFAULT_SHOWCASE_SERVICES;
+      }
+      if (!data.showcaseTexts) {
+        data.showcaseTexts = DEFAULT_SHOWCASE_TEXTS;
       }
 
       setSettings((prev: any) => ({ ...prev, ...data }));
@@ -537,6 +548,46 @@ export default function SettingsPage() {
   const addCategory = () => {
     // Fügt die neue Kategorie GANZ OBEN in die Liste ein, damit man sie sofort sieht
     setSettings({ ...settings, catalog: [{ category: 'Neue Kategorie', items: [] }, ...settings.catalog] });
+  };
+
+  const toggleShowcaseService = (idx: number) => {
+    const list = [...(settings.showcaseServices || DEFAULT_SHOWCASE_SERVICES)];
+    list[idx] = { ...list[idx], enabled: !list[idx].enabled };
+    setSettings({ ...settings, showcaseServices: list });
+  };
+
+  const updateShowcaseService = (idx: number, field: string, value: any) => {
+    const list = [...(settings.showcaseServices || DEFAULT_SHOWCASE_SERVICES)];
+    list[idx] = { ...list[idx], [field]: value };
+    setSettings({ ...settings, showcaseServices: list });
+  };
+
+  const addShowcaseService = () => {
+    const list = [...(settings.showcaseServices || DEFAULT_SHOWCASE_SERVICES)];
+    list.push({
+      id: `custom_${Date.now()}`,
+      name: 'Neuer Werbeservice',
+      icon: 'general',
+      enabled: true,
+    });
+    setSettings({ ...settings, showcaseServices: list });
+  };
+
+  const removeShowcaseService = (idx: number) => {
+    const list = [...(settings.showcaseServices || DEFAULT_SHOWCASE_SERVICES)];
+    list.splice(idx, 1);
+    setSettings({ ...settings, showcaseServices: list });
+  };
+
+  const resetShowcaseServices = () => {
+    if (confirm('Möchten Sie die Liste der Werbeservices wirklich auf den Standard zurücksetzen?')) {
+      setSettings({
+        ...settings,
+        showcaseServices: DEFAULT_SHOWCASE_SERVICES,
+        showcaseTexts: DEFAULT_SHOWCASE_TEXTS,
+      });
+      toast.success('Werbeservices auf Standard zurückgesetzt');
+    }
   };
 
   if (profile && profile.role !== 'admin') {
@@ -1434,6 +1485,163 @@ export default function SettingsPage() {
                       </div>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* Werbeblock & Service-Portfolio für Angebote (Seite 2) */}
+              <div className="bg-bg-dark border border-structure p-5 rounded-2xl space-y-5 shadow-sm">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-structure/70 pb-3 gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-bold">
+                      <span className="material-symbols-outlined text-xl">featured_seasonal_and_gifts</span>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-text-main text-base">Werbeblock & Service-Portfolio für Angebote (Seite 2)</h3>
+                      <p className="text-xs text-text-muted">
+                        Wählen Sie aus, welche Zusatzleistungen als dezente Badges auf Seite 2 Ihrer Angebote angezeigt werden sollen.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={resetShowcaseServices}
+                      className="text-xs text-text-muted hover:text-text-main hover:underline px-2 py-1 cursor-pointer"
+                      title="Auf Standard-Leistungen zurücksetzen"
+                    >
+                      Standard wiederherstellen
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addShowcaseService}
+                      className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1 font-semibold cursor-pointer"
+                    >
+                      + Service hinzufügen
+                    </button>
+                  </div>
+                </div>
+
+                {/* Header, Subtitle & Disclaimer Settings */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-bg-panel p-3.5 rounded-xl border border-structure/50">
+                  <div>
+                    <label className="text-[11px] font-bold text-text-muted block mb-1">Überschrift des Werbeblocks</label>
+                    <input
+                      type="text"
+                      value={settings.showcaseTexts?.title ?? DEFAULT_SHOWCASE_TEXTS.title}
+                      onChange={e => setSettings((prev: any) => ({
+                        ...prev,
+                        showcaseTexts: { ...(prev.showcaseTexts || {}), title: e.target.value }
+                      }))}
+                      className="input-field text-xs w-full font-semibold"
+                      placeholder="Unser erweitertes Full-Service Angebot auf Wunsch"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-bold text-text-muted block mb-1">Untertitel / Hinweis</label>
+                    <input
+                      type="text"
+                      value={settings.showcaseTexts?.subtitle ?? DEFAULT_SHOWCASE_TEXTS.subtitle}
+                      onChange={e => setSettings((prev: any) => ({
+                        ...prev,
+                        showcaseTexts: { ...(prev.showcaseTexts || {}), subtitle: e.target.value }
+                      }))}
+                      className="input-field text-xs w-full"
+                      placeholder="Jederzeit flexibel zubuchbar • Sprechen Sie uns gerne an"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-[11px] font-bold text-text-muted block mb-1">Vertraglicher Disclaimer (Fußnote zum Schutz vor Missverständnissen)</label>
+                    <input
+                      type="text"
+                      value={settings.showcaseTexts?.disclaimer ?? DEFAULT_SHOWCASE_TEXTS.disclaimer}
+                      onChange={e => setSettings((prev: any) => ({
+                        ...prev,
+                        showcaseTexts: { ...(prev.showcaseTexts || {}), disclaimer: e.target.value }
+                      }))}
+                      className="input-field text-xs w-full text-text-muted italic"
+                      placeholder="* Hinweis: Der vertragliche Leistungsumfang..."
+                    />
+                  </div>
+                </div>
+
+                {/* Services List with Toggles, Icon Selectors and Names */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {(settings.showcaseServices || DEFAULT_SHOWCASE_SERVICES).map((srv: ShowcaseServiceItem, idx: number) => {
+                    const isEnabled = srv.enabled !== false;
+                    const currentIconMeta = AVAILABLE_SHOWCASE_ICONS.find(i => i.id === srv.icon) || AVAILABLE_SHOWCASE_ICONS[0];
+
+                    return (
+                      <div
+                        key={srv.id || idx}
+                        className={`flex items-center gap-2 p-2.5 rounded-xl border transition-all ${
+                          isEnabled
+                            ? 'bg-bg-panel border-primary/30 shadow-sm'
+                            : 'bg-bg-panel/40 border-structure/40 opacity-60'
+                        }`}
+                      >
+                        {/* Toggle Button */}
+                        <button
+                          type="button"
+                          onClick={() => toggleShowcaseService(idx)}
+                          className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors cursor-pointer ${
+                            isEnabled ? 'bg-primary text-white' : 'bg-white/5 text-text-muted border border-structure'
+                          }`}
+                          title={isEnabled ? 'Aktiv (Wird im Angebot angezeigt)' : 'Deaktiviert (Ausgeblendet)'}
+                        >
+                          <span className="material-symbols-outlined text-base">
+                            {isEnabled ? 'check' : 'close'}
+                          </span>
+                        </button>
+
+                        {/* Icon Picker */}
+                        <div className="relative shrink-0 w-8 h-8">
+                          <select
+                            value={srv.icon}
+                            onChange={e => updateShowcaseService(idx, 'icon', e.target.value)}
+                            className="w-full h-full rounded-lg bg-bg-dark border border-structure text-transparent appearance-none cursor-pointer p-0"
+                            title="Symbol auswählen"
+                          >
+                            {AVAILABLE_SHOWCASE_ICONS.map(ic => (
+                              <option key={ic.id} value={ic.id} className="text-text-main bg-bg-panel">
+                                {ic.label}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-primary">
+                            <span className="material-symbols-outlined text-sm">
+                              {currentIconMeta.iconName}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Service Name Input */}
+                        <input
+                          type="text"
+                          value={srv.name}
+                          onChange={e => updateShowcaseService(idx, 'name', e.target.value)}
+                          className="input-field text-xs flex-1 py-1 px-2 font-medium"
+                          placeholder="Service-Bezeichnung"
+                        />
+
+                        {/* Delete Button */}
+                        <button
+                          type="button"
+                          onClick={() => removeShowcaseService(idx)}
+                          className="text-text-muted hover:text-red-400 p-1 rounded transition-colors text-base leading-none cursor-pointer"
+                          title="Service entfernen"
+                        >
+                          &times;
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-text-muted bg-white/[0.02] p-2.5 rounded-lg border border-structure/40">
+                  <span className="material-symbols-outlined text-sm text-primary">info</span>
+                  <span>
+                    <strong>Tipp:</strong> Im Angebot-Editor (Schritt 5) können Sie für einzelne Angebote bei Bedarf Services mit einem Klick abwählen oder hinzufügen (z. B. <em>Endreinigung</em> zuschalten oder <em>Küchenmontage</em> für Kunden ohne Küche deaktivieren).
+                  </span>
                 </div>
               </div>
               

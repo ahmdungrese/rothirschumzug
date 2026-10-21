@@ -30,7 +30,32 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.9.0 (Current) – Smart Contact Validation, Phase-Aware Action Hub & Box Configurator
+### Version 2.10.1 (Current) – Wizard Auto-Save Engine, Step 5 Action Hub Unification & PDF Safe-Persist Guard
+*   **Automatic Draft Persistence on Reaching Step 5 (`OrderEditor.tsx`)**:
+    *   Navigating to Step 5 (Abschluss) via stepper, next buttons, or wizard tabs now automatically executes a silent background draft save to Firestore.
+    *   Generates or updates the `orders` document and customer profile in real time, preventing any data loss across reloads, unexpected browser closes, or offline interruptions.
+    *   Step 5 verification banner replaced the redundant manual "Entwurf sichern" button with a reassuring "Als Entwurf gesichert" status indicator badge.
+*   **PDF Safe-Persist Guard (`OrderEditor.tsx`)**:
+    *   Clicking "PDF herunterladen / drucken" or the interactive preview paper card now automatically persists the official offer into Firestore before invoking `window.print()`.
+    *   Eliminates the bug where disponents triggered print/download while the offer had not yet been committed to the database.
+*   **Action Hub Streamlining & Duplicate Removal (`OrderEditor.tsx`)**:
+    *   Eliminated confusing duplicate actions between Card 1 ("Angebot speichern") and the floating dock ("Angebot abschließen") by unifying them into a clear primary action.
+    *   Intermediate saves ("Zwischenspeichern" in Step 3 and "Entwurf speichern" in Step 4/dock) now smoothly persist without kicking the disponent out of the wizard.
+
+### Version 2.10.0 – Dynamic Offer Service Portfolio & Settings Showcase Manager
+*   **Settings-Integrated Offer Service Portfolio (`settings/page.tsx`, `showcaseDefaults.ts`)**:
+    *   Full master management under `Einstellungen > Leistungskatalog > Werbeblock & Service-Portfolio für Angebote (Seite 2)`.
+    *   Disponents can enable/disable showcase items, customize service names, pick from 14 authentic logistics vector icons (Truck, Kitchen, Furniture, Boxes, HVZ, Lift, Light, Storage, Cleaning, Disposal, Piano, Painting, Sanitary, Star), and add custom services (e.g. `Endreinigung`, `Entrümpelung`, `Klaviertransport`).
+    *   Configurable title, subtitle, and legal footnote disclaimer with 1-click reset to defaults.
+*   **Per-Quote Instant Selection in Step 5 (`OrderEditor.tsx`)**:
+    *   Enabling the showcase in Step 5 renders an interactive pill chips bar.
+    *   Disponents can click individual services to toggle them on or off specifically for this quote (e.g., enable `Endreinigung` or disable `Küchenmontage` for customers without a kitchen) without affecting other orders.
+*   **Airy Non-Tabular Pill Design & Legal Signature Segregation (`PDFServiceShowcase.tsx`, `OrderPDF.tsx`)**:
+    *   Customer signature box sits immediately beneath the binding confirmation ("...bestätigen Sie die verbindliche Beauftragung der auf Seite 1 detaillierten Leistungen..."), ensuring customers sign exclusively for Page 1 positions.
+    *   Promotional showcase placed below the signature as a courteous 4-column pill ribbon with explicit contractual disclaimer footnote, eliminating legal ambiguity.
+    *   Watermark matrix enhanced with authentic moving iconography and complete eradication of drill symbols.
+
+### Version 2.9.0 – Smart Contact Validation, Phase-Aware Action Hub & Box Configurator
 *   **Smart Phase 1 Contact Validation & Non-Blocking Warnings (`OrderDetailsDrawer.tsx` & `CustomerPremiumProfile.tsx`)**:
     *   Phase 1 completion badge requires at least ONE contact method (`phone` OR `email`).
     *   If BOTH contact channels are missing, Phase 1 renders an amber warning indicator (`⚠️` / `!`) instead of an inaccurate green checkmark.

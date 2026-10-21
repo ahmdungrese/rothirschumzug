@@ -18,6 +18,7 @@ import { KartonConfigModal } from './KartonConfigModal';
 import { FLOOR_OPTIONS } from '@/lib/constants';
 import { withDbTimeout, formatFriendlyError } from '@/lib/networkWatchdog';
 import { modalManager } from '@/lib/modalManager';
+import { ShowcaseServiceItem, DEFAULT_SHOWCASE_SERVICES, AVAILABLE_SHOWCASE_ICONS } from '@/lib/showcaseDefaults';
 
 const getPropertyIcon = (type: string) => {
   const t = (type || '').toLowerCase();
@@ -481,6 +482,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const [currentStep, setCurrentStep] = useState(initialStep);
   const [unlockedByAdmin, setUnlockedByAdmin] = useState(searchParams?.get('unlock') === 'true');
   const isContractLocked = (orderStatus === 'confirmed' || orderStatus === 'completed') && !unlockedByAdmin;
+  const [activeOrderId, setActiveOrderId] = useState<string | undefined>(orderId);
+  const isAutoSavingRef = useRef(false);
 
   const currentStepRef = useRef(currentStep);
   currentStepRef.current = currentStep;
@@ -935,6 +938,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   // 5. Inventarliste
   const [inventory, setInventory] = useState<{ id: string, name: string, quantity: number, note: string, showNoteInPdf?: boolean, room?: string, disassembly?: number, assembly?: number, disconnection?: number, connection?: number }[]>([]);
   const [appendInventoryToPDF, setAppendInventoryToPDF] = useState(false);
+  const [showServicePortfolioInPDF, setShowServicePortfolioInPDF] = useState(false);
+  const [orderShowcaseServices, setOrderShowcaseServices] = useState<ShowcaseServiceItem[]>([]);
   const [isInventoryWizardOpen, setIsInventoryWizardOpen] = useState(false);
   const [initialWizardRoom, setInitialWizardRoom] = useState<string | null>(null);
   
@@ -1020,7 +1025,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     );
     if (!hasData) return;
 
-    const draftKey = `rothirsch_order_draft_${orderId || 'new'}`;
+    const targetId = activeOrderId || orderId;
+    const draftKey = `rothirsch_order_draft_${targetId || 'new'}`;
     const timer = setTimeout(() => {
       try {
         localStorage.setItem(draftKey, JSON.stringify({
@@ -1035,7 +1041,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     }, 1500);
 
     return () => clearTimeout(timer);
-  }, [customerData, orderMeta, logistics, inventory, services, orderId]);
+  }, [customerData, orderMeta, logistics, inventory, services, activeOrderId, orderId]);
 
   useEffect(() => {
     if (orderMeta.movingDateTo) {
@@ -1470,6 +1476,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     });
 
     if (orderId) {
+      setActiveOrderId(orderId);
       getDoc(doc(db, 'orders', orderId)).then(docSnap => {
         if (docSnap.exists()) {
           const data = docSnap.data();
@@ -1582,6 +1589,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           setServices(loadedServices);
           setInventory(data.inventory || []);
           setAppendInventoryToPDF(data.appendInventoryToPDF || false);
+          setShowServicePortfolioInPDF(data.showServicePortfolioInPDF || false);
+          setOrderShowcaseServices(data.showcaseServices || []);
           setChecklist(data.checklist || []);
           setTexts(data.texts || {});
           if (data.truckChoice) setTruckChoice(data.truckChoice);
@@ -1785,24 +1794,33 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     action();
   };
 
-  const saveOrder = async (status: 'draft' | 'quote' | 'confirmed' | 'invoice_open', generateQuote: boolean = false) => {
+  const saveOrder = async (
+    status: 'draft' | 'quote' | 'confirmed' | 'invoice_open', 
+    generateQuote: boolean = false,
+    shouldRedirect: boolean = true,
+    isSilent: boolean = false
+  ) => {
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      toast.error('Speichern fehlgeschlagen: Du bist offline!', { duration: 5000 });
-      setErrorMessage('Kein Internet! Bitte warte auf eine Verbindung.');
-      setTimeout(() => setErrorMessage(''), 5000);
+      if (!isSilent) {
+        toast.error('Speichern fehlgeschlagen: Du bist offline!', { duration: 5000 });
+        setErrorMessage('Kein Internet! Bitte warte auf eine Verbindung.');
+        setTimeout(() => setErrorMessage(''), 5000);
+      }
       return;
     }
 
-    if (!urlCustomerId && (!customerData.lastName)) {
-      toast.error("Bitte mindestens Nachname/Firmenname ausfüllen!");
-      setErrorMessage("Bitte mindestens Nachname/Firmenname ausfüllen!");
-      setTimeout(() => setErrorMessage(''), 4000);
+    if (!urlCustomerId && !loadedCustomerId && (!customerData.lastName)) {
+      if (!isSilent) {
+        toast.error("Bitte mindestens Nachname/Firmenname ausfüllen!");
+        setErrorMessage("Bitte mindestens Nachname/Firmenname ausfüllen!");
+        setTimeout(() => setErrorMessage(''), 4000);
+      }
       return;
     }
     setIsSaving(true);
     setSaveStatus('saving');
     try {
-      let finalCustomerId = urlCustomerId;
+      let finalCustomerId = urlCustomerId || loadedCustomerId;
       const cleanCreatorName = profile?.displayName || profile?.email?.split('@')[0] || 'Team';
       if (!finalCustomerId) {
         const cRef = await addDoc(collection(db, 'customers'), { 
@@ -1811,6 +1829,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           createdBy: cleanCreatorName 
         });
         finalCustomerId = cRef.id;
+        setLoadedCustomerId(cRef.id);
         await logActivity(profile?.uid || 'unknown', cleanCreatorName, 'CREATE_CUSTOMER', `Kunde ${customerData.lastName} im Angebots-Editor angelegt`);
       }
       
@@ -1837,7 +1856,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         finalStatus = 'confirmed';
       }
       // Prevent downgrading an existing non-draft order when saving as draft or re-saving an already confirmed/completed order
-      if (orderId && orderStatus && orderStatus !== 'draft') {
+      const targetOrderId = activeOrderId || orderId;
+      if (targetOrderId && orderStatus && orderStatus !== 'draft') {
         if (status === 'draft') {
           finalStatus = orderStatus as any;
         } else if (status === 'quote' && (orderStatus === 'completed' || orderStatus?.startsWith('invoice_') || (orderStatus === 'confirmed' && isManuallySigned))) {
@@ -1885,6 +1905,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         inventory,
         roomCounts,
         appendInventoryToPDF,
+        showServicePortfolioInPDF,
+        showcaseServices: orderShowcaseServices.length > 0 ? orderShowcaseServices : (settings?.showcaseServices || DEFAULT_SHOWCASE_SERVICES),
         checklist,
         texts,
         totals,
@@ -1897,13 +1919,13 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       };
 
       await withDbTimeout((async () => {
-        if (orderId) {
-          await updateDoc(doc(db, 'orders', orderId), payload);
+        if (targetOrderId) {
+          await updateDoc(doc(db, 'orders', targetOrderId), payload);
           await logActivity(profile?.uid || 'unknown', cleanCreatorName, 'UPDATE_ORDER', `Angebot/Auftrag aktualisiert für Kunde ${payload.customerName}`);
           
           if (generateQuote || finalStatus === 'quote' || finalStatus === 'confirmed') {
             try {
-              await changeOrderStatus(orderId, (finalStatus === 'draft' ? 'quote' : finalStatus) as any, { userId: profile?.uid, additionalData: { isManuallySigned } });
+              await changeOrderStatus(targetOrderId, (finalStatus === 'draft' ? 'quote' : finalStatus) as any, { userId: profile?.uid, additionalData: { isManuallySigned } });
             } catch (err: any) {
               console.error("Fehler bei der Angebotsstatus-Aktualisierung:", err);
             }
@@ -1914,6 +1936,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             createdAt: serverTimestamp(),
             createdBy: cleanCreatorName 
           });
+          setActiveOrderId(docRef.id);
           await logActivity(profile?.uid || 'unknown', cleanCreatorName, 'CREATE_ORDER', `Angebot erstellt für Kunde ${payload.customerName}`);
           
           if (generateQuote || finalStatus === 'quote' || finalStatus === 'confirmed') {
@@ -1927,25 +1950,60 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       })(), { operationName: 'Angebot/Auftrag speichern', timeoutMs: 35000 });
 
       try {
-        localStorage.removeItem(`rothirsch_order_draft_${orderId || 'new'}`);
+        localStorage.removeItem(`rothirsch_order_draft_${targetOrderId || 'new'}`);
       } catch {}
 
       setSaveStatus('success');
-      toast.success(
-        orderId
-          ? "Änderungen erfolgreich gespeichert!"
-          : finalStatus === 'confirmed'
-            ? "Auftrag bestätigt & gespeichert!"
-            : "Angebot erfolgreich erstellt!"
-      );
-      router.push(`/dashboard/customers/${finalCustomerId}`);
+      if (!isSilent) {
+        toast.success(
+          targetOrderId
+            ? "Änderungen erfolgreich gespeichert!"
+            : finalStatus === 'confirmed'
+              ? "Auftrag bestätigt & gespeichert!"
+              : "Angebot erfolgreich erstellt!"
+        );
+      } else {
+        toast.success("Entwurf automatisch gesichert", { id: 'auto-save-toast', duration: 2500 });
+      }
+
+      if (shouldRedirect) {
+        router.push(`/dashboard/customers/${finalCustomerId}`);
+      }
     } catch (e: any) {
       console.error("OrderEditor save error:", e); 
-      const friendlyMsg = formatFriendlyError(e, 'Speichern des Angebots');
-      toast.error(friendlyMsg, { duration: 6000 });
-      setErrorMessage(friendlyMsg);
+      if (!isSilent) {
+        const friendlyMsg = formatFriendlyError(e, 'Speichern des Angebots');
+        toast.error(friendlyMsg, { duration: 6000 });
+        setErrorMessage(friendlyMsg);
+      }
       setSaveStatus('error');
       setTimeout(() => { setErrorMessage(''); setSaveStatus('idle'); }, 6000);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handlePrintPdf = async () => {
+    try {
+      setIsSaving(true);
+      await saveOrder(isInvoice ? 'invoice_open' : (isManuallySigned ? 'confirmed' : 'quote'), true, false, false);
+      window.print();
+    } catch (err) {
+      console.error("PDF Print error:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleEmailCustomer = async () => {
+    try {
+      setIsSaving(true);
+      await saveOrder(isInvoice ? 'invoice_open' : (isManuallySigned ? 'confirmed' : 'quote'), true, false, false);
+      const subject = encodeURIComponent(`Ihr Umzugsangebot von Rothirsch - ${customerName || ''}`);
+      const body = encodeURIComponent(`Guten Tag ${customerName || ''},\n\nanbei erhalten Sie das Angebot für Ihren bevorstehenden Umzug.\nGesamtbetrag: ${totals.gross.toFixed(2)} €.\n\nMit freundlichen Grüßen\nIhr Rothirsch Team`);
+      window.location.href = `mailto:${customerEmail || ''}?subject=${subject}&body=${body}`;
+    } catch (err) {
+      console.error("Email customer error:", err);
     } finally {
       setIsSaving(false);
     }
@@ -1975,6 +2033,20 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     // Step 2 (Logistik) is non-blocking: Addresses can be completed later in Cockpit if needed.
 
     goToStep(targetStep);
+
+    // Auto-save as draft when arriving at Step 5 (Abschluss)
+    if (targetStep === 5 && !isAutoSavingRef.current && !isSaving) {
+      isAutoSavingRef.current = true;
+      setTimeout(async () => {
+        try {
+          await saveOrder(isInvoice ? 'invoice_open' : 'draft', false, false, true);
+        } catch (err) {
+          console.error("Auto-save draft error:", err);
+        } finally {
+          isAutoSavingRef.current = false;
+        }
+      }, 150);
+    }
   };
 
   // Step Completion Validation: Only marks a step complete with a green checkmark if it has actual data
@@ -2021,7 +2093,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       <div className="flex justify-between items-center bg-bg-panel border border-structure p-4 rounded-xl shadow-lg mt-6">
         <div>
           <h1 className="text-2xl font-bold text-text-main flex items-center gap-2">
-            {isInvoice ? 'Neue Rechnung' : (orderId ? 'Angebot bearbeiten' : 'Neues Angebot')}
+            {isInvoice ? 'Neue Rechnung' : ((activeOrderId || orderId) ? 'Angebot bearbeiten' : 'Neues Angebot')}
           </h1>
           <p className="text-sm text-text-muted mt-1">
             {isInvoice ? 'Erstellen Sie eine direkte Rechnung.' : 'Erstellen Sie ein detailliertes Umzugsangebot.'}
@@ -3677,7 +3749,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => saveOrder('draft', false)}
+                      onClick={() => saveOrder('draft', false, false, false)}
                       disabled={isSaving}
                       className="w-full py-2 bg-white/[0.04] text-text-main border border-structure/60 rounded-xl font-bold text-xs hover:bg-white/[0.08] transition-all"
                     >
@@ -4259,7 +4331,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => saveOrder('draft', false)}
+                    onClick={() => saveOrder('draft', false, false, false)}
                     disabled={isSaving}
                     className="w-full py-2.5 bg-white/[0.03] text-text-muted hover:text-text-main border border-structure/60 rounded-xl font-bold text-xs hover:bg-white/[0.06] transition-all"
                   >
@@ -4382,14 +4454,10 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                     <p className="text-text-muted text-xs">Alle Logistik- und Tarifangaben sind vollständig hinterlegt.</p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => saveOrder('draft', false)}
-                  disabled={isSaving}
-                  className="bg-primary/15 text-primary hover:bg-primary hover:text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0"
-                >
-                  Entwurf sichern
-                </button>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold shrink-0">
+                  <span className="material-symbols-outlined text-sm">cloud_done</span>
+                  <span>Als Entwurf gesichert</span>
+                </div>
               </div>
 
               {/* Manuelle / Externe Vertragsbestätigung Toggle */}
@@ -4415,6 +4483,109 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
                 </label>
               </div>
+
+              {/* Service Portfolio / Werbeblock Toggle & Customizer */}
+              <div className="p-4 rounded-2xl bg-white/[0.02] border border-structure space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                      <span className="material-symbols-outlined text-lg">featured_play_list</span>
+                    </div>
+                    <div>
+                      <span className="text-xs font-bold text-text-main block">
+                        Leistungs-Portfolio / Werbeblock im Angebot anzeigen
+                      </span>
+                      <span className="text-[11px] text-text-muted">
+                        Fügt auf Seite 2 eine dezente Übersicht über Zusatzleistungen (auf Wunsch zubuchbar) ein.
+                      </span>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={showServicePortfolioInPDF}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setShowServicePortfolioInPDF(checked);
+                        if (checked && orderShowcaseServices.length === 0) {
+                          const base = (settings?.showcaseServices && settings.showcaseServices.length > 0)
+                            ? settings.showcaseServices
+                            : DEFAULT_SHOWCASE_SERVICES;
+                          setOrderShowcaseServices(base.map((s: ShowcaseServiceItem) => ({ ...s })));
+                        }
+                      }}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+
+                {showServicePortfolioInPDF && (
+                  <div className="pt-3 border-t border-structure/60 space-y-2.5 animate-in fade-in duration-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-text-main">
+                        Services für dieses Angebot auswählen / anpassen:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const base = (settings?.showcaseServices && settings.showcaseServices.length > 0)
+                            ? settings.showcaseServices
+                            : DEFAULT_SHOWCASE_SERVICES;
+                          setOrderShowcaseServices(base.map((s: ShowcaseServiceItem) => ({ ...s })));
+                          toast.success('Services aus Einstellungen übernommen');
+                        }}
+                        className="text-[10px] text-text-muted hover:text-primary transition-colors cursor-pointer"
+                        title="Auf Standard aus den Einstellungen zurücksetzen"
+                      >
+                        Aus Einstellungen neu laden
+                      </button>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5">
+                      {(orderShowcaseServices.length > 0
+                        ? orderShowcaseServices
+                        : (settings?.showcaseServices || DEFAULT_SHOWCASE_SERVICES)
+                      ).map((srv: ShowcaseServiceItem, idx: number) => {
+                        const isEnabled = srv.enabled !== false;
+                        const iconMeta = AVAILABLE_SHOWCASE_ICONS.find(ic => ic.id === srv.icon);
+                        return (
+                          <button
+                            key={srv.id || idx}
+                            type="button"
+                            onClick={() => {
+                              const currentList = orderShowcaseServices.length > 0
+                                ? [...orderShowcaseServices]
+                                : (settings?.showcaseServices || DEFAULT_SHOWCASE_SERVICES).map((s: ShowcaseServiceItem) => ({ ...s }));
+                              currentList[idx] = {
+                                ...currentList[idx],
+                                enabled: !currentList[idx].enabled
+                              };
+                              setOrderShowcaseServices(currentList);
+                            }}
+                            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
+                              isEnabled
+                                ? 'bg-primary/15 text-primary border-primary/40 shadow-sm'
+                                : 'bg-bg-dark/40 text-text-muted border-structure/50 hover:border-structure line-through opacity-60'
+                            }`}
+                          >
+                            <span className="material-symbols-outlined text-sm">
+                              {iconMeta?.iconName || 'label'}
+                            </span>
+                            <span>{srv.name}</span>
+                            <span className="text-[10px] ml-0.5 opacity-80">
+                              {isEnabled ? '✓' : '✕'}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[10px] text-text-muted italic">
+                      Klicken Sie auf einen Service, um ihn für dieses konkrete Angebot ein- oder auszuschalten (z. B. Endreinigung hinzufügen oder Küchenmontage abwählen).
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Right Column: Dokumenten-Vorschau & Texte */}
@@ -4428,7 +4599,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   <div className="flex gap-1.5">
                     <button 
                       type="button" 
-                      onClick={() => handleQuoteActionWithCheck(() => window.print())} 
+                      onClick={() => handleQuoteActionWithCheck(() => handlePrintPdf())} 
                       className="p-1.5 bg-white/[0.04] hover:bg-white/10 rounded-lg border border-structure text-text-muted hover:text-white transition-colors cursor-pointer"
                       title="Drucken / PDF erzeugen"
                     >
@@ -4439,7 +4610,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
                 {/* Simulated PDF Preview Paper */}
                 <div 
-                  onClick={() => handleQuoteActionWithCheck(() => window.print())}
+                  onClick={() => handleQuoteActionWithCheck(() => handlePrintPdf())}
                   className="flex-grow bg-white/[0.03] rounded-xl border border-dashed border-structure/80 p-6 flex flex-col justify-between cursor-pointer group hover:border-primary/50 transition-colors min-h-[260px] relative overflow-hidden"
                 >
                   <div className="flex justify-between items-start border-b border-structure/40 pb-4">
@@ -4474,7 +4645,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   <div className="pt-2 border-t border-structure/40 flex items-center justify-between text-[10px] text-text-muted">
                     <span>Rechtsgültiges Firmenangebot</span>
                     <span className="text-primary font-bold group-hover:underline flex items-center gap-1">
-                      Klicken zum Drucken
+                      Speichern &amp; Drucken
                       <span className="material-symbols-outlined text-xs">north_east</span>
                     </span>
                   </div>
@@ -4534,17 +4705,17 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             {/* Section 3: 3 Large Action Cards */}
             <div className="col-span-12">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                {/* Action 1: Save */}
+                {/* Action 1: Angebot abschließen & speichern */}
                 <button
                   type="button"
-                  onClick={() => handleQuoteActionWithCheck(() => saveOrder(isInvoice ? 'invoice_open' : 'quote', true))}
+                  onClick={() => handleQuoteActionWithCheck(() => saveOrder(isInvoice ? 'invoice_open' : (isManuallySigned ? 'confirmed' : 'quote'), true, true))}
                   disabled={isSaving}
                   className={`group flex flex-col items-center justify-center gap-3 p-6 bg-bg-card rounded-2xl border transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 text-center cursor-pointer ${
                     !hasServices ? 'border-amber-500/40 hover:border-amber-500' : 'border-structure hover:border-primary'
                   }`}
                 >
-                  <div className="w-14 h-14 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-400 group-hover:bg-primary group-hover:text-white transition-colors relative">
-                    <span className="material-symbols-outlined text-2xl">save</span>
+                  <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-primary group-hover:text-white transition-colors relative">
+                    <span className="material-symbols-outlined text-2xl">check_circle</span>
                     {!hasServices && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-black text-[9px] font-bold flex items-center justify-center" title="0 Leistungen">
                         !
@@ -4553,21 +4724,22 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   </div>
                   <div>
                     <p className="font-headline font-bold text-sm text-text-main flex items-center justify-center gap-1.5">
-                      <span>Angebot speichern</span>
+                      <span>{isInvoice ? 'Rechnung abschließen' : isManuallySigned ? 'Auftrag bestätigt speichern' : 'Angebot abschließen'}</span>
                       {!hasServices && (
                         <span className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-normal">
                           0 Leistungen
                         </span>
                       )}
                     </p>
-                    <p className="text-xs text-text-muted mt-0.5">In der Datenbank archivieren</p>
+                    <p className="text-xs text-text-muted mt-0.5">Offiziell abschließen &amp; zur Kundenakte</p>
                   </div>
                 </button>
 
-                {/* Action 2: Download / Print */}
+                {/* Action 2: Download / Print (Auto-saves first) */}
                 <button
                   type="button"
-                  onClick={() => handleQuoteActionWithCheck(() => window.print())}
+                  onClick={() => handleQuoteActionWithCheck(() => handlePrintPdf())}
+                  disabled={isSaving}
                   className={`group flex flex-col items-center justify-center gap-3 p-6 bg-bg-card rounded-2xl border transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 text-center cursor-pointer ${
                     !hasServices ? 'border-amber-500/40 hover:border-amber-500' : 'border-structure hover:border-primary'
                   }`}
@@ -4582,25 +4754,22 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   </div>
                   <div>
                     <p className="font-headline font-bold text-sm text-text-main flex items-center justify-center gap-1.5">
-                      <span>PDF herunterladen</span>
+                      <span>PDF drucken / sichern</span>
                       {!hasServices && (
                         <span className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-normal">
                           0 Leistungen
                         </span>
                       )}
                     </p>
-                    <p className="text-xs text-text-muted mt-0.5">Lokal drucken oder als PDF sichern</p>
+                    <p className="text-xs text-text-muted mt-0.5">Speichert in Datenbank &amp; öffnet Druck/PDF</p>
                   </div>
                 </button>
 
                 {/* Action 3: Email */}
                 <button
                   type="button"
-                  onClick={() => handleQuoteActionWithCheck(() => {
-                    const subject = encodeURIComponent(`Ihr Umzugsangebot von Rothirsch - ${customerName || ''}`);
-                    const body = encodeURIComponent(`Guten Tag ${customerName || ''},\n\nanbei erhalten Sie das Angebot für Ihren bevorstehenden Umzug.\nGesamtbetrag: ${totals.gross.toFixed(2)} €.\n\nMit freundlichen Grüßen\nIhr Rothirsch Team`);
-                    window.location.href = `mailto:${customerEmail || ''}?subject=${subject}&body=${body}`;
-                  })}
+                  onClick={() => handleQuoteActionWithCheck(() => handleEmailCustomer())}
+                  disabled={isSaving}
                   className="group flex flex-col items-center justify-center gap-3 p-6 bg-primary/10 rounded-2xl border border-primary/30 hover:border-primary transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 text-center cursor-pointer"
                 >
                   <div className="w-14 h-14 rounded-full bg-primary text-white flex items-center justify-center group-hover:scale-110 transition-transform shadow-md">
@@ -4608,7 +4777,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   </div>
                   <div>
                     <p className="font-headline font-bold text-sm text-primary">E-Mail an Kunden</p>
-                    <p className="text-xs text-text-muted mt-0.5">Angebot direkt versenden</p>
+                    <p className="text-xs text-text-muted mt-0.5">Speichert &amp; öffnet E-Mail</p>
                   </div>
                 </button>
               </div>
@@ -4663,21 +4832,23 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 Schritt {currentStep}/5
               </span>
 
-              <button
-                type="button"
-                onClick={() => saveOrder(isInvoice ? 'invoice_open' : 'draft', false)}
-                disabled={isSaving}
-                className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline bg-structure/40 hover:bg-structure text-text-main transition-all flex items-center gap-1.5 border border-structure cursor-pointer active:scale-95"
-                title="Als Entwurf zwischenspeichern"
-              >
-                {isSaving ? (
-                  <span className="w-3.5 h-3.5 border-2 border-primary/40 border-t-primary rounded-full animate-spin" />
-                ) : (
-                  <span className="material-symbols-outlined text-sm text-primary">save</span>
-                )}
-                <span className="hidden sm:inline">{isSaving ? 'Speichert...' : 'Entwurf speichern'}</span>
-                <span className="sm:hidden">{isSaving ? '...' : 'Speichern'}</span>
-              </button>
+              {currentStep < 5 && (
+                <button
+                  type="button"
+                  onClick={() => saveOrder(isInvoice ? 'invoice_open' : 'draft', false, false, false)}
+                  disabled={isSaving}
+                  className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline bg-structure/40 hover:bg-structure text-text-main transition-all flex items-center gap-1.5 border border-structure cursor-pointer active:scale-95"
+                  title="Als Entwurf zwischenspeichern"
+                >
+                  {isSaving ? (
+                    <span className="w-3.5 h-3.5 border-2 border-primary/40 border-t-primary rounded-full animate-spin" />
+                  ) : (
+                    <span className="material-symbols-outlined text-sm text-primary">save</span>
+                  )}
+                  <span className="hidden sm:inline">{isSaving ? 'Speichert...' : 'Entwurf speichern'}</span>
+                  <span className="sm:hidden">{isSaving ? '...' : 'Speichern'}</span>
+                </button>
+              )}
             </div>
 
             {/* RIGHT: Weiter or Angebot abschließen (Primary Action) */}
@@ -4695,7 +4866,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               ) : (
                 <button
                   type="button"
-                  onClick={() => handleQuoteActionWithCheck(() => saveOrder(isInvoice ? 'invoice_open' : (isManuallySigned ? 'confirmed' : 'quote'), true))}
+                  onClick={() => handleQuoteActionWithCheck(() => saveOrder(isInvoice ? 'invoice_open' : (isManuallySigned ? 'confirmed' : 'quote'), true, true))}
                   disabled={isSaving}
                   className="bg-primary hover:brightness-110 text-white px-5 sm:px-7 py-2.5 rounded-xl font-headline font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2 shadow-xl shadow-primary/40 active:scale-95 transition-all cursor-pointer"
                 >

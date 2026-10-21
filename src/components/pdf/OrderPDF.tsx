@@ -5,6 +5,7 @@ import { PDF_COLORS, pdfCommonStyles } from './core/pdfTheme';
 import { PDFHeader } from './core/PDFHeader';
 import { PDFFooter } from './core/PDFFooter';
 import { PDFWatermark } from './core/PDFWatermark';
+import { PDFServiceShowcase } from './core/PDFServiceShowcase';
 
 const styles = StyleSheet.create({
   ...pdfCommonStyles,
@@ -510,7 +511,7 @@ export const OrderPDF = ({
         <Text style={styles.detailsSectionHeader}>Verbindliche Beauftragung</Text>
         <Text style={styles.textBlock}>
           {outroText ||
-            'Mit Ihrer Unterschrift bestätigen Sie die Beauftragung und erkennen unsere Allgemeinen Geschäftsbedingungen sowie die gesetzlichen Haftungsregelungen des Möbelspediteurs (§ 451g HGB) an.'}
+            'Mit Ihrer Unterschrift bestätigen Sie die verbindliche Beauftragung der auf Seite 1 detaillierten Leistungen und erkennen unsere Allgemeinen Geschäftsbedingungen sowie die gesetzlichen Haftungsregelungen des Möbelspediteurs (§ 451g HGB) an.'}
         </Text>
 
         {greetingText && !outroText.includes(greetingText) && (
@@ -537,6 +538,16 @@ export const OrderPDF = ({
             )}
           </View>
         </View>
+
+        {/* Core Service Portfolio Showcase: Nur anzeigen, wenn in Schritt 5 explizit aktiviert. Platziert HINTER der Unterschrift zur Vermeidung von Missverständnissen. */}
+        {order?.showServicePortfolioInPDF && (
+          <PDFServiceShowcase
+            title={order?.showcaseTexts?.title || settings?.showcaseTexts?.title}
+            subtitle={order?.showcaseTexts?.subtitle || settings?.showcaseTexts?.subtitle}
+            disclaimer={order?.showcaseTexts?.disclaimer || settings?.showcaseTexts?.disclaimer}
+            services={order?.showcaseServices || settings?.showcaseServices}
+          />
+        )}
       </Page>
 
       {/* ───────────────────────────────────────────────────────────────────────── */}

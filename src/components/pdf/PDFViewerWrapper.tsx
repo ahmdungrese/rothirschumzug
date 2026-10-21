@@ -71,13 +71,17 @@ export default function PDFViewerWrapper({ order, customer, type = 'order' }: { 
           </h3>
           <p className="text-xs text-text-muted">Klicke hier für den sauberen Dateinamen ({getFileName()})</p>
         </div>
-        <PDFDownloadLink document={getDocument()} fileName={getFileName()}>
+        <PDFDownloadLink
+          document={getDocument()}
+          fileName={getFileName()}
+          className="btn-primary flex items-center gap-2 px-4 py-2"
+        >
           {/* @ts-ignore */}
-          {({ blob, url, loading, error }) => (
-            <button disabled={loading} className="btn-primary flex items-center gap-2 px-4 py-2">
+          {({ loading }) => (
+            <>
               <ArrowDownTrayIcon className="w-4 h-4" />
-              {loading ? 'Generiere...' : 'Als PDF speichern'}
-            </button>
+              <span>{loading ? 'Generiere...' : 'Als PDF speichern'}</span>
+            </>
           )}
         </PDFDownloadLink>
       </div>
