@@ -409,7 +409,7 @@ export const InvoicePDF = ({
   return (
     <Document title={docTitle}>
       <Page size="A4" style={isCompact ? styles.page : [styles.page, styles.pageComfort]}>
-        <PDFWatermark type="symbols" softRows={[1, 2, 6, 7, 8]} />
+        <PDFWatermark type="single_logo" />
         <PDFHeader settings={settings} docTitle={isStorno ? 'Stornorechnung' : (isKorrektur ? 'Korrekturrechnung' : 'Rechnung')} />
         <PDFFooter settings={settings} />
 

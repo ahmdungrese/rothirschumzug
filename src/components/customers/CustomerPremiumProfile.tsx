@@ -50,7 +50,8 @@ import {
   PlusIcon,
   UserGroupIcon,
   ArrowTopRightOnSquareIcon,
-  AdjustmentsHorizontalIcon
+  AdjustmentsHorizontalIcon,
+  EllipsisHorizontalIcon
 } from '@heroicons/react/24/outline';
 import { StornoModal } from '@/components/finances/StornoModal';
 import { OrderDetailsDrawer } from '@/components/dashboard/OrderDetailsDrawer';
@@ -357,6 +358,22 @@ export function CustomerPremiumProfile({
   const [drawerOrder, setDrawerOrder] = useState<any | null>(null);
   const [drawerInitialPhase, setDrawerInitialPhase] = useState<number | undefined>(undefined);
   const [scheduleModalTodo, setScheduleModalTodo] = useState<any | null>(null);
+
+  // Smart Phase-Aware Actions Dropdown State
+  const [actionsDropdownOpen, setActionsDropdownOpen] = useState(false);
+  const actionsDropdownRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (actionsDropdownRef.current && !actionsDropdownRef.current.contains(e.target as Node)) {
+        setActionsDropdownOpen(false);
+      }
+    };
+    if (actionsDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [actionsDropdownOpen]);
 
   // Keep drawerOrder synced with live orders array from Firestore
   useEffect(() => {
@@ -1472,90 +1489,199 @@ export function CustomerPremiumProfile({
 
       </div>
 
-      {/* Consolidated Schnellaktionen & Dokumente Hub */}
-      {activeOrder && (
-        <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 shrink-0">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#6E8F64] animate-pulse"></span>
-            <div>
-              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 font-headline uppercase tracking-wider block">
-                Aktionen & Dokumente
-              </span>
-              <span className="text-[10px] text-slate-400 font-medium block">
-                Auftrag #{activeOrder.orderNumber || activeOrder.id?.slice(-5).toUpperCase()}
-              </span>
-            </div>
-          </div>
+      {/* Consolidated Schnellaktionen & Dokumente Hub (Smart Phase-Aware) */}
+      {activeOrder && (() => {
+        const isSigned = Boolean(
+          logisticsEval?.angebotStatus?.isSigned || 
+          activeOrder?.contractSigned || 
+          activeOrder?.isManuallySigned || 
+          activeOrder?.signatureOrder
+        );
+        const isMoveDone = Boolean(
+          activeOrder?.status === 'completed' || 
+          activeOrder?.status === 'invoice_open' || 
+          activeOrder?.status === 'invoice_paid'
+        );
 
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* 1. WhatsApp Quick Chat */}
+        // Individual Action Renderers
+        const renderWhatsAppBtn = (inMenu = false) => (
+          <button
+            key="wa"
+            type="button"
+            onClick={() => {
+              const defaultT = allWaTemplates.find((t: any) => t.id === 't3') || allWaTemplates[0];
+              if (defaultT) {
+                setSelectedWaTemplateId(defaultT.id);
+                setWaCustomText(formatTemplateText(defaultT.body));
+              }
+              setShowWhatsAppModal(true);
+              if (inMenu) setActionsDropdownOpen(false);
+            }}
+            className={inMenu 
+              ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer" 
+              : "px-3.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+            }
+            title="WhatsApp Chat mit hinterlegter Vorlage starten"
+          >
+            <ChatBubbleLeftRightIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>WhatsApp</span>
+          </button>
+        );
+
+        const renderAngebotPdfBtn = (inMenu = false) => {
+          const hasContent = isOrderPricedAndServiced(activeOrder);
+          return (
             <button
+              key="angebot_pdf"
               type="button"
               onClick={() => {
-                const defaultT = allWaTemplates.find((t: any) => t.id === 't3') || allWaTemplates[0];
-                if (defaultT) {
-                  setSelectedWaTemplateId(defaultT.id);
-                  setWaCustomText(formatTemplateText(defaultT.body));
-                }
-                setShowWhatsAppModal(true);
+                handleOrderPdfClick(activeOrder);
+                if (inMenu) setActionsDropdownOpen(false);
               }}
-              className="px-3.5 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-xs font-bold border border-emerald-200 dark:border-emerald-800 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
-              title="WhatsApp Chat mit hinterlegter Vorlage starten"
+              className={inMenu 
+                ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center justify-between gap-2.5 transition-colors cursor-pointer" 
+                : `px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
+                  !hasContent
+                    ? 'bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border border-slate-300/70 dark:border-slate-700/60 hover:border-amber-500/50'
+                    : 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-primary/50'
+                }`
+              }
+              title={!hasContent ? "Angebot enthält noch keine Leistungen oder Preise (0,00 €)" : "Angebot als PDF anzeigen oder drucken"}
             >
-              <ChatBubbleLeftRightIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>WhatsApp</span>
-            </button>
-
-            {/* 2. Zahlung erfassen */}
-            <button
-              type="button"
-              onClick={() => handleRequestPayment(activeOrder)}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
-                hasInvoice
-                  ? 'bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                  : 'bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 text-slate-500 border-slate-300 dark:border-slate-700 opacity-80'
-              }`}
-              title={hasInvoice ? "Zahlung auf Rechnung erfassen" : "Keine Rechnung vorhanden (Klicken zum Erstellen)"}
-            >
-              <CurrencyEuroIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-              <span>Zahlung erfassen</span>
-              {!hasInvoice && (
-                <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-normal">
-                  fehlt
+              <div className="flex items-center gap-2">
+                <DocumentTextIcon className={`w-4 h-4 shrink-0 ${!hasContent ? 'text-slate-400' : 'text-primary'}`} />
+                <span>Angebot PDF</span>
+              </div>
+              {!hasContent && (
+                <span className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.2 rounded font-normal border border-amber-500/30">
+                  0 €
                 </span>
               )}
             </button>
+          );
+        };
 
-            <span className="hidden sm:inline-block w-px h-5 bg-slate-200 dark:bg-slate-700 mx-0.5" />
+        const renderSignierenBtn = (inMenu = false) => {
+          if (!onOpenSignatureModal) return null;
+          return (
+            <button
+              key="signieren"
+              type="button"
+              onClick={() => {
+                onOpenSignatureModal(activeOrder);
+                if (inMenu) setActionsDropdownOpen(false);
+              }}
+              className={inMenu 
+                ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer" 
+                : "px-3.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-xs font-bold border border-amber-500/30 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+              }
+              title="Vertrag digital signieren"
+            >
+              <CheckCircleIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>Digital signieren</span>
+            </button>
+          );
+        };
 
-            {/* 3. Angebot PDF */}
-            {(() => {
-              const hasContent = isOrderPricedAndServiced(activeOrder);
+        const renderLaufzettelBtn = (inMenu = false) => (
+          <button
+            key="laufzettel"
+            type="button"
+            onClick={() => {
+              onViewPdf(activeOrder, 'employee');
+              if (inMenu) setActionsDropdownOpen(false);
+            }}
+            className={inMenu 
+              ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer" 
+              : "px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1.5 shadow-xs hover:border-amber-500/50 cursor-pointer"
+            }
+            title="Mitarbeiter-Laufzettel ausdrucken"
+          >
+            <TruckIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>Laufzettel</span>
+          </button>
+        );
+
+        const renderProtokollBtn = (inMenu = false) => {
+          if (hasActiveProtocols) {
+            if (inMenu) {
               return (
                 <button
+                  key="protokoll"
                   type="button"
-                  onClick={() => handleOrderPdfClick(activeOrder)}
-                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
-                    !hasContent
-                      ? 'bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border border-slate-300/70 dark:border-slate-700/60 hover:border-amber-500/50'
-                      : 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-primary/50'
-                  }`}
-                  title={!hasContent ? "Angebot enthält noch keine Leistungen oder Preise (0,00 €)" : "Angebot als PDF anzeigen oder drucken"}
+                  onClick={() => {
+                    onViewPdf(activeOrder, 'protocol');
+                    setActionsDropdownOpen(false);
+                  }}
+                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-[#3B5233] dark:text-[#B5D1AC] hover:bg-[#6E8F64]/10 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
                 >
-                  <DocumentTextIcon className={`w-4 h-4 ${!hasContent ? 'text-slate-400' : 'text-primary'}`} />
-                  <span>Angebot PDF</span>
-                  {!hasContent && (
-                    <span className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.2 rounded font-normal border border-amber-500/30">
-                      0 €
-                    </span>
-                  )}
+                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#6E8F64] dark:text-[#93B489] shrink-0" />
+                  <span>Protokoll ({activeProtocols.length}) anzeigen</span>
                 </button>
               );
-            })()}
+            }
+            return (
+              <div key="protokoll" className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => onViewPdf(activeOrder, 'protocol')}
+                  className="px-3.5 py-1.5 rounded-xl bg-[#6E8F64]/10 hover:bg-[#6E8F64]/20 text-[#3B5233] dark:text-[#B5D1AC] text-xs font-bold border border-[#6E8F64]/30 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  title="Übergabeprotokoll als PDF ansehen / drucken"
+                >
+                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#6E8F64] dark:text-[#93B489]" />
+                  <span>Protokoll ({activeProtocols.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onOpenProtocolModal(activeOrder)}
+                  className="p-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
+                  title="Weiteres Protokoll erfassen"
+                >
+                  <PlusIcon className="w-4 h-4" />
+                </button>
+              </div>
+            );
+          }
+          return (
+            <button
+              key="protokoll"
+              type="button"
+              onClick={() => {
+                onOpenProtocolModal(activeOrder);
+                if (inMenu) setActionsDropdownOpen(false);
+              }}
+              className={inMenu 
+                ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer" 
+                : "px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1.5 shadow-xs hover:border-[#6E8F64]/60 cursor-pointer"
+              }
+              title="Übergabeprotokoll öffnen / erfassen"
+            >
+              <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#6E8F64] dark:text-[#93B489] shrink-0" />
+              <span>+ Protokoll erfassen</span>
+            </button>
+          );
+        };
 
-            {/* 4. Rechnung PDF / erstellen */}
-            {hasInvoice ? (
-              <div className="flex items-center gap-1">
+        const renderRechnungBtn = (inMenu = false) => {
+          if (hasInvoice) {
+            if (inMenu) {
+              return (
+                <button
+                  key="rechnung"
+                  type="button"
+                  onClick={() => {
+                    onViewPdf(linkedInvoice || activeOrder, 'invoice');
+                    setActionsDropdownOpen(false);
+                  }}
+                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+                >
+                  <DocumentCheckIcon className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                  <span>{(linkedInvoice?.isKorrektur || activeOrder?.isKorrektur) ? 'Korrekturrechnung' : 'Rechnung'} {invoiceNumberDisplay ? `(${invoiceNumberDisplay})` : 'PDF'}</span>
+                </button>
+              );
+            }
+            return (
+              <div key="rechnung" className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={() => onViewPdf(linkedInvoice || activeOrder, 'invoice')}
@@ -1576,81 +1702,175 @@ export function CustomerPremiumProfile({
                   </button>
                 )}
               </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => handleRequestInvoice(activeOrder)}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 cursor-pointer ${
+            );
+          }
+          return (
+            <button
+              key="rechnung"
+              type="button"
+              onClick={() => {
+                handleRequestInvoice(activeOrder);
+                if (inMenu) setActionsDropdownOpen(false);
+              }}
+              className={inMenu 
+                ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer" 
+                : `px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 cursor-pointer ${
                   latestCancelledInvoiceNum
                     ? 'bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 font-bold'
                     : 'bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 border-dashed border-slate-300 dark:border-slate-700'
-                }`}
-                title={latestCancelledInvoiceNum ? `Rechnung ${latestCancelledInvoiceNum} wurde storniert. Klicken, um eine Korrekturrechnung zu erstellen.` : "Noch keine Rechnung ausgestellt. Klicken zum Erstellen."}
-              >
-                <DocumentCheckIcon className={`w-4 h-4 ${latestCancelledInvoiceNum ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400'}`} />
-                <span>{latestCancelledInvoiceNum ? '+ Korrekturrechnung erstellen' : '+ Rechnung erstellen'}</span>
-              </button>
-            )}
-
-            {/* 5. Protokoll */}
-            {hasActiveProtocols ? (
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => onViewPdf(activeOrder, 'protocol')}
-                  className="px-3.5 py-1.5 rounded-xl bg-[#6E8F64]/10 hover:bg-[#6E8F64]/20 text-[#3B5233] dark:text-[#B5D1AC] text-xs font-bold border border-[#6E8F64]/30 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
-                  title="Übergabeprotokoll als PDF ansehen / drucken"
-                >
-                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#6E8F64] dark:text-[#93B489]" />
-                  <span>Protokoll ({activeProtocols.length})</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onOpenProtocolModal(activeOrder)}
-                  className="p-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
-                  title="Weiteres Protokoll erfassen"
-                >
-                  <PlusIcon className="w-4 h-4" />
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onOpenProtocolModal(activeOrder)}
-                className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1.5 shadow-xs hover:border-[#6E8F64]/60 cursor-pointer"
-                title="Übergabeprotokoll öffnen / erfassen"
-              >
-                <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#6E8F64] dark:text-[#93B489]" />
-                <span>+ Protokoll erfassen</span>
-              </button>
-            )}
-
-            {/* 6. Laufzettel */}
-            <button
-              type="button"
-              onClick={() => onViewPdf(activeOrder, 'employee')}
-              className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1.5 shadow-xs hover:border-amber-500/50 cursor-pointer"
-              title="Mitarbeiter-Laufzettel ausdrucken"
+                }`
+              }
+              title={latestCancelledInvoiceNum ? `Rechnung ${latestCancelledInvoiceNum} wurde storniert. Klicken, um eine Korrekturrechnung zu erstellen.` : "Noch keine Rechnung ausgestellt. Klicken zum Erstellen."}
             >
-              <TruckIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              <span>Laufzettel</span>
+              <DocumentCheckIcon className={`w-4 h-4 shrink-0 ${latestCancelledInvoiceNum ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400'}`} />
+              <span>{latestCancelledInvoiceNum ? '+ Korrekturrechnung erstellen' : '+ Rechnung erstellen'}</span>
             </button>
+          );
+        };
 
-            {/* 7. Digital signieren (wenn noch offen) */}
-            {!logisticsEval?.angebotStatus.isSigned && onOpenSignatureModal && (
-              <button
-                type="button"
-                onClick={() => onOpenSignatureModal(activeOrder)}
-                className="px-3.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-xs font-bold border border-amber-500/30 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
-                title="Vertrag digital signieren"
-              >
-                <CheckCircleIcon className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                <span>Digital signieren</span>
-              </button>
+        const renderZahlungBtn = (inMenu = false) => (
+          <button
+            key="zahlung"
+            type="button"
+            onClick={() => {
+              handleRequestPayment(activeOrder);
+              if (inMenu) setActionsDropdownOpen(false);
+            }}
+            className={inMenu 
+              ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-xl flex items-center justify-between gap-2.5 transition-colors cursor-pointer" 
+              : `px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
+                hasInvoice
+                  ? 'bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                  : 'bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 text-slate-500 border-slate-300 dark:border-slate-700 opacity-80'
+              }`
+            }
+            title={hasInvoice ? "Zahlung auf Rechnung erfassen" : "Keine Rechnung vorhanden (Klicken zum Erstellen)"}
+          >
+            <div className="flex items-center gap-2">
+              <CurrencyEuroIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+              <span>Zahlung erfassen</span>
+            </div>
+            {!hasInvoice && (
+              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-normal">
+                fehlt
+              </span>
             )}
+          </button>
+        );
+
+        const renderStornoBtn = () => {
+          if (!hasInvoice || activeOrder?.isStorno || activeOrder?.status === 'invoice_cancelled' || activeOrder?.status === 'canceled') return null;
+          return (
+            <button
+              key="storno"
+              type="button"
+              onClick={() => {
+                setStornoInvoice(linkedInvoice || activeOrder);
+                setActionsDropdownOpen(false);
+              }}
+              className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+              title="Rechnung stornieren (GoBD Storno-Beleg)"
+            >
+              <span className="material-symbols-outlined text-base text-amber-600 dark:text-amber-400 shrink-0">cancel</span>
+              <span>Rechnung stornieren (GoBD Storno)</span>
+            </button>
+          );
+        };
+
+        // Smart dynamic selection based on phase & signing state
+        let primaryActions: React.ReactNode[] = [];
+        let menuActions: (React.ReactNode | null)[] = [];
+
+        if (currentPhaseInfo.phase <= 2 && !isSigned) {
+          // Phase 1 & 2: Negotiation / Offer
+          primaryActions = [
+            renderAngebotPdfBtn(false),
+            renderWhatsAppBtn(false),
+            renderSignierenBtn(false),
+          ];
+          menuActions = [
+            renderLaufzettelBtn(true),
+            renderProtokollBtn(true),
+            renderRechnungBtn(true),
+            renderZahlungBtn(true),
+          ];
+        } else if (currentPhaseInfo.phase === 3 && !hasInvoice && !isMoveDone) {
+          // Phase 3: Confirmed / Move Preparation
+          primaryActions = [
+            renderAngebotPdfBtn(false),
+            renderWhatsAppBtn(false),
+            renderLaufzettelBtn(false),
+            renderProtokollBtn(false),
+          ];
+          menuActions = [
+            renderRechnungBtn(true),
+            renderZahlungBtn(true),
+            renderSignierenBtn(true),
+          ];
+        } else {
+          // Phase 4: Billing / Settlement
+          primaryActions = [
+            renderRechnungBtn(false),
+            renderZahlungBtn(false),
+            renderProtokollBtn(false),
+            renderWhatsAppBtn(false),
+          ];
+          menuActions = [
+            renderAngebotPdfBtn(true),
+            renderLaufzettelBtn(true),
+            renderStornoBtn(),
+          ];
+        }
+
+        const validMenuActions = menuActions.filter(Boolean);
+
+        return (
+          <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 shrink-0">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#6E8F64] animate-pulse"></span>
+              <div>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 font-headline uppercase tracking-wider block">
+                  Aktionen & Dokumente
+                </span>
+                <span className="text-[10px] text-slate-400 font-medium block">
+                  Auftrag #{activeOrder.orderNumber || activeOrder.id?.slice(-5).toUpperCase()}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {primaryActions}
+
+              {/* Elegant Dropdown for Secondary / Contextual Actions */}
+              {validMenuActions.length > 0 && (
+                <div className="relative" ref={actionsDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setActionsDropdownOpen(prev => !prev)}
+                    className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1 shadow-xs cursor-pointer"
+                    title="Weitere Aktionen anzeigen"
+                  >
+                    <EllipsisHorizontalIcon className="w-5 h-5" />
+                  </button>
+
+                  {actionsDropdownOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-1">
+                      <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800/80">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Weitere Aktionen
+                        </span>
+                      </div>
+                      {validMenuActions.map((actionNode, idx) => (
+                        <div key={idx}>{actionNode}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Streamlined Executive Phase Bar: Ultra-Compact Single Row */}
       {activeOrder && (
@@ -1658,7 +1878,7 @@ export function CustomerPremiumProfile({
           
           {/* Left: 4 Interactive Phase Circles & Status Label */}
           <div className="flex items-center gap-3 min-w-0">
-            {/* 4 Phase Circles with numbers and checkmarks */}
+            {/* 4 Phase Circles with numbers, warnings and checkmarks */}
             <div className="flex items-center gap-1.5 shrink-0">
               {[
                 { num: 1, label: '1. Entwurf' },
@@ -1666,8 +1886,12 @@ export function CustomerPremiumProfile({
                 { num: 3, label: '3. Bestätigt' },
                 { num: 4, label: '4. Abrechnung' }
               ].map((st, i) => {
-                const isDone = currentPhaseInfo.phase > st.num;
+                const hasContact = Boolean(customer?.phone?.trim() || customer?.email?.trim() || activeOrder?.phone?.trim() || activeOrder?.email?.trim());
+                const isPhase1Incomplete = st.num === 1 && !hasContact;
+                const isDone = currentPhaseInfo.phase > st.num && !isPhase1Incomplete;
+                const isWarning = currentPhaseInfo.phase > st.num && isPhase1Incomplete;
                 const isCurrent = currentPhaseInfo.phase === st.num;
+
                 return (
                   <React.Fragment key={st.num}>
                     <button
@@ -1676,19 +1900,27 @@ export function CustomerPremiumProfile({
                         setDrawerInitialPhase(st.num);
                         setDrawerOrder(activeOrder);
                       }}
-                      title={`Phase ${st.num}: ${st.label} (${isDone ? 'Erledigt' : isCurrent ? 'Aktiv' : 'Offen'}) • Klicken für Details`}
+                      title={`Phase ${st.num}: ${st.label} (${isWarning ? 'Unvollständig (Telefon oder E-Mail fehlt)' : isDone ? 'Erledigt' : isCurrent ? 'Aktiv' : 'Offen'}) • Klicken für Details`}
                       className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all cursor-pointer ${
                         isCurrent
                           ? 'bg-[#6E8F64] text-white ring-2 ring-[#6E8F64]/30 shadow-xs scale-105'
-                          : isDone
-                            ? 'bg-emerald-600 text-white'
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                          : isWarning
+                            ? 'bg-amber-500 text-white shadow-xs'
+                            : isDone
+                              ? 'bg-emerald-600 text-white'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
                       }`}
                     >
-                      {isDone ? <CheckIcon className="w-3.5 h-3.5 stroke-[3]" /> : st.num}
+                      {isWarning ? (
+                        <ExclamationTriangleIcon className="w-3.5 h-3.5 stroke-[2.5]" />
+                      ) : isDone ? (
+                        <CheckIcon className="w-3.5 h-3.5 stroke-[3]" />
+                      ) : (
+                        st.num
+                      )}
                     </button>
                     {i < 3 && (
-                      <div className={`w-3 h-0.5 ${currentPhaseInfo.phase > st.num ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-800'}`} />
+                      <div className={`w-3 h-0.5 ${currentPhaseInfo.phase > st.num ? (isWarning ? 'bg-amber-400' : 'bg-emerald-500') : 'bg-slate-200 dark:bg-slate-800'}`} />
                     )}
                   </React.Fragment>
                 );

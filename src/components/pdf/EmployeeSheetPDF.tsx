@@ -187,7 +187,7 @@ export const EmployeeSheetPDF = ({
   return (
     <Document title={docTitle}>
       <Page size="A4" style={styles.page}>
-        <PDFWatermark type="symbols" />
+        <PDFWatermark type="single_logo" />
         <PDFHeader settings={settings} docTitle="Laufzettel für Mitarbeiter" />
         <PDFFooter settings={settings} customNote="INTERNES DOKUMENT • Nicht zur Weitergabe an den Kunden bestimmt" />
 

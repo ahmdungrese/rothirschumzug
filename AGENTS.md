@@ -30,7 +30,22 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.8.0 (Current) – Halteverbotszone Auto-Pricing & GoBD Customer Archival Guard
+### Version 2.9.0 (Current) – Smart Contact Validation, Phase-Aware Action Hub & Box Configurator
+*   **Smart Phase 1 Contact Validation & Non-Blocking Warnings (`OrderDetailsDrawer.tsx` & `CustomerPremiumProfile.tsx`)**:
+    *   Phase 1 completion badge requires at least ONE contact method (`phone` OR `email`).
+    *   If BOTH contact channels are missing, Phase 1 renders an amber warning indicator (`⚠️` / `!`) instead of an inaccurate green checkmark.
+    *   Completely non-blocking: disponents can navigate and switch phases freely at any time.
+*   **Smart Phase-Aware Action Bar & Secondary Dropdown Hub (`CustomerPremiumProfile.tsx`)**:
+    *   Replaced the crowded 7-button toolbar with a context-aware 3-4 button layout customized to the current project phase:
+        *   *Phase 1 & 2 (Anfrage / Verhandlung)*: `Angebot PDF`, `WhatsApp`, `Digital signieren`. Secondary actions (`Laufzettel`, `Protokoll`, `Rechnung`, `Zahlung`) accessible in sleek `•••` dropdown.
+        *   *Phase 3 (Bestätigt & Umzugstag)*: `Angebot PDF`, `WhatsApp`, `Laufzettel`, `Protokoll`. Secondary actions in `•••` dropdown.
+        *   *Phase 4 (Abrechnung)*: `Rechnung PDF`, `Zahlung erfassen`, `Protokoll`, `WhatsApp`. Secondary actions in `•••` dropdown.
+*   **Umzugskartons Configurator & Settings Integration (`settings/page.tsx`, `KartonConfigModal.tsx`, `OrderEditor.tsx`)**:
+    *   **Settings Management**: Default net unit prices for all 6 box sizes (`S`, `M`, `L`, `XL`, `Bücherkarton`, `Kleiderkarton mit Stange`) are manageable and saved in `Einstellungen > Leistungskatalog`.
+    *   **In-App Modal Configurator**: Clicking `Kartons bereitstellen` opens an interactive configurator where disponents adjust quantities and per-unit prices with real-time totals.
+    *   **Single Clean Offer Line**: Consolidates all chosen box types into a single clean line item `Umzugskartons & Packmaterial` with automated breakdown in the note (e.g. `Bereitstellung von 55 Umzugskartons vorab. Enthält: 20x M, 10x L, 10x Bücher, 5x Kleider.`), preventing quote clutter.
+
+### Version 2.8.0 – Halteverbotszone Auto-Pricing & GoBD Customer Archival Guard
 *   **Consolidated Logistics Services: Single-Line Positions for Halteverbot & Möbellift (`OrderEditor.tsx`)**:
     *   **Unified Halteverbotszone (HVZ)**:
         *   Instead of cluttering the offer with separate entries for A and B, a single unified line item `Halteverbotszone (HVZ)` is generated.

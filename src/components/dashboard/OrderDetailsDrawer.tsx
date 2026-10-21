@@ -606,7 +606,12 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           ].map(tab => {
             const isActive = activePhaseTab === tab.phase;
             const isCurrent = currentOrderPhase === tab.phase;
-            const isCompletedPhase = tab.phase < currentOrderPhase;
+            const hasContact = Boolean(custPhone?.trim() || custEmail?.trim());
+            const isPastPhase = tab.phase < currentOrderPhase;
+            const isPhase1Incomplete = tab.phase === 1 && !hasContact;
+            const isCompletedPhase = isPastPhase && !isPhase1Incomplete;
+            const showWarning = isPastPhase && isPhase1Incomplete;
+
             return (
               <button
                 key={tab.phase}
@@ -614,13 +619,18 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                 className={`py-3 px-4 text-xs font-bold font-headline whitespace-nowrap border-b-2 transition-all flex flex-col items-center relative ${
                   isActive 
                     ? 'border-primary text-primary' 
-                    : isCompletedPhase
-                      ? 'border-transparent text-emerald-600 dark:text-emerald-400 hover:text-emerald-700'
-                      : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                    : showWarning
+                      ? 'border-transparent text-amber-600 dark:text-amber-400 hover:text-amber-700'
+                      : isCompletedPhase
+                        ? 'border-transparent text-emerald-600 dark:text-emerald-400 hover:text-emerald-700'
+                        : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                 }`}
               >
                 <div className="flex items-center gap-1.5">
                   <span>{tab.label}</span>
+                  {showWarning && (
+                    <ExclamationTriangleIcon className="w-3.5 h-3.5 text-amber-500 shrink-0" title="Phase unvollständig: Telefon oder E-Mail fehlt" />
+                  )}
                   {isCompletedPhase && (
                     <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-500 shrink-0" title="Phase abgeschlossen" />
                   )}
@@ -642,12 +652,12 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           {/* ========================================================================= */}
           {activePhaseTab === 1 && (
             <div className="space-y-6">
-              {/* Context-aware alert only when critical contact data is missing */}
-              {(!custPhone || !custEmail) && (
+              {/* Context-aware alert only when critical contact data is completely missing */}
+              {(!custPhone && !custEmail) && (
                 <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2.5 text-xs text-amber-700 dark:text-amber-400">
                   <span className="material-symbols-outlined text-lg shrink-0">priority_high</span>
                   <span>
-                    <strong>Unvollständige Kontaktdaten:</strong> {!custPhone && 'Telefonnummer fehlt'} {!custPhone && !custEmail && ' • '} {!custEmail && 'E-Mail fehlt'} für {custName}.
+                    <strong>Unvollständige Kontaktdaten:</strong> Weder Telefonnummer noch E-Mail-Adresse für {custName} hinterlegt. Bitte mindestens eine Kontaktmöglichkeit erfassen.
                   </span>
                 </div>
               )}

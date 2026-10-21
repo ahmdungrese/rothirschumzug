@@ -283,7 +283,7 @@ export const OrderPDF = ({
       {/* PAGE 1: Header, Route Details (BEFORE Table), Services & Pricing Summary  */}
       {/* ───────────────────────────────────────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
-        <PDFWatermark type="symbols" softRows={[1, 2]} />
+        <PDFWatermark type="single_logo" y={480} />
         <PDFHeader settings={settings} docTitle={docTypeTitle} />
         <PDFFooter settings={settings} />
 
@@ -481,7 +481,7 @@ export const OrderPDF = ({
       {/* PAGE 2: Terms, Insurance, Payment Conditions & Customer Signature          */}
       {/* ───────────────────────────────────────────────────────────────────────── */}
       <Page size="A4" style={styles.page}>
-        <PDFWatermark type="symbols" softRows={[0, 1, 2, 3]} />
+        <PDFWatermark type="single_logo" />
         <PDFHeader settings={settings} minimal docTitle={isContract ? 'Auftragsdetails & Bestätigung' : 'Angebotsdetails & Bestätigung'} />
         <PDFFooter settings={settings} />
 
@@ -573,7 +573,7 @@ export const OrderPDF = ({
       {/* ───────────────────────────────────────────────────────────────────────── */}
       {order?.appendInventoryToPDF && order?.inventory?.length > 0 && (
         <Page size="A4" style={styles.page}>
-          <PDFWatermark type="symbols" />
+          <PDFWatermark type="single_logo" />
           <PDFHeader settings={settings} minimal docTitle="Anlage: Umzugsgut / Inventarliste" />
           <PDFFooter settings={settings} />
 

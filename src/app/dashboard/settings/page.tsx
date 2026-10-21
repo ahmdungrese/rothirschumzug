@@ -47,6 +47,14 @@ export default function SettingsPage() {
     contacts: ['Tarek Lababidi'],
     customerSources: ['Google Suche', 'Check24', 'Empfehlung', 'Eigene Website', 'Kleinanzeigen', 'Direkter Anruf'],
     propertyTypes: ['Haus', 'Wohnung', 'Einfamilienhaus', 'Reihenhaus', 'Büro / Gewerbe', 'Lager / Garage', 'Sonstiges'],
+    kartonPrices: {
+      s: 2.50,
+      m: 3.20,
+      l: 3.80,
+      xl: 4.50,
+      buecher: 3.00,
+      kleider: 12.00,
+    },
     taxRate: 19,
     dunningFee: 5,
     nextQuoteNumber: 1771,
@@ -1375,6 +1383,58 @@ export default function SettingsPage() {
                 <button onClick={addCategory} className="btn-secondary text-xs py-2 px-3 flex items-center gap-1">
                   + Neue Kategorie
                 </button>
+              </div>
+
+              {/* Standardpreise für Umzugskartons & Packmaterial */}
+              <div className="bg-bg-dark border border-structure p-5 rounded-2xl space-y-4 shadow-sm">
+                <div className="flex items-center gap-2.5 border-b border-structure/70 pb-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold">
+                    <span className="material-symbols-outlined text-xl">inventory_2</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-text-main text-base">Standardpreise: Umzugskartons & Packmaterial</h3>
+                    <p className="text-xs text-text-muted">Diese Standard-Stückpreise (Netto) werden beim Hinzufügen von Umzugskartons im Angebot-Editor vorausgefüllt.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 pt-1">
+                  {[
+                    { key: 's', label: 'Umzugskarton S', sub: 'Klein (Bücher / Schwergut)', def: 2.50 },
+                    { key: 'm', label: 'Umzugskarton M', sub: 'Standard (Allzweck)', def: 3.20 },
+                    { key: 'l', label: 'Umzugskarton L', sub: 'Groß (Geschirr / Wäsche)', def: 3.80 },
+                    { key: 'xl', label: 'Umzugskarton XL', sub: 'Extra groß (Leichtes Volumen)', def: 4.50 },
+                    { key: 'buecher', label: 'Bücherkarton', sub: 'Verstärkter Doppelboden', def: 3.00 },
+                    { key: 'kleider', label: 'Kleiderkarton', sub: 'Inkl. Metall-Kleiderstange', def: 12.00 },
+                  ].map(k => (
+                    <div key={k.key} className="bg-bg-panel p-3.5 rounded-xl border border-structure/60 space-y-2 hover:border-amber-500/40 transition-colors">
+                      <div className="flex justify-between items-start">
+                        <span className="text-xs font-bold text-text-main">{k.label}</span>
+                        <span className="text-[10px] text-text-muted font-medium bg-white/[0.04] px-1.5 py-0.5 rounded">pro Stk.</span>
+                      </div>
+                      <p className="text-[10px] text-text-muted line-clamp-1">{k.sub}</p>
+                      <div className="flex items-center gap-2 pt-1">
+                        <input
+                          type="number"
+                          step="0.10"
+                          min="0"
+                          value={settings.kartonPrices?.[k.key] ?? k.def}
+                          onChange={e => {
+                            const val = parseFloat(e.target.value) || 0;
+                            setSettings((prev: any) => ({
+                              ...prev,
+                              kartonPrices: {
+                                ...(prev.kartonPrices || {}),
+                                [k.key]: val
+                              }
+                            }));
+                          }}
+                          className="input-field text-sm font-bold w-full text-right font-mono"
+                        />
+                        <span className="text-text-muted text-sm font-semibold">€</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
               
               <div className="space-y-6">

@@ -21,7 +21,7 @@ export const InventoryPDF = ({ customer, items, settings }: { customer: any; ite
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        <PDFWatermark type="symbols" />
+        <PDFWatermark type="single_logo" />
         <PDFHeader settings={settings} docTitle="Inventarliste" />
         <PDFFooter settings={settings} />
 

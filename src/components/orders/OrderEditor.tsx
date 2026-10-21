@@ -14,6 +14,7 @@ import { calculateRoute } from '@/lib/routeCalculator';
 import { changeOrderStatus } from '@/lib/orderStateMachine';
 import { calculateOrderTotals } from '@/lib/financeHelpers';
 import { InventoryWizardModal, ROOM_TYPES } from './InventoryWizardModal';
+import { KartonConfigModal } from './KartonConfigModal';
 import { FLOOR_OPTIONS } from '@/lib/constants';
 import { withDbTimeout, formatFriendlyError } from '@/lib/networkWatchdog';
 import { modalManager } from '@/lib/modalManager';
@@ -620,6 +621,45 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   // 4. MwSt Rechner
   const [calcInput, setCalcInput] = useState({ gross: 0, net: 0, tax: 0 });
 
+  // Kartons Configurator Modal State
+  const [isKartonModalOpen, setIsKartonModalOpen] = useState(false);
+  const [selectedKartonService, setSelectedKartonService] = useState<any>(null);
+
+  const handleOpenKartonModal = (existingSvc?: any) => {
+    const currentSvc = existingSvc || services.find(s => (s as any).isKartonService || s.id === 'kartons_bereit' || (s.name || '').toLowerCase().includes('kartons bereitstellen') || (s.name || '').toLowerCase().includes('umzugskartons & packmaterial'));
+    setSelectedKartonService(currentSvc || null);
+    setIsKartonModalOpen(true);
+  };
+
+  const handleSaveKartonService = (serviceData: any) => {
+    setServices(prev => {
+      const existingIdx = prev.findIndex(s => (s as any).isKartonService || s.id === 'kartons_bereit' || (s.name || '').toLowerCase().includes('kartons bereitstellen') || (s.name || '').toLowerCase().includes('umzugskartons & packmaterial'));
+      const itemToInsert = {
+        id: selectedKartonService?.id || 'kartons_bereit',
+        name: serviceData.name || 'Umzugskartons & Packmaterial',
+        quantity: serviceData.quantity,
+        unitPrice: serviceData.unitPrice,
+        unit: serviceData.unit || 'Pauschal',
+        note: serviceData.note,
+        location: (selectedKartonService?.location || 'both') as 'a' | 'b' | 'both',
+        isKartonService: true,
+        kartonDetails: serviceData.kartonDetails
+      };
+
+      if (existingIdx >= 0) {
+        return prev.map((s, idx) => idx === existingIdx ? { ...s, ...itemToInsert } : s);
+      } else {
+        return [...prev, itemToInsert];
+      }
+    });
+    toast.success('Umzugskartons erfolgreich übernommen!');
+  };
+
+  const handleRemoveKartonService = () => {
+    setServices(prev => prev.filter(s => !(s as any).isKartonService && s.id !== 'kartons_bereit' && !(s.name || '').toLowerCase().includes('kartons bereitstellen') && !(s.name || '').toLowerCase().includes('umzugskartons & packmaterial')));
+    toast.success('Umzugskartons entfernt');
+  };
+
   // Halteverbotszone (HVZ) Pricing & Two-Way Sync Logic
   // Default prices for automated logistics services
   const DEFAULT_HVZ_PRICE = 125;
@@ -1029,6 +1069,13 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       return;
     }
 
+    const isKarton = srv.id === 'kartons_bereit' || srvName.toLowerCase().includes('kartons bereitstellen') || srvName.toLowerCase().includes('umzugskarton');
+    if (isKarton) {
+      const existingKarton = services.find(s => (s as any).isKartonService || s.id === 'kartons_bereit' || (s.name || '').toLowerCase().includes('kartons bereitstellen') || (s.name || '').toLowerCase().includes('umzugskartons & packmaterial'));
+      handleOpenKartonModal(existingKarton);
+      return;
+    }
+
     const existing = services.find(s => (srv.id && s.id === srv.id) || (s.name || '').trim().toLowerCase() === srvName.toLowerCase());
     if (existing) {
       setServices(prev => prev.filter(s => s.id !== existing.id));
@@ -1053,6 +1100,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     if (srvId === 'moebellift' || targetName.includes('möbellift') || targetName.includes('moebellift')) {
       return Boolean(logistics.a_furnitureLift || logistics.b_furnitureLift);
     }
+    if (srvId === 'kartons_bereit' || targetName.includes('kartons bereitstellen') || targetName.includes('umzugskarton')) {
+      return services.some(s => (s as any).isKartonService || s.id === 'kartons_bereit' || (s.name || '').toLowerCase().includes('kartons bereitstellen') || (s.name || '').toLowerCase().includes('umzugskartons & packmaterial'));
+    }
     return services.some(s => (srvId && s.id === srvId) || (s.name || '').trim().toLowerCase() === targetName);
   };
 
@@ -1062,6 +1112,15 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     if (srvId === 'hvz_b' || targetName.includes('halteverbot b')) return logistics.b_parking ? 1 : 0;
     if (srvId === 'moebellift' || targetName.includes('möbellift') || targetName.includes('moebellift')) {
       return (logistics.a_furnitureLift && logistics.b_furnitureLift) ? 2 : (logistics.a_furnitureLift || logistics.b_furnitureLift) ? 1 : 0;
+    }
+    if (srvId === 'kartons_bereit' || targetName.includes('kartons bereitstellen') || targetName.includes('umzugskarton')) {
+      const kSvc = services.find(s => (s as any).isKartonService || s.id === 'kartons_bereit' || (s.name || '').toLowerCase().includes('kartons bereitstellen') || (s.name || '').toLowerCase().includes('umzugskartons & packmaterial'));
+      if (!kSvc) return 0;
+      if ((kSvc as any).kartonDetails) {
+        const d = (kSvc as any).kartonDetails;
+        return (d.s?.qty || 0) + (d.m?.qty || 0) + (d.l?.qty || 0) + (d.xl?.qty || 0) + (d.buecher?.qty || 0) + (d.kleider?.qty || 0);
+      }
+      return kSvc.quantity || 1;
     }
     return services.find(s => (srvId && s.id === srvId) || (s.name || '').trim().toLowerCase() === targetName)?.quantity || 0;
   };
@@ -3443,6 +3502,24 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                                   </button>
                                 </div>
                               </div>
+                              {((svc as any).isKartonService || svc.id === 'kartons_bereit' || (svc.name || '').toLowerCase().includes('umzugskarton') || (svc.name || '').toLowerCase().includes('kartons bereitstellen')) && (
+                                <div className="pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenKartonModal(svc)}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30 transition-all cursor-pointer shadow-xs active:scale-95"
+                                    title="Kartons aufschlüsseln, Stückzahlen oder Preise anpassen"
+                                  >
+                                    <span className="material-symbols-outlined text-xs">tune</span>
+                                    <span>Kartons aufschlüsseln {(() => {
+                                      const d = (svc as any).kartonDetails;
+                                      if (!d) return '';
+                                      const total = (d.s?.qty || 0) + (d.m?.qty || 0) + (d.l?.qty || 0) + (d.xl?.qty || 0) + (d.buecher?.qty || 0) + (d.kleider?.qty || 0);
+                                      return `(${total} Stk.)`;
+                                    })()}</span>
+                                  </button>
+                                </div>
+                              )}
                             </td>
                             <td className="p-2.5 text-center pt-3">
                               <div className="inline-flex items-center gap-1 bg-structure/40 rounded-lg px-1.5 py-0.5">
@@ -4751,6 +4828,19 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           </div>
         </div>
       )}
+
+      {/* Umzugskartons Configurator Modal */}
+      <KartonConfigModal
+        isOpen={isKartonModalOpen}
+        onClose={() => {
+          setIsKartonModalOpen(false);
+          setSelectedKartonService(null);
+        }}
+        existingService={selectedKartonService}
+        defaultPrices={settings?.kartonPrices}
+        onSave={handleSaveKartonService}
+        onRemove={handleRemoveKartonService}
+      />
 
       <InventoryWizardModal 
         isOpen={isInventoryWizardOpen}
