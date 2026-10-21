@@ -1218,7 +1218,7 @@ export function CustomerPremiumProfile({
               {/* Email */}
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-[#6E8F64]/10 text-[#6E8F64] dark:text-[#93B489] flex items-center justify-center shrink-0">
                     <EnvelopeIcon className="w-4 h-4" />
                   </div>
                   <div className="min-w-0">
@@ -1311,7 +1311,7 @@ export function CustomerPremiumProfile({
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-headline">
                 Termine & Umfang (Live-Sync)
               </span>
-              <CalendarDaysIcon className="w-5 h-5 text-blue-500" />
+              <CalendarDaysIcon className="w-5 h-5 text-[#6E8F64]" />
             </div>
 
             <div className="flex items-baseline justify-between gap-2">
@@ -1598,10 +1598,10 @@ export function CustomerPremiumProfile({
                 <button
                   type="button"
                   onClick={() => onViewPdf(activeOrder, 'protocol')}
-                  className="px-3.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/30 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-xs font-bold border border-blue-200 dark:border-blue-800 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl bg-[#6E8F64]/10 hover:bg-[#6E8F64]/20 text-[#3B5233] dark:text-[#B5D1AC] text-xs font-bold border border-[#6E8F64]/30 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
                   title="Übergabeprotokoll als PDF ansehen / drucken"
                 >
-                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#6E8F64] dark:text-[#93B489]" />
                   <span>Protokoll ({activeProtocols.length})</span>
                 </button>
                 <button
@@ -1617,10 +1617,10 @@ export function CustomerPremiumProfile({
               <button
                 type="button"
                 onClick={() => onOpenProtocolModal(activeOrder)}
-                className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1.5 shadow-xs hover:border-blue-500/50 cursor-pointer"
+                className="px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1.5 shadow-xs hover:border-[#6E8F64]/60 cursor-pointer"
                 title="Übergabeprotokoll öffnen / erfassen"
               >
-                <ClipboardDocumentCheckIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#6E8F64] dark:text-[#93B489]" />
                 <span>+ Protokoll erfassen</span>
               </button>
             )}
@@ -1825,7 +1825,7 @@ export function CustomerPremiumProfile({
           <div className="bg-white dark:bg-slate-900 p-6 md:p-7 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                <div className="w-10 h-10 rounded-2xl bg-[#6E8F64]/10 text-[#6E8F64] dark:text-[#93B489] flex items-center justify-center shrink-0">
                   <TruckIcon className="w-5 h-5" />
                 </div>
                 <div>
@@ -1844,7 +1844,7 @@ export function CustomerPremiumProfile({
                   type="button"
                   onClick={handleCalculateRoute}
                   disabled={isCalculatingRoute || !bothAddressesPresent}
-                  className="w-full sm:w-auto px-3.5 py-2.5 sm:py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-1.5 shadow-xs shadow-blue-500/20 cursor-pointer text-center"
+                  className="w-full sm:w-auto px-3.5 py-2.5 sm:py-2 rounded-xl text-xs font-bold bg-[#6E8F64] hover:bg-[#5C7A53] text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-1.5 shadow-xs shadow-[#6E8F64]/20 cursor-pointer text-center"
                 >
                   <ArrowPathIcon className={`w-3.5 h-3.5 shrink-0 ${isCalculatingRoute ? 'animate-spin' : ''}`} />
                   <span className="truncate">{isCalculatingRoute ? 'Berechne...' : 'Route berechnen'}</span>
@@ -1867,11 +1867,11 @@ export function CustomerPremiumProfile({
 
             {/* Smart Dual-Distance Result Banner */}
             {routeInfo && (
-              <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50 via-slate-50 to-blue-50 dark:from-blue-950/30 dark:via-slate-900 dark:to-blue-950/30 border border-blue-200 dark:border-blue-900/60 space-y-3">
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-[#6E8F64]/8 via-slate-50 to-[#6E8F64]/8 dark:from-[#6E8F64]/15 dark:via-slate-900 dark:to-[#6E8F64]/15 border border-[#6E8F64]/25 dark:border-[#6E8F64]/30 space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Leg 1: Direct Move (A -> B) */}
                   <div className="space-y-1">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-blue-700 dark:text-blue-400 flex items-center gap-1">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#4A6642] dark:text-[#A8C69F] flex items-center gap-1 font-headline">
                       <TruckIcon className="w-3.5 h-3.5" />
                       Direkte Umzugsstrecke (A ➔ B)
                     </span>
@@ -1906,7 +1906,7 @@ export function CustomerPremiumProfile({
 
                 <div className="text-[10px] text-slate-400 dark:text-slate-500 pt-1 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between">
                   <span>Start & Ende: Grillostr. 70, 44799 Bochum</span>
-                  <span className="font-semibold text-blue-600 dark:text-blue-400">OSRM Präzisions-Routing</span>
+                  <span className="font-semibold text-[#6E8F64] dark:text-[#93B489]">OSRM Präzisions-Routing</span>
                 </div>
               </div>
             )}
@@ -1917,7 +1917,7 @@ export function CustomerPremiumProfile({
               {/* Beladestelle (Auszug) */}
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1 font-headline">
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#4A6642] dark:text-[#A8C69F] flex items-center gap-1 font-headline">
                     <HomeIcon className="w-4 h-4" />
                     Beladestelle (Auszug A)
                   </span>
@@ -2073,14 +2073,14 @@ export function CustomerPremiumProfile({
             <div className="bg-white dark:bg-slate-900 p-6 md:p-7 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-[#6E8F64]/10 text-[#6E8F64] dark:text-[#93B489] flex items-center justify-center shrink-0">
                     <ClipboardDocumentCheckIcon className="w-5 h-5" />
                   </div>
                   <div>
                     <h3 className="font-headline font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
                       <span>Übergabeprotokolle</span>
                       {hasActiveProtocols && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#6E8F64]/15 text-[#3B5233] dark:text-[#B5D1AC] font-bold">
                           {activeProtocols.length}
                         </span>
                       )}
@@ -2096,7 +2096,7 @@ export function CustomerPremiumProfile({
                     <button
                       type="button"
                       onClick={() => onViewPdf(activeOrder, 'protocol')}
-                      className="px-2.5 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 text-blue-700 dark:text-blue-300 text-xs font-bold border border-blue-200 dark:border-blue-800 transition-colors flex items-center gap-1 cursor-pointer"
+                      className="px-2.5 py-1.5 rounded-xl bg-[#6E8F64]/10 hover:bg-[#6E8F64]/20 text-[#3B5233] dark:text-[#B5D1AC] text-xs font-bold border border-[#6E8F64]/30 transition-colors flex items-center gap-1 cursor-pointer"
                       title="Protokoll als PDF anzeigen / drucken"
                     >
                       <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
@@ -2106,7 +2106,7 @@ export function CustomerPremiumProfile({
                   <button
                     type="button"
                     onClick={() => onOpenProtocolModal(activeOrder)}
-                    className="p-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-colors cursor-pointer"
+                    className="p-1.5 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold transition-colors cursor-pointer shadow-xs shadow-[#6E8F64]/20"
                     title="Neues Protokoll anlegen"
                   >
                     <PlusIcon className="w-3.5 h-3.5" />
@@ -2126,8 +2126,8 @@ export function CustomerPremiumProfile({
                       : isGefahr
                       ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
                       : isStandard
-                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
-                      : 'bg-blue-100 text-blue-800 dark:bg-blue-950/50 dark:text-blue-300';
+                      ? 'bg-[#6E8F64]/15 text-[#3B5233] dark:text-[#B5D1AC]'
+                      : 'bg-[#6E8F64]/15 text-[#3B5233] dark:text-[#B5D1AC]';
 
                     return (
                       <div
@@ -2180,7 +2180,7 @@ export function CustomerPremiumProfile({
                   <button
                     type="button"
                     onClick={() => onOpenProtocolModal(activeOrder)}
-                    className="py-1.5 px-3.5 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 font-bold text-xs inline-flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                    className="py-2 px-4 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white font-bold text-xs inline-flex items-center gap-1.5 shadow-sm shadow-[#6E8F64]/20 cursor-pointer transition-all"
                   >
                     <PlusIcon className="w-3.5 h-3.5" />
                     <span>Protokoll anlegen</span>
@@ -2366,10 +2366,10 @@ export function CustomerPremiumProfile({
                       <button
                         type="button"
                         onClick={() => onViewPdf(ord, 'protocol')}
-                        className="px-3 py-2 rounded-xl text-xs font-bold bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 transition-all flex items-center gap-1.5 cursor-pointer"
+                        className="px-3 py-2 rounded-xl text-xs font-bold bg-[#6E8F64]/10 hover:bg-[#6E8F64]/20 text-[#3B5233] dark:text-[#B5D1AC] border border-[#6E8F64]/30 transition-all flex items-center gap-1.5 cursor-pointer"
                         title={`Übergabeprotokoll (${ord.protocols.length}) als PDF anzeigen`}
                       >
-                        <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                        <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 text-[#6E8F64] dark:text-[#93B489]" />
                         <span>Protokoll ({ord.protocols.length})</span>
                       </button>
                     ) : (
