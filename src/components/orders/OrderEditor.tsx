@@ -1637,6 +1637,41 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     goToStep(targetStep);
   };
 
+  // Step Completion Validation: Only marks a step complete with a green checkmark if it has actual data
+  const isStepComplete = (stepNum: number): boolean => {
+    switch (stepNum) {
+      case 1:
+        // Customer: last name or company filled
+        return Boolean(customerData.lastName?.trim() || (customerData as any).company?.trim());
+      case 2:
+        // Logistics: at least city or street filled for both A and B
+        return Boolean(
+          (logistics.a_city?.trim() || logistics.a_street?.trim()) &&
+          (logistics.b_city?.trim() || logistics.b_street?.trim())
+        );
+      case 3:
+        // Services: at least 1 service added or flatRateNet > 0
+        return Boolean(services.length > 0 || (isFlatRate && flatRateNet > 0));
+      case 4:
+        // Inventory: at least 1 item with quantity > 0
+        return Boolean(inventory.length > 0 && inventory.some(i => (i.quantity || 0) > 0));
+      case 5:
+        return isStepComplete(1) && isStepComplete(3);
+      default:
+        return false;
+    }
+  };
+
+  const incompletePriorSteps = useMemo(() => {
+    const stepsConfig = [
+      { step: 1, label: '1. Kunde' },
+      { step: 2, label: '2. Logistik' },
+      { step: 3, label: '3. Leistungen' },
+      { step: 4, label: '4. Inventar' },
+    ];
+    return stepsConfig.filter(s => currentStep > s.step && !isStepComplete(s.step));
+  }, [currentStep, customerData, logistics, services, isFlatRate, flatRateNet, inventory]);
+
   if (!settings) return <div className="p-12 text-center text-text-main">Lade Einstellungen...</div>;
 
   const date = orderMeta?.movingDateFrom || "";
@@ -1702,8 +1737,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         </div>
       )}
 
-      {/* Stepper Navigation matching Mockups */}
-      <div className="mb-10 py-2">
+      {/* Stepper Navigation matching Mockups with dynamic completion validation */}
+      <div className="mb-8 py-2">
         <div className="flex items-center justify-between w-full max-w-4xl mx-auto px-4">
           {[
             { step: 1, label: '1. Kunde', icon: 'person' },
@@ -1711,41 +1746,88 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             { step: 3, label: '3. Leistungen', icon: 'construction' },
             { step: 4, label: '4. Inventar', icon: 'inventory_2' },
             { step: 5, label: '5. Abschluss', icon: 'task_alt' },
-          ].map((s, idx) => (
-            <React.Fragment key={s.step}>
-              <div 
-                onClick={() => validateAndSetStep(s.step)}
-                className="flex flex-col items-center cursor-pointer group select-none"
-              >
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-                  currentStep === s.step
-                    ? 'bg-[#D91E2A] text-white shadow-lg shadow-[#D91E2A]/30 ring-4 ring-white dark:ring-slate-800 z-10 scale-105'
-                    : currentStep > s.step
-                      ? 'bg-emerald-600 text-white z-10 ring-4 ring-white dark:ring-slate-800 shadow-sm'
-                      : 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 z-10 ring-4 ring-white dark:ring-slate-800'
-                }`}>
-                  <span className="material-symbols-outlined text-xl">
-                    {currentStep > s.step ? 'check' : s.icon}
+          ].map((s, idx) => {
+            const isCurrent = currentStep === s.step;
+            const isCompleted = isStepComplete(s.step);
+            const isPast = currentStep > s.step;
+            const isIncompleteWarning = isPast && !isCompleted;
+
+            // Icon to display: check if completed, exclamation if passed but incomplete, or default step icon
+            let iconName = s.icon;
+            if (isCompleted && !isCurrent) {
+              iconName = 'check';
+            } else if (isIncompleteWarning) {
+              iconName = 'priority_high';
+            }
+
+            // Circle styling
+            let circleClass = 'bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 z-10 ring-4 ring-white dark:ring-slate-800';
+            let labelClass = 'text-slate-400 dark:text-slate-500 font-medium';
+
+            if (isCurrent) {
+              circleClass = 'bg-[#D91E2A] text-white shadow-lg shadow-[#D91E2A]/30 ring-4 ring-white dark:ring-slate-800 z-10 scale-105';
+              labelClass = 'text-[#D91E2A] dark:text-red-400 font-extrabold';
+            } else if (isCompleted) {
+              circleClass = 'bg-emerald-600 text-white z-10 ring-4 ring-white dark:ring-slate-800 shadow-sm';
+              labelClass = 'text-emerald-600 dark:text-emerald-400 font-bold';
+            } else if (isIncompleteWarning) {
+              circleClass = 'bg-amber-500 text-white z-10 ring-4 ring-amber-500/25 shadow-md shadow-amber-500/30';
+              labelClass = 'text-amber-600 dark:text-amber-400 font-bold';
+            }
+
+            // Line styling after this step
+            let lineClass = 'bg-slate-200 dark:bg-slate-800';
+            if (isCompleted) {
+              lineClass = 'bg-emerald-500';
+            } else if (isPast) {
+              lineClass = 'bg-amber-400/50';
+            }
+
+            return (
+              <React.Fragment key={s.step}>
+                <div 
+                  onClick={() => validateAndSetStep(s.step)}
+                  className="flex flex-col items-center cursor-pointer group select-none relative"
+                  title={isIncompleteWarning ? `${s.label} ist noch unvollständig (klicken zum Bearbeiten)` : s.label}
+                >
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${circleClass}`}>
+                    <span className="material-symbols-outlined text-xl">
+                      {iconName}
+                    </span>
+                  </div>
+                  <span className={`mt-2 text-xs font-display uppercase tracking-tight transition-colors flex items-center gap-1 ${labelClass}`}>
+                    <span>{s.label}</span>
+                    {isIncompleteWarning && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" title="Unvollständig" />
+                    )}
                   </span>
                 </div>
-                <span className={`mt-2 text-xs font-bold font-display uppercase tracking-tight transition-colors ${
-                  currentStep === s.step 
-                    ? 'text-[#D91E2A] dark:text-red-400' 
-                    : currentStep > s.step
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-slate-400 dark:text-slate-500'
-                }`}>
-                  {s.label}
-                </span>
-              </div>
-              {idx < 4 && (
-                <div className={`flex-1 h-0.5 -mt-6 -mx-2 transition-all ${
-                  currentStep > s.step ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-800'
-                }`}></div>
-              )}
-            </React.Fragment>
-          ))}
+                {idx < 4 && (
+                  <div className={`flex-1 h-0.5 -mt-6 -mx-2 transition-all ${lineClass}`}></div>
+                )}
+              </React.Fragment>
+            );
+          })}
         </div>
+
+        {/* Subtle, helpful warning pill if past steps are incomplete without blocking navigation */}
+        {incompletePriorSteps.length > 0 && (
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-4 px-4">
+            <div className="inline-flex items-center gap-2 py-1.5 px-3.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs shadow-xs animate-in fade-in">
+              <span className="material-symbols-outlined text-sm font-bold shrink-0">priority_high</span>
+              <span>
+                <strong>Hinweis:</strong> {incompletePriorSteps.map(s => s.label).join(', ')} noch nicht vollständig ausgefüllt.
+              </span>
+              <button
+                type="button"
+                onClick={() => goToStep(incompletePriorSteps[0].step)}
+                className="underline font-bold hover:text-amber-500 ml-1 cursor-pointer shrink-0"
+              >
+                Zu {incompletePriorSteps[0].label} springen
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
 
