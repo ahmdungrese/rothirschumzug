@@ -12,7 +12,19 @@ This document is the **definitive, self-contained master specification** for Cla
 
 ---
 
-## 2. Tech Stack & Environment
+## 2. Version Management & Semantic Versioning (SemVer)
+The project strictly follows Semantic Versioning (`MAJOR.MINOR.PATCH`):
+* **MAJOR (X.0.0)**: Incompatible architectural shifts, database schema breaking rewrites, or radical workflow redesigns.
+* **MINOR (2.X.0)**: New functional features, major workflow optimizations, or new operational modules (e.g. Smart Logistics Engine, DST calculations, GoBD Storno workflows).
+* **PATCH (2.7.X)**: Bug fixes, typo corrections, styling tweaks, or minor edge-case handling without feature changes.
+* **Single Source of Truth**:
+  * Version is defined centrally in `src/lib/constants.ts` (`APP_VERSION`) and `package.json`.
+  * All UI components (`Sidebar.tsx`, etc.) automatically import and render `APP_VERSION`. Never hardcode version strings in UI components!
+  * When releasing a new version, AI agents MUST update `package.json`, `src/lib/constants.ts`, and document changes in `AGENTS.md` and `README.md`.
+
+---
+
+## 3. Tech Stack & Environment
 * **Domain**: Enterprise ERP & Logistics Suite for German Moving Companies (*Umzugsunternehmen*).
 * **Framework**: Next.js 16.2.6 (App Router, Server Components & Client Components).
 * **UI & Styling**: React 19.2.4, Tailwind CSS v4, Heroicons & Google Material Symbols.

@@ -17,6 +17,15 @@ This document provides definitive guidance for any AI coding agent working on th
 *   **Database**: Google Cloud Firestore (Firebase SDK v12).
 *   **Build Target**: `next build --webpack` (configured in `package.json` to prevent font fetching timeouts).
 
+### Semantic Versioning (SemVer) Protocol:
+*   **MAJOR (`X.0.0`)**: Incompatible architectural rewrites or breaking database schema shifts.
+*   **MINOR (`2.X.0`)**: New feature modules, significant business logic upgrades, or workflow improvements (e.g. Smart Logistics Engine, UTC DST immunity).
+*   **PATCH (`2.7.X`)**: Bug fixes, styling tweaks, minor edge cases without feature additions.
+*   **Single Source of Truth**:
+    *   Version is stored centrally in `src/lib/constants.ts` (`APP_VERSION`) and `package.json`.
+    *   UI components (`Sidebar.tsx`, etc.) import `APP_VERSION` directly; never hardcode version numbers in UI templates.
+    *   AI agents must update `package.json`, `src/lib/constants.ts`, and add an entry to the Changelog below upon release.
+
 ---
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)

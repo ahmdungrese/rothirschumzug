@@ -21,6 +21,7 @@ import {
   ChevronRightIcon
 } from '@heroicons/react/24/outline';
 import Image from 'next/image';
+import { APP_VERSION } from '@/lib/constants';
 
 const navItems = [
   { name: 'Dashboard', href: '/dashboard', id: 'nav-dashboard', icon: HomeIcon, roles: ['admin', 'office'] },
@@ -214,14 +215,14 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
               <span className="font-semibold text-[11px] text-text-main truncate">Rothirsch ERP</span>
             </div>
             <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold border border-primary/20 text-[10px] font-mono shrink-0">
-              v2.7.0
+              v{APP_VERSION}
             </span>
           </div>
 
-          {/* Tablet Portrait (md to lg): compact v2.7 badge centered */}
+          {/* Tablet Portrait (md to lg): compact badge centered */}
           <div className="hidden md:flex lg:hidden items-center justify-center w-full">
             <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-bold border border-primary/20 text-[9px] font-mono">
-              v2.7
+              v{APP_VERSION.split('.').slice(0, 2).join('.')}
             </span>
           </div>
 
@@ -236,7 +237,7 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
               >
                 <ChevronRightIcon className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                 <span className="px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-bold border border-primary/20 text-[9px] font-mono">
-                  v2.7
+                  v{APP_VERSION.split('.').slice(0, 2).join('.')}
                 </span>
               </button>
             ) : (
@@ -246,7 +247,7 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
                   <span className="font-semibold text-[11px] text-text-main truncate">Rothirsch ERP</span>
                 </div>
                 <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-bold border border-primary/20 text-[10px] font-mono shrink-0">
-                  v2.7.0
+                  v{APP_VERSION}
                 </span>
               </>
             )}
