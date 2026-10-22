@@ -13,6 +13,7 @@ import {
   XMarkIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
+import { hasFixedService } from '@/lib/serviceKeys';
 
 function extractMovingDate(o: any): string | null {
   if (!o) return null;
@@ -125,7 +126,7 @@ export function NotificationBell() {
         if (moveDate) {
           const daysUntilMove = Math.ceil((moveDate.getTime() - today.getTime()) / (1000 * 3600 * 24));
           const hasBoxService = 
-            o.services?.some((s: any) => (s.name || '').toLowerCase().includes('karton')) ||
+            hasFixedService(o.services, 'kartons') ||
             o.materials?.some((m: any) => (m.name || '').toLowerCase().includes('karton')) ||
             (Number(o.calcInput?.boxes || 0) > 0) ||
             (Number(o.boxesCount || 0) > 0) ||

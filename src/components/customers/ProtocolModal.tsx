@@ -19,6 +19,8 @@ import {
 import { toast } from 'react-hot-toast';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 import { autoCompletePreMoveTasks } from '@/lib/taskStateController';
+import { triggerHaptic } from '@/lib/haptics';
+import { MASTER_PROTOCOL_CATEGORIES, MASTER_PROTOCOL_SNIPPETS } from '@/lib/protocolDefaults';
 
 interface ProtocolModalProps {
   order: any;
@@ -27,62 +29,15 @@ interface ProtocolModalProps {
   onViewPdf?: (order: any, type: string) => void;
 }
 
-const PRESET_CATEGORIES = [
-  {
-    id: 'abnahme',
-    name: 'Abnahme ohne Mängel (Standard)',
-    icon: ShieldCheckIcon,
-    color: 'emerald',
-    defaultText: 'Der Umzug wurde ordnungsgemäß, vollständig und ohne Mängel oder Schäden durchgeführt. Alle Umzugsgüter wurden unversehrt am Bestimmungsort übergeben.',
-    isCompletion: true,
-  },
-  {
-    id: 'haftung',
-    name: 'Gefahrenübergang / Haftungsausschluss',
-    icon: ExclamationTriangleIcon,
-    color: 'amber',
-    defaultText: 'Gefahrenübergang: Der Transport erfolgt auf ausdrücklichen Wunsch und auf eigene Gefahr des Kunden (z.B. Engstelle im Treppenhaus / ungeeignete Maße / Demontage durch Kunden). Keine Haftung für Beschädigungen an Umzugsgut oder Gebäude.',
-    isCompletion: false,
-  },
-  {
-    id: 'schaden',
-    name: 'Mängel- & Schadensfeststellung',
-    icon: ExclamationTriangleIcon,
-    color: 'red',
-    defaultText: 'Folgende vorbestehende oder entstandene Mängel bzw. Schäden wurden vor Ort dokumentiert und vom Kunden bestätigt:\n- ',
-    isCompletion: false,
-  },
-  {
-    id: 'zaehler',
-    name: 'Zählerstände & Schlüsselübergabe',
-    icon: KeyIcon,
-    color: 'blue',
-    defaultText: 'Dokumentation der Zählerstände und Schlüssel:\nStrom: \nGas: \nWasser: \nSchlüssel übergeben: Ja',
-    isCompletion: false,
-  },
-  {
-    id: 'sonstiges',
-    name: 'Sonstige Vereinbarung',
-    icon: DocumentTextIcon,
-    color: 'slate',
-    defaultText: '',
-    isCompletion: false,
-  },
-];
-
-const PRESET_SNIPPETS = [
-  { label: 'Treppenhaus Engstelle (auf Kundenrisiko)', text: 'Transport durch enges Treppenhaus auf ausdrücklichen Wunsch des Kunden. Keine Haftung für Kratzer.' },
-  { label: 'Vorbestehende Kratzer dokumentiert', text: 'Vorbestehende Beschädigungen (Kratzer/Gebrauchsspuren) bereits vor Verladung am Umzugsgut vorhanden.' },
-  { label: 'Eigenmontage durch Kunden', text: 'Möbelmontage / Demontage erfolgt eigenständig durch den Kunden. Keine Haftung für Stabilität oder Folgeschäden.' },
-  { label: 'Wohnungsabnahme mängelfrei', text: 'Die Räumlichkeiten der Auszugsadresse wurden besenrein und ohne Schäden an Wänden/Böden übergeben.' },
-];
+const PRESET_CATEGORIES = MASTER_PROTOCOL_CATEGORIES;
+const PRESET_SNIPPETS = MASTER_PROTOCOL_SNIPPETS;
 
 export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: ProtocolModalProps) {
   useModalBackHandler(true, onClose, 'protocol-modal');
   const existingProtocols = order?.protocols || [];
   const [activeTab, setActiveTab] = useState<'create' | 'list'>('create');
-  const [type, setType] = useState('Abnahme ohne Mängel (Standard)');
-  const [text, setText] = useState(PRESET_CATEGORIES[0].defaultText);
+  const [type, setType] = useState('Abnahme ohne Mängel (Abschluss)');
+  const [text, setText] = useState(PRESET_CATEGORIES[0]?.text || '');
   const [markAsCompleted, setMarkAsCompleted] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
@@ -105,46 +60,47 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
   }, []);
 
   const availableCategories = useMemo(() => {
-    if (settings?.protocolCategories && settings.protocolCategories.length > 0) {
-      return settings.protocolCategories.map((c: any, idx: number) => {
-        const lower = c.name?.toLowerCase() || '';
-        let icon = DocumentTextIcon;
-        let isCompletion = false;
-        let subtitle = 'Individuelle Vereinbarung';
+    const rawCategories = (settings?.protocolCategories && settings.protocolCategories.length > 0)
+      ? settings.protocolCategories
+      : MASTER_PROTOCOL_CATEGORIES;
 
-        if (lower.includes('abschluss') || lower.includes('keine schäden') || lower.includes('ohne mängel')) {
-          icon = ShieldCheckIcon;
-          isCompletion = true;
-          subtitle = 'Vollständig & mängelfrei (Phase 4)';
-        } else if (lower.includes('gefahr') || lower.includes('haftung')) {
-          icon = ExclamationTriangleIcon;
-          isCompletion = false;
-          subtitle = 'Treppenhaus / Kundenrisiko';
-        } else if (lower.includes('schaden') || lower.includes('mängel')) {
-          icon = ExclamationTriangleIcon;
-          isCompletion = false;
-          subtitle = 'Schäden vor Ort dokumentieren';
-        } else if (lower.includes('zähler') || lower.includes('schlüssel')) {
-          icon = KeyIcon;
-          isCompletion = false;
-          subtitle = 'Strom, Wasser, Gas & Schlüssel';
-        }
+    return rawCategories.map((c: any, idx: number) => {
+      const lower = c.name?.toLowerCase() || '';
+      let icon = DocumentTextIcon;
+      let isCompletion = Boolean(c.isCompletion);
+      let subtitle = c.subtitle || 'Individuelle Vereinbarung';
 
-        return {
-          id: c.id || `cat_${idx}`,
-          name: c.name,
-          icon,
-          defaultText: c.text || '',
-          subtitle,
-          isCompletion,
-        };
-      });
-    }
-    return PRESET_CATEGORIES;
+      if (lower.includes('abschluss') || lower.includes('keine schäden') || lower.includes('ohne mängel')) {
+        icon = ShieldCheckIcon;
+        isCompletion = true;
+        subtitle = 'Vollständig & mängelfrei (Phase 4)';
+      } else if (lower.includes('gefahr') || lower.includes('haftung')) {
+        icon = ExclamationTriangleIcon;
+        subtitle = 'Treppenhaus / Kundenrisiko';
+      } else if (lower.includes('schaden') || lower.includes('mängel')) {
+        icon = ExclamationTriangleIcon;
+        subtitle = 'Schäden vor Ort dokumentieren';
+      } else if (lower.includes('zähler') || lower.includes('schlüssel')) {
+        icon = KeyIcon;
+        subtitle = 'Strom, Wasser, Gas & Schlüssel';
+      } else if (lower.includes('besichtigung')) {
+        icon = DocumentTextIcon;
+        subtitle = 'Aufnahme vor Auftragserteilung';
+      }
+
+      return {
+        id: c.id || `cat_${idx}`,
+        name: c.name,
+        icon,
+        defaultText: c.text || '',
+        subtitle,
+        isCompletion,
+      };
+    });
   }, [settings]);
 
   const allSnippets = useMemo(() => {
-    const list = [...PRESET_SNIPPETS];
+    const list: any[] = [...MASTER_PROTOCOL_SNIPPETS];
     if (settings?.protocolTemplates && Array.isArray(settings.protocolTemplates)) {
       settings.protocolTemplates.forEach((t: string) => {
         if (t && !list.some(s => s.text === t)) {
@@ -177,7 +133,7 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
   };
 
   const appendSnippet = (snippetText: string) => {
-    setText((prev) => (prev ? `${prev}\n- ${snippetText}` : snippetText));
+    setText((prev: string) => (prev ? `${prev}\n- ${snippetText}` : snippetText));
   };
 
   const clearSignature = () => {
@@ -193,10 +149,54 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
       toast.error('Bitte geben Sie einen Text oder eine Beschreibung für das Protokoll ein.');
       return;
     }
+    if (!order?.id) {
+      toast.error('Fehler: Keine gültige Auftrags-ID gefunden.');
+      return;
+    }
 
     setIsSaving(true);
     try {
-      const signatureDataUrl = sigPad.current?.getTrimmedCanvas().toDataURL('image/png');
+      // Safe, compressed signature extraction to prevent Firestore 1MB document limit crash on high-DPI smartphones
+      let signatureDataUrl = '';
+      try {
+        const trimmed = sigPad.current?.getTrimmedCanvas();
+        if (trimmed && trimmed.width > 0 && trimmed.height > 0) {
+          const maxW = 600;
+          let w = trimmed.width;
+          let h = trimmed.height;
+          if (w > maxW) {
+            h = Math.round((h * maxW) / w);
+            w = maxW;
+          }
+          const compCanvas = document.createElement('canvas');
+          compCanvas.width = Math.max(1, w);
+          compCanvas.height = Math.max(1, h);
+          const ctx = compCanvas.getContext('2d');
+          if (ctx) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(trimmed, 0, 0, w, h);
+            signatureDataUrl = compCanvas.toDataURL('image/jpeg', 0.82);
+          }
+        }
+      } catch (canvasErr) {
+        console.warn('Canvas trim failed, falling back to raw canvas:', canvasErr);
+      }
+
+      if (!signatureDataUrl) {
+        try {
+          const rawCanvas = sigPad.current?.getCanvas();
+          signatureDataUrl = rawCanvas?.toDataURL('image/jpeg', 0.75) || '';
+        } catch (rawErr) {
+          console.warn('Raw canvas fallback failed:', rawErr);
+        }
+      }
+
+      if (!signatureDataUrl) {
+        toast.error('Unterschrift konnte nicht erfasst werden. Bitte erneut versuchen.');
+        setIsSaving(false);
+        return;
+      }
 
       const newProtocol = {
         id: 'proto_' + Date.now(),
@@ -218,9 +218,10 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
         updates['ticketStates.transition_complete'] = true;
       }
 
-      await updateDoc(doc(db, 'orders', order.id), updates);
+      const targetCol = order._collection || 'orders';
+      await updateDoc(doc(db, targetCol, order.id), updates);
 
-      if (markAsCompleted) {
+      if (markAsCompleted && targetCol === 'orders') {
         await autoCompletePreMoveTasks(order.id);
       }
 
@@ -229,12 +230,13 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
           ? 'Protokoll gespeichert & Umzug als abgeschlossen markiert!'
           : 'Protokoll erfolgreich gespeichert!'
       );
+      triggerHaptic('success');
 
       if (onSuccess) onSuccess();
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Fehler beim Speichern des Protokolls:', error);
-      toast.error('Fehler beim Speichern des Protokolls.');
+      toast.error('Fehler beim Speichern: ' + (error?.message || 'Bitte Eingaben überprüfen'));
     } finally {
       setIsSaving(false);
     }
@@ -276,8 +278,10 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-200">
+        {/* Mobile Drag Handle */}
+        <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full mx-auto my-2.5 sm:hidden cursor-grab shrink-0" />
         
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30 shrink-0">

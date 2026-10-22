@@ -27,6 +27,7 @@ import { toggleTaskCompletion } from '@/lib/taskStateController';
 import { TaskScheduleModal } from '@/components/logistics/TaskScheduleModal';
 import { PaymentManager } from '@/components/orders/PaymentManager';
 import { calculateOpenAmount } from '@/lib/financeHelpers';
+import { getFixedKey, hasFixedService } from '@/lib/serviceKeys';
 import toast from 'react-hot-toast';
 
 export default function LogisticsPage() {
@@ -296,18 +297,23 @@ export default function LogisticsPage() {
 
     if (Array.isArray(order?.services)) {
       order.services.forEach((s: any) => {
-        const name = (s.name || '').toLowerCase();
-        const count = parseInt(s.quantity || s.count || 0) || 0;
-        if (name.includes('bücher') || name.includes('buecher') || name.includes('buch')) {
-          buecher += count;
-        } else if (name.includes('kleider')) {
-          kleider += count;
-        } else if (name.includes('seiden') || name.includes('packpapier')) {
-          seidenpapier += count;
-        } else if (name.includes('klebe') || name.includes('band')) {
-          klebeband += count;
-        } else if (name.includes('karton') || name.includes('standard') || name.includes('umzugskarton')) {
-          standard += count;
+        if (s.kartonDetails) {
+          const d = s.kartonDetails;
+          standard += (d.s?.qty || 0) + (d.m?.qty || 0) + (d.l?.qty || 0) + (d.xl?.qty || 0);
+          buecher += (d.buecher?.qty || 0);
+          kleider += (d.kleider?.qty || 0);
+          return;
+        }
+        if (getFixedKey(s) === 'kartons') {
+          const name = (s.name || '').toLowerCase();
+          const count = parseInt(s.quantity || s.count || 0) || 0;
+          if (name.includes('bücher') || name.includes('buecher') || name.includes('buch')) {
+            buecher += count;
+          } else if (name.includes('kleider')) {
+            kleider += count;
+          } else {
+            standard += count;
+          }
         }
       });
     }

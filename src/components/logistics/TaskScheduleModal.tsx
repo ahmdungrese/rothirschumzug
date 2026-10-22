@@ -10,11 +10,13 @@ import {
   MapPinIcon,
   TruckIcon,
   BuildingOfficeIcon,
-  HomeIcon
+  HomeIcon,
+  ArrowPathIcon
 } from '@heroicons/react/24/outline';
 import { updateTaskSchedule } from '@/lib/taskStateController';
 import toast from 'react-hot-toast';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
+import { triggerHaptic } from '@/lib/haptics';
 
 interface TaskScheduleModalProps {
   isOpen: boolean;
@@ -80,12 +82,14 @@ export function TaskScheduleModal({
      !parentOrder.logistics?.a_parking && parentOrder.logistics?.b_parking ? 'b' :
      parentOrder.logistics?.a_parking && parentOrder.logistics?.b_parking ? 'both' : 'a');
   const initialMethod = parentOrder.orderMeta?.hvzMethod || parentOrder.logistics?.hvzMethod || 'selbst';
+  const initialViewingType = ((parentOrder.orderMeta?.viewingType || parentOrder.logistics?.viewingType || 'vor_ort').toLowerCase().includes('video') || (parentOrder.orderMeta?.viewingType || '').toLowerCase().includes('online')) ? 'online' : 'vor_ort';
 
   const [date, setDate] = useState(initialDate);
   const [time, setTime] = useState(initialTime);
   const [duration, setDuration] = useState(initialDuration);
   const [location, setLocation] = useState<'a' | 'b' | 'both'>(initialLocation as any);
   const [method, setMethod] = useState<'selbst' | 'extern'>(initialMethod as any);
+  const [viewingType, setViewingType] = useState<'vor_ort' | 'online'>(initialViewingType);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -145,9 +149,11 @@ export function TaskScheduleModal({
         duration: isLift ? duration : undefined,
         endTime: isLift ? endTimePreview : undefined,
         location: (isLift || isHV) ? location : undefined,
-        method: isHV ? method : undefined
+        method: isHV ? method : undefined,
+        viewingType: isViewing ? viewingType : undefined
       });
       toast.success('Termin erfolgreich gespeichert!');
+      triggerHaptic('success');
       if (onSaved) onSaved();
       onClose();
     } catch (error) {
@@ -166,7 +172,21 @@ export function TaskScheduleModal({
       return;
     }
     const cleanPhone = phone.replace(/[^0-9+]/g, '');
-    const taskName = isKarton ? 'die Umzugskartons liefern' : isHV ? 'die Halteverbotszone einrichten' : isLift ? 'den Möbellift bereitstellen' : 'den Besichtigungstermin durchführen';
+    const taskName = isKarton 
+      ? 'die Umzugskartons liefern' 
+      : isHV 
+        ? (location === 'both' 
+            ? 'die Halteverbotszonen an Auszugs- und Einzugsadresse einrichten' 
+            : location === 'b' 
+              ? 'die Halteverbotszone an der Einzugsadresse einrichten' 
+              : 'die Halteverbotszone an der Auszugsadresse einrichten')
+        : isLift 
+          ? (location === 'both'
+              ? 'den Möbellift an beiden Einsatzorten bereitstellen'
+              : location === 'b'
+                ? 'den Möbellift an der Einzugsadresse bereitstellen'
+                : 'den Möbellift an der Auszugsadresse bereitstellen')
+          : 'den Besichtigungstermin durchführen';
     const formattedDate = date ? new Date(date).toLocaleDateString('de-DE') : 'einem vereinbarten Termin';
     const timeText = time ? ` um ca. ${time}` : '';
     
@@ -192,11 +212,14 @@ export function TaskScheduleModal({
     : 'TBA';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div 
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in slide-in-from-bottom duration-200"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Mobile Drag Handle */}
+        <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full mx-auto my-2.5 sm:hidden cursor-grab" />
+
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
           <div className="flex items-center gap-3">
@@ -226,15 +249,22 @@ export function TaskScheduleModal({
           {/* Location Selector (A vs B vs Both) for Möbellift and HVZ */}
           {(isLift || isHV) && (
             <div className="space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                <MapPinIcon className="w-4 h-4 text-primary" />
-                <span>Einsatzort festlegen</span>
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                  <MapPinIcon className="w-4 h-4 text-primary" />
+                  <span>Einsatzort festlegen</span>
+                </label>
+                {location === 'both' && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                    Beide Adressen aktiv
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setLocation('a')}
-                  className={`p-3 rounded-2xl border text-left transition-all ${
+                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
                     location === 'a' 
                       ? 'border-primary bg-primary/10 text-primary shadow-xs ring-1 ring-primary/30' 
                       : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -255,7 +285,7 @@ export function TaskScheduleModal({
                 <button
                   type="button"
                   onClick={() => setLocation('b')}
-                  className={`p-3 rounded-2xl border text-left transition-all ${
+                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
                     location === 'b' 
                       ? 'border-primary bg-primary/10 text-primary shadow-xs ring-1 ring-primary/30' 
                       : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -272,7 +302,44 @@ export function TaskScheduleModal({
                     {addressB || 'Adresse B'}
                   </p>
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLocation('both')}
+                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
+                    location === 'both' 
+                      ? 'border-primary bg-primary/10 text-primary shadow-xs ring-1 ring-primary/30' 
+                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className="text-xs font-bold flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <ArrowPathIcon className="w-4 h-4 text-primary shrink-0" />
+                      <span>Beide Orte (A &amp; B)</span>
+                    </span>
+                    {location === 'both' && <CheckIcon className="w-4 h-4 text-primary" />}
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1 truncate">
+                    Auszug &amp; Einzug
+                  </p>
+                </button>
               </div>
+
+              {/* Informative Address Preview when 'both' is selected */}
+              {location === 'both' && (
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs space-y-1">
+                  <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                    <BuildingOfficeIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">A:</span>
+                    <span className="truncate">{addressA || 'Adresse A'}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                    <HomeIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">B:</span>
+                    <span className="truncate">{addressB || 'Adresse B'}</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -306,6 +373,42 @@ export function TaskScheduleModal({
                 >
                   <span className="material-symbols-outlined text-base">domain</span>
                   <span>Externe Firma</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Viewing Type Selector (Vor-Ort vs Video / Online) */}
+          {isViewing && (
+            <div className="space-y-2">
+              <label className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-base">visibility</span>
+                <span>Art der Besichtigung</span>
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setViewingType('vor_ort')}
+                  className={`p-3 rounded-2xl border text-left transition-all text-xs font-bold flex items-center gap-2 ${
+                    viewingType === 'vor_ort' 
+                      ? 'border-primary bg-primary/10 text-primary shadow-xs ring-1 ring-primary/30' 
+                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  <HomeIcon className="w-4 h-4 shrink-0" />
+                  <span>Vor-Ort-Besichtigung</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewingType('online')}
+                  className={`p-3 rounded-2xl border text-left transition-all text-xs font-bold flex items-center gap-2 ${
+                    viewingType === 'online' 
+                      ? 'border-primary bg-primary/10 text-primary shadow-xs ring-1 ring-primary/30' 
+                      : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  <span className="material-symbols-outlined text-base shrink-0">videocam</span>
+                  <span>Video / Online</span>
                 </button>
               </div>
             </div>

@@ -14,6 +14,7 @@ import {
 import { changeOrderStatus } from '@/lib/orderStateMachine';
 import { calculateOrderTotals, calculateOpenAmount, calculateTotalPaid } from '@/lib/financeHelpers';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
+import { triggerHaptic } from '@/lib/haptics';
 
 export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpdate, onClose }: { order: any, allOrders?: any[], freeInvoices?: any[], onUpdate: () => void, onClose: () => void }) {
   useModalBackHandler(true, onClose, 'payment-manager');
@@ -178,6 +179,7 @@ export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpd
         : (newTotalPaid >= (totalGross - 0.01) ? 'completed' : (order.status || 'confirmed'));
       
       await syncPaymentToFirestore(updatedPayments, newStatus2);
+      triggerHaptic('success');
 
       setPayments(updatedPayments);
       setAmount(remaining - Number(amount) > 0 ? remaining - Number(amount) : '');
@@ -203,6 +205,7 @@ export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpd
         : (order.status || 'confirmed');
       
       await syncPaymentToFirestore(updatedPayments, newStatus2);
+      triggerHaptic('success');
 
       setPayments(updatedPayments);
       setAmount(totalGross - newTotalPaid);
@@ -215,8 +218,10 @@ export function PaymentManager({ order, allOrders = [], freeInvoices = [], onUpd
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl p-6 sm:p-8 max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto animate-in slide-in-from-bottom duration-200">
+        {/* Mobile Drag Handle */}
+        <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full mx-auto -mt-2 mb-2 sm:hidden cursor-grab" />
         
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">

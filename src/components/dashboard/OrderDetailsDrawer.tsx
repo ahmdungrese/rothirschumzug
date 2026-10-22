@@ -28,6 +28,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/navigation';
 import { evaluateOrderLogistics } from '@/lib/orderValidation';
+import { hasFixedService } from '@/lib/serviceKeys';
 import { getActiveInvoiceNumber, isInvoiceCancelled, getLatestCancelledInvoiceNumber } from '@/lib/financeHelpers';
 import { toggleTaskCompletion, isTaskCompleted } from '@/lib/taskStateController';
 import { TaskScheduleModal } from '@/components/logistics/TaskScheduleModal';
@@ -119,6 +120,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
   const [earlyInvoiceWarningOpen, setEarlyInvoiceWarningOpen] = useState(false);
   const [scanPreviewOpen, setScanPreviewOpen] = useState(false);
   const [isUploadingScan, setIsUploadingScan] = useState(false);
+  const [editingDispoInline, setEditingDispoInline] = useState(false);
   const scanInputRef = React.useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -385,6 +387,10 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           nextChecklistDone.kartons = nextDone;
           nextChecklistDone.kartons_liefern = nextDone;
           nextLogistics.boxesDelivered = nextDone;
+        } else if (taskId === 'team' || taskId === 'team_assigned') {
+          nextTicketStates.team = nextDone;
+          nextChecklistDone.team = nextDone;
+          (nextChecklistDone as any).team_assigned = nextDone;
         } else {
           nextTicketStates[taskId] = nextDone;
           nextChecklistDone[taskId] = nextDone;
@@ -394,6 +400,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           ticketStates: nextTicketStates,
           checklistDone: nextChecklistDone,
           logistics: nextLogistics,
+          teamAssigned: taskId === 'team' ? nextDone : prev.teamAssigned,
         };
       });
       toast.success(nextDone ? `${label} als erledigt markiert ✓` : `${label} wiedereröffnet`);
@@ -403,6 +410,42 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
       toast.error('Fehler beim Aktualisieren der Aufgabe');
     } finally {
       setIsUpdatingTask(false);
+    }
+  };
+
+  // Direct inline disposition update for team and vehicles
+  const handleUpdateInlineDispo = async (field: 'helpers' | 'koffer35t' | 'lkw7t', val: number) => {
+    if (!order?.id) return;
+    try {
+      const prevDispo = order.disposition || {};
+      const nextDispo = {
+        ...prevDispo,
+        [field]: val,
+        movingDateStr: prevDispo.movingDateStr || order.orderMeta?.movingDateFrom || order.movingDate || '',
+        movingTimeStr: prevDispo.movingTimeStr || order.orderMeta?.movingTimeFrom || '08:00'
+      };
+      const hasAny = (Number(nextDispo.helpers) || 0) > 0 || (Number(nextDispo.koffer35t) || 0) > 0 || (Number(nextDispo.lkw7t) || 0) > 0;
+
+      const updates: any = {
+        disposition: nextDispo,
+        'checklistDone.team': hasAny,
+        teamAssigned: hasAny,
+        'ticketStates.team': hasAny,
+      };
+
+      await updateDoc(doc(db, 'orders', order.id), updates);
+      setOrder((prev: any) => ({
+        ...prev,
+        disposition: nextDispo,
+        checklistDone: { ...(prev?.checklistDone || {}), team: hasAny },
+        teamAssigned: hasAny,
+        ticketStates: { ...(prev?.ticketStates || {}), team: hasAny },
+      }));
+      toast.success('Ressourcen aktualisiert ✓');
+      if (onRefresh) onRefresh();
+    } catch (e) {
+      console.error('Fehler beim Aktualisieren der Disposition:', e);
+      toast.error('Fehler beim Aktualisieren der Disposition');
     }
   };
 
@@ -441,7 +484,9 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
       <div className="w-full max-w-2xl bg-white dark:bg-slate-900 h-full shadow-2xl flex flex-col border-l border-slate-200 dark:border-slate-800 z-10 animate-in slide-in-from-right duration-300">
         
         {/* Top Header Bar */}
-        <div className="p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
+        <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
+          {/* Mobile Handle Bar */}
+          <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full mx-auto mb-3 sm:hidden" />
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -481,25 +526,25 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
             </button>
           </div>
 
-          {/* Quick Contact (Icon-Only) & Action Buttons */}
-          <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-200/80 dark:border-slate-700/60">
+          {/* Quick Contact & Action Buttons: Compact Single Row */}
+          <div className="flex items-center gap-1.5 mt-2.5 pt-2 border-t border-slate-200/80 dark:border-slate-700/60 overflow-x-auto scrollbar-none">
             {custPhone && (
               <>
                 <a 
                   href={`tel:${custPhone}`}
-                  className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-center transition-colors"
+                  className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 flex items-center justify-center transition-colors shrink-0"
                   title={`Anrufen: ${custPhone}`}
                 >
-                  <PhoneIcon className="w-4 h-4 text-emerald-600" />
+                  <PhoneIcon className="w-3.5 h-3.5 text-emerald-600" />
                 </a>
 
                 <button 
                   type="button"
                   onClick={() => handleDirectWhatsApp()}
-                  className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center transition-colors cursor-pointer"
+                  className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center justify-center transition-colors cursor-pointer shrink-0"
                   title={`WhatsApp Chat öffnen (${custPhone})`}
                 >
-                  <ChatBubbleLeftRightIcon className="w-4 h-4 text-emerald-600" />
+                  <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-emerald-600" />
                 </button>
               </>
             )}
@@ -507,14 +552,14 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
             {custEmail && (
               <a 
                 href={`mailto:${custEmail}`}
-                className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-colors"
+                className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-colors shrink-0"
                 title={`E-Mail schreiben: ${custEmail}`}
               >
-                <EnvelopeIcon className="w-4 h-4 text-blue-500" />
+                <EnvelopeIcon className="w-3.5 h-3.5 text-blue-500" />
               </a>
             )}
 
-            <div className="ml-auto flex flex-wrap items-center gap-1.5">
+            <div className="ml-auto flex items-center gap-1.5 shrink-0">
               {/* PDF Vorschau Button next to Editor */}
               {(() => {
                 const hasContent = isOrderPricedAndServiced(order);
@@ -531,17 +576,17 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                       setPdfModalType('order');
                       setPdfModalOpen(true);
                     }}
-                    className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
+                    className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0 ${
                       !hasContent
                         ? 'bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border-slate-300/70 dark:border-slate-700/60 hover:border-amber-500/50'
                         : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700'
                     }`}
                     title={!hasContent ? "Angebot enthält noch keine Leistungen oder Preise (0,00 €)" : "Angebot / Auftrag als PDF anzeigen & herunterladen"}
                   >
-                    <DocumentTextIcon className={`w-4 h-4 ${!hasContent ? 'text-slate-400' : 'text-primary'}`} />
+                    <DocumentTextIcon className={`w-3.5 h-3.5 ${!hasContent ? 'text-slate-400' : 'text-primary'}`} />
                     <span>PDF</span>
                     {!hasContent && (
-                      <span className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.2 rounded font-normal border border-amber-500/30">
+                      <span className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1 py-0.2 rounded font-normal border border-amber-500/30">
                         0 €
                       </span>
                     )}
@@ -553,99 +598,116 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
               <Link
                 href={editOrderUrl}
                 onClick={(e) => handleNavigate(editOrderUrl, e)}
-                className="px-3.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer select-none active:scale-95"
+                className="px-3 py-1.5 rounded-lg bg-primary/10 hover:bg-primary text-primary hover:text-white text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer select-none active:scale-95 shrink-0"
                 title="Angebot, Umzugsliste & Kalkulation im Editor bearbeiten"
               >
-                <PencilSquareIcon className="w-4 h-4" />
-                <span>Angebot bearbeiten</span>
+                <PencilSquareIcon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Angebot </span><span>Bearbeiten</span>
               </Link>
             </div>
           </div>
         </div>
 
-        {/* Route, Moving Date & Metric Pills */}
-        <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-3 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800">
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-xs font-medium mb-1">
-              <MapPinIcon className="w-3.5 h-3.5" />
-              <span>Route</span>
-            </div>
-            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-              {evaluation.routeDisplay}
-            </p>
-          </div>
+        {/* Main Scrollable Viewport with Natural Sticky Header */}
+        <div className="flex-1 overflow-y-auto min-h-0 relative">
 
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
-            <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-xs font-medium mb-1">
-              <CalendarDaysIcon className="w-3.5 h-3.5" />
-              <span>Umzugstermin</span>
-            </div>
-            <p className="text-xs font-bold text-slate-900 dark:text-white">
-              {evaluation.movingDateDisplay}
-            </p>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 col-span-2 sm:col-span-1 flex items-center justify-between sm:block">
-            <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-xs font-medium mb-1">
-              <CurrencyEuroIcon className="w-3.5 h-3.5" />
-              <span>Summe</span>
-            </div>
-            <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-              {order.totals?.gross ? `${order.totals.gross.toFixed(2)} €` : '0,00 €'}
-            </p>
-          </div>
-        </div>
-
-        {/* Phase Navigation Stepper Tabs */}
-        <div className="flex items-center border-b border-slate-200 dark:border-slate-800 px-4 bg-slate-100/50 dark:bg-slate-900/50 overflow-x-auto scrollbar-none">
-          {[
-            { phase: 1, label: '1. Anfrage', sub: 'Stammdaten & Lead' },
-            { phase: 2, label: '2. Verhandlung', sub: 'Besichtigung & Sign' },
-            { phase: 3, label: '3. Bestätigt', sub: 'Logistik & Termine' },
-            { phase: 4, label: '4. Abschluss', sub: 'Protokoll & Rechnung' },
-          ].map(tab => {
-            const isActive = activePhaseTab === tab.phase;
-            const isCurrent = currentOrderPhase === tab.phase;
-            const hasContact = Boolean(custPhone?.trim() || custEmail?.trim());
-            const isPastPhase = tab.phase < currentOrderPhase;
-            const isPhase1Incomplete = tab.phase === 1 && !hasContact;
-            const isCompletedPhase = isPastPhase && !isPhase1Incomplete;
-            const showWarning = isPastPhase && isPhase1Incomplete;
-
-            return (
-              <button
-                key={tab.phase}
-                onClick={() => setActivePhaseTab(tab.phase)}
-                className={`py-3 px-4 text-xs font-bold font-headline whitespace-nowrap border-b-2 transition-all flex flex-col items-center relative ${
-                  isActive 
-                    ? 'border-primary text-primary' 
-                    : showWarning
-                      ? 'border-transparent text-amber-600 dark:text-amber-400 hover:text-amber-700'
-                      : isCompletedPhase
-                        ? 'border-transparent text-emerald-600 dark:text-emerald-400 hover:text-emerald-700'
-                        : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
-                }`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <span>{tab.label}</span>
-                  {showWarning && (
-                    <ExclamationTriangleIcon className="w-3.5 h-3.5 text-amber-500 shrink-0" title="Phase unvollständig: Telefon oder E-Mail fehlt" />
-                  )}
-                  {isCompletedPhase && (
-                    <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-500 shrink-0" title="Phase abgeschlossen" />
-                  )}
-                  {isCurrent && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary" title="Aktuelle Phase des Auftrags" />
-                  )}
+          {/* 1. Route, Moving Date & Metric Pills (Scrolls away naturally to maximize screen) */}
+          <div className="p-3 grid grid-cols-2 sm:grid-cols-3 gap-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+            <div className="p-2 sm:p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-1.5">
+              <div className="min-w-0">
+                <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 text-[10px] uppercase font-bold mb-0.5">
+                  <MapPinIcon className="w-3 h-3 text-primary" />
+                  <span>Route</span>
                 </div>
-                <span className="text-[10px] font-normal opacity-75">{tab.sub}</span>
-              </button>
-            );
-          })}
-        </div>
+                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                  {evaluation.routeDisplay}
+                </p>
+              </div>
+              {(addressA || addressB) && (
+                <a
+                  href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addressA || addressB)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-2 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors"
+                  title="Navigation in Google Maps starten"
+                >
+                  <MapPinIcon className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Navi</span>
+                </a>
+              )}
+            </div>
 
-        {/* Phase Specific Content Area */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-6">
+            <div className="p-2 sm:p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 text-[10px] uppercase font-bold mb-0.5">
+                <CalendarDaysIcon className="w-3 h-3 text-primary" />
+                <span>Umzugstermin</span>
+              </div>
+              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                {evaluation.movingDateDisplay}
+              </p>
+            </div>
+
+            <div className="p-2 sm:p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 col-span-2 sm:col-span-1 flex items-center justify-between sm:block">
+              <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 text-[10px] uppercase font-bold mb-0.5">
+                <CurrencyEuroIcon className="w-3 h-3 text-emerald-500" />
+                <span>Summe</span>
+              </div>
+              <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                {order.totals?.gross ? `${order.totals.gross.toFixed(2)} €` : '0,00 €'}
+              </p>
+            </div>
+          </div>
+
+          {/* 2. Phase Navigation Stepper Tabs (Sticky at top when scrolling!) */}
+          <div className="sticky top-0 z-20 flex items-center border-b border-slate-200 dark:border-slate-800 px-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md overflow-x-auto scrollbar-none shadow-xs">
+            {[
+              { phase: 1, label: '1. Anfrage', sub: 'Stammdaten & Lead' },
+              { phase: 2, label: '2. Verhandlung', sub: 'Besichtigung & Sign' },
+              { phase: 3, label: '3. Bestätigt', sub: 'Logistik & Termine' },
+              { phase: 4, label: '4. Abschluss', sub: 'Protokoll & Rechnung' },
+            ].map(tab => {
+              const isActive = activePhaseTab === tab.phase;
+              const isCurrent = currentOrderPhase === tab.phase;
+              const hasContact = Boolean(custPhone?.trim() || custEmail?.trim());
+              const isPastPhase = tab.phase < currentOrderPhase;
+              const isPhase1Incomplete = tab.phase === 1 && !hasContact;
+              const isCompletedPhase = isPastPhase && !isPhase1Incomplete;
+              const showWarning = isPastPhase && isPhase1Incomplete;
+
+              return (
+                <button
+                  key={tab.phase}
+                  onClick={() => setActivePhaseTab(tab.phase)}
+                  className={`text-xs font-bold font-headline whitespace-nowrap border-b-2 transition-all flex flex-col items-center relative py-2 px-3 sm:py-2.5 sm:px-4 cursor-pointer ${
+                    isActive 
+                      ? 'border-primary text-primary' 
+                      : showWarning
+                        ? 'border-transparent text-amber-600 dark:text-amber-400 hover:text-amber-700'
+                        : isCompletedPhase
+                          ? 'border-transparent text-emerald-600 dark:text-emerald-400 hover:text-emerald-700'
+                          : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span>{tab.label}</span>
+                    {showWarning && (
+                      <ExclamationTriangleIcon className="w-3.5 h-3.5 text-amber-500 shrink-0" title="Phase unvollständig: Telefon oder E-Mail fehlt" />
+                    )}
+                    {isCompletedPhase && (
+                      <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-500 shrink-0" title="Phase abgeschlossen" />
+                    )}
+                    {isCurrent && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary" title="Aktuelle Phase des Auftrags" />
+                    )}
+                  </div>
+                  <span className="text-[10px] font-normal opacity-75">{tab.sub}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 3. Phase Specific Content Area */}
+          <div className="p-4 sm:p-5 space-y-6">
 
           {/* ========================================================================= */}
           {/* PHASE 1: NEU / LEAD-QUALIFIZIERUNG */}
@@ -700,10 +762,22 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                   <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 gap-3">
                     <span className="text-slate-600 dark:text-slate-400 shrink-0">Auszugsadresse (A)</span>
                     {addressA ? (
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-right">
-                        <CheckIcon className="w-3.5 h-3.5 shrink-0" />
-                        <span>{addressA}{floorA ? ` (${floorA})` : ''}</span>
-                      </span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-right truncate">
+                          <CheckIcon className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{addressA}{floorA ? ` (${floorA})` : ''}</span>
+                        </span>
+                        <a
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addressA)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors"
+                          title="Navigation mit Google Maps starten"
+                        >
+                          <MapPinIcon className="w-3 h-3" />
+                          <span>Navi</span>
+                        </a>
+                      </div>
                     ) : (
                       <span className="font-bold text-amber-600 flex items-center gap-1">
                         <ExclamationTriangleIcon className="w-3.5 h-3.5" /> Nicht angegeben
@@ -714,10 +788,22 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                   <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 gap-3">
                     <span className="text-slate-600 dark:text-slate-400 shrink-0">Einzugsadresse (B)</span>
                     {addressB ? (
-                      <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-right">
-                        <CheckIcon className="w-3.5 h-3.5 shrink-0" />
-                        <span>{addressB}{floorB ? ` (${floorB})` : ''}</span>
-                      </span>
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-right truncate">
+                          <CheckIcon className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{addressB}{floorB ? ` (${floorB})` : ''}</span>
+                        </span>
+                        <a
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(addressB)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors"
+                          title="Navigation mit Google Maps starten"
+                        >
+                          <MapPinIcon className="w-3 h-3" />
+                          <span>Navi</span>
+                        </a>
+                      </div>
                     ) : (
                       <span className="font-bold text-amber-600 flex items-center gap-1">
                         <ExclamationTriangleIcon className="w-3.5 h-3.5" /> Nicht angegeben
@@ -1130,10 +1216,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
             const isHvzDone = isTaskCompleted(order, 'hvz');
             const isLiftDone = isTaskCompleted(order, 'moebellift');
 
-            const hasExplicitKartonService = Array.isArray(order.services) && order.services.some((s: any) => {
-              const n = (s.name || '').toLowerCase();
-              return n.includes('karton') || n.includes('packmaterial') || n.includes('box');
-            });
+            const hasExplicitKartonService = hasFixedService(order.services, 'kartons');
             const needsKartons = Boolean(
               hasExplicitKartonService ||
               matSummary.total > 0 ||
@@ -1141,9 +1224,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
               order.orderMeta?.kartonDeliveryDate ||
               isKartonsDone
             );
-            const hasHVZService = Array.isArray(order.services) && order.services.some((s: any) =>
-              (s.name || '').toLowerCase().includes('halteverbot') || (s.name || '').toLowerCase().includes('hvz')
-            );
+            const hasHVZService = hasFixedService(order.services, 'hvz');
             const needsHvz = Boolean(
               order.logistics?.a_parking ||
               order.logistics?.b_parking ||
@@ -1154,9 +1235,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
               order.orderMeta?.halteverbotDate ||
               isHvzDone
             );
-            const hasLiftService = Array.isArray(order.services) && order.services.some((s: any) =>
-              (s.name || '').toLowerCase().includes('möbellift') || (s.name || '').toLowerCase().includes('moebellift') || (s.name || '').toLowerCase().includes('lift')
-            );
+            const hasLiftService = hasFixedService(order.services, 'moebellift');
             const needsLift = Boolean(
               order.logistics?.a_furnitureLift ||
               order.logistics?.b_furnitureLift ||
@@ -1168,6 +1247,8 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
               isLiftDone
             );
 
+            const isTeamDone = isTaskCompleted(order, 'team');
+
             const showKartons = needsKartons;
             const showHvz = needsHvz;
             const showLift = needsLift;
@@ -1175,16 +1256,17 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
             const isPhase3Ready =
               (!showKartons || isKartonsDone) &&
               (!showHvz || isHvzDone) &&
-              (!showLift || isLiftDone);
+              (!showLift || isLiftDone) &&
+              isTeamDone;
 
             return (
             <div className="space-y-6">
               {/* Context-aware alert only when booked logistics tasks are actually open */}
-              {!isPhase3Ready && (showKartons || showHvz || showLift) && (
+              {!isPhase3Ready && (
                 <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-xs text-amber-800 dark:text-amber-300">
                   <span className="material-symbols-outlined text-base shrink-0">priority_high</span>
                   <span>
-                    <strong>Offene Logistik:</strong> Bitte Termine für gebuchte Zusatzleistungen planen und bestätigen.
+                    <strong>Offene Logistik:</strong> Bitte Team/LKW-Disposition sowie Termine für gebuchte Zusatzleistungen bestätigen.
                   </span>
                 </div>
               )}
@@ -1193,21 +1275,21 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
               <div className="panel p-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 font-headline">
-                    Gebuchte Logistik-Aufgaben
+                    Logistik- &amp; Dispositions-Aufgaben
                   </h4>
                 </div>
 
-                {!showKartons && !showHvz && !showLift ? (
-                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-dashed border-slate-200 dark:border-slate-700 text-center space-y-1">
-                    <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Keine Zusatz-Aufgaben im Angebot enthalten
-                    </p>
-                    <p className="text-[11px] text-slate-500">
-                      Weder Kartonlieferung noch Halteverbotszone oder Möbellift wurden im Angebot gebucht. Über die Schnellauswahl unten gelangen Sie direkt zu den Angebots-Leistungen (Schritt 3), um sie im Angebot hinzuzufügen.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
+                <div className="space-y-3">
+                  {!showKartons && !showHvz && !showLift && (
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700 text-center space-y-0.5">
+                      <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                        Keine Zusatz-Aufgaben im Angebot enthalten
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        Keine Kartonlieferung, HVZ oder Möbellift gebucht. Für diesen Umzug ist lediglich die Fahrzeug- &amp; Team-Einteilung erforderlich.
+                      </p>
+                    </div>
+                  )}
                     {/* Task: Kartons */}
                     {showKartons && (
                       <div className={`p-3.5 rounded-xl border-2 transition-all flex flex-col gap-2.5 ${
@@ -1444,8 +1526,171 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                         </div>
                       );
                     })()}
+
+                    {/* Task: Fahrzeug- & Team-Disposition */}
+                    {(() => {
+                      const dispo = order.disposition || {};
+                      const helperCount = dispo.helpers !== undefined ? Number(dispo.helpers) : 0;
+                      const kofferCount = dispo.koffer35t !== undefined ? Number(dispo.koffer35t) : 0;
+                      const lkwCount = dispo.lkw7t !== undefined ? Number(dispo.lkw7t) : 0;
+                      const hasAssignedStaff = Array.isArray(order.assignedEmployees) && order.assignedEmployees.length > 0;
+                      const hasResourceData = helperCount > 0 || kofferCount > 0 || lkwCount > 0 || hasAssignedStaff;
+
+                      return (
+                        <div className={`p-3.5 rounded-xl border-2 transition-all flex flex-col gap-2.5 ${
+                          isTeamDone
+                            ? 'bg-emerald-500/10 dark:bg-emerald-950/40 border-emerald-500 shadow-xs'
+                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2.5">
+                              <input
+                                type="checkbox"
+                                checked={isTeamDone}
+                                onChange={() => handleToggleTask('team', 'Fahrzeug & Team')}
+                                disabled={isUpdatingTask}
+                                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                              />
+                              <div>
+                                <span className={`text-xs font-bold block ${isTeamDone ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-900 dark:text-white'}`}>
+                                  Fahrzeug &amp; Team disponieren {isTeamDone && '✓'}
+                                </span>
+                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  {hasResourceData ? (
+                                    <>
+                                      {helperCount > 0 && (
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary flex items-center gap-1">
+                                          <UserIcon className="w-3 h-3" />
+                                          <span>{helperCount} Helfer</span>
+                                        </span>
+                                      )}
+                                      {kofferCount > 0 && (
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                                          <TruckIcon className="w-3 h-3 text-primary" />
+                                          <span>{kofferCount}x 3,5t LKW</span>
+                                        </span>
+                                      )}
+                                      {lkwCount > 0 && (
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                                          <TruckIcon className="w-3 h-3 text-amber-500" />
+                                          <span>{lkwCount}x 7,5t LKW</span>
+                                        </span>
+                                      )}
+                                      {hasAssignedStaff && (
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                          <span>{order.assignedEmployees.length} Mitarbeiter</span>
+                                        </span>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <span className="text-[10px] text-slate-400">
+                                      Noch kein Fahrzeug oder Personal festgelegt
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => setEditingDispoInline(prev => !prev)}
+                              className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                            >
+                              <PencilSquareIcon className="w-3.5 h-3.5" />
+                              <span>{editingDispoInline ? 'Schließen' : 'Einteilen'}</span>
+                            </button>
+                          </div>
+
+                          {/* Inline Resource Editor */}
+                          {editingDispoInline && (
+                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                              <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                Personal &amp; Fahrzeuge für diesen Umzug festlegen:
+                              </p>
+                              <div className="grid grid-cols-3 gap-2">
+                                <div className="flex flex-col gap-1 bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
+                                  <label className="text-[10px] font-medium text-slate-500">Helfer / Träger</label>
+                                  <div className="flex items-center justify-between">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateInlineDispo('helpers', Math.max(0, helperCount - 1))}
+                                      className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
+                                    >-</button>
+                                    <span className="text-xs font-bold text-slate-900 dark:text-white">{helperCount}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateInlineDispo('helpers', helperCount + 1)}
+                                      className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
+                                    >+</button>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-col gap-1 bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
+                                  <label className="text-[10px] font-medium text-slate-500">3,5t LKW</label>
+                                  <div className="flex items-center justify-between">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateInlineDispo('koffer35t', Math.max(0, kofferCount - 1))}
+                                      className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
+                                    >-</button>
+                                    <span className="text-xs font-bold text-slate-900 dark:text-white">{kofferCount}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateInlineDispo('koffer35t', kofferCount + 1)}
+                                      className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
+                                    >+</button>
+                                  </div>
+                                </div>
+
+                                <div className="flex flex-col gap-1 bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
+                                  <label className="text-[10px] font-medium text-slate-500">7,5t LKW</label>
+                                  <div className="flex items-center justify-between">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateInlineDispo('lkw7t', Math.max(0, lkwCount - 1))}
+                                      className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
+                                    >-</button>
+                                    <span className="text-xs font-bold text-slate-900 dark:text-white">{lkwCount}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleUpdateInlineDispo('lkw7t', lkwCount + 1)}
+                                      className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
+                                    >+</button>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-800">
+                                <span className="text-[10px] text-slate-400">
+                                  Wird direkt gespeichert &amp; als disponiert markiert
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingDispoInline(false)}
+                                  className="px-2.5 py-1 rounded-lg bg-[#6E8F64] text-white text-[10px] font-bold hover:bg-[#5C7A53] transition-colors cursor-pointer"
+                                >
+                                  Fertig ✓
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-slate-700">
+                            <span>
+                              {order.orderMeta?.movingDateFrom ? (
+                                <>
+                                  Umzugstermin: <strong className="text-slate-900 dark:text-white">{formatScheduleDate(order.orderMeta.movingDateFrom)}</strong>
+                                  {order.orderMeta?.movingTimeFrom && ` • ab ${order.orderMeta.movingTimeFrom} Uhr`}
+                                </>
+                              ) : (
+                                'Kein Umzugstermin im Angebot angegeben'
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
-                )}
 
                 {/* Direct jump to Offer Editor Step 3 (Leistungen) to add unbooked services into the Angebot */}
                 {(!showKartons || !showHvz || !showLift) && (
@@ -1637,6 +1882,8 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
         </div>
 
       </div>
+
+    </div>
 
       {/* Embedded Modals */}
       {scheduleModalOpen && currentTodoForSchedule && (

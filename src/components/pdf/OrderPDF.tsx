@@ -495,7 +495,9 @@ export const OrderPDF = ({
         <PDFHeader settings={settings} minimal docTitle={isContract ? 'Auftragsdetails & Bestätigung' : 'Angebotsdetails & Bestätigung'} />
         <PDFFooter settings={settings} />
 
-        <Text style={styles.detailsSectionHeader}>Versicherungsschutz</Text>
+        <Text style={styles.detailsSectionHeader}>
+          {order?.texts?.insuranceTitle || settings?.texts?.insuranceTitle || 'Versicherungsschutz'}
+        </Text>
         <Text style={styles.textBlock}>
           {settings?.texts?.insurance ||
             'Mit unserer Transportgüterversicherung ist Ihr Umzugsgut optimal abgesichert. Für diesen Transport deckt unser Unternehmen eine Haftung gem. § 451g HGB mit bis zu 620,00 € je Kubikmeter Ladevolumen ab.'}
@@ -503,12 +505,16 @@ export const OrderPDF = ({
 
         {paymentTerms ? (
           <>
-            <Text style={styles.detailsSectionHeader}>Zahlungsinformationen</Text>
+            <Text style={styles.detailsSectionHeader}>
+              {order?.texts?.paymentTermsTitle || settings?.texts?.paymentTermsTitle || 'Zahlungsinformationen'}
+            </Text>
             <Text style={styles.textBlock}>{paymentTerms}</Text>
           </>
         ) : null}
 
-        <Text style={styles.detailsSectionHeader}>Verbindliche Beauftragung</Text>
+        <Text style={styles.detailsSectionHeader}>
+          {order?.texts?.quoteBindingTitle || settings?.texts?.quoteBindingTitle || (isContract ? 'Auftragsbestätigung & Unterschrift' : 'Verbindliche Beauftragung')}
+        </Text>
         <Text style={styles.textBlock}>
           {outroText ||
             'Mit Ihrer Unterschrift bestätigen Sie die verbindliche Beauftragung der auf Seite 1 detaillierten Leistungen und erkennen unsere Allgemeinen Geschäftsbedingungen sowie die gesetzlichen Haftungsregelungen des Möbelspediteurs (§ 451g HGB) an.'}

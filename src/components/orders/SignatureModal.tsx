@@ -4,8 +4,9 @@ import SignatureCanvas from 'react-signature-canvas';
 import { db } from '@/lib/firebase';
 import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
-import { PencilIcon, CalendarIcon, MapPinIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { PencilIcon, CalendarIcon, MapPinIcon, XMarkIcon, CameraIcon } from '@heroicons/react/24/outline';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
+import { triggerHaptic } from '@/lib/haptics';
 
 interface SignatureModalProps {
   order: any;
@@ -29,6 +30,7 @@ export function SignatureModal({
   useModalBackHandler(true, onClose, 'signature-modal');
   const sigPad = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const [mode, setMode] = useState<'pad' | 'upload'>('pad');
   const [uploadedDataUrl, setUploadedDataUrl] = useState<string>(order?.orderMeta?.signedContractScan || '');
   const [uploadedFileName, setUploadedFileName] = useState<string>(order?.orderMeta?.signedContractScanName || '');
@@ -170,6 +172,7 @@ export function SignatureModal({
       }
       
       onSigned(signatureKey, signatureDataUrl, place.trim(), dateStr.trim());
+      triggerHaptic('success');
       toast.success(mode === 'upload' ? "Unterschriebenes Angebot erfolgreich gespeichert!" : "Erfolgreich unterschrieben!");
       onClose();
     } catch (error) {
@@ -181,10 +184,13 @@ export function SignatureModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="flex-1 w-full max-w-4xl mx-auto p-4 flex flex-col justify-center">
+    <div className="fixed inset-0 z-[100] flex flex-col justify-end sm:justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="w-full max-w-4xl mx-auto p-0 sm:p-4 flex flex-col">
         
-        <div className="bg-bg-panel border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="bg-bg-panel border border-white/10 rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh]">
+          {/* Mobile Drag Handle */}
+          <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full mx-auto my-2.5 sm:hidden cursor-grab" />
+
           {/* Header */}
           <div className="flex justify-between items-center p-4 sm:p-6 border-b border-structure bg-bg-dark">
             <div>
@@ -278,10 +284,20 @@ export function SignatureModal({
               </div>
             ) : (
               <div className="rounded-2xl border-2 border-dashed border-emerald-500/50 bg-emerald-500/5 p-6 flex flex-col items-center justify-center text-center gap-4 min-h-[260px]">
+                {/* File picker */}
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept="image/*,application/pdf"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+                {/* Direct camera capture input for phones */}
+                <input
+                  ref={cameraInputRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
                   onChange={handleFileUpload}
                   className="hidden"
                 />
@@ -301,13 +317,23 @@ export function SignatureModal({
                     <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
                       ✓ {uploadedFileName || 'Unterschriebener Nachweis bereit zum Speichern'}
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-xs font-bold hover:brightness-95"
-                    >
-                      Anderes Foto / Datei wählen
-                    </button>
+                    <div className="flex justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => cameraInputRef.current?.click()}
+                        className="px-3 py-1.5 rounded-xl bg-primary text-white text-xs font-bold flex items-center gap-1 shadow-xs"
+                      >
+                        <CameraIcon className="w-3.5 h-3.5" />
+                        <span>Neues Foto</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-3 py-1.5 rounded-xl bg-slate-200 dark:bg-slate-800 text-xs font-bold hover:brightness-95"
+                      >
+                        Aus Galerie wählen
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <>
@@ -316,19 +342,30 @@ export function SignatureModal({
                     </div>
                     <div>
                       <h4 className="text-sm font-bold text-text-main">
-                        Foto oder Scan vom unterschriebenen Angebot auswählen
+                        Foto oder Scan vom unterschriebenen Angebot
                       </h4>
                       <p className="text-xs text-text-muted mt-1 max-w-md">
-                        Unterstützt Fotos (WhatsApp, Kamera, Galerie) sowie gescannte Dokumente.
+                        Fotografieren Sie das Dokument direkt mit der Kamera oder wählen Sie ein Bild/PDF aus der Galerie.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer"
-                    >
-                      Foto / Datei jetzt auswählen
-                    </button>
+                    <div className="flex flex-wrap justify-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => cameraInputRef.current?.click()}
+                        className="px-4 py-2.5 rounded-xl bg-primary hover:bg-primary-hover text-white text-xs font-bold shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <CameraIcon className="w-4 h-4" />
+                        <span>Kamera öffnen</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <span className="material-symbols-outlined text-base">folder_open</span>
+                        <span>Aus Galerie / PDF</span>
+                      </button>
+                    </div>
                   </>
                 )}
               </div>

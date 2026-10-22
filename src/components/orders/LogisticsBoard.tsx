@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { CheckCircleIcon, CubeIcon, TruckIcon, WrenchScrewdriverIcon, ExclamationTriangleIcon, BriefcaseIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
+import { hasFixedService } from '@/lib/serviceKeys';
 
 interface LogisticsBoardProps {
   order: any;
@@ -14,8 +15,8 @@ export function LogisticsBoard({ order }: LogisticsBoardProps) {
   const [isUpdating, setIsUpdating] = useState(false);
 
   // Parse services to see what's needed
-  const hasHalteverbot = order?.services?.some((s: any) => s.name?.toLowerCase().includes('halteverbot')) || false;
-  const hasKartons = order?.services?.some((s: any) => s.name?.toLowerCase().includes('karton')) || false;
+  const hasHalteverbot = hasFixedService(order?.services, 'hvz');
+  const hasKartons = hasFixedService(order?.services, 'kartons');
   const hasKuecheHandwerker = order?.services?.some((s: any) => 
     s.name?.toLowerCase().includes('küche') || 
     s.name?.toLowerCase().includes('montage') || 
@@ -161,7 +162,7 @@ export function LogisticsBoard({ order }: LogisticsBoardProps) {
         )}
 
         {/* MÖBELLIFT */}
-        {order?.services?.some((s: any) => s.name?.toLowerCase().includes('lift') || s.name?.toLowerCase().includes('aufzug') || s.name?.toLowerCase().includes('möbellift')) && (
+        {hasFixedService(order?.services, 'moebellift') && (
           <div className="bg-bg-dark border border-structure rounded-xl p-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2 text-text-main font-medium">

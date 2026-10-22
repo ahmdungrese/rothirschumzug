@@ -30,7 +30,98 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.10.1 (Current) – Wizard Auto-Save Engine, Step 5 Action Hub Unification & PDF Safe-Persist Guard
+### Version 2.14.0 (Current) – Cockpit Resource Dispatching, Dual-HVZ Scheduling & Orders Pipeline Retention
+*   **Order Wizard Step 5 Action Hub Ergonomics (`OrderEditor.tsx`)**:
+    *   Eliminated confusing redundant "PDF drucken / sichern" and screenshot-based action buttons.
+    *   Connected the offer preview card directly to the official interactive `PdfModal` displaying the actual offer document.
+    *   Unified bottom action bar into a clear "Angebot abschließen" trigger and added subtle persistent "☁️ Als Entwurf gesichert" indicator.
+*   **Cockpit Resource Dispatch & Phase 3 100% Milestone (`OrderDetailsDrawer.tsx`)**:
+    *   Added dedicated "Fahrzeug & Team (Disposition)" card directly inside the Cockpit logistics phase.
+    *   Inline counter buttons to increment/decrement and assign helpers and trucks (3.5t / 7.5t) on the fly with direct Firestore synchronization.
+    *   Interactive progress counter tooltip indicating pending disposition before hitting 100%.
+*   **Smart Logistics Scheduling Logic & Dual-HVZ Support (`TaskScheduleModal.tsx`, `taskStateController.ts`, `CustomerPremiumProfile.tsx`)**:
+    *   Restricted "Kartonlieferung planen" to only appear when carton boxes are actually part of the order/services.
+    *   Expanded HVZ location scheduling to support `Auszugsort (A)`, `Einzugsort (B)`, and `Beide Orte (A & B)` with dynamic address breakdown.
+    *   Ensured offer PDF button remains permanently accessible across all 4 customer lifecycle phases.
+*   **Complete Orders & Invoices Pipeline Retention (`orders/page.tsx`)**:
+    *   Removed restrictive Firestore status filters that dropped completed, billed, and paid orders.
+    *   Updated the `Abgeschlossen` filter tab to accurately include all finalized, invoiced, and settled orders (`invoice_paid`, `invoice_open`, `completed`).
+    *   Enhanced status badges to clearly distinguish `Bezahlt ✓` (emerald), `Abgeschlossen`, and `Teilw. bezahlt`.
+
+### Version 2.13.0 – Universal Template Synchronization, Dynamic Protocols & Mobile Signature Engine
+*   **Unified Master Communication & WhatsApp Templates Engine (`communicationDefaults.ts`, `settings/page.tsx`, `CustomerPremiumProfile.tsx`)**:
+    *   Elevated all **17 operational moving templates** to official system master standard templates across all 7 stages (`Erstkontakt`, `Besichtigung`, `Angebot`, `Nachfassen`, `Auftrag`, `Logistik`, `Abrechnung`, `Nachbereitung`).
+    *   Unified IDs and dynamic overlay: Templates edited or created in `Einstellungen > Nachrichten-Vorlagen` instantly propagate across WhatsApp modals and customer profiles with 100% bidirectional parity.
+    *   Comprehensive placeholder substitution engine supporting `{{Kunde_Anrede}}`, `[Anrede]`, `{{Kunde_Name}}`, `[Name]`, `{{Kunde_Nachname}}`, `[Nachname]`, `{{Umzugsdatum}}`, `[Datum]`, `{{Angebot_Summe}}`, `[Summe]`, `{{Auftragsnummer}}`, `[Auftrag]`, `{{Rechnungsnummer}}`, `[Rechnung]`, and `{{Sachbearbeiter}}`, `[Mitarbeiter]`.
+*   **100% Protocol Parity between Settings & Customer Cockpit (`protocolDefaults.ts`, `ProtocolModal.tsx`, `settings/page.tsx`)**:
+    *   Standardized all 6 core protocol categories (`Abnahme ohne Mängel`, `Gefahrenübergang / Haftungsausschluss`, `Mängel- & Schadensfeststellung`, `Zählerstände & Schlüsselübergabe`, `Besichtigungsprotokoll`, `Sondervereinbarung / Zusatzarbeiten`) and standard quick-snippets.
+    *   Dynamic protocol synchronization: `ProtocolModal` loads categories and snippets directly from Firestore settings, with fallback to master defaults. Creating or editing categories in settings immediately appears in customer profiles.
+*   **Dynamic Standard-Texte & AGB Engine (`textDefaults.ts`, `settings/page.tsx`, `OrderPDF.tsx`)**:
+    *   Added 1-click **"Standard laden"** button in `Einstellungen > Textbausteine & AGB` to instantly restore standard quote, order, invoice, insurance texts, and full 12-paragraph § 1 to § 12 AGBs.
+    *   **Offer Page 2 Custom Titles & Text Blocks**: Added explicit management for `Versicherungsschutz` (title & text) and `Verbindliche Beauftragung` (title & confirmation text directly above customer signature), fully synchronized with `OrderPDF.tsx`.
+*   **Dynamic Default Payment Method Engine (`paymentDefaults.ts`, `settings/page.tsx`, `OrderEditor.tsx`, `InvoiceEditor.tsx`)**:
+    *   Enabled 1-click **"☆ Als Standard festlegen"** for any payment method: automatically flags `isDefault: true`, reorganizes order priority to index 0, and assigns it as the automatic default payment method for all new quotes and invoices.
+    *   Added 1-click **"Standard laden"** button for payment methods: instantly restores the 3 official master moving company payment methods (`Überweisung`, `Barzahlung`, `Echtzeit-Überweisung`) with all their legally compliant texts, terms, and due days.
+*   **Cockpit Drawer Infinite Scroll Jitter & Layout Thrashing Fix (`OrderDetailsDrawer.tsx`)**:
+    *   Identified and resolved the violent scroll jitter bug where scrolling down inside Cockpit (especially Phase 3 with long checklists) caused the view to endlessly vibrate, stutter, and bounce back to the top.
+    *   **Root Cause**: The dynamic `isScrolled` collapse logic triggered when `scrollTop > 30px`, shrinking the header by 70px. This expansion of the scroll container dropped `scrollTop` back below 30px, immediately re-expanding the header, creating a 60 FPS layout thrashing loop.
+    *   **Resolution**: Eliminated the unstable dynamic header resizing and `onScroll` state mutations. Established a rock-solid, stable layout with fixed-height header metrics and smooth, uninterrupted scrolling.
+
+### Version 2.12.0 – Native Mobile Ergonomics & Field Logistics Suite
+*   **Auto-Hide Bottom Navigation on Scroll (`BottomNav.tsx`)**:
+    *   Scroll-direction listener automatically hides bottom navigation bar when scrolling down to give maximum vertical screen space for checklists and lists, and restores it instantly upon upward scroll.
+    *   Subtle tactile feedback (`triggerHaptic('light')`) on tab navigation.
+*   **One-Tap Turn-by-Turn GPS Navigation for Addresses A & B (`OrderDetailsDrawer.tsx`)**:
+    *   Direct `Navi` action buttons rendered in the Route header card and within Auszug (A) and Einzug (B) checklist rows.
+    *   Opens native Google / Apple Maps turn-by-turn navigation directly with destination address preloaded.
+*   **Mobile Bottom Sheets Architecture with Touch Drag Handles**:
+    *   Converted centered desktop dialogs into native bottom-sheet modals with top drag handles (`w-12 h-1.5`) across:
+        *   Customer edit modal (`customers/[id]/page.tsx`)
+        *   Payment management modal (`PaymentManager.tsx`)
+        *   Logistics task scheduling modal (`TaskScheduleModal.tsx`)
+        *   Digital signature & contract scan modal (`SignatureModal.tsx`)
+        *   Handover & acceptance protocol modal (`ProtocolModal.tsx`)
+        *   Cockpit logistics drawer (`OrderDetailsDrawer.tsx`)
+*   **Native Camera Capture with Client-Side Compression (`SignatureModal.tsx`)**:
+    *   Instant photo capture directly via smartphone camera (`capture="environment"`) for physically signed contracts and acceptance documents with client-side canvas compression.
+*   **Floating Action Button (FAB) for Quick Offer Creation (`KanbanDispositionBoard.tsx`, `orders/page.tsx`)**:
+    *   Sleek mobile FAB (`+`) docked comfortably in the thumb-zone (`bottom-20 right-4`) for 1-tap quote creation on the go.
+*   **Haptic Feedback Engine (`src/lib/haptics.ts`)**:
+    *   Tactile vibration responses for saving operations, payments, signatures, and navigation.
+
+### Version 2.11.0 – Mobile First Architecture & Responsive Experience Overhaul
+*   **Tages-Planung & Ressourcen Padding Fix (`DispoModal.tsx`)**:
+    *   Resolved mobile clipping where bottom content of the resource dispatch modal was trapped under the bottom navigation bar.
+    *   Elevated modal container z-index to `z-[70]` (above bottom nav `z-50`) with dynamic viewport sizing (`max-h-[calc(100dvh-4.5rem)]`) and generous `pb-32` bottom padding for smooth scrolling.
+*   **Official Video/Online Viewing Option (`TaskScheduleModal.tsx`, `OrderEditor.tsx`, `taskStateController.ts`)**:
+    *   Added `Video-Besichtigung / Online-Besichtigung` alongside on-site viewing in Step 1 of the Order Wizard, logistics task scheduling modals, and state updates.
+    *   Saved in `orderMeta.viewingType` and `logistics.viewingType` (`vor_ort` vs `online`).
+*   **Responsive Mobile Sidebar Fix (`Sidebar.tsx`)**:
+    *   Fixed the oversized empty drawer on phones where only centered icons were visible without titles.
+    *   Integrated clear navigation labels alongside icons with balanced `gap-3 px-3.5 py-2.5` padding.
+*   **Customer Lead Source Badge & Tracking (`customers/[id]/page.tsx`, `CustomerPremiumProfile.tsx`)**:
+    *   Added `source` (Herkunft) tracking field with quick-select datalist options (`Website / Formular`, `Google Suche`, `Empfehlung`, `Check24`, `Kleinanzeigen`, `Telefon / Kaltakquise`).
+    *   Rendered as an informative styled badge in the customer profile header.
+*   **Network Disconnect Resilience & Debounced Heartbeat (`NetworkMonitor.tsx`)**:
+    *   Eliminated spurious "Keine Verbindung zum Server" error notifications when switching between apps on mobile.
+    *   Added 3500ms disconnect debounce and automated instant reconnection checks on window `focus` and `visibilitychange`. Tab background pings suspended while inactive.
+*   **Dynamic Payment Methods Management (`settings/page.tsx`)**:
+    *   Transformed static payment settings into a dynamic array with `+ Neue Zahlungsart` creation, custom naming, and deletion.
+*   **Standard Communication & Protocol Templates Engine (`settings/page.tsx`)**:
+    *   Expanded standard communication templates to cover all 10 stages (`Erstkontakt`, `Besichtigung`, `Angebot`, `Bestätigung`, `Erinnerung`, `Rechnung`, `Feedback`, etc.) with 1-click restore.
+    *   Provided full CRUD template management for on-site acceptance and hand-over protocols.
+*   **Flexible Customer Profile Form Validation (`customers/[id]/page.tsx`)**:
+    *   Removed `required` constraint on `Vorname` and added `noValidate` on forms, enabling one-name individuals and commercial/business clients to save without browser validation blocks.
+*   **Compact Action Hub & Collapsible Cockpit Header (`CustomerPremiumProfile.tsx`, `OrderDetailsDrawer.tsx`)**:
+    *   Consolidated customer action buttons and cards into a compact 3-column row (`Angebot PDF`, `WhatsApp`, `Digital signieren`).
+    *   Order Cockpit Drawer features a compact single-row header and scroll-aware collapsing (`isScrolled`) that shrinks summary cards and hides phase selectors on upward scroll to prioritize logistics checklist visibility.
+*   **Zero-Overflow Responsive Mobile Cards for Orders & Finances (`orders/page.tsx`, `finances/page.tsx`)**:
+    *   Hidden large vertical KPI stat blocks on mobile (`hidden sm:grid`) to instantly surface search filters and listings.
+    *   Converted wide horizontal-scrolling desktop tables into responsive, single-column Mobile Cards with direct PDF previews, payment triggers, status badges, and action dropdowns.
+*   **Smart Dashboard Default Tab Auto-Selection (`KanbanDispositionBoard.tsx`)**:
+    *   Changed initial mobile tab default from empty `bestaetigt` to `neu`, with automated non-empty column detection.
+
+### Version 2.10.1 – Wizard Auto-Save Engine, Step 5 Action Hub Unification & PDF Safe-Persist Guard
 *   **Automatic Draft Persistence on Reaching Step 5 (`OrderEditor.tsx`)**:
     *   Navigating to Step 5 (Abschluss) via stepper, next buttons, or wizard tabs now automatically executes a silent background draft save to Firestore.
     *   Generates or updates the `orders` document and customer profile in real time, preventing any data loss across reloads, unexpected browser closes, or offline interruptions.

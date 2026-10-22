@@ -18,6 +18,7 @@ import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 import { SmartBackButton } from '@/components/ui/SmartBackButton';
 import { useAuth } from '@/context/AuthContext';
 import { logActivity } from '@/lib/activityLogger';
+import { triggerHaptic } from '@/lib/haptics';
 
 export default function CustomerProfilePage() {
   const { profile } = useAuth();
@@ -155,6 +156,7 @@ export default function CustomerProfilePage() {
         `Kundendaten für ${cName} aktualisiert`
       );
       toast.success('Kundendaten erfolgreich gespeichert!');
+      triggerHaptic('success');
       setIsEditingCustomer(false);
     } catch (err: any) {
       toast.error('Fehler: ' + err.message);
@@ -228,10 +230,12 @@ export default function CustomerProfilePage() {
         onRefresh={() => router.refresh()}
       />
 
-      {/* Edit Customer Details Modal */}
+      {/* Edit Customer Details Modal (Bottom-Sheet on mobile, centered modal on tablet/desktop) */}
       {isEditingCustomer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-6">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom duration-200">
+            {/* Mobile Drag Handle */}
+            <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full mx-auto -mt-2 mb-2 sm:hidden cursor-grab" />
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <h3 className="font-headline font-bold text-lg text-slate-900 dark:text-white">
                 Kundendaten bearbeiten
@@ -244,16 +248,15 @@ export default function CustomerProfilePage() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveCustomer} className="space-y-4 text-xs">
+            <form onSubmit={handleSaveCustomer} noValidate className="space-y-4 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-500 uppercase block mb-1">Vorname</label>
+                  <label className="font-bold text-slate-500 uppercase block mb-1">Vorname (Optional)</label>
                   <input
                     type="text"
                     value={editFormData.firstName || ''}
                     onChange={(e) => setEditFormData({ ...editFormData, firstName: e.target.value })}
                     className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-none font-medium"
-                    required
                   />
                 </div>
                 <div>
@@ -267,14 +270,37 @@ export default function CustomerProfilePage() {
                 </div>
               </div>
 
-              <div>
-                <label className="font-bold text-slate-500 uppercase block mb-1">Firma (Optional)</label>
-                <input
-                  type="text"
-                  value={editFormData.company || ''}
-                  onChange={(e) => setEditFormData({ ...editFormData, company: e.target.value })}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-none font-medium"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-500 uppercase block mb-1">Firma (Optional)</label>
+                  <input
+                    type="text"
+                    value={editFormData.company || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, company: e.target.value })}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-none font-medium"
+                  />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-500 uppercase block mb-1">Quelle / Herkunft (Lead Source)</label>
+                  <input
+                    type="text"
+                    list="leadSourcesList"
+                    value={editFormData.source || ''}
+                    onChange={(e) => setEditFormData({ ...editFormData, source: e.target.value })}
+                    placeholder="Website, Google, Empfehlung..."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-none font-medium"
+                  />
+                  <datalist id="leadSourcesList">
+                    <option value="Website" />
+                    <option value="Google / SEO" />
+                    <option value="Empfehlung" />
+                    <option value="Check24" />
+                    <option value="Kleinanzeigen" />
+                    <option value="Telefon" />
+                    <option value="Direktanfrage" />
+                    <option value="Sonstiges" />
+                  </datalist>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

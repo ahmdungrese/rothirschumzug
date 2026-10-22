@@ -1,5 +1,6 @@
 import { isTaskCompleted } from './taskStateController';
 import { calculateOpenAmount } from './financeHelpers';
+import { hasFixedService } from './serviceKeys';
 
 export type SystemTicket = {
   id: string;
@@ -170,7 +171,7 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
       addTicket('move_past_due', 'Umzug liegt in der Vergangenheit! Bitte auf "Umzug durchgeführt" setzen.', 4, 'warning', 'general', `/dashboard/customers/${order.customerId}`, { status: 'overdue', text: 'ÜBERFÄLLIG' }, false);
     }
 
-    const hasKartonService = hasServiceLike(['karton', 'box', 'kartons', 'packmaterial']) || 
+    const hasKartonService = hasFixedService(order.services, 'kartons') || 
       (Array.isArray(order.logistics?.materials) && order.logistics.materials.some((m: any) => (m.name || m.type || '').toLowerCase().includes('karton') && (m.quantity || m.count || 0) > 0)) ||
       Boolean(order.orderMeta?.kartonDeliveryDate);
 
@@ -189,14 +190,14 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
       addTicket('pack_service', 'Packservice Team einplanen (Ein-/Auspacken)', 4, 'action', 'general');
     }
 
-    if (order.logistics?.a_parking || order.logistics?.b_parking || hasServiceLike(['halteverbot'])) {
+    if (order.logistics?.a_parking || order.logistics?.b_parking || hasFixedService(order.services, 'hvz')) {
       // Check for custom HV date first, else relative (overdue: 7 days before)
       const customHvStatus = calculateTargetDateStatus(order.orderMeta?.halteverbotDate);
       const relativeHvStatus = calculateDueDateStatus(daysToMove, 7, 7);
       addTicket('halteverbot', 'Halteverbotszone beantragen & Schilder aufstellen', 4, 'action', 'halteverbot', undefined, customHvStatus || relativeHvStatus);
     }
 
-    if (hasServiceLike(['lift', 'möbellift', 'aufzug'])) {
+    if (order.logistics?.a_furnitureLift || order.logistics?.b_furnitureLift || hasFixedService(order.services, 'moebellift')) {
       // Check for custom Lift date, else relative (overdue: 3 days before)
       const customLiftStatus = calculateTargetDateStatus(order.orderMeta?.moebelliftDate);
       const relativeLiftStatus = calculateDueDateStatus(daysToMove, 3, 3);

@@ -5,7 +5,9 @@ import { collection, query, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { KanbanOrderCard } from './KanbanOrderCard';
 import { OrderDetailsDrawer } from './OrderDetailsDrawer';
-import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/24/outline';
+import Link from 'next/link';
+import { triggerHaptic } from '@/lib/haptics';
 
 function getDaysUntilMove(order: any): number | null {
   const rawDate = order.orderMeta?.movingDateFrom || order.movingDate || order.logistics?.movingDate;
@@ -38,8 +40,9 @@ export function KanbanDispositionBoard() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sourceFilter, setSourceFilter] = useState('all');
-  const [activeMobileCol, setActiveMobileCol] = useState<'neu' | 'verhandlung' | 'bestaetigt' | 'abgeschlossen'>('bestaetigt');
+  const [activeMobileCol, setActiveMobileCol] = useState<'neu' | 'verhandlung' | 'bestaetigt' | 'abgeschlossen'>('neu');
   const [selectedOrderForDrawer, setSelectedOrderForDrawer] = useState<any | null>(null);
+  const hasInitializedMobileTab = React.useRef(false);
 
   useEffect(() => {
     const qOrders = query(collection(db, 'orders'));
@@ -217,6 +220,24 @@ export function KanbanDispositionBoard() {
       columnAbgeschlossen: colAbgeschlossen,
     };
   }, [filteredOrders]);
+
+  // Set smart default mobile tab on first load: Neu first, or first tab that has orders
+  useEffect(() => {
+    if (!loading && !hasInitializedMobileTab.current) {
+      hasInitializedMobileTab.current = true;
+      if (columnNeu.length > 0) {
+        setActiveMobileCol('neu');
+      } else if (columnVerhandlung.length > 0) {
+        setActiveMobileCol('verhandlung');
+      } else if (columnBestaetigt.length > 0) {
+        setActiveMobileCol('bestaetigt');
+      } else if (columnAbgeschlossen.length > 0) {
+        setActiveMobileCol('abgeschlossen');
+      } else {
+        setActiveMobileCol('neu');
+      }
+    }
+  }, [loading, columnNeu, columnVerhandlung, columnBestaetigt, columnAbgeschlossen]);
 
   // Keep selectedOrderForDrawer fresh if orders update
   useEffect(() => {
@@ -471,6 +492,18 @@ export function KanbanDispositionBoard() {
           }}
         />
       )}
+
+      {/* Mobile Floating Action Button (FAB) for Quick Offer Creation */}
+      <div className="md:hidden fixed bottom-20 right-4 z-40">
+        <Link
+          href="/dashboard/orders/new"
+          onClick={() => triggerHaptic('medium')}
+          className="w-14 h-14 rounded-full bg-primary hover:bg-primary-hover text-white shadow-xl shadow-primary/30 flex items-center justify-center transition-transform active:scale-90 border-2 border-white/20 cursor-pointer"
+          title="Neues Angebot erstellen"
+        >
+          <PlusIcon className="w-7 h-7" />
+        </Link>
+      </div>
     </div>
   );
 }

@@ -1,9 +1,11 @@
 "use client";
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { HomeIcon, TruckIcon, UsersIcon, CalendarDaysIcon, QuestionMarkCircleIcon } from '@heroicons/react/24/outline';
 import { HomeIcon as HomeSolid, TruckIcon as TruckSolid, UsersIcon as UsersSolid, CalendarDaysIcon as CalendarDaysSolid, QuestionMarkCircleIcon as QuestionMarkCircleSolid } from '@heroicons/react/24/solid';
 import { useAuth } from '@/context/AuthContext';
+import { triggerHaptic } from '@/lib/haptics';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon, activeIcon: HomeSolid, roles: ['admin', 'office'] },
@@ -16,11 +18,46 @@ const navigation = [
 export function BottomNav() {
   const pathname = usePathname();
   const { profile } = useAuth();
+  const [isVisible, setIsVisible] = useState(true);
+  const lastScrollYRef = useRef(0);
+
+  useEffect(() => {
+    let ticking = false;
+
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const currentY = window.scrollY;
+          const diff = currentY - lastScrollYRef.current;
+
+          // Always show at top of page
+          if (currentY <= 20) {
+            setIsVisible(true);
+          } else if (diff > 10 && currentY > 60) {
+            // Scrolling down -> hide
+            setIsVisible(false);
+          } else if (diff < -10) {
+            // Scrolling up -> show
+            setIsVisible(true);
+          }
+
+          lastScrollYRef.current = currentY;
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   const filteredNavigation = navigation.filter(item => item.roles.includes(profile?.role || 'teamlead'));
 
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 bg-bg-dark border-t border-structure pb-safe z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.3)]">
+    <div className={`md:hidden fixed bottom-0 left-0 right-0 bg-bg-dark/95 backdrop-blur-md border-t border-structure pb-safe z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.3)] transform transition-transform duration-300 ease-in-out ${
+      isVisible ? 'translate-y-0' : 'translate-y-full pointer-events-none'
+    }`}>
       <nav className="flex justify-around items-center h-16 px-2">
         {filteredNavigation.map((item) => {
           const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
@@ -30,7 +67,8 @@ export function BottomNav() {
             <Link 
               key={item.name} 
               href={item.href}
-              className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${
+              onClick={() => triggerHaptic('light')}
+              className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors select-none active:scale-95 ${
                 isActive ? 'text-primary' : 'text-text-muted hover:text-text-main'
               }`}
             >

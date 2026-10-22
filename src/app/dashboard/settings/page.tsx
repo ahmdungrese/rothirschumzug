@@ -2,13 +2,18 @@
 import { useEffect, useState } from 'react';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon, CalendarIcon, LinkIcon, EnvelopeIcon, ExclamationTriangleIcon, CreditCardIcon, ListBulletIcon, HashtagIcon, ClipboardDocumentListIcon } from '@heroicons/react/24/outline';
+import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon, CalendarIcon, LinkIcon, EnvelopeIcon, ExclamationTriangleIcon, CreditCardIcon, ListBulletIcon, HashtagIcon, ClipboardDocumentListIcon, PlusIcon, TrashIcon, ArrowPathIcon, ShieldCheckIcon, StarIcon } from '@heroicons/react/24/outline';
 import { TeamAccessManager } from '@/components/settings/TeamAccessManager';
 import { ActivityLogViewer } from '@/components/settings/ActivityLogViewer';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
 import { ResetDatabaseModal } from '@/components/settings/ResetDatabaseModal';
+import { FIXED_KEYS, FIXED_SERVICES, resolveFixedDefs, type FixedServiceKey } from '@/lib/serviceKeys';
 import { ShowcaseServiceItem, DEFAULT_SHOWCASE_SERVICES, DEFAULT_SHOWCASE_TEXTS, AVAILABLE_SHOWCASE_ICONS } from '@/lib/showcaseDefaults';
+import { MASTER_COMMUNICATION_TEMPLATES } from '@/lib/communicationDefaults';
+import { MASTER_PROTOCOL_CATEGORIES, MASTER_PROTOCOL_SNIPPETS } from '@/lib/protocolDefaults';
+import { MASTER_SYSTEM_TEXTS } from '@/lib/textDefaults';
+import { MASTER_PAYMENT_METHODS } from '@/lib/paymentDefaults';
 
 const TABS = [
   { id: 'basisdaten', name: 'Basisdaten', icon: BuildingOfficeIcon },
@@ -67,24 +72,10 @@ export default function SettingsPage() {
     employees: ['Ali', 'Thomas', 'Klaus', 'Mustafa'],
     vehicles: ['LKW 7,5t (Eigener)', 'Sixt Koffer 3,5t (A)', 'Sixt Koffer 3,5t (B)'],
     texts: {
-      quoteIntro: 'Sehr geehrte Damen und Herren,\nvielen Dank für Ihre Anfrage. Wir freuen uns, Ihnen folgendes Angebot unterbreiten zu dürfen:',
-      quoteOutro: 'Alle angegebenen Preise verstehen sich als Bruttopreise und beinhalten die gesetzliche Mehrwertsteuer.\nWir danken Ihnen herzlich für Ihr Vertrauen und die angenehme Zusammenarbeit.',
-      quoteGreeting: '„Bei Fragen zögern Sie bitte nicht, uns zu kontaktieren. Wir sind jederzeit für Sie erreichbar.“\n\nMit freundlichen Grüßen\nRothirsch Umzüge',
-      orderIntro: 'Sehr geehrte Damen und Herren,\nvielen Dank für Ihre Unterschrift. Hiermit bestätigen wir Ihren Auftrag verbindlich.',
-      orderOutro: 'Wir freuen uns auf den gemeinsamen Umzug und garantieren Ihnen einen reibungslosen Ablauf.',
-      orderGreeting: 'Mit freundlichen Grüßen\nRothirsch Umzüge',
-      insurance: 'Mit unserer Versicherung ist Ihr Umzugsgut abgesichert. Für diesen Transport deckt unser Unternehmen eine Transportgüterversicherung ein, ohne dass hierfür zusätzliche Kosten entstehen. Bei der Übernahme Ihres Umzugsgutes gilt eine gesetzliche Haftung gem. Paragraph 451g HGB - beschränkt auf einen Zeitwert von €620,00 / cbm.',
-      invoiceIntro: 'Vielen Dank für Ihren Auftrag. Wir berechnen Ihnen für unsere erbrachten Leistungen:',
-      invoiceOutro: 'Bitte überweisen Sie den Rechnungsbetrag innerhalb von 5 Tagen ohne Abzug auf unser Konto.',
-      invoiceGreeting: 'Für etwaige Fragen stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\nRothirsch Umzüge',
-      googleReview: 'Wir hoffen, dass alles zu Ihrer Zufriedenheit war, und würden uns über eine positive Bewertung auf Google freuen.',
-      dunningIntro: 'Leider konnten wir bis zum heutigen Tag keinen Zahlungseingang für die unten aufgeführte Rechnung feststellen. Sicherlich ist dies nur ein Versehen Ihrerseits.\n\nWir bitten Sie daher, den ausstehenden Betrag innerhalb der nächsten 5 Tage auf unser unten genanntes Konto zu überweisen.',
-      agb: 'Allgemeine Geschäftsbedingungen (AGB) – Rothirsch Umzüge\n\n§1 Geltungsbereich\nDiese Allgemeinen Geschäftsbedingungen (AGB) gelten für alle Verträge zwischen uns und dem Kunden...'
+      ...MASTER_SYSTEM_TEXTS
     },
     paymentMethods: [
-      { name: 'Überweisung', textQuote: 'Wir bitten Sie höflich, den Rechnungsbetrag innerhalb von 5 Tagen nach Abschluss des Umzugs per Überweisung zu begleichen.', textInvoice: 'Bitte überweisen Sie den Rechnungsbetrag innerhalb von 5 Tagen ohne Abzug auf unser Konto.', shortText: '5 Tagen', dueDays: 5 },
-      { name: 'Barzahlung', textQuote: 'Wir bitten Sie höflich, den Rechnungsbetrag unmittelbar nach Abschluss des Umzugs in bar zu begleichen.', textInvoice: 'Der Rechnungsbetrag wurde in bar bezahlt. Vielen Dank für Ihre Zahlung!', shortText: 'Am Umzugstag', dueDays: 0 },
-      { name: 'Überweisung Echtzeit', textQuote: 'Wir bitten Sie höflich, den Rechnungsbetrag unmittelbar nach Abschluss des Umzugs per Echtzeitüberweisung zu begleichen.', textInvoice: 'Der Rechnungsbetrag wurde per Banküberweisung bezahlt. Vielen Dank für Ihre Zahlung!', shortText: 'Sofort', dueDays: 0 }
+      ...MASTER_PAYMENT_METHODS
     ],
     catalog: [
       {
@@ -154,79 +145,9 @@ export default function SettingsPage() {
         ]
       }
     ],
-    protocolCategories: [
-      { id: 'cat1', name: 'Gefahrenübergang (Haftungsausschluss)', text: 'Der Kunde bestätigt hiermit, dass der Transport/Umzug auf eigene Gefahr erfolgt. Das Unternehmen übernimmt keine Haftung für entstandene Kratzer, Schäden oder Mängel an den betreffenden Gegenständen oder am Gebäude.' },
-      { id: 'cat2', name: 'Keine Schäden (Abschluss-Protokoll)', text: 'Der Kunde bestätigt hiermit ausdrücklich, dass der Umzug und alle vereinbarten Leistungen vollständig und zu seiner vollsten Zufriedenheit durchgeführt wurden. Es sind keine Schäden an Möbeln, dem Inventar oder in den Räumlichkeiten (Treppenhaus, Wände, Böden etc.) entstanden.' },
-      { id: 'cat3', name: 'Schadensprotokoll', text: 'Folgende Vorschäden / Schäden wurden vor oder während den Arbeiten dokumentiert:\n1. \n2. \n' }
-    ],
-    protocolTemplates: [
-      'Keine Mängel festgestellt.',
-      'Treppenhauswand war bereits zerkratzt.',
-      'Kundeneigener Schrank passt nicht durchs Treppenhaus. Transport auf eigene Gefahr, keine Haftung für Kratzer.',
-      'Fernseher hat Kratzer im Display.'
-    ],
-    communicationTemplates: [
-      {
-        id: 't1',
-        name: 'Erstkontakt (Bilder oder Liste erhalten)',
-        subject: 'Angebot für Ihren Umzug',
-        body: '{{Kunde_Anrede}},\n\nvielen Dank für Ihr Interesse an unserem Service und für die Übersendung der Bilder.\n\nGerne erstellen wir Ihnen ein individuelles Angebot mit Festpreis und lassen Ihnen dieses zeitnah zukommen.\n\nSollten Sie vorab noch weitere Fragen haben, stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge\n\nKontaktdaten: Telefon: +49 1590 6603011 | E-Mail: info@rothirsch-umzug.de | Webseite: www.rothirsch-umzug.de'
-      },
-      {
-        id: 't2',
-        name: 'Erstkontakt (Keine Bilder oder Liste)',
-        subject: 'Ihre Umzugsanfrage',
-        body: '{{Kunde_Anrede}},\n\nvielen Dank für Ihr Interesse an unserem Service. Gerne erstellen wir für Sie ein Angebot mit einem festen Preis. Teilen Sie uns bitte Bilder oder eine Liste mit den gewünschten Leistungen mit. Sie können uns auch gerne Ihre Telefonnummer mitteilen oder uns jederzeit anrufen, um Ihren Umzug zu besprechen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge\n\nKontaktdaten: Telefon: +49 1590 6603011 | E-Mail: info@rothirsch-umzug.de | Webseite: www.rothirsch-umzug.de'
-      },
-      {
-        id: 't3',
-        name: 'Angebot schicken',
-        subject: 'Ihr Umzugsangebot',
-        body: '{{Kunde_Anrede}},\n\nanbei sende ich Ihnen unser Angebot für Ihren bevorstehenden Umzug. Bitte überprüfen Sie die angehängte Datei für die detaillierten Informationen und Konditionen. Das Angebot wurde gemäß Ihren Anforderungen erstellt und beinhaltet alle gewünschten Leistungen.\n\nBei Rothirsch Umzüge legen wir großen Wert auf den Schutz Ihrer Möbel. Daher werden wir alle Möbelstücke sorgfältig mit Umzugsdecken und hochwertigen Schutzmaterialien schützen, um sicherzustellen, dass sie während des Transports optimal geschützt sind.\n\nIch möchte klarstellen, dass es sich bei unserem Angebot um einen Festpreis handelt. Das bedeutet, dass die vereinbarte Summe die endgültigen Kosten für Ihren Umzug abdeckt. Sie können darauf vertrauen, dass es keine unerwarteten zusätzlichen Gebühren gibt.\n\nWenn Sie mit dem Angebot zufrieden sind, bitten wir Sie um eine schriftliche Bestätigung, damit wir den Umzug entsprechend planen können. Bitte beachten Sie, dass die Termine vorbehaltlich der Verfügbarkeit sind und wir eine rechtzeitige Bestätigung benötigen, um Ihren Umzugstermin zu sichern.\n\nSollten Sie weitere Fragen haben oder Anpassungen am Angebot wünschen, stehe ich Ihnen gerne zur Verfügung. Sie können mich telefonisch oder per E-Mail kontaktieren.\n\nVielen Dank für Ihr Interesse an unseren Umzugsservices. Wir freuen uns darauf, Ihnen bei Ihrem Umzug behilflich zu sein.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-      },
-      {
-        id: 't4',
-        name: 'Nachfrage zu Ihrem Umzugsangebot',
-        subject: 'Nachfrage zu Ihrem Umzugsangebot',
-        body: '{{Kunde_Anrede}},\n\nich wollte mich erkundigen, ob Sie bereits eine Entscheidung zu unserem Angebot getroffen haben. Der gewünschte Termin ist aktuell noch verfügbar – allerdings erhalten wir viele Anfragen, sodass eine zeitnahe Rückmeldung wichtig für die Reservierung ist.\n\nSollten noch Fragen offen sein oder Sie Anpassungen wünschen, können wir das gerne telefonisch besprechen. Uns ist wichtig, dass der Ablauf für Sie so reibungslos und angenehm wie möglich verläuft.\n\nGeben Sie uns einfach kurz Bescheid.\n\nVielen Dank im Voraus – wir würden uns freuen, Sie bei Ihrem Umzug unterstützen zu dürfen!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-      },
-      {
-        id: 't5',
-        name: 'Aktualisiertes Angebot schicken',
-        subject: 'Ihr aktualisiertes Umzugsangebot',
-        body: '{{Kunde_Anrede}},\n\nvielen Dank für Ihre Rückmeldung. Anbei senden wir Ihnen das überarbeitete Angebot sowie die angepasste Umzugsliste, die Ihren Änderungswünschen entspricht.\n\nFalls Sie noch weitere Fragen haben oder weitere Anpassungen benötigen, stehen wir Ihnen jederzeit gern zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-      },
-      {
-        id: 't6',
-        name: 'Absage',
-        subject: 'Schade, dass es nicht geklappt hat',
-        body: '{{Kunde_Anrede}},\n\nes ist schade zu hören, dass Sie sich für einen anderen Anbieter entschieden haben. Wir wünschen Ihnen dennoch viel Erfolg und einen reibungslosen Umzug.\n\nSollten Sie in Zukunft erneut Unterstützung benötigen, stehen wir Ihnen jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-      },
-      {
-        id: 't7',
-        name: 'Bestätigung',
-        subject: 'Auftragsbestätigung für Ihren Umzug',
-        body: '{{Kunde_Anrede}},\n\nvielen Dank für Ihr Vertrauen und das unterzeichnete Angebot. Hiermit bestätige ich Ihnen den Umzugstermin am [Datum].\n\nWir freuen uns auf die Zusammenarbeit und darauf, Ihnen den Weg in Ihr neues Zuhause zu erleichtern.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-      },
-      {
-        id: 't8',
-        name: 'Zeit des Umzugs (Wann trifft das Team ein?)',
-        subject: 'Ihre Umzugs-Uhrzeit',
-        body: '{{Kunde_Anrede}},\n\nvielen Dank für Ihre Nachricht. Unser Team wird voraussichtlich zwischen 08:30 und 09:30 Uhr bei Ihnen eintreffen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-      },
-      {
-        id: 't9',
-        name: 'Rechnung schicken',
-        subject: 'Ihre Rechnung',
-        body: '{{Kunde_Anrede}},\n\nanbei erhalten Sie die Rechnung für die von uns erbrachten Dienstleistungen. Bitte nehmen Sie sich einen Moment Zeit, um diese zu überprüfen. Sollten Sie Fragen oder Anmerkungen haben, stehe ich Ihnen selbstverständlich gerne zur Verfügung.\n\nWir möchten uns bei Ihnen für Ihr Vertrauen bedanken und hoffen, dass Sie mit unseren Leistungen zufrieden sind. Falls ja, würden wir uns sehr über eine Bewertung auf Google oder Check24 freuen – oder auf beiden Plattformen. Ihr Feedback ist uns äußerst wichtig und hilft uns, unseren Service kontinuierlich zu verbessern.\n\nVielen Dank für Ihre Unterstützung und Ihr Vertrauen in unsere Arbeit.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-      },
-      {
-        id: 't10',
-        name: 'Dank für Bewertung',
-        subject: 'Vielen Dank für Ihre Bewertung',
-        body: '{{Kunde_Anrede}},\n\nvielen Dank für Ihre großartige Bewertung! Wir freuen uns wirklich sehr über Ihr positives Feedback und es ist schön zu hören, dass alles nach Ihren Wünschen gelaufen ist und Sie zufrieden sind. Es ist immer toll, mit so angenehmen Kunden wie Ihnen zusammenzuarbeiten.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-      }
-    ]
+    protocolCategories: MASTER_PROTOCOL_CATEGORIES,
+    protocolTemplates: MASTER_PROTOCOL_SNIPPETS.map(s => s.text),
+    communicationTemplates: MASTER_COMMUNICATION_TEMPLATES
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -281,18 +202,54 @@ export default function SettingsPage() {
         data.texts.orderGreeting = 'Mit freundlichen Grüßen\nRothirsch Umzüge';
       }
 
-      // Merge communicationTemplates if missing
-      if (!data.communicationTemplates || data.communicationTemplates.length === 0) {
-        data.communicationTemplates = settings.communicationTemplates;
+      // Smart Merge texts: ensure master standard texts exist with user customizations preserved
+      data.texts = {
+        ...MASTER_SYSTEM_TEXTS,
+        ...(data.texts || {})
+      };
+
+      // Smart Merge payment methods: ensure standard methods exist and at least one has isDefault
+      if (!Array.isArray(data.paymentMethods) || data.paymentMethods.length === 0) {
+        data.paymentMethods = MASTER_PAYMENT_METHODS.map(pm => ({ ...pm }));
+      } else {
+        const hasDefault = data.paymentMethods.some((pm: any) => pm.isDefault);
+        if (!hasDefault && data.paymentMethods[0]) {
+          data.paymentMethods[0].isDefault = true;
+        }
       }
-      
-      // Migration for protocol categories
-      if (!data.protocolCategories || data.protocolCategories.length === 0) {
-        data.protocolCategories = [
-          { id: 'cat1', name: 'Gefahrenübergang (Haftungsausschluss)', text: 'Der Kunde bestätigt hiermit, dass der Transport/Umzug auf eigene Gefahr erfolgt. Das Unternehmen übernimmt keine Haftung für entstandene Kratzer, Schäden oder Mängel an den betreffenden Gegenständen oder am Gebäude.' },
-          { id: 'cat2', name: 'Keine Schäden (Abschluss-Protokoll)', text: 'Der Kunde bestätigt hiermit ausdrücklich, dass der Umzug und alle vereinbarten Leistungen vollständig und zu seiner vollsten Zufriedenheit durchgeführt wurden. Es sind keine Schäden an Möbeln, dem Inventar oder in den Räumlichkeiten (Treppenhaus, Wände, Böden etc.) entstanden.' },
-          { id: 'cat3', name: 'Schadensprotokoll', text: 'Folgende Vorschäden / Schäden wurden vor oder während den Arbeiten dokumentiert:\n1. \n2. \n' }
-        ];
+
+      // Smart Merge communicationTemplates: ensure all 17 master templates exist with user customizations preserved
+      const existingComm = Array.isArray(data.communicationTemplates) ? data.communicationTemplates : [];
+      const commMap = new Map<string, any>();
+      MASTER_COMMUNICATION_TEMPLATES.forEach(t => commMap.set(t.id, t));
+      existingComm.forEach((t: any) => {
+        if (t && t.id) {
+          const base = commMap.get(t.id) || {};
+          commMap.set(t.id, { ...base, ...t });
+        } else if (t && t.name) {
+          const cid = `custom_${t.name.replace(/\s+/g, '_').toLowerCase()}`;
+          commMap.set(cid, { id: cid, ...t });
+        }
+      });
+      data.communicationTemplates = Array.from(commMap.values());
+
+      // Smart Merge protocol categories: ensure all 6 master categories exist
+      const existingProto = Array.isArray(data.protocolCategories) ? data.protocolCategories : [];
+      const protoMap = new Map<string, any>();
+      MASTER_PROTOCOL_CATEGORIES.forEach(c => protoMap.set(c.id, c));
+      existingProto.forEach((c: any) => {
+        if (c && c.id) {
+          const base = protoMap.get(c.id) || {};
+          protoMap.set(c.id, { ...base, ...c });
+        } else if (c && c.name) {
+          const cid = `custom_${c.name.replace(/\s+/g, '_').toLowerCase()}`;
+          protoMap.set(cid, { id: cid, ...c });
+        }
+      });
+      data.protocolCategories = Array.from(protoMap.values());
+
+      if (!data.protocolTemplates || data.protocolTemplates.length === 0) {
+        data.protocolTemplates = MASTER_PROTOCOL_SNIPPETS.map(s => s.text);
       }
 
       // Fallback for showcase services & texts
@@ -484,13 +441,45 @@ export default function SettingsPage() {
   };
 
   const loadSampleProtocolCategories = () => {
-    const samples = [
-      { id: 'cat1', name: 'Gefahrenübergang (Haftungsausschluss)', text: 'Der Kunde bestätigt hiermit, dass der Transport/Umzug auf eigene Gefahr erfolgt. Das Unternehmen übernimmt keine Haftung für entstandene Kratzer, Schäden oder Mängel an den betreffenden Gegenständen oder am Gebäude.' },
-      { id: 'cat2', name: 'Keine Schäden (Abschluss-Protokoll)', text: 'Der Kunde bestätigt hiermit ausdrücklich, dass der Umzug und alle vereinbarten Leistungen vollständig und zu seiner vollsten Zufriedenheit durchgeführt wurden. Es sind keine Schäden an Möbeln, dem Inventar oder in den Räumlichkeiten (Treppenhaus, Wände, Böden etc.) entstanden.' },
-      { id: 'cat3', name: 'Schadensprotokoll', text: 'Folgende Vorschäden / Schäden wurden vor oder während den Arbeiten dokumentiert:\n1. \n2. \n' }
-    ];
-    setSettings({ ...settings, protocolCategories: samples });
-    toast.success("Standard-Kategorien geladen! Bitte oben auf Speichern klicken.");
+    setSettings({ 
+      ...settings, 
+      protocolCategories: MASTER_PROTOCOL_CATEGORIES,
+      protocolTemplates: MASTER_PROTOCOL_SNIPPETS.map(s => s.text)
+    });
+    toast.success("Alle 6 Standard-Protokolle & Textbausteine geladen! Bitte oben auf Speichern klicken.");
+  };
+
+  const loadSampleTexts = () => {
+    setSettings((prev: any) => ({
+      ...prev,
+      texts: {
+        ...(prev.texts || {}),
+        ...MASTER_SYSTEM_TEXTS
+      }
+    }));
+    toast.success("Standard-Texte & AGB erfolgreich geladen! Bitte oben auf Speichern klicken.");
+  };
+
+  const loadSamplePaymentMethods = () => {
+    setSettings((prev: any) => ({
+      ...prev,
+      paymentMethods: MASTER_PAYMENT_METHODS.map(pm => ({ ...pm }))
+    }));
+    toast.success("Standard-Zahlungsarten (Überweisung, Barzahlung, Echtzeit) geladen! Bitte oben auf Speichern klicken.");
+  };
+
+  const setDefaultPaymentMethod = (indexToDefault: number) => {
+    const currentPms = settings.paymentMethods || [];
+    if (!currentPms[indexToDefault]) return;
+
+    const targetPm = { ...currentPms[indexToDefault], isDefault: true };
+    const otherPms = currentPms
+      .filter((_: any, i: number) => i !== indexToDefault)
+      .map((p: any) => ({ ...p, isDefault: false }));
+
+    const reorderedPms = [targetPm, ...otherPms];
+    handleChange('paymentMethods', reorderedPms);
+    toast.success(`"${targetPm.name}" als Standard-Zahlungsart festgelegt!`);
   };
 
   const addEmployee = () => {
@@ -956,69 +945,163 @@ export default function SettingsPage() {
           {/* TAB: Texte & AGB */}
           {activeTab === 'texte' && (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">Textbausteine & AGB</h2>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-structure pb-3 mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-text-main">Textbausteine & AGB</h2>
+                  <p className="text-sm text-text-muted">Standard-Texte für Angebote (Seite 1 & 2), Auftragsbestätigungen, Rechnungen und AGB verwalten.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadSampleTexts}
+                  className="btn-secondary py-2 px-3.5 text-xs font-bold rounded-xl flex items-center gap-1.5 self-start sm:self-auto cursor-pointer shadow-xs hover:border-primary/50 transition-all"
+                  title="Standard-Texte und AGBs mit 1-Klick auf Werkseinstellungen zurücksetzen"
+                >
+                  <ArrowPathIcon className="w-4 h-4 text-primary" />
+                  <span>Standard laden</span>
+                </button>
+              </div>
               
               <div className="space-y-6">
-                <div>
-                  <h3 className="text-lg font-semibold text-primary mb-3">Angebote</h3>
+                {/* 1. Angebot Seite 1 */}
+                <div className="bg-bg-dark border border-structure p-5 md:p-6 rounded-2xl space-y-4 shadow-2xs">
+                  <div className="flex items-center gap-2 border-b border-structure/60 pb-3">
+                    <DocumentTextIcon className="w-5 h-5 text-primary" />
+                    <div>
+                      <h3 className="text-base font-bold text-text-main">Angebot (Seite 1 – Begrüßung & Begleittext)</h3>
+                      <p className="text-xs text-text-muted">Erscheint auf Seite 1 des Angebots vor und nach der Positionskalkulation.</p>
+                    </div>
+                  </div>
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-text-muted mb-1">Einleitungstext</label>
-                      <textarea value={settings.texts.quoteIntro} onChange={e => handleChange('quoteIntro', e.target.value, 'texts')} className="input-field w-full h-24" />
+                      <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-1.5">Einleitungstext (Vor den Leistungen)</label>
+                      <textarea 
+                        value={settings.texts.quoteIntro || ''} 
+                        onChange={e => handleChange('quoteIntro', e.target.value, 'texts')} 
+                        className="input-field w-full h-24 text-xs font-sans" 
+                        placeholder="Sehr geehrte Damen und Herren..."
+                      />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-text-muted mb-1">Schlusstext / Hinweise</label>
-                      <textarea value={settings.texts.quoteOutro} onChange={e => handleChange('quoteOutro', e.target.value, 'texts')} className="input-field w-full h-24" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-text-muted mb-1">Abschluss-Gruß</label>
-                      <textarea value={settings.texts.quoteGreeting} onChange={e => handleChange('quoteGreeting', e.target.value, 'texts')} className="input-field w-full h-32" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-text-muted mb-1">Versicherungsschutz (Immer am Ende)</label>
-                      <textarea value={settings.texts.insurance} onChange={e => handleChange('insurance', e.target.value, 'texts')} className="input-field w-full h-32" />
+                      <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-1.5">Abschluss-Gruß & Höflichkeitsformel</label>
+                      <textarea 
+                        value={settings.texts.quoteGreeting || ''} 
+                        onChange={e => handleChange('quoteGreeting', e.target.value, 'texts')} 
+                        className="input-field w-full h-24 text-xs font-sans" 
+                        placeholder="Wir würden uns freuen..."
+                      />
                     </div>
                   </div>
                 </div>
 
-                <div>
-                  <h3 className="text-lg font-semibold text-primary mb-3 mt-8">Auftragsbestätigungen</h3>
-                  <div className="space-y-4">
+                {/* 2. Angebot Seite 2: Rechtliche Bestätigung & Versicherung */}
+                <div className="bg-bg-dark border border-structure p-5 md:p-6 rounded-2xl space-y-5 shadow-2xs">
+                  <div className="flex items-center gap-2 border-b border-structure/60 pb-3">
+                    <ShieldCheckIcon className="w-5 h-5 text-amber-500" />
                     <div>
-                      <label className="block text-sm font-medium text-text-muted mb-1">Einleitungstext</label>
-                      <textarea value={settings.texts.orderIntro} onChange={e => handleChange('orderIntro', e.target.value, 'texts')} className="input-field w-full h-16" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-text-muted mb-1">Schlusstext / Hinweise</label>
-                      <textarea value={settings.texts.orderOutro} onChange={e => handleChange('orderOutro', e.target.value, 'texts')} className="input-field w-full h-16" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-text-muted mb-1">Abschluss-Gruß</label>
-                      <textarea value={settings.texts.orderGreeting} onChange={e => handleChange('orderGreeting', e.target.value, 'texts')} className="input-field w-full h-24" />
+                      <h3 className="text-base font-bold text-text-main">Angebot (Seite 2 – Verbindliche Beauftragung & Versicherungsschutz)</h3>
+                      <p className="text-xs text-text-muted">Texte und Titel auf Seite 2, die über dem Kunden-Unterschriftenfeld gedruckt werden.</p>
                     </div>
                   </div>
 
-                  <h3 className="text-lg font-semibold text-primary mb-3 mt-8">Rechnungen</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-text-muted mb-1">Einleitungstext</label>
-                      <textarea value={settings.texts.invoiceIntro} onChange={e => handleChange('invoiceIntro', e.target.value, 'texts')} className="input-field w-full h-16" />
+                  {/* Versicherungsschutz */}
+                  <div className="bg-bg-panel/70 p-4 rounded-xl border border-structure/50 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+                      <label className="text-xs font-bold text-text-main">Titel für Versicherung:</label>
+                      <div className="md:col-span-2">
+                        <input
+                          type="text"
+                          value={settings.texts.insuranceTitle || 'Versicherungsschutz'}
+                          onChange={e => handleChange('insuranceTitle', e.target.value, 'texts')}
+                          className="input-field w-full text-xs font-bold text-text-main"
+                          placeholder="z.B. Versicherungsschutz"
+                        />
+                      </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-text-muted mb-1">Schlusstext / Hinweise</label>
-                      <textarea value={settings.texts.invoiceOutro} onChange={e => handleChange('invoiceOutro', e.target.value, 'texts')} className="input-field w-full h-16" />
+                      <label className="block text-xs font-medium text-text-muted mb-1">Textinhalt (Haftung & Transportgüterversicherung gem. § 451g HGB):</label>
+                      <textarea 
+                        value={settings.texts.insurance || ''} 
+                        onChange={e => handleChange('insurance', e.target.value, 'texts')} 
+                        className="input-field w-full h-24 text-xs font-sans" 
+                      />
+                    </div>
+                  </div>
+
+                  {/* Verbindliche Beauftragung */}
+                  <div className="bg-bg-panel/70 p-4 rounded-xl border border-structure/50 space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+                      <label className="text-xs font-bold text-text-main">Titel für Beauftragung:</label>
+                      <div className="md:col-span-2">
+                        <input
+                          type="text"
+                          value={settings.texts.quoteBindingTitle || 'Verbindliche Beauftragung'}
+                          onChange={e => handleChange('quoteBindingTitle', e.target.value, 'texts')}
+                          className="input-field w-full text-xs font-bold text-text-main"
+                          placeholder="z.B. Verbindliche Beauftragung"
+                        />
+                      </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-text-muted mb-1">Abschluss-Gruß</label>
-                      <textarea value={settings.texts.invoiceGreeting} onChange={e => handleChange('invoiceGreeting', e.target.value, 'texts')} className="input-field w-full h-24" />
+                      <label className="block text-xs font-medium text-text-muted mb-1">Textinhalt (Bestätigungstext direkt über der Unterschrift):</label>
+                      <textarea 
+                        value={settings.texts.quoteOutro || ''} 
+                        onChange={e => handleChange('quoteOutro', e.target.value, 'texts')} 
+                        className="input-field w-full h-24 text-xs font-sans" 
+                      />
                     </div>
                   </div>
                 </div>
 
-                <div>
-                  <h3 className="text-lg font-semibold text-primary mb-3">Allgemeine Bedingungen (AGB)</h3>
+                {/* 3. Auftragsbestätigungen */}
+                <div className="bg-bg-dark border border-structure p-5 md:p-6 rounded-2xl space-y-4 shadow-2xs">
+                  <h3 className="text-base font-bold text-text-main border-b border-structure/60 pb-3">Auftragsbestätigungen</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-1.5">Einleitungstext</label>
+                      <textarea value={settings.texts.orderIntro || ''} onChange={e => handleChange('orderIntro', e.target.value, 'texts')} className="input-field w-full h-16 text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-1.5">Schlusstext / Hinweise</label>
+                      <textarea value={settings.texts.orderOutro || ''} onChange={e => handleChange('orderOutro', e.target.value, 'texts')} className="input-field w-full h-16 text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-1.5">Abschluss-Gruß</label>
+                      <textarea value={settings.texts.orderGreeting || ''} onChange={e => handleChange('orderGreeting', e.target.value, 'texts')} className="input-field w-full h-20 text-xs" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Rechnungen & Mahnwesen */}
+                <div className="bg-bg-dark border border-structure p-5 md:p-6 rounded-2xl space-y-4 shadow-2xs">
+                  <h3 className="text-base font-bold text-text-main border-b border-structure/60 pb-3">Rechnungen & Mahnwesen</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-1.5">Einleitungstext</label>
+                      <textarea value={settings.texts.invoiceIntro || ''} onChange={e => handleChange('invoiceIntro', e.target.value, 'texts')} className="input-field w-full h-16 text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-1.5">Schlusstext / Überweisungshinweis</label>
+                      <textarea value={settings.texts.invoiceOutro || ''} onChange={e => handleChange('invoiceOutro', e.target.value, 'texts')} className="input-field w-full h-16 text-xs" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-text-muted uppercase tracking-wider mb-1.5">Abschluss-Gruß</label>
+                      <textarea value={settings.texts.invoiceGreeting || ''} onChange={e => handleChange('invoiceGreeting', e.target.value, 'texts')} className="input-field w-full h-20 text-xs" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* 5. AGB */}
+                <div className="bg-bg-dark border border-structure p-5 md:p-6 rounded-2xl space-y-4 shadow-2xs">
+                  <div className="flex items-center justify-between border-b border-structure/60 pb-3">
+                    <h3 className="text-base font-bold text-text-main">Allgemeine Geschäftsbedingungen (AGB)</h3>
+                    <span className="text-xs text-text-muted">Wird auf Seite 3 des Angebots als 2-spaltige AGB gedruckt</span>
+                  </div>
                   <div>
-                    <textarea value={settings.texts.agb} onChange={e => handleChange('agb', e.target.value, 'texts')} className="input-field w-full h-96 text-xs font-mono" />
+                    <textarea 
+                      value={settings.texts.agb || ''} 
+                      onChange={e => handleChange('agb', e.target.value, 'texts')} 
+                      className="input-field w-full h-96 text-xs font-mono leading-relaxed" 
+                    />
                   </div>
                 </div>
               </div>
@@ -1051,60 +1134,21 @@ export default function SettingsPage() {
                   </button>
                   <button 
                     onClick={() => {
-                      if(confirm('Möchtest du die Standard-Vorlagen laden? Bereits vorhandene Standard-Vorlagen werden nicht doppelt hinzugefügt.')) {
-                        const defaults = [
-                          {
-                            id: 't1_default',
-                            name: 'Erstkontakt (Bilder oder Liste erhalten)',
-                            subject: 'Angebot für Ihren Umzug',
-                            body: '{{Kunde_Anrede}},\n\nvielen Dank für Ihr Interesse an unserem Service und für die Übersendung der Bilder.\n\nGerne erstellen wir Ihnen ein individuelles Angebot mit Festpreis und lassen Ihnen dieses zeitnah zukommen.\n\nSollten Sie vorab noch weitere Fragen haben, stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge\n\nKontaktdaten: Telefon: +49 1590 6603011 E-Mail: info@rothirsch-umzug.de Webseite: www.rothirsch-umzug.de'
-                          },
-                          {
-                            id: 't2_default',
-                            name: 'Erstkontakt (Keine Bilder oder Liste)',
-                            subject: 'Ihre Umzugsanfrage',
-                            body: '{{Kunde_Anrede}},\n\nvielen Dank für Ihr Interesse an unserem Service. Gerne erstellen wir für Sie ein Angebot mit einem festen Preis. Teilen Sie uns bitte Bilder oder eine Liste mit den gewünschten Leistungen mit. Sie können uns auch gerne Ihre Telefonnummer mitteilen oder uns jederzeit anrufen, um Ihren Umzug zu besprechen.\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge\n\nKontaktdaten: Telefon: +49 1590 6603011 E-Mail: info@rothirsch-umzug.de Webseite: www.rothirsch-umzug.de'
-                          },
-                          {
-                            id: 't3_default',
-                            name: 'Angebot schicken',
-                            subject: 'Ihr Umzugsangebot',
-                            body: '{{Kunde_Anrede}},\n\nanbei sende ich Ihnen unser Angebot für Ihren bevorstehenden Umzug. Bitte überprüfen Sie die angehängte Datei für die detaillierten Informationen und Konditionen. Das Angebot wurde gemäß Ihren Anforderungen erstellt und beinhaltet alle gewünschten Leistungen.\n\nBei Rothirsch Umzüge legen wir großen Wert auf den Schutz Ihrer Möbel. Daher werden wir alle Möbelstücke sorgfältig mit Umzugsdecken und hochwertigen Schutzmaterialien schützen, um sicherzustellen, dass sie während des Transports optimal geschützt sind.\n\nIch möchte klarstellen, dass es sich bei unserem Angebot in Höhe von {{Angebot_Summe}} um einen Festpreis handelt. Das bedeutet, dass die vereinbarte Summe die endgültigen Kosten für Ihren Umzug abdeckt. Sie können darauf vertrauen, dass es keine unerwarteten zusätzlichen Gebühren gibt.\n\nWenn Sie mit dem Angebot zufrieden sind, bitten wir Sie um eine schriftliche Bestätigung, damit wir den Umzug entsprechend planen können. Bitte beachten Sie, dass die Termine vorbehaltlich der Verfügbarkeit sind und wir eine rechtzeitige Bestätigung benötigen, um Ihren Umzugstermin am {{Umzugsdatum}} zu sichern.\n\nSollten Sie weitere Fragen haben oder Anpassungen am Angebot wünschen, stehe ich Ihnen gerne zur Verfügung. Sie können mich telefonisch oder per E-Mail kontaktieren.\n\nVielen Dank für Ihr Interesse an unseren Umzugsservices. Wir freuen uns darauf, Ihnen bei Ihrem Umzug behilflich zu sein.\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge'
-                          },
-                          {
-                            id: 't4_default',
-                            name: 'Nachfrage zu Ihrem Umzugsangebot',
-                            subject: 'Nachfrage zu Ihrem Umzugsangebot',
-                            body: '{{Kunde_Anrede}},\n\nich wollte mich erkundigen, ob Sie bereits eine Entscheidung zu unserem Angebot getroffen haben. Der gewünschte Termin ({{Umzugsdatum}}) ist aktuell noch verfügbar – allerdings erhalten wir viele Anfragen, sodass eine zeitnahe Rückmeldung wichtig für die Reservierung ist.\n\nSollten noch Fragen offen sein oder Sie Anpassungen wünschen, können wir das gerne telefonisch besprechen. Uns ist wichtig, dass der Ablauf für Sie so reibungslos und angenehm wie möglich verläuft.\n\nGeben Sie uns einfach kurz Bescheid.\n\nVielen Dank im Voraus – wir würden uns freuen, Sie bei Ihrem Umzug unterstützen zu dürfen!\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge'
-                          },
-                          {
-                            id: 't5_default',
-                            name: 'Rechnung schicken',
-                            subject: 'Ihre Rechnung zum Umzug',
-                            body: '{{Kunde_Anrede}},\n\nvielen Dank nochmals für Ihren Auftrag und das entgegengebrachte Vertrauen!\n\nAnbei erhalten Sie die Rechnung zu Ihrem Umzug am {{Umzugsdatum}} über den Betrag von {{Angebot_Summe}}.\n\nWir hoffen, Sie sind in Ihrem neuen Zuhause gut angekommen und waren mit unserem Service rundum zufrieden. \n\nSollten Sie Rückfragen zur Rechnung haben, können Sie sich jederzeit gerne an uns wenden.\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge'
-                          }
-                        ];
-                        
+                      if (confirm('Möchten Sie alle 17 Standard-Nachrichtenvorlagen synchronisieren? Ihre Anpassungen bleiben erhalten.')) {
                         const currentTemplates = settings.communicationTemplates || [];
-                        const newTemplates = [...currentTemplates];
-                        
-                        defaults.forEach(defTpl => {
-                          // Falls es schon eine Vorlage mit dieser ID gibt, einen neuen Timestamp anfügen, 
-                          // damit die ID immer unique ist. Oder besser: Nur hinzufügen, wenn sie noch nicht existiert.
-                          if (!currentTemplates.some((t: any) => t.id === defTpl.id)) {
-                            newTemplates.push(defTpl);
-                          } else {
-                            // Wenn sie schon existiert (weil der User sie vielleicht behalten will), 
-                            // fügen wir sie trotzdem nochmal hinzu aber mit neuer ID, falls der User das wollte.
-                            // Noch besser: Wir fügen sie mit unique ID hinzu.
-                            newTemplates.push({
-                              ...defTpl,
-                              id: `${defTpl.id}_${Date.now()}`
-                            });
+                        const commMap = new Map<string, any>();
+                        MASTER_COMMUNICATION_TEMPLATES.forEach(t => commMap.set(t.id, t));
+                        currentTemplates.forEach((t: any) => {
+                          if (t && t.id && !t.id.endsWith('_default')) {
+                            const base = commMap.get(t.id) || {};
+                            commMap.set(t.id, { ...base, ...t });
+                          } else if (t && t.name) {
+                            const cid = `custom_${t.name.replace(/\s+/g, '_').toLowerCase()}`;
+                            commMap.set(cid, { id: cid, ...t });
                           }
                         });
-                        
-                        handleChange('communicationTemplates', newTemplates);
+                        handleChange('communicationTemplates', Array.from(commMap.values()));
+                        toast.success("Alle 17 Standard-Nachrichtenvorlagen geladen! Bitte oben auf Speichern klicken.");
                       }
                     }}
                     className="btn-secondary py-2 px-4"
@@ -1117,8 +1161,13 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {(settings.communicationTemplates || []).map((tpl: any, idx: number) => (
                   <div key={`${tpl.id || 'tpl'}-${idx}`} className="panel border-t-4 border-t-primary shadow-lg flex flex-col">
-                    <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-bold text-text-main flex-1">{tpl.name}</h3>
+                    <div className="flex justify-between items-start mb-2 gap-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shrink-0">
+                          {tpl.category || 'Allgemein'}
+                        </span>
+                        <h3 className="font-bold text-text-main truncate">{tpl.name}</h3>
+                      </div>
                       <button 
                         onClick={() => {
                           if (confirm('Vorlage wirklich löschen?')) {
@@ -1133,18 +1182,34 @@ export default function SettingsPage() {
                       </button>
                     </div>
                     <div className="flex-1 space-y-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-text-muted uppercase mb-1">Vorlagen-Name (intern)</label>
-                        <input 
-                          type="text" 
-                          value={tpl.name} 
-                          onChange={e => {
-                            const newTemplates = [...settings.communicationTemplates];
-                            newTemplates[idx].name = e.target.value;
-                            handleChange('communicationTemplates', newTemplates);
-                          }} 
-                          className="input-field w-full text-sm" 
-                        />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-text-muted uppercase mb-1">Vorlagen-Name (intern)</label>
+                          <input 
+                            type="text" 
+                            value={tpl.name || ''} 
+                            onChange={e => {
+                              const newTemplates = [...settings.communicationTemplates];
+                              newTemplates[idx].name = e.target.value;
+                              handleChange('communicationTemplates', newTemplates);
+                            }} 
+                            className="input-field w-full text-sm" 
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-text-muted uppercase mb-1">Kategorie / Phase</label>
+                          <input 
+                            type="text" 
+                            value={tpl.category || ''} 
+                            onChange={e => {
+                              const newTemplates = [...settings.communicationTemplates];
+                              newTemplates[idx].category = e.target.value;
+                              handleChange('communicationTemplates', newTemplates);
+                            }} 
+                            placeholder="z.B. Erstkontakt, Angebot, Logistik"
+                            className="input-field w-full text-sm" 
+                          />
+                        </div>
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-text-muted uppercase mb-1">Betreff (Für E-Mail)</label>
@@ -1645,6 +1710,110 @@ export default function SettingsPage() {
                 </div>
               </div>
               
+              {/* Feste Kernleistungen Block */}
+              {(() => {
+                const fixedDefs = resolveFixedDefs(settings);
+                return (
+                  <div className="bg-bg-dark border border-structure p-5 rounded-2xl shadow-sm space-y-4">
+                    <div className="border-b border-structure/60 pb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-primary text-xl">verified</span>
+                        <h3 className="text-base font-bold text-text-main">Feste Kernleistungen</h3>
+                      </div>
+                      <p className="text-xs text-text-muted mt-1">
+                        Diese vier Leistungen erkennt das Programm an einem festen internen Schlüssel. Du kannst Name, Preis, Einheit und Beschreibung frei ändern.
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      {FIXED_KEYS.map(key => {
+                        const def = fixedDefs[key];
+                        const cur = settings.fixedServices?.[key] || {};
+                        const priceVal = cur.price !== undefined ? cur.price : (key === 'hvz' && settings.fixedPrices?.hvz !== undefined ? settings.fixedPrices.hvz : def.price);
+                        return (
+                          <div key={key} className="p-3.5 rounded-xl bg-bg-panel border border-structure/50 space-y-2">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <span className="material-symbols-outlined text-primary text-lg shrink-0">{def.icon}</span>
+                                <div className="flex-1 min-w-0">
+                                  <label className="text-[10px] uppercase font-bold text-text-muted block">
+                                    Name ({key}) {key === 'hvz' && <span className="text-primary font-normal">· Preis für beide Adressen (bei einer Adresse die Hälfte)</span>}
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={cur.name !== undefined ? cur.name : def.name}
+                                    onChange={e => setSettings({
+                                      ...settings,
+                                      fixedServices: {
+                                        ...(settings.fixedServices || {}),
+                                        [key]: { ...(settings.fixedServices?.[key] || {}), name: e.target.value }
+                                      }
+                                    })}
+                                    className="input-field text-xs font-bold w-full py-1 mt-0.5"
+                                    placeholder={def.name}
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={priceVal === '' ? '' : priceVal}
+                                    onChange={e => {
+                                      const val = e.target.value === '' ? '' : parseFloat(e.target.value);
+                                      setSettings({
+                                        ...settings,
+                                        fixedServices: {
+                                          ...(settings.fixedServices || {}),
+                                          [key]: { ...(settings.fixedServices?.[key] || {}), price: val }
+                                        }
+                                      });
+                                    }}
+                                    className="input-field text-xs w-24 text-right py-1"
+                                    placeholder="0.00"
+                                  />
+                                  <span className="text-text-muted text-xs">€</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="text"
+                                    value={cur.unit !== undefined ? cur.unit : def.unit}
+                                    onChange={e => setSettings({
+                                      ...settings,
+                                      fixedServices: {
+                                        ...(settings.fixedServices || {}),
+                                        [key]: { ...(settings.fixedServices?.[key] || {}), unit: e.target.value }
+                                      }
+                                    })}
+                                    className="input-field text-xs w-20 text-center py-1"
+                                    placeholder="Einheit"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            <div>
+                              <input
+                                type="text"
+                                value={cur.desc !== undefined ? cur.desc : def.desc}
+                                onChange={e => setSettings({
+                                  ...settings,
+                                  fixedServices: {
+                                    ...(settings.fixedServices || {}),
+                                    [key]: { ...(settings.fixedServices?.[key] || {}), desc: e.target.value }
+                                  }
+                                })}
+                                className="input-field text-xs text-text-muted w-full py-1"
+                                placeholder="Beschreibung / Hinweistext..."
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="space-y-6">
                 {settings.catalog.map((cat: any, cIdx: number) => (
                   <div key={cIdx} className="bg-bg-dark border border-structure p-4 rounded-xl">
@@ -1681,22 +1850,102 @@ export default function SettingsPage() {
           {/* TAB: Zahlungsarten */}
           {activeTab === 'zahlungsarten' && (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-              <div className="border-b border-structure pb-2 mb-4">
-                <h2 className="text-xl font-bold text-text-main">Zahlungsarten</h2>
-                <p className="text-sm text-text-muted">Texte und Zahlungsziele für Angebote und Rechnungen.</p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-structure pb-3 mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-text-main">Zahlungsarten</h2>
+                  <p className="text-sm text-text-muted">Texte, Fälligkeiten und Standard-Zahlungsart für neue Angebote & Rechnungen verwalten.</p>
+                </div>
+                <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+                  <button
+                    type="button"
+                    onClick={loadSamplePaymentMethods}
+                    className="btn-secondary py-2 px-3.5 text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs hover:border-primary/50 transition-all"
+                    title="Standard-Zahlungsarten (Überweisung, Barzahlung, Echtzeit-Überweisung) wiederherstellen"
+                  >
+                    <ArrowPathIcon className="w-4 h-4 text-primary" />
+                    <span>Standard laden</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newPms = [
+                        ...(settings.paymentMethods || []),
+                        {
+                          name: 'Neue Zahlungsart',
+                          textQuote: 'Wir bitten Sie höflich, den Rechnungsbetrag nach Abschluss des Umzugs zu begleichen.',
+                          textInvoice: 'Der Rechnungsbetrag ist ohne Abzug fällig. Vielen Dank für Ihre Zahlung!',
+                          shortText: 'Individuell',
+                          dueDays: 0,
+                          isDefault: false
+                        }
+                      ];
+                      handleChange('paymentMethods', newPms);
+                      toast.success('Neue Zahlungsart hinzugefügt!');
+                    }}
+                    className="btn-primary py-2 px-4 text-xs font-bold rounded-xl flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <PlusIcon className="w-4 h-4" />
+                    <span>+ Neue Zahlungsart</span>
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-6">
-                {settings.paymentMethods.map((pm: any, idx: number) => (
-                  <div key={idx} className="bg-bg-dark border border-structure p-4 md:p-6 rounded-xl space-y-4">
-                    <div className="flex items-center justify-between border-b border-structure/60 pb-3">
-                      <div className="font-bold text-text-main text-lg flex items-center gap-2">
-                        <CreditCardIcon className="w-5 h-5 text-primary" />
-                        {pm.name}
+                {(settings.paymentMethods || []).map((pm: any, idx: number) => (
+                  <div key={idx} className="bg-bg-dark border border-structure p-4 md:p-6 rounded-xl space-y-4 shadow-2xs">
+                    <div className="flex items-center justify-between border-b border-structure/60 pb-3 gap-3 flex-wrap">
+                      <div className="font-bold text-text-main text-lg flex items-center gap-2 flex-1 min-w-[240px]">
+                        <CreditCardIcon className="w-5 h-5 text-primary shrink-0" />
+                        <input
+                          type="text"
+                          value={pm.name}
+                          onChange={e => {
+                            const newPms = [...settings.paymentMethods];
+                            newPms[idx] = { ...newPms[idx], name: e.target.value };
+                            handleChange('paymentMethods', newPms);
+                          }}
+                          className="font-bold text-text-main text-base bg-transparent border-b border-dashed border-structure focus:border-primary outline-none px-1 py-0.5 w-full max-w-sm"
+                          placeholder="Name der Zahlungsart..."
+                        />
                       </div>
-                      <span className="text-xs px-2.5 py-1 rounded-full bg-primary/10 text-primary border border-primary/20 font-medium">
-                        Standard
-                      </span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {pm.isDefault || idx === 0 ? (
+                          <span className="text-xs px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-bold flex items-center gap-1 shadow-2xs">
+                            <StarIcon className="w-3.5 h-3.5 fill-emerald-500 text-emerald-500" />
+                            <span>Standard</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setDefaultPaymentMethod(idx)}
+                            className="text-xs px-3 py-1 rounded-full bg-slate-100 hover:bg-amber-500/15 dark:bg-slate-800 text-slate-600 hover:text-amber-700 dark:text-slate-300 dark:hover:text-amber-300 border border-slate-200 dark:border-slate-700 hover:border-amber-500/30 transition-all flex items-center gap-1 cursor-pointer font-semibold shadow-2xs"
+                            title="Diese Zahlungsart als Standard für neue Angebote und Rechnungen festlegen"
+                          >
+                            <StarIcon className="w-3.5 h-3.5 text-amber-500" />
+                            <span>Als Standard festlegen</span>
+                          </button>
+                        )}
+                        {settings.paymentMethods.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (confirm(`Zahlungsart "${pm.name}" wirklich löschen?`)) {
+                                const newPms = settings.paymentMethods.filter((_: any, i: number) => i !== idx);
+                                if (pm.isDefault && newPms[0]) {
+                                  newPms[0].isDefault = true;
+                                }
+                                handleChange('paymentMethods', newPms);
+                                toast.success(`Zahlungsart "${pm.name}" entfernt.`);
+                              }
+                            }}
+                            className="p-1.5 text-text-muted hover:text-red-500 rounded-lg hover:bg-structure/40 transition-colors cursor-pointer"
+                            title="Zahlungsart löschen"
+                          >
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -11,6 +11,7 @@ import {
   getLatestCancelledInvoiceNumber,
 } from '@/lib/financeHelpers';
 import { evaluateOrderLogistics } from '@/lib/orderValidation';
+import { hasFixedService } from '@/lib/serviceKeys';
 import { toggleTaskCompletion, updateTaskSchedule, isTaskCompleted, autoCompletePreMoveTasks } from '@/lib/taskStateController';
 import { ensureOrderNumber } from '@/lib/orderStateMachine';
 import { updateDoc, doc, getDoc } from 'firebase/firestore';
@@ -20,6 +21,7 @@ import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { calculateRoute, RouteCalculationResult } from '@/lib/routeCalculator';
+import { getSourceBadgeStyle } from './SmartCustomerTable';
 import { 
   DocumentTextIcon, 
   DocumentCheckIcon, 
@@ -57,81 +59,7 @@ import { StornoModal } from '@/components/finances/StornoModal';
 import { OrderDetailsDrawer } from '@/components/dashboard/OrderDetailsDrawer';
 import { TaskScheduleModal } from '@/components/logistics/TaskScheduleModal';
 import { generateTickets } from '@/lib/ticketEngine';
-
-const DEFAULT_COMMUNICATION_TEMPLATES = [
-  {
-    id: 't1',
-    name: 'Erstkontakt (Bilder erhalten)',
-    category: 'Erstkontakt',
-    body: '[Anrede],\n\nvielen Dank für Ihr Interesse an unserem Service und für die Übersendung der Bilder.\n\nGerne erstellen wir Ihnen ein individuelles Angebot mit Festpreis und lassen Ihnen dieses zeitnah zukommen.\n\nSollten Sie vorab noch weitere Fragen haben, stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 't2',
-    name: 'Erstkontakt (Details anfragen)',
-    category: 'Erstkontakt',
-    body: '[Anrede],\n\nvielen Dank für Ihr Interesse an unserem Service. Gerne erstellen wir für Sie ein Angebot mit einem fairen Festpreis. Bitte teilen Sie uns kurz eine Liste oder Bilder der Möbel und das gewünschte Umzugsdatum mit. Sie können uns auch jederzeit gerne anrufen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 't3',
-    name: 'Angebot übermitteln',
-    category: 'Angebot',
-    body: '[Anrede],\n\nanbei sende ich Ihnen unser verbindliches Angebot mit Festpreis für Ihren bevorstehenden Umzug. Bei Rothirsch Umzüge sind alle Möbelstücke durch Profi-Decken und Schutzfolien optimal geschützt. Bitte prüfen Sie das Angebot und geben Sie uns kurz Bescheid, um Ihren Wunschtermin zu sichern!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 't4',
-    name: 'Nachfrage zum Umzugsangebot',
-    category: 'Nachfassen',
-    body: '[Anrede],\n\nich wollte mich kurz erkundigen, ob Sie bereits eine Entscheidung zu unserem Angebot treffen konnten? Ihr Wunschtermin ist aktuell noch verfügbar. Sollten noch Fragen offen sein oder Sie Anpassungen wünschen, melden Sie sich gerne telefonisch oder per Nachricht!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 't5',
-    name: 'Aktualisiertes Angebot senden',
-    category: 'Angebot',
-    body: '[Anrede],\n\nvielen Dank für Ihre Rückmeldung. Anbei erhalten Sie das aktualisierte Umzugsangebot angepasst an Ihre Änderungswünsche.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 't6',
-    name: 'Freundliche Absage',
-    category: 'Nachfassen',
-    body: '[Anrede],\n\nes ist schade zu hören, dass es diesmal nicht geklappt hat. Wir wünschen Ihnen dennoch einen reibungslosen Umzug und alles Gute!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 't7',
-    name: 'Auftragsbestätigung & Termin',
-    category: 'Auftrag',
-    body: '[Anrede],\n\nvielen Dank für Ihr Vertrauen und die Auftragsbestätigung! Hiermit bestätige ich Ihnen verbindlich Ihren Umzugstermin am [Datum]. Unser Team freut sich auf einen reibungslosen und professionellen Ablauf!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 't8',
-    name: 'Uhrzeit des Umzugs (Team-Eintreffen)',
-    category: 'Auftrag',
-    body: '[Anrede],\n\nkurze Information zu Ihrem Umzug am [Datum]: Unser Team wird voraussichtlich zwischen 8:00 und 9:00 Uhr bei Ihnen an der Beladestelle eintreffen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 'hvz_info',
-    name: 'Halteverbotszone (HVZ) Info',
-    category: 'Logistik',
-    body: '[Anrede],\n\ndie amtlich genehmigte Halteverbotszone für Ihren Umzugstermin am [Datum] wurde beauftragt und wird rechtzeitig vorschriftsmäßig mit Protokoll aufgestellt.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 'kartons_info',
-    name: 'Umzugskartons Bereitstellung',
-    category: 'Logistik',
-    body: '[Anrede],\n\nIhre bestellten Umzugskartons stehen abholbereit bzw. werden wie vereinbart an Ihre Adresse geliefert.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 't9',
-    name: 'Rechnung übermitteln & Google-Bewertung',
-    category: 'Abrechnung',
-    body: '[Anrede],\n\nvielen Dank für den erfolgreichen Umzug! Anbei erhalten Sie Ihre Rechnung. Wir hoffen, Sie haben sich in Ihrem neuen Zuhause gut eingelebt. Falls Sie zufrieden waren, würden wir uns riesig über eine kurze Google-Bewertung freuen!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 't10',
-    name: 'Dankeschön für Bewertung',
-    category: 'Nachbereitung',
-    body: '[Anrede],\n\nvielen herzlichen Dank für Ihre wunderbare Bewertung! Wir haben uns sehr über Ihr Feedback gefreut und wünschen Ihnen alles Gute im neuen Heim.\n\nHerzliche Grüße\n[Mitarbeiter]\nRothirsch Umzüge'
-  }
-];
+import { MASTER_COMMUNICATION_TEMPLATES } from '@/lib/communicationDefaults';
 
 const formatProtocolDate = (val: any) => {
   if (!val) return 'Gerade eben';
@@ -208,9 +136,9 @@ export function CustomerPremiumProfile({
     const fromSettings = settings?.communicationTemplates || [];
     const map = new Map<string, any>();
 
-    // 1. Load all 12 comprehensive default templates (t1 to t10, hvz_info, kartons_info)
-    DEFAULT_COMMUNICATION_TEMPLATES.forEach((t) => {
-      map.set(t.id, t);
+    // 1. Load all 17 master standard templates
+    MASTER_COMMUNICATION_TEMPLATES.forEach((t) => {
+      map.set(t.id, { ...t });
     });
 
     // 2. Merge with any customized or newly created templates from Firestore settings
@@ -974,13 +902,14 @@ export function CustomerPremiumProfile({
         (item: any) => !item.done && ['kartons', 'hvz', 'moebellift', 'team'].includes(item.id)
       );
       if (openPhase3Items.length > 0) {
+        const missingNames = openPhase3Items.map(i => (i.label || '').split('(')[0].replace('✓', '').trim()).join(' • ');
         return {
           title: 'Logistik & Disposition vorbereiten',
-          desc: 'Der Auftrag ist vom Kunden bestätigt. Bitte planen Sie nun die offenen Vorbereitungen (Disposition im Kalender / gebuchte Zusatzleistungen) für den Umzugstag.',
+          desc: `Der Auftrag ist bestätigt. Noch offen für 100%: ${missingNames}.`,
           btnText: 'Phase 3 im Cockpit öffnen',
           secondaryBtnText: 'Laufzettel drucken',
           onSecondaryAction: () => onViewPdf(activeOrder, 'employee'),
-          badge: 'Phase 3: Logistik-Vorbereitung',
+          badge: `Phase 3: ${openPhase3Items.length} Aufgabe${openPhase3Items.length > 1 ? 'n' : ''} offen`,
           action: () => setDrawerOrder(activeOrder)
         };
       }
@@ -1071,9 +1000,10 @@ export function CustomerPremiumProfile({
   const formatTemplateText = (templateBody: string) => {
     let text = templateBody || '';
     const lastName = (customer?.lastName || '').trim();
+    const firstName = (customer?.firstName || '').trim();
     const cName = customer?.type === 'firma' 
       ? lastName 
-      : `${customer?.firstName || ''} ${lastName}`.trim() || lastName || 'Kunde';
+      : `${firstName} ${lastName}`.trim() || lastName || 'Kunde';
 
     const salutationRaw = (customer?.salutation || activeOrder?.orderMeta?.salutation || '').toLowerCase();
     let formalAnrede = 'Sehr geehrte Damen und Herren';
@@ -1087,9 +1017,15 @@ export function CustomerPremiumProfile({
       }
     }
 
+    // Salutation & Names
+    text = text.replace(/\{\{Kunde_Anrede\}\}/g, formalAnrede);
     text = text.replace(/\[Anrede\]/g, formalAnrede);
+    text = text.replace(/\{\{Kunde_Name\}\}/g, cName);
     text = text.replace(/\[Name\]/g, cName);
+    text = text.replace(/\{\{Kunde_Nachname\}\}/g, lastName || cName);
+    text = text.replace(/\[Nachname\]/g, lastName || cName);
 
+    // Moving Date
     const rawMoveDate = activeOrder?.orderMeta?.movingDateFrom || activeOrder?.movingDate || activeOrder?.logistics?.movingDate;
     let moveDate = 'vereinbartem Datum';
     if (rawMoveDate) {
@@ -1099,11 +1035,30 @@ export function CustomerPremiumProfile({
         moveDate = String(rawMoveDate);
       }
     }
+    text = text.replace(/\{\{Umzugsdatum\}\}/g, moveDate);
     text = text.replace(/\[Datum\]/g, moveDate);
 
+    // Offer / Order Total Price
+    const totalGross = activeOrder?.totals?.gross 
+      ? `${Number(activeOrder.totals.gross).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+      : (activeOrder?.price ? `${Number(activeOrder.price).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` : 'wie vereinbart');
+    text = text.replace(/\{\{Angebot_Summe\}\}/g, totalGross);
+    text = text.replace(/\[Summe\]/g, totalGross);
+
+    // Order & Invoice Numbers
+    const orderNum = activeOrder?.orderNumber || activeOrder?.id || '';
+    text = text.replace(/\{\{Auftragsnummer\}\}/g, orderNum);
+    text = text.replace(/\[Auftrag\]/g, orderNum);
+
+    const invNum = activeInvoiceNumber || linkedInvoice?.invoiceNumber || activeOrder?.invoiceNumber || 'liegt bei';
+    text = text.replace(/\{\{Rechnungsnummer\}\}/g, invNum);
+    text = text.replace(/\[Rechnung\]/g, invNum);
+
+    // Employee / Sachbearbeiter
     const employee = profile?.displayName && !profile.displayName.includes('@')
       ? profile.displayName
       : 'Tarek Lababidi';
+    text = text.replace(/\{\{Sachbearbeiter\}\}/g, employee);
     text = text.replace(/\[Mitarbeiter\]/g, employee);
 
     return text;
@@ -1135,6 +1090,11 @@ export function CustomerPremiumProfile({
               <span className="text-xs font-semibold text-slate-400">
                 Kunden-ID: #{customer?.id?.slice(-5).toUpperCase() || 'KD'}
               </span>
+              {customer?.source && (
+                <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider border ${getSourceBadgeStyle(customer.source)}`}>
+                  {customer.source}
+                </span>
+              )}
               {activeOrder && (
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-200 dark:border-slate-700">
                   {activeOrder.orderNumber || `Auftrag #${activeOrder.id.slice(-5).toUpperCase()}`}
@@ -1156,29 +1116,29 @@ export function CustomerPremiumProfile({
             </h1>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={onEditCustomer}
-              className="px-4 py-2.5 rounded-full font-bold text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-all flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 cursor-pointer"
+              className="px-3 py-1.5 rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-all flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 cursor-pointer shadow-2xs"
             >
-              <PencilSquareIcon className="w-4 h-4" />
+              <PencilSquareIcon className="w-3.5 h-3.5" />
               <span>Kundendaten</span>
             </button>
 
             {activeOrder && (
               <Link
                 href={`/dashboard/customers/${customer.id}/edit-order/${activeOrder.id}`}
-                className="px-5 py-2.5 rounded-full font-bold text-xs bg-[#6E8F64] hover:bg-[#5C7A53] text-white shadow-sm shadow-[#6E8F64]/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-3.5 py-1.5 rounded-xl font-bold text-xs bg-[#6E8F64] hover:bg-[#5C7A53] text-white shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
               >
-                <DocumentTextIcon className="w-4 h-4" />
+                <DocumentTextIcon className="w-3.5 h-3.5" />
                 <span>Angebot bearbeiten</span>
               </Link>
             )}
 
             <Link
               href={`/dashboard/customers/${customer.id}/new-order`}
-              className="py-2.5 px-5 rounded-full font-bold text-xs bg-[#6E8F64]/15 hover:bg-[#6E8F64] text-[#435E3A] dark:text-[#B5D1AC] hover:text-white border border-[#6E8F64]/35 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+              className="py-1.5 px-3.5 rounded-xl font-bold text-xs bg-[#6E8F64]/15 hover:bg-[#6E8F64] text-[#435E3A] dark:text-[#B5D1AC] hover:text-white border border-[#6E8F64]/35 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
             >
               <span>+ Neues Angebot</span>
             </Link>
@@ -1282,9 +1242,7 @@ export function CustomerPremiumProfile({
           const isLegacyPhantomVol = !hasInventoryItems && activeOrder?.logistics?.truckChoice !== 'custom' && (rawVol === 18 || rawVol === 30);
           const displayVol = isLegacyPhantomVol ? 0 : rawVol;
 
-          const hasHVZService = Array.isArray(activeOrder.services) && activeOrder.services.some((s: any) =>
-            (s.name || '').toLowerCase().includes('halteverbot') || (s.name || '').toLowerCase().includes('hvz')
-          );
+          const hasHVZService = hasFixedService(activeOrder.services, 'hvz');
           const showHvzRow = Boolean(
             activeOrder.logistics?.a_parking ||
             activeOrder.logistics?.b_parking ||
@@ -1296,22 +1254,16 @@ export function CustomerPremiumProfile({
             isTaskCompleted(activeOrder, 'hvz')
           );
 
-          const hasKartonService = Array.isArray(activeOrder.services) && activeOrder.services.some((s: any) => {
-            const n = (s.name || '').toLowerCase();
-            return n.includes('karton') || n.includes('packmaterial') || n.includes('box');
-          });
+          const hasKartonService = hasFixedService(activeOrder.services, 'kartons');
+          const hasKartonDate = Boolean(activeOrder.orderMeta?.kartonDeliveryDate || activeOrder.logistics?.boxDeliveryDate);
           const showKartonRow = Boolean(
             hasKartonService ||
-            (Array.isArray(activeOrder.logistics?.materials) && activeOrder.logistics.materials.length > 0) ||
-            Number(activeOrder.orderMeta?.boxesCount || activeOrder.logistics?.boxesCount || 0) > 0 ||
-            activeOrder.orderMeta?.kartonDeliveryDate ||
-            activeOrder.logistics?.boxDeliveryDate ||
-            isTaskCompleted(activeOrder, 'kartons')
+            hasKartonDate ||
+            (Array.isArray(activeOrder.logistics?.materials) && activeOrder.logistics.materials.some((m: any) => (Number(m.quantity) || Number(m.count) || 0) > 0)) ||
+            Number(activeOrder.orderMeta?.boxesCount || activeOrder.logistics?.boxesCount || 0) > 0
           );
 
-          const hasLiftService = Array.isArray(activeOrder.services) && activeOrder.services.some((s: any) =>
-            (s.name || '').toLowerCase().includes('möbellift') || (s.name || '').toLowerCase().includes('moebellift') || (s.name || '').toLowerCase().includes('lift')
-          );
+          const hasLiftService = hasFixedService(activeOrder.services, 'moebellift');
           const showLiftRow = Boolean(
             activeOrder.logistics?.a_furnitureLift ||
             activeOrder.logistics?.b_furnitureLift ||
@@ -1810,13 +1762,13 @@ export function CustomerPremiumProfile({
         } else {
           // Phase 4: Billing / Settlement
           primaryActions = [
+            renderAngebotPdfBtn(false),
             renderRechnungBtn(false),
             renderZahlungBtn(false),
             renderProtokollBtn(false),
             renderWhatsAppBtn(false),
           ];
           menuActions = [
-            renderAngebotPdfBtn(true),
             renderLaufzettelBtn(true),
             renderStornoBtn(),
           ];
@@ -1929,77 +1881,83 @@ export function CustomerPremiumProfile({
 
             {/* Current Phase Badge & Tasks Progress with Visual Percentage Bar */}
             <div className="min-w-0 flex flex-col justify-center">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate">
-                  Phase {currentPhaseInfo.phase}: {currentPhaseInfo.label}
-                </span>
-                <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 hidden sm:inline">
-                  • {completedCount}/{checklist.length} Aufgaben
-                </span>
-              </div>
+              {(() => {
+                const openItems = checklist.filter(c => !c.done);
+                const percent = checklist.length > 0 ? Math.round((completedCount / checklist.length) * 100) : 0;
+                const tooltipText = percent === 100 
+                  ? 'Alle Aufgaben dieser Phase erledigt (100% ✓)' 
+                  : `Noch offen für 100%:\n${openItems.map(i => `• ${i.label}`).join('\n')}`;
 
-              {/* Visual Percentage Progress Bar */}
-              {checklist.length > 0 && (() => {
-                const percent = Math.round((completedCount / checklist.length) * 100);
                 return (
-                  <div className="flex items-center gap-2 mt-1">
-                    <div className="w-20 sm:w-28 bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all duration-500 ${
-                          percent === 100
-                            ? 'bg-emerald-500'
-                            : percent >= 50
-                              ? 'bg-[#6E8F64]'
-                              : 'bg-amber-500'
-                        }`}
-                        style={{ width: `${percent}%` }}
-                      />
+                  <div
+                    className="group cursor-pointer select-none"
+                    title={tooltipText}
+                    onClick={() => {
+                      setDrawerInitialPhase(currentPhaseInfo.phase);
+                      setDrawerOrder(activeOrder);
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate group-hover:text-[#6E8F64] transition-colors">
+                        Phase {currentPhaseInfo.phase}: {currentPhaseInfo.label}
+                      </span>
+                      <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 hidden sm:inline">
+                        • {completedCount}/{checklist.length} Aufgaben
+                      </span>
                     </div>
-                    <span className={`text-[10px] font-extrabold ${
-                      percent === 100
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-slate-600 dark:text-slate-300'
-                    }`}>
-                      {percent}%
-                    </span>
+
+                    {/* Visual Percentage Progress Bar with clear hover & subtle hint */}
+                    {checklist.length > 0 && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="w-20 sm:w-28 bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              percent === 100
+                                ? 'bg-emerald-500'
+                                : percent >= 50
+                                  ? 'bg-[#6E8F64]'
+                                  : 'bg-amber-500'
+                            }`}
+                            style={{ width: `${percent}%` }}
+                          />
+                        </div>
+                        <span className={`text-[10px] font-extrabold ${
+                          percent === 100
+                            ? 'text-emerald-600 dark:text-emerald-400'
+                            : 'text-slate-600 dark:text-slate-300'
+                        }`}>
+                          {percent}%
+                        </span>
+
+                        {/* Clean, elegant hint: exactly what is missing for 100% */}
+                        {percent < 100 && openItems.length > 0 && (
+                          <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400 font-medium truncate max-w-[240px]">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                            <span className="truncate">Noch offen: {openItems[0].label}</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })()}
             </div>
           </div>
 
-          {/* Right: Direct Next Action Button & Cockpit Drawer Icon Button */}
+          {/* Right: Direct Cockpit Drawer Access Button */}
           <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
-            {nextStep.secondaryBtnText && nextStep.onSecondaryAction && (
-              <button
-                type="button"
-                onClick={nextStep.onSecondaryAction}
-                className="py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors cursor-pointer"
-              >
-                {nextStep.secondaryBtnText}
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={nextStep.action}
-              className="py-2 px-4 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs shadow-[#6E8F64]/20 cursor-pointer"
-            >
-              <span>{nextStep.btnText}</span>
-              <ArrowRightIcon className="w-3.5 h-3.5" />
-            </button>
-
             <button
               type="button"
               onClick={() => {
                 setDrawerInitialPhase(currentPhaseInfo.phase);
                 setDrawerOrder(activeOrder);
               }}
-              className="py-2 px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors flex items-center gap-1 text-xs font-bold cursor-pointer"
+              className="py-2 px-3.5 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs shadow-[#6E8F64]/20 cursor-pointer"
               title="Operatives Cockpit & Checkliste öffnen"
             >
-              <AdjustmentsHorizontalIcon className="w-4 h-4 text-[#6E8F64]" />
-              <span className="hidden sm:inline">Cockpit</span>
+              <AdjustmentsHorizontalIcon className="w-4 h-4 text-white" />
+              <span>Operatives Cockpit</span>
+              <ArrowRightIcon className="w-3.5 h-3.5" />
             </button>
           </div>
 
@@ -2579,28 +2537,30 @@ export function CustomerPremiumProfile({
                       </button>
                     )}
 
-                    {/* 5. Intelligente Phase-spezifische Aktion (Signatur vs Rechnung) */}
+                    {/* 5. Intelligente Phase-spezifische Aktion (Signatur vs Rechnung) für inaktive Aufträge */}
                     {['quote', 'clarification', 'verhandlung'].includes(ord.status) && !(ord.signature || ord.orderMeta?.customerSignature) && !ordLatestCancelledNum ? (
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => onOpenSignatureModal ? onOpenSignatureModal(ord) : setDrawerOrder(ord)}
-                          className="px-3 py-2 rounded-xl text-xs font-bold bg-amber-500/10 hover:bg-amber-500 text-amber-600 hover:text-white dark:text-amber-400 border border-amber-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
-                          title="Vertrag digital signieren"
-                        >
-                          <PencilSquareIcon className="w-3.5 h-3.5" />
-                          <span>Digital signieren</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRequestInvoice(ord)}
-                          className="px-2.5 py-2 rounded-xl text-xs font-bold bg-purple-50 hover:bg-purple-100 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition-all flex items-center gap-1 cursor-pointer"
-                          title="Rechnung trotz fehlender Unterschrift erstellen (Sicherheitsprüfung wird geöffnet)"
-                        >
-                          <DocumentCheckIcon className="w-3.5 h-3.5" />
-                          <span>Rechnung</span>
-                        </button>
-                      </div>
+                      !isThisActive ? (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => onOpenSignatureModal ? onOpenSignatureModal(ord) : setDrawerOrder(ord)}
+                            className="px-3 py-2 rounded-xl text-xs font-bold bg-amber-500/10 hover:bg-amber-500 text-amber-600 hover:text-white dark:text-amber-400 border border-amber-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
+                            title="Vertrag digital signieren"
+                          >
+                            <PencilSquareIcon className="w-3.5 h-3.5" />
+                            <span>Digital signieren</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRequestInvoice(ord)}
+                            className="px-2.5 py-2 rounded-xl text-xs font-bold bg-purple-50 hover:bg-purple-100 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition-all flex items-center gap-1 cursor-pointer"
+                            title="Rechnung trotz fehlender Unterschrift erstellen (Sicherheitsprüfung wird geöffnet)"
+                          >
+                            <DocumentCheckIcon className="w-3.5 h-3.5" />
+                            <span>Rechnung</span>
+                          </button>
+                        </div>
+                      ) : null
                     ) : ordHasInvoice ? (
                       <>
                         <button

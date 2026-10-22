@@ -462,8 +462,8 @@ export default function FinancesPage() {
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* KPI Cards (Hidden on mobile to instantly reveal invoice list and search) */}
+      <section className="hidden sm:grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* KPI 1: Gesamt Offen */}
         <div className="bg-bg-panel border border-structure rounded-3xl p-5 relative overflow-hidden shadow-xs hover:shadow-md transition-all">
           <div className="flex items-center justify-between mb-3">
@@ -651,8 +651,142 @@ export default function FinancesPage() {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          <>
+            {/* Mobile Invoices View (Single-column card layout, zero horizontal overflow) */}
+            <div className="block md:hidden divide-y divide-structure">
+              {filteredInvoices.map(inv => {
+                const gross = calculateOrderTotals(inv).gross;
+                const paid = calculateTotalPaid(inv);
+                const isCanceled = inv.status === 'canceled' || inv.status === 'invoice_cancelled' || inv.isStorno;
+                const open = calculateOpenAmount(inv);
+                const overdue = isInvoiceOverdue(inv);
+
+                const createdStr = inv.createdAt?.toDate 
+                  ? inv.createdAt.toDate().toLocaleDateString('de-DE') 
+                  : (inv.createdAt ? new Date(inv.createdAt).toLocaleDateString('de-DE') : '-');
+
+                const viewInvoiceUrl = `/dashboard/customers/${inv.customerId || ''}?orderId=${inv.id}&pdfType=invoice`;
+
+                return (
+                  <div key={inv.id} className={`p-4 space-y-3 hover:bg-structure/10 transition-colors ${isCanceled ? 'opacity-60' : ''}`}>
+                    {/* Top Row: Rechnungsnummer & Status */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${inv.isStorno ? 'bg-red-500/10' : 'bg-primary/10'}`}>
+                          <DocumentTextIcon className={`w-4 h-4 ${inv.isStorno ? 'text-red-500' : 'text-primary'}`} />
+                        </div>
+                        <div>
+                          <span className="font-bold font-headline text-text-main text-sm block">
+                            {inv.invoiceNumber || '-'}
+                          </span>
+                          <span className="text-[10px] text-text-muted block">
+                            {createdStr}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-end gap-1">
+                        {inv.isStorno ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-headline bg-red-500/10 text-red-500 border border-red-500/20 uppercase tracking-wider">
+                            <XCircleIcon className="w-3 h-3" /> Storno-Beleg
+                          </span>
+                        ) : isCanceled ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-headline bg-red-500/10 text-red-500 border border-red-500/20 uppercase tracking-wider">
+                            <XCircleIcon className="w-3 h-3" /> Storniert
+                          </span>
+                        ) : overdue ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold font-headline bg-amber-500/10 text-amber-500 border border-amber-500/20 uppercase tracking-wider">
+                            <ClockIcon className="w-3 h-3" /> Überfällig
+                          </span>
+                        ) : (
+                          <StatusBadge status={inv.status} payments={inv.payments} totals={{ gross }} />
+                        )}
+                        {inv.isStorno && inv.cancelsInvoiceNumber && (
+                          <span className="text-[9px] text-red-400 font-medium">
+                            zu {inv.cancelsInvoiceNumber}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Customer */}
+                    <div>
+                      {inv.customerId ? (
+                        <Link 
+                          href={`/dashboard/customers/${inv.customerId}`}
+                          className="font-semibold text-text-main hover:text-primary transition-colors inline-flex items-center gap-1.5 group text-sm"
+                        >
+                          <span>{inv.customerName || 'Unbekannter Kunde'}</span>
+                          <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5 opacity-60 text-primary" />
+                        </Link>
+                      ) : (
+                        <span className="font-semibold text-text-main text-sm">{inv.customerName || 'Unbekannt'}</span>
+                      )}
+                    </div>
+
+                    {/* Financial Summary Grid (Brutto, Bezahlt, Offen) */}
+                    <div className="grid grid-cols-3 gap-2 text-xs bg-bg-dark/40 rounded-xl p-2.5 border border-structure/60 text-center">
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-text-muted tracking-wider block">Brutto</span>
+                        <span className={`text-xs font-bold block mt-0.5 ${inv.isStorno ? 'text-red-500' : isCanceled ? 'text-text-muted line-through' : 'text-text-main'}`}>
+                          {inv.isStorno ? '- ' : ''}€ {gross.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-text-muted tracking-wider block">Bezahlt</span>
+                        <span className="text-xs font-bold text-emerald-500 block mt-0.5">
+                          € {paid.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] uppercase font-bold text-text-muted tracking-wider block">Offen</span>
+                        <span className={`text-xs font-bold block mt-0.5 ${open > 0 ? (overdue ? 'text-amber-500 font-headline' : 'text-primary font-headline') : 'text-text-muted'}`}>
+                          € {isCanceled ? '0,00' : open.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Action Buttons Row */}
+                    <div className="flex items-center justify-between pt-1">
+                      <div className="flex items-center gap-2">
+                        {/* Direct PDF Link */}
+                        <Link
+                          href={viewInvoiceUrl}
+                          className="px-2.5 py-1.5 rounded-lg bg-surface border border-structure text-text-main hover:border-primary/40 text-xs font-semibold flex items-center gap-1 transition-colors"
+                          title="Rechnung PDF ansehen"
+                        >
+                          <DocumentTextIcon className="w-3.5 h-3.5 text-primary" />
+                          <span>PDF</span>
+                        </Link>
+
+                        {/* Direct Payment Action */}
+                        {!isCanceled && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPaymentOrder(inv)}
+                            className="px-2.5 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/20 text-xs font-semibold flex items-center gap-1 transition-colors"
+                            title="Zahlung erfassen"
+                          >
+                            <BanknotesIcon className="w-3.5 h-3.5" />
+                            <span>Zahlung</span>
+                          </button>
+                        )}
+                      </div>
+
+                      <FinanceActionsDropdown
+                        invoice={inv}
+                        onSelectPayment={setSelectedPaymentOrder}
+                        onSelectStorno={setSelectedStornoInvoice}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-structure bg-bg-dark/30 text-text-muted">
                   <th className="py-3.5 px-5 font-bold uppercase tracking-wider text-[10px] font-headline">Rechnungsnr.</th>
@@ -777,6 +911,7 @@ export default function FinancesPage() {
               </tbody>
             </table>
           </div>
+        </>
         )}
       </div>
 

@@ -1,6 +1,7 @@
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { calculateOpenAmount } from './financeHelpers';
+import { hasFixedService } from './serviceKeys';
 
 /**
  * Task mappings across different historical and UI representations:
@@ -101,7 +102,8 @@ export function isTaskCompleted(order: any, taskId: string): boolean {
         ticketStates.team_assigned ||
         order.teamAssigned ||
         (Array.isArray(order.assignedEmployees) && order.assignedEmployees.length > 0) ||
-        (Array.isArray(order.team) && order.team.length > 0)
+        (Array.isArray(order.team) && order.team.length > 0) ||
+        (order.disposition && (Number(order.disposition.helpers) > 0 || Number(order.disposition.koffer35t) > 0 || Number(order.disposition.lkw7t) > 0))
       );
 
     case 'protocol':
@@ -279,6 +281,7 @@ export interface TaskScheduleExtras {
   location?: 'a' | 'b' | 'both';
   method?: 'selbst' | 'extern';
   notes?: string;
+  viewingType?: string;
 }
 
 /**
@@ -366,6 +369,11 @@ export async function updateTaskSchedule(
       updates['orderMeta.viewingTime'] = timeStr;
       updates['logistics.viewingDate'] = combined;
       updates['logistics.viewingTime'] = timeStr;
+      if (extras?.viewingType) {
+        updates['orderMeta.viewingType'] = extras.viewingType;
+        updates['logistics.viewingType'] = extras.viewingType;
+        updates['viewingType'] = extras.viewingType;
+      }
       if (extras?.notes) updates['orderMeta.viewingNotes'] = extras.notes;
       break;
     }
@@ -388,37 +396,76 @@ export async function autoCompletePreMoveTasks(orderId: string): Promise<void> {
   if (!orderId) return;
   const orderRef = doc(db, 'orders', orderId);
 
-  const updates: Record<string, any> = {
-    updatedAt: serverTimestamp(),
-    // 1. Viewing task (Besichtigungstermin erledigt)
-    'ticketStates.viewing_requested': true,
-    'checklistDone.viewing_requested': true,
-    'checklistDone.viewing_date': true,
-    // 2. Halteverbot (HVZ erledigt/abgeschlossen)
-    'ticketStates.halteverbot': true,
-    'checklistDone.hvz': true,
-    'checklistDone.halteverbot': true,
-    'logistics.hvzConfirmed': true,
-    'logistics.hvzStatus': 'confirmed',
-    'logisticsState.hvz_aufgestellt': true,
-    // 3. Karton-Lieferung (Kartons ausgeliefert)
-    'ticketStates.kartons_liefern': true,
-    'checklistDone.kartons': true,
-    'checklistDone.kartons_liefern': true,
-    'logistics.boxesDelivered': true,
-    'logisticsState.kartons_geliefert': true,
-    // 4. Möbellift (Lift reserviert/erledigt)
-    'ticketStates.moebellift_buchen': true,
-    'checklistDone.moebellift': true,
-    'checklistDone.moebellift_buchen': true,
-    'logistics.liftReserved': true,
-    'logistics.liftStatus': 'confirmed',
-    // 5. Team disposition
-    'checklistDone.team': true,
-    'teamAssigned': true
-  };
-
   try {
+    const snap = await getDoc(orderRef);
+    if (!snap.exists()) return;
+    const order = snap.data();
+
+    const updates: Record<string, any> = {
+      updatedAt: serverTimestamp(),
+      // 1. Viewing task (Besichtigungstermin erledigt)
+      'ticketStates.viewing_requested': true,
+      'checklistDone.viewing_requested': true,
+      'checklistDone.viewing_date': true,
+    };
+
+    // 2. Halteverbot: nur wenn tatsächlich gebucht/geplant
+    const hasHvz = Boolean(
+      order.logistics?.a_parking || 
+      order.logistics?.b_parking || 
+      order.logistics?.needHVZ || 
+      hasFixedService(order.services, 'hvz') || 
+      order.services?.halteverbot || 
+      order.orderMeta?.halteverbotDate || 
+      order.logistics?.hvzDate
+    );
+    if (hasHvz) {
+      updates['ticketStates.halteverbot'] = true;
+      updates['checklistDone.hvz'] = true;
+      updates['checklistDone.halteverbot'] = true;
+      updates['logistics.hvzConfirmed'] = true;
+      updates['logistics.hvzStatus'] = 'confirmed';
+      updates['logisticsState.hvz_aufgestellt'] = true;
+    }
+
+    // 3. Karton-Lieferung: nur wenn tatsächlich gebucht/geplant
+    const hasKartons = Boolean(
+      hasFixedService(order.services, 'kartons') || 
+      order.orderMeta?.kartonDeliveryDate || 
+      order.logistics?.boxDeliveryDate ||
+      (Array.isArray(order.logistics?.materials) && order.logistics.materials.some((m: any) => (Number(m.quantity) || Number(m.count) || 0) > 0)) ||
+      Number(order.orderMeta?.boxesCount || order.logistics?.boxesCount || 0) > 0
+    );
+    if (hasKartons) {
+      updates['ticketStates.kartons_liefern'] = true;
+      updates['checklistDone.kartons'] = true;
+      updates['checklistDone.kartons_liefern'] = true;
+      updates['logistics.boxesDelivered'] = true;
+      updates['logisticsState.kartons_geliefert'] = true;
+    }
+
+    // 4. Möbellift: nur wenn tatsächlich gebucht/geplant
+    const hasLift = Boolean(
+      order.logistics?.a_furnitureLift || 
+      order.logistics?.b_furnitureLift || 
+      order.logistics?.needLift || 
+      hasFixedService(order.services, 'moebellift') || 
+      order.services?.moebellift || 
+      order.orderMeta?.moebelliftDate || 
+      order.logistics?.moebelliftDate
+    );
+    if (hasLift) {
+      updates['ticketStates.moebellift_buchen'] = true;
+      updates['checklistDone.moebellift'] = true;
+      updates['checklistDone.moebellift_buchen'] = true;
+      updates['logistics.liftReserved'] = true;
+      updates['logistics.liftStatus'] = 'confirmed';
+    }
+
+    // 5. Team disposition
+    updates['checklistDone.team'] = true;
+    updates['teamAssigned'] = true;
+
     await updateDoc(orderRef, updates);
   } catch (err) {
     console.error('Error auto-completing pre-move tasks for order', orderId, err);

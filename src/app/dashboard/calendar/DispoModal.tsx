@@ -22,6 +22,7 @@ import { PDFDownloadLink } from '@react-pdf/renderer';
 import { EmployeeSheetPDF } from '@/components/pdf/EmployeeSheetPDF';
 import { generateTickets } from '@/lib/ticketEngine';
 import { toggleTaskCompletion, isTaskCompleted } from '@/lib/taskStateController';
+import { hasFixedService } from '@/lib/serviceKeys';
 import Link from 'next/link';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 
@@ -69,7 +70,7 @@ export function DispoModal({
     const isConfirmed = !['draft', 'quote'].includes(o.status);
     
     // Halteverbot
-    if ((o.logistics?.noParkingZone || o.services?.some((s: any) => s.name?.toLowerCase().includes('halteverbot'))) && isConfirmed) {
+    if ((o.logistics?.noParkingZone || o.logistics?.a_parking || o.logistics?.b_parking || hasFixedService(o.services, 'hvz')) && isConfirmed) {
       const effectiveMovingDate = o.orderMeta?.movingDateFrom || o.movingDate || o.disposition?.movingDate;
       if (effectiveMovingDate) {
         let hvDateStr = o.orderMeta?.halteverbotDate || '';
@@ -94,7 +95,7 @@ export function DispoModal({
     }
     
     // Kartons
-    if (o.services?.some((s: any) => s.name?.toLowerCase().includes('karton')) && isConfirmed) {
+    if ((hasFixedService(o.services, 'kartons') || Boolean(o.orderMeta?.kartonDeliveryDate)) && isConfirmed) {
       const effectiveMovingDate = o.orderMeta?.movingDateFrom || o.movingDate || o.disposition?.movingDate;
       if (effectiveMovingDate) {
         let boxDateStr = o.orderMeta?.kartonDeliveryDate || '';
@@ -119,7 +120,7 @@ export function DispoModal({
     }
 
     // Möbellift
-    if (o.services?.some((s: any) => ['lift', 'möbellift', 'aufzug'].some(kw => s.name?.toLowerCase().includes(kw))) && isConfirmed) {
+    if ((o.logistics?.a_furnitureLift || o.logistics?.b_furnitureLift || hasFixedService(o.services, 'moebellift')) && isConfirmed) {
       const effectiveMovingDate = o.orderMeta?.movingDateFrom || o.movingDate || o.disposition?.movingDate;
       if (effectiveMovingDate) {
         let liftDateStr = o.orderMeta?.moebelliftDate || '';
@@ -196,8 +197,8 @@ export function DispoModal({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="relative bg-bg-panel border border-structure w-full max-w-5xl max-h-[92vh] flex flex-col rounded-3xl shadow-2xl shadow-black/20 overflow-hidden">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-2.5 sm:p-5 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="relative bg-bg-panel border border-structure w-full max-w-5xl max-h-[calc(100dvh-4.5rem)] sm:max-h-[92vh] flex flex-col rounded-3xl shadow-2xl shadow-black/20 overflow-hidden mb-12 sm:mb-0">
         
         {/* Header with Title & KPI Chips */}
         <div className="flex flex-col sm:flex-row justify-between items-start gap-3 p-4 sm:p-5 md:p-6 border-b border-structure bg-bg-card/40 shrink-0">
@@ -313,7 +314,7 @@ export function DispoModal({
         )}
         
         {/* Modal Scroll Content */}
-        <div className="p-4 sm:p-5 md:p-6 overflow-y-auto flex-1 space-y-5 sm:space-y-6 custom-scrollbar">
+        <div className="p-4 sm:p-5 md:p-6 overflow-y-auto flex-1 space-y-5 sm:space-y-6 custom-scrollbar pb-32 sm:pb-8">
 
           {/* SECTION 1: UMZÜGE & FUHRPARK */}
           {(activeSection === 'all' || activeSection === 'moves') && (

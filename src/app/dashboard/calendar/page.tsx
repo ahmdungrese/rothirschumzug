@@ -20,6 +20,7 @@ import {
 import Link from 'next/link';
 import { DispoModal } from './DispoModal';
 import { isTaskCompleted } from '@/lib/taskStateController';
+import { hasFixedService } from '@/lib/serviceKeys';
 import { useAuth } from '@/context/AuthContext';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 
@@ -164,7 +165,7 @@ export default function CalendarPage() {
         if (isTeamLead) return;
 
         // 2. Halteverbot
-        if (o.logistics?.noParkingZone && isConfirmed) {
+        if ((o.logistics?.noParkingZone || o.logistics?.a_parking || o.logistics?.b_parking || hasFixedService(o.services, 'hvz')) && isConfirmed) {
           let hvDateStr = o.orderMeta?.halteverbotDate || '';
           if (!hvDateStr) {
             let hvDate = new Date(movingDateObj);
@@ -195,7 +196,7 @@ export default function CalendarPage() {
         }
 
         // 3. Karton-Lieferung
-        if (o.services?.some((s: any) => s.name?.toLowerCase().includes('karton')) && isConfirmed) {
+        if ((hasFixedService(o.services, 'kartons') || Boolean(o.orderMeta?.kartonDeliveryDate)) && isConfirmed) {
           let boxDateStr = o.orderMeta?.kartonDeliveryDate || '';
           if (!boxDateStr) {
             let boxDate = new Date(movingDateObj);
@@ -226,7 +227,7 @@ export default function CalendarPage() {
         }
 
         // 4. Möbellift buchen
-        if (o.services?.some((s: any) => ['lift', 'möbellift', 'aufzug'].some(kw => s.name?.toLowerCase().includes(kw))) && isConfirmed) {
+        if ((o.logistics?.a_furnitureLift || o.logistics?.b_furnitureLift || hasFixedService(o.services, 'moebellift')) && isConfirmed) {
           let liftDateStr = o.orderMeta?.moebelliftDate || '';
           if (!liftDateStr) {
             let liftDate = new Date(movingDateObj);

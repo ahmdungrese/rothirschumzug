@@ -15,9 +15,11 @@ import { changeOrderStatus } from '@/lib/orderStateMachine';
 import { calculateOrderTotals } from '@/lib/financeHelpers';
 import { InventoryWizardModal, ROOM_TYPES } from './InventoryWizardModal';
 import { KartonConfigModal } from './KartonConfigModal';
+import { PdfModal } from '@/components/ui/PdfModal';
 import { FLOOR_OPTIONS } from '@/lib/constants';
 import { withDbTimeout, formatFriendlyError } from '@/lib/networkWatchdog';
 import { modalManager } from '@/lib/modalManager';
+import { FIXED_KEYS, getFixedKey, hasFixedService, isRemovalLocked, applyHvzToServices, applyLiftToServices, ensureTransportService, fixedLine, resolveFixedDefs, type FixedServiceKey } from '@/lib/serviceKeys';
 import { ShowcaseServiceItem, DEFAULT_SHOWCASE_SERVICES, AVAILABLE_SHOWCASE_ICONS } from '@/lib/showcaseDefaults';
 
 const getPropertyIcon = (type: string) => {
@@ -639,6 +641,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       const existingIdx = prev.findIndex(s => (s as any).isKartonService || s.id === 'kartons_bereit' || (s.name || '').toLowerCase().includes('kartons bereitstellen') || (s.name || '').toLowerCase().includes('umzugskartons & packmaterial'));
       const itemToInsert = {
         id: selectedKartonService?.id || 'kartons_bereit',
+        key: 'kartons',
         name: serviceData.name || 'Umzugskartons & Packmaterial',
         quantity: serviceData.quantity,
         unitPrice: serviceData.unitPrice,
@@ -707,16 +710,12 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       const nextA = !logistics.a_parking;
       const nextB = !!logistics.b_parking;
       const nextLoc = nextA && nextB ? 'both' : nextA ? 'a' : nextB ? 'b' : 'a';
-      setLogistics((prev: any) => ({ ...prev, a_parking: nextA, hvzLocation: nextLoc }));
-      setOrderMeta((prev: any) => ({ ...prev, hvzLocation: nextLoc }));
-      syncHvzService(nextA, nextB);
+      setHvzParking(nextA, nextB, nextLoc);
     } else {
       const nextA = !!logistics.a_parking;
       const nextB = !logistics.b_parking;
       const nextLoc = nextA && nextB ? 'both' : nextB ? 'b' : nextA ? 'a' : 'b';
-      setLogistics((prev: any) => ({ ...prev, b_parking: nextB, hvzLocation: nextLoc }));
-      setOrderMeta((prev: any) => ({ ...prev, hvzLocation: nextLoc }));
-      syncHvzService(nextA, nextB);
+      setHvzParking(nextA, nextB, nextLoc);
     }
   };
 
@@ -726,7 +725,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     syncHvzService(isA, isB, newPrice);
   };
 
-  const getHvzPrice = () => {
+  const getCurrentHvzUnitPrice = () => {
     const found = services.find(s => s.id === 'hvz_service' || s.id === 'hvz_a' || s.id === 'hvz_b' || (s.name || '').toLowerCase().includes('halteverbot'));
     return found ? found.unitPrice : DEFAULT_HVZ_PRICE;
   };
@@ -767,15 +766,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
   const handleToggleMoebellift = (target: 'a' | 'b') => {
     if (target === 'a') {
-      const nextA = !logistics.a_furnitureLift;
-      const nextB = !!logistics.b_furnitureLift;
-      setLogistics((prev: any) => ({ ...prev, a_furnitureLift: nextA }));
-      syncMoebelliftService(nextA, nextB);
+      setLiftFlags(!logistics.a_furnitureLift, !!logistics.b_furnitureLift);
     } else {
-      const nextA = !!logistics.a_furnitureLift;
-      const nextB = !logistics.b_furnitureLift;
-      setLogistics((prev: any) => ({ ...prev, b_furnitureLift: nextB }));
-      syncMoebelliftService(nextA, nextB);
+      setLiftFlags(!!logistics.a_furnitureLift, !logistics.b_furnitureLift);
     }
   };
 
@@ -785,7 +778,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     syncMoebelliftService(isA, isB, newPrice);
   };
 
-  const getMoebelliftPrice = () => {
+  const getCurrentMoebelliftUnitPrice = () => {
     const found = services.find(s => s.id === 'moebellift_service' || s.id === 'moebellift' || (s.name || '').toLowerCase().includes('möbellift') || (s.name || '').toLowerCase().includes('moebellift'));
     return found ? found.unitPrice : DEFAULT_MOEBELLIFT_PRICE;
   };
@@ -970,6 +963,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const [isAddingCustom, setIsAddingCustom] = useState(false);
   const [showFullCatalog, setShowFullCatalog] = useState(true);
   const [showBisDate, setShowBisDate] = useState(false);
+  const [showPdfModal, setShowPdfModal] = useState(false);
 
   const customerDataRef = useRef(customerData);
   customerDataRef.current = customerData;
@@ -1048,9 +1042,65 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       setShowBisDate(true);
     }
   }, [orderMeta.movingDateTo]);
+  // Phase 2: Feste Kernleistungen
+  const fixedDefs = useMemo(() => resolveFixedDefs(settings), [settings]);
+  const isFixedItem = (s: any) => !getFixedKey({ id: s?.id, name: s?.name });
+
+  const setHvzParking = (nextA: boolean, nextB: boolean, nextLoc: string) => {
+    const prevA = !!logistics.a_parking;
+    const prevB = !!logistics.b_parking;
+    setLogistics((l: any) => ({ ...l, a_parking: nextA, b_parking: nextB, hvzLocation: nextLoc }));
+    setOrderMeta((m: any) => ({ ...m, hvzLocation: nextLoc }));
+    setServices(prev => applyHvzToServices(prev, prevA, prevB, nextA, nextB, fixedDefs.hvz));
+  };
+
+  const setLiftFlags = (nextA: boolean, nextB: boolean) => {
+    setLogistics((l: any) => ({ ...l, a_furnitureLift: nextA, b_furnitureLift: nextB }));
+    setServices(prev => applyLiftToServices(prev, nextA, nextB, fixedDefs.moebellift, orderMeta?.moebelliftDuration || 3));
+  };
+
+  const toggleFixedLine = (key: 'transport' | 'kartons' | 'moebellift') => {
+    const existing = services.find(s => getFixedKey(s) === key);
+    if (existing) {
+      if (isRemovalLocked(existing)) return;
+      setServices(prev => prev.filter(s => s !== existing));
+      if (key === 'moebellift') setLogistics((l: any) => ({ ...l, a_furnitureLift: false, b_furnitureLift: false }));
+    } else {
+      setServices(prev => [...prev, fixedLine(fixedDefs[key], key === 'moebellift' ? { quantity: Math.max(1, Number(orderMeta?.moebelliftDuration) || 3) } : undefined)]);
+    }
+  };
+
   // Helper to toggle standard/catalog service in Step 3
   const toggleStandardService = (srv: { id?: string; name: string; price?: number; defaultPrice?: number; unit?: string; defaultDesc?: string; description?: string }) => {
     const srvName = (srv.name || '').trim();
+    const fixedKey = getFixedKey(srv);
+    if (fixedKey === 'transport') {
+      const existing = services.find(s => getFixedKey(s) === 'transport' || s.id === 'trans_be_ent' || (s.name || '').toLowerCase().includes('transport'));
+      if (existing) {
+        toast('Transport ist als feste Basisleistung im Angebot hinterlegt', { icon: '🚛' });
+        return;
+      }
+      setServices(prev => ensureTransportService(prev, settings));
+      return;
+    }
+    if (fixedKey === 'hvz') {
+      const isB = srv.id === 'hvz_b' || srvName.toLowerCase().includes('halteverbot b');
+      const nextA = isB ? !!logistics.a_parking : !logistics.a_parking;
+      const nextB = isB ? !logistics.b_parking : !!logistics.b_parking;
+      const nextLoc = nextA && nextB ? 'both' : nextB ? 'b' : 'a';
+      setHvzParking(nextA, nextB, nextLoc);
+      return;
+    }
+    if (fixedKey === 'moebellift') {
+      const isAnyLift = logistics.a_furnitureLift || logistics.b_furnitureLift;
+      setLiftFlags(!isAnyLift, false);
+      return;
+    }
+    if (fixedKey === 'kartons') {
+      const existingKarton = services.find(s => getFixedKey(s) === 'kartons');
+      handleOpenKartonModal(existingKarton);
+      return;
+    }
     const isHvzA = srv.id === 'hvz_a' || srvName.toLowerCase().includes('halteverbot a');
     const isHvzB = srv.id === 'hvz_b' || srvName.toLowerCase().includes('halteverbot b');
     const isLift = srv.id === 'moebellift' || srvName.toLowerCase().includes('möbellift') || srvName.toLowerCase().includes('moebellift');
@@ -1100,6 +1150,20 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   };
 
   const isStandardServiceSelected = (srvId?: string, srvName?: string) => {
+    const fixedKey = getFixedKey({ id: srvId, name: srvName });
+    if (fixedKey === 'transport') {
+      return services.some(s => getFixedKey(s) === 'transport' || s.id === 'trans_be_ent' || (s.name || '').toLowerCase().includes('transport'));
+    }
+    if (fixedKey === 'hvz') {
+      const isB = srvId === 'hvz_b' || (srvName || '').toLowerCase().includes('halteverbot b');
+      return isB ? !!logistics.b_parking : !!logistics.a_parking;
+    }
+    if (fixedKey === 'moebellift') {
+      return Boolean(logistics.a_furnitureLift || logistics.b_furnitureLift);
+    }
+    if (fixedKey === 'kartons') {
+      return services.some(s => getFixedKey(s) === 'kartons');
+    }
     const targetName = (srvName || srvId || '').trim().toLowerCase();
     if (srvId === 'hvz_a' || targetName.includes('halteverbot a')) return Boolean(logistics.a_parking);
     if (srvId === 'hvz_b' || targetName.includes('halteverbot b')) return Boolean(logistics.b_parking);
@@ -1113,6 +1177,13 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   };
 
   const getServiceQuantity = (srvId?: string, srvName?: string) => {
+    const fixedKey = getFixedKey({ id: srvId, name: srvName });
+    if (fixedKey === 'hvz') {
+      return isStandardServiceSelected(srvId, srvName) ? 1 : 0;
+    }
+    if (fixedKey === 'moebellift') {
+      return (logistics.a_furnitureLift && logistics.b_furnitureLift) ? 2 : (logistics.a_furnitureLift || logistics.b_furnitureLift) ? 1 : 0;
+    }
     const targetName = (srvName || srvId || '').trim().toLowerCase();
     if (srvId === 'hvz_a' || targetName.includes('halteverbot a')) return logistics.a_parking ? 1 : 0;
     if (srvId === 'hvz_b' || targetName.includes('halteverbot b')) return logistics.b_parking ? 1 : 0;
@@ -1435,31 +1506,20 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           const validDate = new Date();
           validDate.setDate(validDate.getDate() + days);
           
+          const defaultPm = s.paymentMethods?.find((p: any) => p.isDefault) || s.paymentMethods?.[0];
+
           setOrderMeta((prev: any) => ({ 
             ...prev, 
             manager: s.contacts?.[0] || '', 
-            paymentMethod: s.paymentMethods?.[0]?.name || '',
+            paymentMethod: defaultPm?.name || s.paymentMethods?.[0]?.name || '',
             validUntil: validDate.toISOString().split('T')[0]
           }));
           setTexts({
             quoteIntro: s.texts?.quoteIntro || '',
-            paymentTerms: s.paymentMethods?.[0]?.textQuote || '',
+            paymentTerms: defaultPm?.textQuote || s.paymentMethods?.[0]?.textQuote || '',
             quoteOutro: s.texts?.quoteGreeting || ''
           });
-
-          // Ensure default foundational Transport service exists on new quote if empty
-          setServices(prev => {
-            if (prev.length > 0) return prev;
-            return [{
-              id: 'transport_base',
-              name: 'Transport inkl. Be- & Entladen (Personal und Fahrzeug)',
-              quantity: 1,
-              unitPrice: 0,
-              unit: 'Pauschal',
-              note: 'Fachgerechtes Be- und Entladen sowie versicherter Transport mit Umzugsfahrzeug und geschultem Personal.',
-              location: 'both'
-            }];
-          });
+          setServices(prev => ensureTransportService(prev, s));
         }
       } else {
         // Fallback falls noch keine Settings gespeichert wurden
@@ -1583,6 +1643,16 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 note: 'Einsatz eines Außenaufzugs / Möbellifts an Auszugs- und Einzugsadresse',
                 location: 'both'
               }
+            ];
+          }
+
+          // Consolidate duplicate transport items into a single unified item
+          const transItems = loadedServices.filter((s: any) => getFixedKey(s) === 'transport' || s.id === 'trans_be_ent' || (s.name || '').toLowerCase().includes('transport inkl'));
+          if (transItems.length > 1) {
+            const preserved = transItems[0];
+            loadedServices = [
+              preserved,
+              ...loadedServices.filter((s: any) => !transItems.includes(s))
             ];
           }
 
@@ -1983,25 +2053,73 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     }
   };
 
-  const handlePrintPdf = async () => {
+  const buildCurrentOrderObject = () => ({
+    id: activeOrderId || orderId || 'preview_order',
+    orderNumber: orderMeta?.orderNumber || 'ENTWURF',
+    customerId: loadedCustomerId || urlCustomerId || 'preview_customer',
+    status: orderStatus || 'quote',
+    services,
+    logistics,
+    orderMeta,
+    customerData,
+    inventory,
+    estimatedCbm,
+    truckChoice,
+    texts,
+    isFlatRate,
+    flatRateNet,
+    totals,
+    showServicePortfolioInPDF,
+    showcaseServices: orderShowcaseServices,
+    appendInventoryToPDF,
+    date: orderMeta?.movingDateFrom || date,
+    movingDate: orderMeta?.movingDateFrom || date,
+    createdAt: new Date().toISOString()
+  });
+
+  const buildCurrentCustomerObject = () => ({
+    id: loadedCustomerId || urlCustomerId || 'preview_customer',
+    name: customerName || `${customerData.firstName || ''} ${customerData.lastName || ''}`.trim() || 'Kunde',
+    firstName: customerData.firstName || '',
+    lastName: customerData.lastName || '',
+    companyName: (customerData as any).companyName || '',
+    email: customerEmail || customerData.email || '',
+    phone: customerPhone || customerData.phone || '',
+    street: fromAddress?.split(',')[0] || customerData.street || '',
+    houseNumber: (customerData as any).houseNumber || customerData.houseNr || '',
+    zip: customerData.zip || '',
+    city: customerData.city || '',
+  });
+
+  const handleOpenPdfPreview = async () => {
     try {
       setIsSaving(true);
       await saveOrder(isInvoice ? 'invoice_open' : (isManuallySigned ? 'confirmed' : 'quote'), true, false, false);
-      window.print();
+      setShowPdfModal(true);
     } catch (err) {
-      console.error("PDF Print error:", err);
+      console.error("PDF preview error:", err);
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleEmailCustomer = async () => {
+    const targetEmail = (customerEmail || customerData?.email || '').trim();
+    if (!targetEmail) {
+      toast.error('Keine Kunden-E-Mail-Adresse hinterlegt. Bitte in Schritt 1 angeben.');
+      return;
+    }
     try {
       setIsSaving(true);
       await saveOrder(isInvoice ? 'invoice_open' : (isManuallySigned ? 'confirmed' : 'quote'), true, false, false);
       const subject = encodeURIComponent(`Ihr Umzugsangebot von Rothirsch - ${customerName || ''}`);
       const body = encodeURIComponent(`Guten Tag ${customerName || ''},\n\nanbei erhalten Sie das Angebot für Ihren bevorstehenden Umzug.\nGesamtbetrag: ${totals.gross.toFixed(2)} €.\n\nMit freundlichen Grüßen\nIhr Rothirsch Team`);
-      window.location.href = `mailto:${customerEmail || ''}?subject=${subject}&body=${body}`;
+      const link = document.createElement('a');
+      link.href = `mailto:${targetEmail}?subject=${subject}&body=${body}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success(`E-Mail an ${targetEmail} vorbereitet`);
     } catch (err) {
       console.error("Email customer error:", err);
     } finally {
@@ -2581,7 +2699,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 </button>
                 <button 
                   type="button" 
-                  onClick={() => handleToggleMoebellift('a')} 
+                  onClick={() => setLiftFlags(!logistics.a_furnitureLift, !!logistics.b_furnitureLift)} 
                   className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.a_furnitureLift ? 'border-blue-500 bg-blue-500/20 text-blue-400 shadow-lg shadow-blue-500/20' : 'border-structure bg-bg-dark text-text-muted hover:border-text-muted/30 hover:bg-bg-panel'}`}
                 >
                   <ArrowUpTrayIcon className="w-6 h-6 mb-1" />
@@ -2628,7 +2746,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                         type="number"
                         min="0"
                         step="1"
-                        value={getHvzPrice()}
+                        value={getCurrentHvzUnitPrice()}
                         onChange={e => {
                           const val = parseFloat(e.target.value);
                           handleUpdateHvzPrice(isNaN(val) ? 0 : val);
@@ -2735,7 +2853,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                         type="number"
                         min="0"
                         step="5"
-                        value={getMoebelliftPrice()}
+                        value={getCurrentMoebelliftUnitPrice()}
                         onChange={e => {
                           const val = parseFloat(e.target.value);
                           handleUpdateMoebelliftPrice(isNaN(val) ? 0 : val);
@@ -2848,7 +2966,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 </button>
                 <button 
                   type="button" 
-                  onClick={() => handleToggleMoebellift('b')} 
+                  onClick={() => setLiftFlags(!!logistics.a_furnitureLift, !logistics.b_furnitureLift)} 
                   className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${logistics.b_furnitureLift ? 'border-blue-500 bg-blue-500/20 text-blue-400 shadow-lg shadow-blue-500/20' : 'border-structure bg-bg-dark text-text-muted hover:border-text-muted/30 hover:bg-bg-panel'}`}
                 >
                   <ArrowUpTrayIcon className="w-6 h-6 mb-1" />
@@ -2895,7 +3013,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                         type="number"
                         min="0"
                         step="1"
-                        value={getHvzPrice()}
+                        value={getCurrentHvzUnitPrice()}
                         onChange={e => {
                           const val = parseFloat(e.target.value);
                           handleUpdateHvzPrice(isNaN(val) ? 0 : val);
@@ -3034,7 +3152,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                         type="number"
                         min="0"
                         step="5"
-                        value={getMoebelliftPrice()}
+                        value={getCurrentMoebelliftUnitPrice()}
                         onChange={e => {
                           const val = parseFloat(e.target.value);
                           handleUpdateMoebelliftPrice(isNaN(val) ? 0 : val);
@@ -3650,13 +3768,25 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                               ) : '—'}
                             </td>
                             <td className="pr-2 text-right">
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteService(idx)}
-                                className="text-text-muted hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                              >
-                                <XMarkIcon className="w-4 h-4" />
-                              </button>
+                              {!isRemovalLocked(svc) && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const sKey = getFixedKey(svc);
+                                    setServices(services.filter((_, i) => i !== idx));
+                                    if (sKey === 'hvz') {
+                                      setLogistics((l: any) => ({ ...l, a_parking: false, b_parking: false }));
+                                    }
+                                    if (sKey === 'moebellift') {
+                                      setLogistics((l: any) => ({ ...l, a_furnitureLift: false, b_furnitureLift: false }));
+                                    }
+                                  }}
+                                  className="text-text-muted hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  title="Position entfernen"
+                                >
+                                  <XMarkIcon className="w-4 h-4" />
+                                </button>
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -4443,47 +4573,6 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 </div>
               </div>
 
-              {/* Plausibilität Bestätigung Banner */}
-              <div className="bg-white/[0.02] rounded-2xl p-5 border border-structure shadow-sm flex items-center justify-between gap-4">
-                <div className="flex gap-3.5 items-center">
-                  <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
-                    <span className="material-symbols-outlined text-2xl">verified</span>
-                  </div>
-                  <div>
-                    <h4 className="text-text-main font-headline font-bold text-sm">Angebot ist abschlussbereit</h4>
-                    <p className="text-text-muted text-xs">Alle Logistik- und Tarifangaben sind vollständig hinterlegt.</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold shrink-0">
-                  <span className="material-symbols-outlined text-sm">cloud_done</span>
-                  <span>Als Entwurf gesichert</span>
-                </div>
-              </div>
-
-              {/* Manuelle / Externe Vertragsbestätigung Toggle */}
-              <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <CheckCircleIconSolid className="w-6 h-6 text-emerald-400 shrink-0" />
-                  <div>
-                    <span className="text-xs font-bold text-emerald-400 block">
-                      Bereits unterschrieben / bestätigt (WhatsApp oder Ausdruck)
-                    </span>
-                    <span className="text-[11px] text-text-muted">
-                      Setzt den Status sofort auf "Bestätigt" ohne digitalen Signatur-Link.
-                    </span>
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input
-                    type="checkbox"
-                    checked={isManuallySigned}
-                    onChange={(e) => setIsManuallySigned(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
-                </label>
-              </div>
-
               {/* Service Portfolio / Werbeblock Toggle & Customizer */}
               <div className="p-4 rounded-2xl bg-white/[0.02] border border-structure space-y-3">
                 <div className="flex items-center justify-between gap-4">
@@ -4588,48 +4677,47 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               </div>
             </div>
 
-            {/* Right Column: Dokumenten-Vorschau & Texte */}
+            {/* Right Column: PDF Vorschau & E-Mail */}
             <div className="col-span-12 lg:col-span-5 space-y-6">
-              <div className="bg-bg-card rounded-2xl p-6 border border-structure shadow-md flex flex-col h-full">
-                <div className="flex items-center justify-between mb-4">
+              <div className="bg-bg-card rounded-2xl p-6 border border-structure shadow-md flex flex-col h-full space-y-4">
+                <div className="flex items-center justify-between">
                   <h3 className="text-base font-headline font-bold text-text-main flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary">preview</span>
-                    Dokumenten-Vorschau
+                    <span className="material-symbols-outlined text-primary">visibility</span>
+                    Angebot PDF
                   </h3>
-                  <div className="flex gap-1.5">
-                    <button 
-                      type="button" 
-                      onClick={() => handleQuoteActionWithCheck(() => handlePrintPdf())} 
-                      className="p-1.5 bg-white/[0.04] hover:bg-white/10 rounded-lg border border-structure text-text-muted hover:text-white transition-colors cursor-pointer"
-                      title="Drucken / PDF erzeugen"
-                    >
-                      <span className="material-symbols-outlined text-base">print</span>
-                    </button>
-                  </div>
+                  <button 
+                    type="button" 
+                    onClick={() => handleQuoteActionWithCheck(() => handleOpenPdfPreview())} 
+                    className="btn-secondary py-1.5 px-3 text-xs flex items-center gap-1.5 cursor-pointer"
+                    title="Offizielles Angebot-PDF in Vorschau öffnen"
+                  >
+                    <span className="material-symbols-outlined text-sm text-primary">open_in_full</span>
+                    <span>Vorschau öffnen</span>
+                  </button>
                 </div>
 
-                {/* Simulated PDF Preview Paper */}
+                {/* PDF Card Preview - Clicking opens the real PDF modal! */}
                 <div 
-                  onClick={() => handleQuoteActionWithCheck(() => handlePrintPdf())}
-                  className="flex-grow bg-white/[0.03] rounded-xl border border-dashed border-structure/80 p-6 flex flex-col justify-between cursor-pointer group hover:border-primary/50 transition-colors min-h-[260px] relative overflow-hidden"
+                  onClick={() => handleQuoteActionWithCheck(() => handleOpenPdfPreview())}
+                  className="bg-white/[0.03] hover:bg-white/[0.06] rounded-xl border border-dashed border-structure/80 hover:border-primary/60 p-5 flex flex-col justify-between cursor-pointer group transition-all relative overflow-hidden"
                 >
-                  <div className="flex justify-between items-start border-b border-structure/40 pb-4">
+                  <div className="flex justify-between items-start border-b border-structure/40 pb-3">
                     <div>
                       <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Rothirsch Logistics</span>
-                      <p className="text-xs font-bold text-text-main mt-0.5">Umzugsangebot</p>
+                      <p className="text-xs font-bold text-text-main mt-0.5">Offizielles Umzugsangebot</p>
                     </div>
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                      <span className="material-symbols-outlined text-base">local_shipping</span>
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+                      <span className="material-symbols-outlined text-base">picture_as_pdf</span>
                     </div>
                   </div>
 
-                  <div className="space-y-2 py-4 text-[11px] text-text-muted">
+                  <div className="space-y-2 py-3 text-[11px] text-text-muted">
                     <div className="flex justify-between">
                       <span>Kunde:</span>
                       <span className="font-semibold text-text-main">{customerName || 'Herr/Frau Kunde'}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Umzugsdatum:</span>
+                      <span>Umzugstermin:</span>
                       <span className="font-semibold text-text-main">{date || 'Termin offen'}</span>
                     </div>
                     <div className="flex justify-between">
@@ -4637,34 +4725,33 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       <span className="font-semibold text-text-main">{services.length} Einzelleistungen</span>
                     </div>
                     <div className="flex justify-between border-t border-structure/30 pt-2 font-bold text-text-main">
-                      <span>Gesamt:</span>
-                      <span className="text-primary">{totals.gross.toFixed(2)} €</span>
+                      <span>Gesamtbetrag (Brutto):</span>
+                      <span className="text-primary text-sm font-bold">{totals.gross.toFixed(2)} €</span>
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-structure/40 flex items-center justify-between text-[10px] text-text-muted">
-                    <span>Rechtsgültiges Firmenangebot</span>
+                  <div className="pt-2.5 border-t border-structure/40 flex items-center justify-between text-xs">
+                    <span className="text-text-muted text-[10px]">Klicken für echte PDF-Vorschau</span>
                     <span className="text-primary font-bold group-hover:underline flex items-center gap-1">
-                      Speichern &amp; Drucken
-                      <span className="material-symbols-outlined text-xs">north_east</span>
+                      PDF ansehen &amp; prüfen
+                      <span className="material-symbols-outlined text-xs">arrow_forward</span>
                     </span>
                   </div>
                 </div>
 
-                <div className="mt-4 flex items-center gap-3 text-xs">
-                  <span className="material-symbols-outlined text-primary text-xl">description</span>
-                  <div className="flex-grow min-w-0">
-                    <p className="font-bold text-text-main truncate">
-                      Angebot_{customerName ? customerName.replace(/\s+/g, '_') : 'Rothirsch'}_{new Date().getFullYear()}.pdf
-                    </p>
-                    <p className="text-[10px] text-text-muted">
-                      Generiert &amp; druckbereit • Automatische Signaturzeile enthalten
-                    </p>
-                  </div>
-                </div>
+                {/* Action: E-Mail an Kunden */}
+                <button
+                  type="button"
+                  onClick={() => handleQuoteActionWithCheck(() => handleEmailCustomer())}
+                  disabled={isSaving}
+                  className="w-full flex items-center justify-center gap-2 p-3 bg-primary/10 hover:bg-primary/20 rounded-xl border border-primary/30 text-primary font-headline font-bold text-xs transition-all active:scale-95 cursor-pointer shadow-xs"
+                >
+                  <span className="material-symbols-outlined text-lg">alternate_email</span>
+                  <span>E-Mail an Kunden vorbereiten</span>
+                </button>
 
                 {/* Collapsible Document Texts & Conditions */}
-                <details className="mt-4 pt-4 border-t border-structure/50 group">
+                <details className="pt-3 border-t border-structure/50 group">
                   <summary className="text-xs font-bold text-text-muted hover:text-text-main cursor-pointer flex items-center justify-between">
                     <span>Dokumententexte &amp; Zahlungsbedingungen anpassen</span>
                     <span className="material-symbols-outlined text-sm group-open:rotate-180 transition-transform">expand_more</span>
@@ -4699,87 +4786,6 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                     </div>
                   </div>
                 </details>
-              </div>
-            </div>
-
-            {/* Section 3: 3 Large Action Cards */}
-            <div className="col-span-12">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                {/* Action 1: Angebot abschließen & speichern */}
-                <button
-                  type="button"
-                  onClick={() => handleQuoteActionWithCheck(() => saveOrder(isInvoice ? 'invoice_open' : (isManuallySigned ? 'confirmed' : 'quote'), true, true))}
-                  disabled={isSaving}
-                  className={`group flex flex-col items-center justify-center gap-3 p-6 bg-bg-card rounded-2xl border transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 text-center cursor-pointer ${
-                    !hasServices ? 'border-amber-500/40 hover:border-amber-500' : 'border-structure hover:border-primary'
-                  }`}
-                >
-                  <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:bg-primary group-hover:text-white transition-colors relative">
-                    <span className="material-symbols-outlined text-2xl">check_circle</span>
-                    {!hasServices && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-black text-[9px] font-bold flex items-center justify-center" title="0 Leistungen">
-                        !
-                      </span>
-                    )}
-                  </div>
-                  <div>
-                    <p className="font-headline font-bold text-sm text-text-main flex items-center justify-center gap-1.5">
-                      <span>{isInvoice ? 'Rechnung abschließen' : isManuallySigned ? 'Auftrag bestätigt speichern' : 'Angebot abschließen'}</span>
-                      {!hasServices && (
-                        <span className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-normal">
-                          0 Leistungen
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-xs text-text-muted mt-0.5">Offiziell abschließen &amp; zur Kundenakte</p>
-                  </div>
-                </button>
-
-                {/* Action 2: Download / Print (Auto-saves first) */}
-                <button
-                  type="button"
-                  onClick={() => handleQuoteActionWithCheck(() => handlePrintPdf())}
-                  disabled={isSaving}
-                  className={`group flex flex-col items-center justify-center gap-3 p-6 bg-bg-card rounded-2xl border transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 text-center cursor-pointer ${
-                    !hasServices ? 'border-amber-500/40 hover:border-amber-500' : 'border-structure hover:border-primary'
-                  }`}
-                >
-                  <div className="w-14 h-14 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-400 group-hover:bg-primary group-hover:text-white transition-colors relative">
-                    <span className="material-symbols-outlined text-2xl">download</span>
-                    {!hasServices && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-black text-[9px] font-bold flex items-center justify-center" title="0 Leistungen">
-                        !
-                      </span>
-                    )}
-                  </div>
-                  <div>
-                    <p className="font-headline font-bold text-sm text-text-main flex items-center justify-center gap-1.5">
-                      <span>PDF drucken / sichern</span>
-                      {!hasServices && (
-                        <span className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20 font-normal">
-                          0 Leistungen
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-xs text-text-muted mt-0.5">Speichert in Datenbank &amp; öffnet Druck/PDF</p>
-                  </div>
-                </button>
-
-                {/* Action 3: Email */}
-                <button
-                  type="button"
-                  onClick={() => handleQuoteActionWithCheck(() => handleEmailCustomer())}
-                  disabled={isSaving}
-                  className="group flex flex-col items-center justify-center gap-3 p-6 bg-primary/10 rounded-2xl border border-primary/30 hover:border-primary transition-all hover:shadow-xl hover:-translate-y-0.5 active:scale-95 text-center cursor-pointer"
-                >
-                  <div className="w-14 h-14 rounded-full bg-primary text-white flex items-center justify-center group-hover:scale-110 transition-transform shadow-md">
-                    <span className="material-symbols-outlined text-2xl">alternate_email</span>
-                  </div>
-                  <div>
-                    <p className="font-headline font-bold text-sm text-primary">E-Mail an Kunden</p>
-                    <p className="text-xs text-text-muted mt-0.5">Speichert &amp; öffnet E-Mail</p>
-                  </div>
-                </button>
               </div>
             </div>
           </div>
@@ -4831,6 +4837,13 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               <span className="text-[11px] font-bold font-headline uppercase tracking-wider text-text-muted px-2.5 py-1 rounded-full bg-structure/40 border border-structure hidden xs:inline-block">
                 Schritt {currentStep}/5
               </span>
+
+              {currentStep === 5 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <span className="material-symbols-outlined text-xs">cloud_done</span>
+                  <span>Als Entwurf gesichert</span>
+                </span>
+              )}
 
               {currentStep < 5 && (
                 <button
@@ -4998,6 +5011,17 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Offizielle Dokumenten-Vorschau Modal */}
+      {showPdfModal && (
+        <PdfModal
+          order={buildCurrentOrderObject()}
+          customer={buildCurrentCustomerObject()}
+          type={isInvoice ? 'invoice' : 'order'}
+          onClose={() => setShowPdfModal(false)}
+          forceLiveQuote={true}
+        />
       )}
 
       {/* Umzugskartons Configurator Modal */}

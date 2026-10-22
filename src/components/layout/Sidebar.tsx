@@ -185,10 +185,10 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
                 id={item.id}
                 href={item.href}
                 title={item.name}
-                className={`flex items-center rounded-xl transition-all ${
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl transition-all ${
                   isSlim 
-                    ? 'justify-center p-3 w-full' 
-                    : 'md:justify-center lg:justify-start gap-3 p-3 lg:px-3.5 lg:py-2.5'
+                    ? 'md:justify-center md:p-3 md:w-full' 
+                    : 'md:justify-center lg:justify-start md:p-3 lg:px-3.5 lg:py-2.5'
                 } ${
                   isActive 
                     ? 'sidebar-active text-[#527048] dark:text-[#A8C69F] font-bold shadow-sm' 
@@ -197,8 +197,8 @@ export function Sidebar({ isOpen, setIsOpen }: { isOpen: boolean, setIsOpen: (va
                 onClick={() => setIsOpen(false)}
               >
                 <item.icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-[#6E8F64] dark:text-[#A8C69F]' : ''}`} />
-                {/* Text is hidden on tablet portrait (md to lg), shown on phone drawer and expanded desktop */}
-                <span className={`font-display text-sm truncate ${isSlim ? 'hidden' : 'inline md:hidden lg:inline'}`}>
+                {/* Text is always shown on phone drawer (< md) and expanded desktop (lg+), hidden only on slim tablet/desktop */}
+                <span className={`font-display text-sm truncate ${isSlim ? 'inline md:hidden' : 'inline md:hidden lg:inline'}`}>
                   {item.name}
                 </span>
               </Link>

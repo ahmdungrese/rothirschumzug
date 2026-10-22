@@ -76,17 +76,57 @@ function renderLogisticsSymbol(
         </G>
       );
     case 1:
-      // 2. House A to House B with items flying in transition (أغراض تطير من منزل إلى آخر)
+      // 2. House A to House B with items flying in transition (أغراض تطير من منزل إلى آخر: كرتونة وتخت)
       return (
-        <G key={key} transform={`translate(${x - 50 * scale}, ${y - 30 * scale}) scale(${scale})`}>
-          <Path d="M8 24 L20 14 L32 24" fill="none" stroke={color} strokeWidth={sw1} />
-          <Path d="M12 24 L12 46 L28 46 L28 24" fill="none" stroke={color} strokeWidth={sw1} />
-          <Path d="M68 24 L80 14 L92 24" fill="none" stroke={color} strokeWidth={sw1} />
-          <Path d="M72 24 L72 46 L88 46 L88 24" fill="none" stroke={color} strokeWidth={sw1} />
-          <Path d="M26 20 Q50 4 74 20" fill="none" stroke={color} strokeWidth={1.2} strokeDasharray="3 2" />
-          <Path d="M44 11 L50 7 L56 11 L50 15 Z" fill="none" stroke={color} strokeWidth={1.2} />
-          <Path d="M44 11 L44 17 L50 21 L56 17 L56 11" fill="none" stroke={color} strokeWidth={1.2} />
-          <Line x1="50" y1="15" x2="50" y2="21" stroke={color} strokeWidth={1.0} />
+        <G key={key} transform={`translate(${x - 50 * scale}, ${y - 25 * scale}) scale(${scale})`}>
+          {/* House A (Left - Auszugsort) */}
+          <Rect x="7" y="15" width="3" height="6" fill="none" stroke={color} strokeWidth={1.0} />
+          <Path d="M4 23 L15 13 L26 23" fill="none" stroke={color} strokeWidth={sw2} strokeLinecap="round" strokeLinejoin="round" />
+          <Rect x="5" y="23" width="20" height="19" rx="1" fill="none" stroke={color} strokeWidth={sw1} />
+          <Rect x="7.5" y="26" width="5.5" height="5.5" fill="none" stroke={color} strokeWidth={0.9} />
+          <Line x1="10.25" y1="26" x2="10.25" y2="31.5" stroke={color} strokeWidth={0.7} />
+          <Line x1="7.5" y1="28.75" x2="13" y2="28.75" stroke={color} strokeWidth={0.7} />
+          <Rect x="16" y="26" width="5.5" height="5.5" fill="none" stroke={color} strokeWidth={0.9} />
+          <Line x1="18.75" y1="26" x2="18.75" y2="31.5" stroke={color} strokeWidth={0.7} />
+          <Line x1="16" y1="28.75" x2="21.5" y2="28.75" stroke={color} strokeWidth={0.7} />
+          <Rect x="11.5" y="34" width="7" height="8" fill="none" stroke={color} strokeWidth={1.0} />
+          <Circle cx="12.8" cy="38" r="0.6" fill={color} />
+          <Line x1="2" y1="42" x2="28" y2="42" stroke={color} strokeWidth={0.9} strokeLinecap="round" />
+
+          {/* House B (Right - Einzugsort) */}
+          <Path d="M74 23 L85 13 L96 23" fill="none" stroke={color} strokeWidth={sw2} strokeLinecap="round" strokeLinejoin="round" />
+          <Rect x="75" y="23" width="20" height="19" rx="1" fill="none" stroke={color} strokeWidth={sw1} />
+          <Rect x="77.5" y="26" width="5.5" height="5.5" fill="none" stroke={color} strokeWidth={0.9} />
+          <Line x1="80.25" y1="26" x2="80.25" y2="31.5" stroke={color} strokeWidth={0.7} />
+          <Line x1="77.5" y1="28.75" x2="83" y2="28.75" stroke={color} strokeWidth={0.7} />
+          <Rect x="86" y="26" width="5.5" height="5.5" fill="none" stroke={color} strokeWidth={0.9} />
+          <Line x1="88.75" y1="26" x2="88.75" y2="31.5" stroke={color} strokeWidth={0.7} />
+          <Line x1="86" y1="28.75" x2="91.5" y2="28.75" stroke={color} strokeWidth={0.7} />
+          <Rect x="81.5" y="34" width="7" height="8" fill="none" stroke={color} strokeWidth={1.0} />
+          <Circle cx="87.2" cy="38" r="0.6" fill={color} />
+          <Line x1="72" y1="42" x2="98" y2="42" stroke={color} strokeWidth={0.9} strokeLinecap="round" strokeLinejoin="round" />
+
+          {/* Trajectory Arc with Arrowhead */}
+          <Path d="M24 20 Q50 3 76 20" fill="none" stroke={color} strokeWidth={1.1} strokeDasharray="3 2" />
+          <Path d="M72 17 L77 20 L73 23" fill="none" stroke={color} strokeWidth={1.1} strokeLinecap="round" strokeLinejoin="round" />
+
+          {/* Flying Box */}
+          <G transform="translate(33, 7) rotate(-7)">
+            <Path d="M6 1.5 L12 4.5 L6 7.5 L0 4.5 Z" fill="none" stroke={color} strokeWidth={1.0} />
+            <Path d="M0 4.5 L6 7.5 L6 13.5 L0 10.5 Z" fill="none" stroke={color} strokeWidth={1.0} />
+            <Path d="M6 7.5 L12 4.5 L12 10.5 L6 13.5 Z" fill="none" stroke={color} strokeWidth={1.0} />
+            <Line x1="6" y1="1.5" x2="6" y2="7.5" stroke={color} strokeWidth={0.8} />
+            <Line x1="3" y1="6" x2="9" y2="10.5" stroke={color} strokeWidth={0.6} strokeDasharray="1.2 0.8" />
+          </G>
+
+          {/* Flying Bed */}
+          <G transform="translate(51, 7) rotate(6)">
+            <Rect x="0" y="0" width="2.2" height="10" rx="0.6" fill="none" stroke={color} strokeWidth={0.8} />
+            <Rect x="2.2" y="4" width="13.5" height="4.2" rx="0.8" fill="none" stroke={color} strokeWidth={1.0} />
+            <Rect x="3" y="2.5" width="3.6" height="1.9" rx="0.6" fill="none" stroke={color} strokeWidth={0.7} />
+            <Line x1="8.5" y1="4" x2="8.5" y2="8.2" stroke={color} strokeWidth={0.8} />
+            <Rect x="15.7" y="2.5" width="1.8" height="7.5" rx="0.6" fill="none" stroke={color} strokeWidth={0.8} />
+          </G>
         </G>
       );
     case 2:

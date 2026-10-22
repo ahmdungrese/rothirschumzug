@@ -1,5 +1,6 @@
 import { isTaskCompleted } from './taskStateController';
 import { getActiveInvoiceNumber, isInvoiceCancelled, getLatestCancelledInvoiceNumber, calculateOpenAmount } from './financeHelpers';
+import { hasFixedService } from './serviceKeys';
 
 export interface LogisticsCheckItem {
   id: string;
@@ -209,10 +210,7 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
   // =========================================================================
   else if (phase === 3) {
     // 1. Umzugskartons / Verpackungsmaterial (NUR wenn im Angebot gebucht)
-    const hasExplicitKartonService = Array.isArray(order?.services) && order.services.some((s: any) => {
-      const n = (s.name || '').toLowerCase();
-      return n.includes('karton') || n.includes('packmaterial') || n.includes('box');
-    });
+    const hasExplicitKartonService = hasFixedService(order?.services, 'kartons');
     const hasKartonDelivery = Boolean(
       hasExplicitKartonService ||
       (order?.logistics?.materials && order.logistics.materials.length > 0) ||
@@ -246,9 +244,7 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
     }
 
     // 2. HVZ Halteverbotszone (NUR wenn im Angebot gebucht oder bereits eingeplant)
-    const hasHVZService = Array.isArray(order?.services) && order.services.some((s: any) => 
-      (s.name || '').toLowerCase().includes('halteverbot') || (s.name || '').toLowerCase().includes('hvz')
-    );
+    const hasHVZService = hasFixedService(order?.services, 'hvz');
     const needsHVZ = Boolean(
       logistics?.a_parking || 
       logistics?.b_parking || 
@@ -257,7 +253,7 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
       services?.halteverbot ||
       logistics?.hvzDate ||
       order?.orderMeta?.halteverbotDate ||
-      order?.servicesList?.some((s: any) => (s.name || '').toLowerCase().includes('halteverbot'))
+      hasFixedService(order?.servicesList, 'hvz')
     );
     const isHVZDone = isTaskCompleted(order, 'hvz');
     if (needsHVZ || isHVZDone) {
@@ -275,9 +271,7 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
     }
 
     // 3. Möbellift (NUR wenn im Angebot gebucht oder in der Logistik aktiviert)
-    const hasLiftService = Array.isArray(order?.services) && order.services.some((s: any) => 
-      (s.name || '').toLowerCase().includes('möbellift') || (s.name || '').toLowerCase().includes('moebellift') || (s.name || '').toLowerCase().includes('lift')
-    );
+    const hasLiftService = hasFixedService(order?.services, 'moebellift');
     const needsLift = Boolean(
       logistics?.a_furnitureLift || 
       logistics?.b_furnitureLift || 

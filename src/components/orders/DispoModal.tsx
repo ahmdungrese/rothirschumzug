@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast';
 import { CounterInput } from '@/components/ui/CounterInput';
 import { changeOrderStatus } from '@/lib/orderStateMachine';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
+import { hasFixedService } from '@/lib/serviceKeys';
 
 export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose: () => void, onSuccess?: () => void }) {
   useModalBackHandler(Boolean(order), onClose, 'dispo-modal');
@@ -48,15 +49,15 @@ export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose:
     const todos = order.todos || [];
     
     // Halteverbot
-    if (order.logistics?.noParkingZone && !todos.some((t:any) => t.title === 'Halteverbot beantragen')) {
+    if ((order.logistics?.noParkingZone || order.logistics?.a_parking || order.logistics?.b_parking || hasFixedService(order.services, 'hvz')) && !todos.some((t:any) => t.title === 'Halteverbot beantragen')) {
       todos.push({ id: 'todo_' + Date.now() + 1, title: 'Halteverbot beantragen', isDone: false });
     }
     // Möbellift
-    if (order.logistics?.furnitureLift && !todos.some((t:any) => t.title === 'Möbellift reservieren')) {
+    if ((order.logistics?.furnitureLift || order.logistics?.a_furnitureLift || order.logistics?.b_furnitureLift || hasFixedService(order.services, 'moebellift')) && !todos.some((t:any) => t.title === 'Möbellift reservieren')) {
       todos.push({ id: 'todo_' + Date.now() + 2, title: 'Möbellift reservieren', isDone: false });
     }
     // Kartons
-    if (order.services?.some((s: any) => s.name.toLowerCase().includes('karton')) && !todos.some((t:any) => t.title === 'Umzugskartons ausliefern')) {
+    if (hasFixedService(order.services, 'kartons') && !todos.some((t:any) => t.title === 'Umzugskartons ausliefern')) {
       todos.push({ id: 'todo_' + Date.now() + 3, title: 'Umzugskartons ausliefern', isDone: false });
     }
     // Fahrzeuge
@@ -132,8 +133,8 @@ export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose:
   };
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-bg-panel border border-structure rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-[70]">
+      <div className="bg-bg-panel border border-structure rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 flex flex-col max-h-[calc(100dvh-4.5rem)] sm:max-h-[90vh] mb-12 sm:mb-0">
         <div className="p-4 border-b border-structure flex justify-between items-center bg-bg-dark shrink-0">
           <h2 className="text-xl font-bold text-text-main flex items-center gap-2">
             <TruckIcon className="w-6 h-6 text-primary" /> Grob-Disposition
@@ -143,7 +144,7 @@ export function DispoModal({ order, onClose, onSuccess }: { order: any, onClose:
           </button>
         </div>
 
-        <div className="p-6 space-y-6 overflow-y-auto">
+        <div className="p-6 space-y-6 overflow-y-auto pb-24 sm:pb-6">
           <p className="text-sm text-text-muted">
             Der Kunde hat das Angebot angenommen! Du kannst jetzt direkt die Kapazitäten für diesen Umzug eintragen, oder ihn einfach bestätigen und die Planung später im Kalender nachholen.
           </p>

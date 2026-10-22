@@ -28,6 +28,7 @@ import { OrderDetailsDrawer } from '@/components/dashboard/OrderDetailsDrawer';
 import { SignatureModal } from '@/components/orders/SignatureModal';
 import { PdfModal } from '@/components/ui/PdfModal';
 import { calculateOrderTotals, calculateTotalPaid } from '@/lib/financeHelpers';
+import { triggerHaptic } from '@/lib/haptics';
 
 type SortOption = 'urgency' | 'created_desc' | 'amount_desc' | 'name_asc';
 type StatusFilterTab = 'all' | 'confirmed' | 'quote' | 'draft' | 'completed';
@@ -263,16 +264,11 @@ export default function OrdersPage() {
   const [sortBy, setSortBy] = useState<SortOption>('urgency');
 
   useEffect(() => {
-    // 1. Fetch Orders
-    const q = query(
-      collection(db, 'orders'),
-      where('status', 'in', ['draft', 'clarification', 'quote', 'confirmed', 'completed', 'canceled', 'rejected'])
-    );
-    
-    const unsubOrders = onSnapshot(q, (snapshot) => {
+    // 1. Fetch Orders (All non-archived orders, including billed & completed moves)
+    const unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
       const fetched = snapshot.docs
         .map((doc: any) => ({ id: doc.id, ...doc.data() }))
-        .filter(o => o.type !== 'invoice' && !o.isStorno);
+        .filter(o => o.type !== 'invoice' && !o.isStorno && o.status !== 'archived' && !o.isArchived);
         
       setOrders(fetched);
       setLoading(false);
@@ -309,7 +305,30 @@ export default function OrdersPage() {
 
   // Status badge styling
   const getStatusBadge = (order: any) => {
-    if (order.invoiceNumber || (order.invoiceHistory && order.invoiceHistory.length > 0)) {
+    if (order.status === 'invoice_paid') {
+      return (
+        <span className="px-2.5 py-0.5 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 rounded-md text-[11px] font-bold uppercase tracking-wider border border-emerald-500/20 whitespace-nowrap">
+          Bezahlt ✓
+        </span>
+      );
+    }
+
+    if (order.status === 'completed') {
+      return (
+        <span className="px-2.5 py-0.5 bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#A8C69F] rounded-md text-[11px] font-semibold uppercase tracking-wider border border-[#6E8F64]/20 whitespace-nowrap">
+          Abgeschlossen
+        </span>
+      );
+    }
+
+    if (order.invoiceNumber || (order.invoiceHistory && order.invoiceHistory.length > 0) || order.status === 'invoice_open') {
+      if (order.payments && order.payments.length > 0) {
+        const totalGross = calculateOrderTotals(order).gross;
+        const totalPaid = calculateTotalPaid(order);
+        if (totalPaid > 0 && totalPaid < totalGross) {
+          return <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 rounded-md text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap">Teilw. bezahlt</span>;
+        }
+      }
       return (
         <span className="px-2.5 py-0.5 bg-slate-500/15 text-slate-600 dark:text-slate-400 rounded-md text-[11px] font-bold uppercase tracking-wider border border-slate-500/20 whitespace-nowrap">
           Abgerechnet
@@ -318,21 +337,12 @@ export default function OrdersPage() {
     }
 
     const status = order.status;
-    
-    if (status === 'invoice_open' && order.payments && order.payments.length > 0) {
-      const totalGross = calculateOrderTotals(order).gross;
-      const totalPaid = calculateTotalPaid(order);
-      if (totalPaid > 0 && totalPaid < totalGross) {
-        return <span className="px-2 py-0.5 bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 rounded-md text-[11px] font-semibold uppercase tracking-wider whitespace-nowrap">Teilw. bezahlt</span>;
-      }
-    }
 
     switch(status) {
       case 'draft': return <span className="px-2.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md text-[11px] font-semibold uppercase tracking-wider border border-slate-200 dark:border-slate-700 whitespace-nowrap">Entwurf</span>;
       case 'clarification': return <span className="px-2.5 py-0.5 bg-purple-500/15 text-purple-600 dark:text-purple-400 rounded-md text-[11px] font-semibold uppercase tracking-wider border border-purple-500/20 whitespace-nowrap">In Klärung</span>;
       case 'quote': return <span className="px-2.5 py-0.5 bg-blue-500/15 text-blue-600 dark:text-blue-400 rounded-md text-[11px] font-semibold uppercase tracking-wider border border-blue-500/20 whitespace-nowrap">Angebot</span>;
       case 'confirmed': return <span className="px-2.5 py-0.5 bg-[#6E8F64]/20 text-[#435E3A] dark:text-[#A8C69F] rounded-md text-[11px] font-bold uppercase tracking-wider border border-[#6E8F64]/30 whitespace-nowrap">Bestätigt</span>;
-      case 'completed': return <span className="px-2.5 py-0.5 bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#A8C69F] rounded-md text-[11px] font-semibold uppercase tracking-wider border border-[#6E8F64]/20 whitespace-nowrap">Erledigt</span>;
       case 'canceled': return <span className="px-2.5 py-0.5 bg-red-900/20 text-red-500 rounded-md text-[11px] font-semibold uppercase tracking-wider line-through border border-red-500/20 whitespace-nowrap">Storniert</span>;
       case 'rejected': return <span className="px-2.5 py-0.5 bg-red-900/20 text-red-400 rounded-md text-[11px] font-semibold uppercase tracking-wider line-through border border-red-500/20 whitespace-nowrap">Abgelehnt</span>;
       default: return <span className="px-2.5 py-0.5 bg-structure text-text-muted rounded-md text-[11px] font-semibold whitespace-nowrap">{status}</span>;
@@ -364,7 +374,7 @@ export default function OrdersPage() {
       } else if (o.status === 'draft') {
         draftCount++;
         draftSum += gross;
-      } else if (['completed', 'canceled', 'rejected'].includes(o.status) || Boolean(o.invoiceNumber)) {
+      } else if (['completed', 'canceled', 'rejected', 'invoice_open', 'invoice_paid', 'invoice_overdue', 'invoice_cancelled'].includes(o.status) || Boolean(o.invoiceNumber)) {
         completedCount++;
       }
     });
@@ -394,7 +404,7 @@ export default function OrdersPage() {
     } else if (filterTab === 'draft') {
       result = result.filter(o => o.status === 'draft');
     } else if (filterTab === 'completed') {
-      result = result.filter(o => ['completed', 'canceled', 'rejected'].includes(o.status) || Boolean(o.invoiceNumber));
+      result = result.filter(o => ['completed', 'canceled', 'rejected', 'invoice_open', 'invoice_paid', 'invoice_overdue', 'invoice_cancelled'].includes(o.status) || Boolean(o.invoiceNumber));
     }
 
     // 2. Search Query
@@ -497,8 +507,8 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* KPI Stats Grid */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* KPI Stats Grid (Desktop & Tablet only, hidden on mobile to prioritize list) */}
+      <section className="hidden sm:grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* KPI 1: Bestätigt */}
         <div className="bg-bg-panel border border-structure rounded-3xl p-5 relative overflow-hidden shadow-xs hover:shadow-md transition-all">
           <div className="flex items-center justify-between mb-3">
@@ -585,7 +595,7 @@ export default function OrdersPage() {
               { id: 'confirmed', label: 'Bestätigt', count: stats.confirmedCount },
               { id: 'quote', label: 'Angebote', count: stats.quoteCount },
               { id: 'draft', label: 'Entwürfe', count: stats.draftCount },
-              { id: 'completed', label: 'Erledigt', count: stats.completedCount },
+              { id: 'completed', label: 'Abgeschlossen', count: stats.completedCount },
             ].map(tab => {
               const active = filterTab === tab.id;
               return (
@@ -658,8 +668,150 @@ export default function OrdersPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
+          <>
+            {/* Mobile Cards View (Single-column, zero overflow on mobile) */}
+            <div className="block md:hidden divide-y divide-structure">
+              {processedOrders.map((order) => {
+                const urgencyBadge = getMoveUrgencyBadge(order);
+                const moveDate = getOrderMoveDate(order);
+                const gross = calculateOrderTotals(order).gross || 0;
+                const totalPaid = calculateTotalPaid(order);
+                const openAmount = Math.max(0, gross - totalPaid);
+
+                const orderNumDisplay = order.invoiceNumber 
+                  ? order.invoiceNumber 
+                  : (order.orderNumber || (order.status === 'quote' ? 'Angebot' : 'Entwurf'));
+
+                const routeDisplay = (order.logistics?.a_city || order.logistics?.b_city)
+                  ? `${order.logistics?.a_city || '?'} ➔ ${order.logistics?.b_city || '?'}`
+                  : '-';
+
+                return (
+                  <div key={order.id} className="p-4 space-y-3 hover:bg-structure/10 transition-colors">
+                    {/* Top Row: Number & Status */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                          <DocumentTextIcon className="w-4 h-4 text-primary" />
+                        </div>
+                        <div>
+                          <span className="font-bold font-headline text-text-main text-sm block">
+                            {orderNumDisplay}
+                          </span>
+                          <span className="text-[10px] text-text-muted block">
+                            {new Date(order.createdAt?.toMillis() || Date.now()).toLocaleDateString('de-DE')}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-end gap-1">
+                        <div className="flex items-center gap-1.5">
+                          {getStatusBadge(order)}
+                          {order.payments && order.payments.length > 0 && (
+                            <span className="text-[10px] text-text-muted bg-structure/50 px-1.5 py-0.5 rounded-full border border-structure flex items-center gap-1 font-medium">
+                              <BanknotesIcon className="w-3 h-3 text-[#6E8F64]" />
+                              {order.payments.length}
+                            </span>
+                          )}
+                        </div>
+                        {urgencyBadge && (
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold ${urgencyBadge.className}`}>
+                            {urgencyBadge.label}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Customer */}
+                    <div className="pt-0.5">
+                      {order.customerId ? (
+                        <Link 
+                          href={`/dashboard/customers/${order.customerId}`}
+                          className="font-semibold text-text-main hover:text-primary transition-colors inline-flex items-center gap-1.5 group text-sm"
+                        >
+                          <span>{order.customerName || `Kunde ID: ${order.customerId?.slice(0, 8)}...`}</span>
+                          <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5 opacity-60 text-primary" />
+                        </Link>
+                      ) : (
+                        <span className="font-semibold text-text-main text-sm">{order.customerName || 'Kunde'}</span>
+                      )}
+                    </div>
+
+                    {/* Route & Date Mini Grid */}
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-bg-dark/40 rounded-xl p-2.5 border border-structure/60">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-text-muted tracking-wider block">Route</span>
+                        <span className="text-text-main font-medium truncate block mt-0.5" title={routeDisplay}>
+                          {routeDisplay}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-text-muted tracking-wider block">Umzugstermin</span>
+                        {moveDate ? (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <CalendarDaysIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <span className="font-semibold text-text-main truncate">
+                              {moveDate.toLocaleDateString('de-DE')}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-text-muted italic text-[11px] block mt-0.5">Nach Absprache</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Bottom Row: Gross / Open + Actions */}
+                    <div className="flex items-center justify-between pt-1">
+                      <div>
+                        <span className="text-[10px] uppercase text-text-muted font-bold block">Gesamt (Brutto)</span>
+                        <span className="text-sm font-bold font-headline text-text-main block">
+                          € {gross.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                        {order.payments && order.payments.length > 0 && order.status !== 'invoice_paid' && (
+                          <span className="text-[10px] text-primary font-bold block">
+                            Offen: € {openAmount.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPdf(order)}
+                          className="px-2.5 py-1.5 rounded-lg bg-surface border border-structure text-text-main hover:border-primary/40 text-xs font-semibold flex items-center gap-1 transition-colors"
+                          title="PDF ansehen"
+                        >
+                          <DocumentTextIcon className="w-3.5 h-3.5 text-primary" />
+                          <span>PDF</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setDrawerOrder(order)}
+                          className="px-2.5 py-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary hover:bg-primary/20 text-xs font-semibold flex items-center gap-1 transition-colors"
+                          title="Cockpit öffnen"
+                        >
+                          <TruckIcon className="w-3.5 h-3.5" />
+                          <span>Cockpit</span>
+                        </button>
+
+                        <OrderActionsDropdown
+                          order={order}
+                          onOpenPdf={handleOpenPdf}
+                          onOpenDrawer={setDrawerOrder}
+                          onOpenSign={setSignOrder}
+                          onOpenPayment={setSelectedPaymentOrder}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-structure bg-bg-dark/30 text-text-muted">
                   <th className="py-3 px-4 font-bold uppercase tracking-wider text-[10px] font-headline whitespace-nowrap">Nr.</th>
@@ -794,6 +946,7 @@ export default function OrdersPage() {
               </tbody>
             </table>
           </div>
+        </>
         )}
       </div>
 
@@ -849,6 +1002,18 @@ export default function OrdersPage() {
           }}
         />
       )}
+
+      {/* Mobile Floating Action Button (FAB) for Quick Offer Creation */}
+      <div className="md:hidden fixed bottom-20 right-4 z-40">
+        <Link
+          href="/dashboard/orders/new"
+          onClick={() => triggerHaptic('medium')}
+          className="w-14 h-14 rounded-full bg-primary hover:bg-primary-hover text-white shadow-xl shadow-primary/30 flex items-center justify-center transition-transform active:scale-90 border-2 border-white/20 cursor-pointer"
+          title="Neues Angebot erstellen"
+        >
+          <PlusIcon className="w-7 h-7" />
+        </Link>
+      </div>
     </div>
   );
 }

@@ -257,8 +257,9 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
         if (outro) setTexts(t => ({...t, quoteOutro: outro}));
         
         if (!orderId && !sourceOrderId && s.paymentMethods && s.paymentMethods.length > 0) {
-          setOrderMeta(prev => ({...prev, paymentMethod: s.paymentMethods[0].name}));
-          setTexts(t => ({...t, paymentTerms: s.paymentMethods[0].textInvoice || s.paymentMethods[0].textQuote || ''}));
+          const defaultPm = s.paymentMethods.find((p: any) => p.isDefault) || s.paymentMethods[0];
+          setOrderMeta(prev => ({...prev, paymentMethod: defaultPm.name}));
+          setTexts(t => ({...t, paymentTerms: defaultPm.textInvoice || defaultPm.textQuote || ''}));
         }
       }
 

@@ -16,10 +16,16 @@ export function NetworkMonitor() {
   const [slowConnectionWarning, setSlowConnectionWarning] = useState(false);
   const [slowOpName, setSlowOpName] = useState<string>('');
   const [isChecking, setIsChecking] = useState(false);
+  const offlineDebounceTimer = useRef<any>(null);
 
-  // Ping the server to verify real internet connectivity (not just Wi-Fi connection with dead internet)
+  // Ping the server & cloud to verify real internet connectivity (works on localhost, mobile & production)
   const verifyRealConnection = async (): Promise<boolean> => {
-    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    // If tab is hidden, skip pinging to prevent false alarms due to background network throttling
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      return true;
+    }
+
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       setIsOnline(false);
       setIsServerReachable(false);
       return false;
@@ -27,46 +33,69 @@ export function NetworkMonitor() {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 3500); // 3.5s timeout
 
-      const res = await fetch('/icon.png?ping=' + Date.now(), {
-        method: 'HEAD',
+      // Real external internet check via Google CDN (where Firebase Firestore lives)
+      await fetch('https://www.gstatic.com/generate_204?_t=' + Date.now(), {
+        method: 'GET',
+        mode: 'no-cors',
         cache: 'no-store',
         signal: controller.signal
       });
       clearTimeout(timeoutId);
 
-      const reachable = res.ok;
-      setIsServerReachable(reachable);
-      setIsOnline(reachable);
-      return reachable;
+      setIsServerReachable(true);
+      setIsOnline(true);
+      return true;
     } catch {
       setIsServerReachable(false);
+      setIsOnline(false);
       return false;
     }
   };
 
   useEffect(() => {
-    // Initial check
-    if (typeof navigator !== 'undefined') {
-      setIsOnline(navigator.onLine);
-    }
+    // Initial check on mount
+    verifyRealConnection();
 
     const handleOnline = async () => {
+      if (offlineDebounceTimer.current) {
+        clearTimeout(offlineDebounceTimer.current);
+        offlineDebounceTimer.current = null;
+      }
       const alive = await verifyRealConnection();
       if (alive) {
         setIsOnline(true);
         setIsServerReachable(true);
         setShowRestored(true);
         setSlowConnectionWarning(false);
-        setTimeout(() => setShowRestored(false), 4000);
+        setTimeout(() => setShowRestored(false), 3500);
       }
     };
 
     const handleOffline = () => {
+      // Immediate offline notification
       setIsOnline(false);
       setIsServerReachable(false);
       setShowRestored(false);
+      verifyRealConnection();
+    };
+
+    // Auto-reconnect and verify immediately when returning to the app
+    const handleVisibilityOrFocus = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+      if (offlineDebounceTimer.current) {
+        clearTimeout(offlineDebounceTimer.current);
+        offlineDebounceTimer.current = null;
+      }
+      const alive = await verifyRealConnection();
+      if (alive) {
+        setIsOnline(true);
+        setIsServerReachable(true);
+        setSlowConnectionWarning(false);
+      }
     };
 
     // Catch database timeout custom events dispatched anywhere in the app
@@ -90,17 +119,24 @@ export function NetworkMonitor() {
     window.addEventListener('offline', handleOffline);
     window.addEventListener('rothirsch_db_timeout', handleDbTimeout);
     window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
 
-    // Periodic heartbeat every 45 seconds to detect silent dropouts
+    // Fast periodic heartbeat every 6 seconds to detect silent dropouts immediately
     const heartbeat = setInterval(() => {
-      verifyRealConnection();
-    }, 45000);
+      if (typeof document !== 'undefined' && document.visibilityState !== 'hidden') {
+        verifyRealConnection();
+      }
+    }, 6000);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('rothirsch_db_timeout', handleDbTimeout);
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+      if (offlineDebounceTimer.current) clearTimeout(offlineDebounceTimer.current);
       clearInterval(heartbeat);
     };
   }, []);
