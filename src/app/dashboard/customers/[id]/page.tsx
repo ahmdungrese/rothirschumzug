@@ -46,6 +46,7 @@ export default function CustomerProfilePage() {
   const [pdfModalOrder, setPdfModalOrder] = useState<any>(null);
   const [pdfType, setPdfType] = useState<any>('order');
   const [showClaimModal, setShowClaimModal] = useState(false);
+  const [claimOrder, setClaimOrder] = useState<any>(null);
   const [isSavingCustomer, setIsSavingCustomer] = useState(false);
 
   // Close editing modal on mobile back button
@@ -226,13 +227,17 @@ export default function CustomerProfilePage() {
         onOpenProtocolModal={(ord) => setProtocolOrder(ord || orders[0])}
         onOpenDispoModal={(ord) => setDispoOrder(ord || orders[0])}
         onOpenSignatureModal={(ord) => setSignatureOrder(ord || orders[0])}
+        onOpenClaimModal={(ord) => {
+          setClaimOrder(ord || orders[0] || null);
+          setShowClaimModal(true);
+        }}
         onViewPdf={handleViewPdf}
         onRefresh={() => router.refresh()}
       />
 
       {/* Edit Customer Details Modal (Bottom-Sheet on mobile, centered modal on tablet/desktop) */}
       {isEditingCustomer && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl p-6 md:p-8 max-w-lg w-full border border-slate-200 dark:border-slate-800 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom duration-200">
             {/* Mobile Drag Handle */}
             <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full mx-auto -mt-2 mb-2 sm:hidden cursor-grab" />
@@ -427,8 +432,14 @@ export default function CustomerProfilePage() {
       {showClaimModal && (
         <ClaimModal
           customerId={customerId}
-          customerName={`${customer.firstName} ${customer.lastName}`}
-          onClose={() => setShowClaimModal(false)}
+          customerName={`${customer.firstName || ''} ${customer.lastName || customer.company || ''}`.trim()}
+          orderId={claimOrder?.id}
+          orderNumber={claimOrder?.orderNumber || claimOrder?.offerNumber}
+          onClose={() => {
+            setShowClaimModal(false);
+            setClaimOrder(null);
+          }}
+          onSuccess={() => router.refresh()}
         />
       )}
     </div>

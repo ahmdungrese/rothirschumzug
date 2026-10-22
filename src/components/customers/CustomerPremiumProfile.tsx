@@ -87,6 +87,7 @@ interface CustomerPremiumProfileProps {
   onOpenProtocolModal: (order: any) => void;
   onOpenDispoModal: (order: any) => void;
   onOpenSignatureModal?: (order: any) => void;
+  onOpenClaimModal?: (order?: any) => void;
   onViewPdf: (order: any, type: string) => void;
   onRefresh?: () => void;
 }
@@ -101,6 +102,7 @@ export function CustomerPremiumProfile({
   onOpenProtocolModal,
   onOpenDispoModal,
   onOpenSignatureModal,
+  onOpenClaimModal,
   onViewPdf,
   onRefresh,
 }: CustomerPremiumProfileProps) {
@@ -1729,6 +1731,28 @@ export function CustomerPremiumProfile({
           );
         };
 
+        const renderReklamationBtn = (inMenu = false) => {
+          if (!onOpenClaimModal) return null;
+          return (
+            <button
+              key="reklamation"
+              type="button"
+              onClick={() => {
+                onOpenClaimModal(activeOrder);
+                if (inMenu) setActionsDropdownOpen(false);
+              }}
+              className={inMenu 
+                ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+                : "px-3.5 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-700 dark:text-red-300 text-xs font-bold border border-red-500/30 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+              }
+              title="Schaden / Reklamation erfassen"
+            >
+              <ExclamationTriangleIcon className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
+              <span>Schaden / Reklamation melden</span>
+            </button>
+          );
+        };
+
         // Smart dynamic selection based on phase & signing state
         let primaryActions: React.ReactNode[] = [];
         let menuActions: (React.ReactNode | null)[] = [];
@@ -1745,6 +1769,7 @@ export function CustomerPremiumProfile({
             renderProtokollBtn(true),
             renderRechnungBtn(true),
             renderZahlungBtn(true),
+            renderReklamationBtn(true),
           ];
         } else if (currentPhaseInfo.phase === 3 && !hasInvoice && !isMoveDone) {
           // Phase 3: Confirmed / Move Preparation
@@ -1758,6 +1783,7 @@ export function CustomerPremiumProfile({
             renderRechnungBtn(true),
             renderZahlungBtn(true),
             renderSignierenBtn(true),
+            renderReklamationBtn(true),
           ];
         } else {
           // Phase 4: Billing / Settlement
@@ -1771,6 +1797,7 @@ export function CustomerPremiumProfile({
           menuActions = [
             renderLaufzettelBtn(true),
             renderStornoBtn(),
+            renderReklamationBtn(true),
           ];
         }
 

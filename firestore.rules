@@ -38,8 +38,8 @@ service cloud.firestore {
 
       // Update:
       // 1. Vollständige Bearbeitung (inkl. GoBD-Storno-Freigabe & Korrekturrechnung) für Admin und Büro (isOfficeOrAdmin).
-      // 2. Teamleiter (isAuthenticated) dürfen ausschließlich Protokoll-Felder aktualisieren,
-      //    ohne Zugriff auf Preise, Leistungen, Zahlungen, Status oder Rechnungsnummer.
+      // 2. Teamleiter (isAuthenticated) dürfen digitale Unterschriften, Protokolle und Checklisten
+      //    vor Ort beim Kunden erfassen, ohne Zugriff auf geschützte Buchhaltungsfelder (Preise, Leistungen, Zahlungen, Rechnungsnummer).
       allow update: if isOfficeOrAdmin() || (
           isAuthenticated() &&
           (
@@ -47,8 +47,7 @@ service cloud.firestore {
             resource.data.invoiceNumber == null ||
             request.resource.data.invoiceNumber == resource.data.invoiceNumber
           ) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['protocols', 'signatureProtocol', 'updatedAt']) &&
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['totals', 'services', 'payments', 'status', 'invoiceNumber'])
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['totals', 'services', 'payments', 'invoiceNumber'])
         );
 
       // Delete: Strengstens verboten für alle — stattdessen Status 'archived' nutzen

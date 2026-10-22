@@ -224,7 +224,7 @@ export function StornoModal({ invoice, onClose, onSuccess }: StornoModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="bg-bg-panel border border-structure rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl space-y-6">
         
         {/* Header */}

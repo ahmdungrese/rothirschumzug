@@ -12,12 +12,14 @@ import {
   ArrowTopRightOnSquareIcon,
   PhotoIcon,
   CurrencyEuroIcon,
-  BanknotesIcon
+  BanknotesIcon,
+  PlusIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { toast } from 'react-hot-toast';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { SettleClaimModal } from '@/components/customers/SettleClaimModal';
+import { ClaimModal } from '@/components/customers/ClaimModal';
 
 export default function ClaimsPage() {
   const [claims, setClaims] = useState<any[]>([]);
@@ -25,6 +27,7 @@ export default function ClaimsPage() {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [highlightedClaimId, setHighlightedClaimId] = useState<string | null>(null);
   const [claimToSettle, setClaimToSettle] = useState<any | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
@@ -125,7 +128,18 @@ export default function ClaimsPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+            {/* New Claim Button */}
+            <button
+              type="button"
+              onClick={() => setShowCreateModal(true)}
+              className="px-4 py-2 rounded-2xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95 shrink-0"
+              title="Neue Reklamation oder Schaden zentral anlegen"
+            >
+              <PlusIcon className="w-4 h-4" />
+              <span>Neue Reklamation</span>
+            </button>
+
             {/* Filter Dropdown */}
             <div className="relative">
               <select
@@ -145,7 +159,7 @@ export default function ClaimsPage() {
             </div>
 
             {/* Search Input */}
-            <div className="relative flex-1 sm:w-64">
+            <div className="relative flex-1 sm:w-60 min-w-[180px]">
               <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
               <input
                 type="text"
@@ -351,6 +365,12 @@ export default function ClaimsPage() {
         />
       )}
 
+      {showCreateModal && (
+        <ClaimModal
+          onClose={() => setShowCreateModal(false)}
+        />
+      )}
+
       <ConfirmModal 
         isOpen={deleteConfirmId !== null}
         title="Schadensmeldung löschen"
@@ -433,10 +453,22 @@ function ClaimCard({
       </div>
       
       {/* Date & Alert Badges */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
         <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
           {createdDate.toLocaleDateString('de-DE')}
         </span>
+
+        {claim.orderNumber && (
+          <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300 font-bold border border-slate-200 dark:border-slate-600">
+            #{claim.orderNumber}
+          </span>
+        )}
+
+        {claim.source === 'protocol' && (
+          <span className="bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">
+            Protokoll
+          </span>
+        )}
 
         {isOverdue && (
           <span className="bg-red-50 text-red-600 border border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1">

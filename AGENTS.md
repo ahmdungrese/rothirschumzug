@@ -30,7 +30,36 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.14.0 (Current) – Cockpit Resource Dispatching, Dual-HVZ Scheduling & Orders Pipeline Retention
+### Version 2.16.0 (Current) – Universal Claims Reporting Hub & Automated Protocol Damage Intake
+*   **Central Claims Creation Hub (`claims/page.tsx`, `ClaimModal.tsx`)**:
+    *   Integrated a prominent "+ Neue Reklamation" action directly in the central claims dashboard (`/dashboard/claims`).
+    *   Multi-mode intake: Allows disponents to search and select any customer in the database and bind the claim to any of their specific orders/offers (`AU-...`, `AN-...`) or file a general claim.
+    *   Enhanced `ClaimCard` with order number pill badges (`#AU-...`) and origin tags (`Protokoll`).
+*   **Customer Profile Action Hub Integration (`CustomerPremiumProfile.tsx`, `customers/[id]/page.tsx`)**:
+    *   Added dedicated "Schaden / Reklamation melden" trigger to the contextual `•••` action dropdown menu across all project phases.
+    *   Automatically pre-populates customer details and the active order context for 1-click filing.
+*   **Zero-Double-Entry Protocol Damage Automation (`ProtocolModal.tsx`)**:
+    *   Saving an on-site handover or acceptance protocol of type "Mängel- & Schadensfeststellung" (or any damage/defect description) automatically generates a synchronized ticket in `claims`.
+    *   Links customer, order number, signed protocol ID, and defect descriptions seamlessly without requiring manual re-entry.
+
+### Version 2.15.0 – Layout Frame Docking, Zero-Collision Bottom Navigation & Mobile Signature Compression
+*   **Integrated Layout Frame Docking (`BottomNav.tsx`, `layout.tsx`)**:
+    *   Docked `BottomNav` directly as an integral flex child within the main application frame instead of a viewport-floating overlay (`fixed bottom-0`).
+    *   `<main>` viewport strictly terminates above `BottomNav`, guaranteeing zero content clipping, overlapping, or hidden elements across mobile devices.
+    *   Automatically suppresses `BottomNav` across dedicated full-screen wizard and editor routes (`/edit-order`, `/new-offer`, `/new-invoice`, `/edit-invoice`, `/orders/new`, `/inventory`).
+*   **High-Priority Modal Elevation & Dock Shield (`KartonConfigModal.tsx`, `OrderEditor.tsx`, `PaymentManager.tsx`, etc.)**:
+    *   Elevated all application modals (`KartonConfigModal`, `ProtocolModal`, `SignatureModal`, `PaymentManager`, `TaskScheduleModal`, `MessageSenderModal`, `StornoModal`) to `z-[100]`.
+    *   Suppressed the docked action bar in `OrderEditor.tsx` when `isKartonModalOpen` is active, completely resolving modal footer blocking.
+*   **High-DPI Signature Compression Engine (`SignatureModal.tsx`, `ProtocolModal.tsx`)**:
+    *   Introduced an offscreen canvas compression pipeline that downsamples high-DPI smartphone signatures to a crisp max 500px width (JPEG/PNG ~15–25 KB).
+    *   Eliminated Firestore's 1MB document limit violation that crashed writes on mobile devices.
+    *   Wrapped canvas trimming in defensive fallbacks to eliminate `IndexSizeError` and `getTrimmedCanvas` failures.
+*   **Dual-Signer Support & Non-Blocking Protocol Engine (`ProtocolModal.tsx`, `firestore.rules`)**:
+    *   Added instant signer role toggle between `Auftraggeber (Kunde)` and `Auftragnehmer (Teamleiter)` with dedicated watermark lines and metadata tagging.
+    *   Isolated background task auto-completion (`autoCompletePreMoveTasks`) into a non-blocking safe block to prevent protocol submission aborts.
+    *   Updated `firestore.rules` to permit field workers/teamleaders to record customer and contractor digital signatures, protocols, and task states on site.
+
+### Version 2.14.0 – Cockpit Resource Dispatching, Dual-HVZ Scheduling & Orders Pipeline Retention
 *   **Order Wizard Step 5 Action Hub Ergonomics (`OrderEditor.tsx`)**:
     *   Eliminated confusing redundant "PDF drucken / sichern" and screenshot-based action buttons.
     *   Connected the offer preview card directly to the official interactive `PdfModal` displaying the actual offer document.

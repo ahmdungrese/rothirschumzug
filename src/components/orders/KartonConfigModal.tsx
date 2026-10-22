@@ -217,7 +217,7 @@ export function KartonConfigModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="relative w-full max-w-2xl bg-bg-panel border border-structure/80 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         
         {/* Header */}
@@ -381,7 +381,7 @@ export function KartonConfigModal({
         </div>
 
         {/* Footer */}
-        <div className="p-4 sm:p-5 border-t border-structure bg-bg-dark/60 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="p-4 sm:p-5 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-structure bg-bg-dark/80 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
           <div className="flex items-baseline gap-2">
             <span className="text-xs text-text-muted font-bold">Summe Kartons:</span>
             <span className="text-lg font-extrabold font-headline text-text-main">

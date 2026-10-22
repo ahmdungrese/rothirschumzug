@@ -4793,7 +4793,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       )}
 
       {/* Docked Material Action Bar (Mobile & Desktop Ergonomic) */}
-      {!isInventoryWizardOpen && !showNoServicesModal && !showCancelModal && (
+      {!isInventoryWizardOpen && !showNoServicesModal && !showCancelModal && !isKartonModalOpen && (
         <div 
           style={{ left: 'var(--sidebar-width, 0px)' }}
           className="fixed bottom-0 right-0 z-[70] bg-bg-panel/98 backdrop-blur-xl border-t border-structure shadow-[0_-8px_30px_rgba(0,0,0,0.35)] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-all"

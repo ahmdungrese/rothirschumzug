@@ -122,15 +122,91 @@ export function SignatureModal({
     
     setIsSaving(true);
     try {
-      const signatureDataUrl = mode === 'pad'
-        ? sigPad.current?.getTrimmedCanvas().toDataURL('image/png')
-        : uploadedDataUrl;
+      let signatureDataUrl = '';
+
+      if (mode === 'pad') {
+        // Safe, compressed signature extraction to prevent Firestore 1MB document limit crash on high-DPI smartphones
+        try {
+          const trimmed = sigPad.current?.getTrimmedCanvas();
+          if (trimmed && trimmed.width > 0 && trimmed.height > 0) {
+            const maxW = 500;
+            let w = trimmed.width;
+            let h = trimmed.height;
+            if (w > maxW) {
+              h = Math.round((h * maxW) / w);
+              w = maxW;
+            }
+            const compCanvas = document.createElement('canvas');
+            compCanvas.width = Math.max(1, w);
+            compCanvas.height = Math.max(1, h);
+            const ctx = compCanvas.getContext('2d');
+            if (ctx) {
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
+              ctx.drawImage(trimmed, 0, 0, w, h);
+              signatureDataUrl = compCanvas.toDataURL('image/png');
+            }
+          }
+        } catch (canvasErr) {
+          console.warn('Canvas trim failed, falling back to raw canvas:', canvasErr);
+        }
+
+        if (!signatureDataUrl) {
+          try {
+            const rawCanvas = sigPad.current?.getCanvas();
+            if (rawCanvas && rawCanvas.width > 0 && rawCanvas.height > 0) {
+              const maxW = 500;
+              let w = rawCanvas.width;
+              let h = rawCanvas.height;
+              if (w > maxW) {
+                h = Math.round((h * maxW) / w);
+                w = maxW;
+              }
+              const compCanvas = document.createElement('canvas');
+              compCanvas.width = Math.max(1, w);
+              compCanvas.height = Math.max(1, h);
+              const ctx = compCanvas.getContext('2d');
+              if (ctx) {
+                ctx.imageSmoothingEnabled = true;
+                ctx.drawImage(rawCanvas, 0, 0, w, h);
+                signatureDataUrl = compCanvas.toDataURL('image/png');
+              }
+            }
+          } catch (rawErr) {
+            console.warn('Raw canvas fallback failed:', rawErr);
+          }
+        }
+
+        if (!signatureDataUrl) {
+          try {
+            signatureDataUrl = sigPad.current?.toDataURL() || '';
+          } catch {}
+        }
+      } else {
+        signatureDataUrl = uploadedDataUrl;
+      }
+
+      if (!signatureDataUrl) {
+        toast.error('Die Unterschrift konnte nicht erfasst werden. Bitte versuchen Sie es erneut.');
+        setIsSaving(false);
+        return;
+      }
+
+      const orderId = order?.id;
+      if (!orderId) {
+        toast.error('Fehler: Keine gültige Auftrags-ID gefunden.');
+        setIsSaving(false);
+        return;
+      }
+
+      const targetCol = order?._collection || 'orders';
       
       const updateData: any = {
         [signatureKey]: signatureDataUrl,
         [`${signatureKey}Date`]: serverTimestamp(),
         [`${signatureKey}Place`]: place.trim(),
         [`${signatureKey}DateString`]: dateStr.trim(),
+        updatedAt: serverTimestamp(),
       };
 
       if (mode === 'upload') {
@@ -160,12 +236,12 @@ export function SignatureModal({
         updateData['checklistDone.signature'] = true;
       }
       
-      await updateDoc(doc(db, 'orders', order.id), updateData);
+      await updateDoc(doc(db, targetCol, orderId), updateData);
 
       if (signatureKey === 'signatureOrder' && !order.orderNumber) {
         try {
           const { ensureOrderNumber } = await import('@/lib/orderStateMachine');
-          await ensureOrderNumber(order.id);
+          await ensureOrderNumber(orderId);
         } catch (numErr) {
           console.error("Fehler beim Zuweisen der Angebotsnummer:", numErr);
         }
@@ -175,9 +251,9 @@ export function SignatureModal({
       triggerHaptic('success');
       toast.success(mode === 'upload' ? "Unterschriebenes Angebot erfolgreich gespeichert!" : "Erfolgreich unterschrieben!");
       onClose();
-    } catch (error) {
-      console.error("Fehler beim Speichern der Unterschrift", error);
-      toast.error("Fehler beim Speichern.");
+    } catch (error: any) {
+      console.error("Fehler beim Speichern der Unterschrift:", error);
+      toast.error(`Fehler beim Speichern: ${error?.message || 'Bitte prüfen Sie Ihre Verbindung.'}`);
     } finally {
       setIsSaving(false);
     }

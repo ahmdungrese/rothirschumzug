@@ -476,7 +476,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[80] overflow-hidden bg-black/60 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
       {/* Click outside backdrop to close */}
       <div className="flex-1" onClick={onClose} />
 

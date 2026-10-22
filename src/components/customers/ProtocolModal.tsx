@@ -2,7 +2,7 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { db } from '@/lib/firebase';
-import { updateDoc, doc, arrayUnion, getDoc, serverTimestamp } from 'firebase/firestore';
+import { updateDoc, doc, arrayUnion, getDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
 import { 
   XMarkIcon, 
   ClipboardDocumentCheckIcon, 
@@ -39,6 +39,7 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
   const [type, setType] = useState('Abnahme ohne Mängel (Abschluss)');
   const [text, setText] = useState(PRESET_CATEGORIES[0]?.text || '');
   const [markAsCompleted, setMarkAsCompleted] = useState(true);
+  const [signerRole, setSignerRole] = useState<'kunde' | 'teamleiter'>('kunde');
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [settings, setSettings] = useState<any>(null);
@@ -203,6 +204,8 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
         type,
         text: text.trim(),
         signature: signatureDataUrl,
+        signer: signerRole === 'teamleiter' ? 'Auftragnehmer (Teamleiter)' : 'Auftraggeber (Kunde)',
+        signerRole,
         createdAt: new Date().toISOString(),
       };
 
@@ -222,14 +225,57 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
       await updateDoc(doc(db, targetCol, order.id), updates);
 
       if (markAsCompleted && targetCol === 'orders') {
-        await autoCompletePreMoveTasks(order.id);
+        try {
+          await autoCompletePreMoveTasks(order.id);
+        } catch (taskErr) {
+          console.warn('Non-blocking autoCompletePreMoveTasks warning:', taskErr);
+        }
       }
 
-      toast.success(
-        markAsCompleted
-          ? 'Protokoll gespeichert & Umzug als abgeschlossen markiert!'
-          : 'Protokoll erfolgreich gespeichert!'
-      );
+      // Check if protocol reports defects, damages or claims
+      const lowerType = type.toLowerCase();
+      const lowerText = text.toLowerCase();
+      const isDamageOrClaim = 
+        lowerType.includes('schaden') || 
+        lowerType.includes('mängel') || 
+        lowerType.includes('reklamation') || 
+        lowerType.includes('beschädigung') ||
+        (lowerText.includes('schaden') && !lowerType.includes('ohne mängel'));
+
+      if (isDamageOrClaim) {
+        try {
+          const custName = order.customerName || 
+            (order.customer ? `${order.customer.firstName || ''} ${order.customer.lastName || ''}`.trim() : '') ||
+            'Kunde';
+          
+          await addDoc(collection(db, 'claims'), {
+            customerId: order.customerId || null,
+            customerName: custName,
+            orderId: order.id,
+            orderNumber: order.orderNumber || order.offerNumber || null,
+            description: `[Aus Protokoll: ${type}]\n${text.trim()}`,
+            amount: null,
+            settlementPreference: 'rechnung_abzug',
+            insuranceId: null,
+            status: 'Neu',
+            source: 'protocol',
+            protocolId: newProtocol.id,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            photos: []
+          });
+        } catch (claimErr) {
+          console.warn('Automatische Reklamationserstellung fehlgeschlagen:', claimErr);
+        }
+      }
+
+      if (isDamageOrClaim) {
+        toast.success('Mängelprotokoll erfasst & automatisch Reklamations-Ticket angelegt! 🛡️');
+      } else if (markAsCompleted) {
+        toast.success('Protokoll gespeichert & Umzug als abgeschlossen markiert!');
+      } else {
+        toast.success('Protokoll erfolgreich gespeichert!');
+      }
       triggerHaptic('success');
 
       if (onSuccess) onSuccess();
@@ -278,7 +324,7 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-6 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl w-full max-w-2xl max-h-[92vh] flex flex-col border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-200">
         {/* Mobile Drag Handle */}
         <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full mx-auto my-2.5 sm:hidden cursor-grab shrink-0" />
@@ -557,7 +603,7 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
                   <div className="flex items-center gap-2">
                     <PencilIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
                     <span className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-headline">
-                      Kundenunterschrift digital
+                      Digitale Unterschrift erfassen
                     </span>
                   </div>
                   <button
@@ -570,8 +616,36 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
                   </button>
                 </div>
 
+                {/* Signer Switcher (Auftraggeber vs Auftragnehmer) */}
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-200/70 dark:bg-slate-700/60 rounded-xl text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setSignerRole('kunde')}
+                    className={`py-1.5 px-3 rounded-lg transition-all text-center cursor-pointer ${
+                      signerRole === 'kunde'
+                        ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                    }`}
+                  >
+                    Auftraggeber (Kunde)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSignerRole('teamleiter')}
+                    className={`py-1.5 px-3 rounded-lg transition-all text-center cursor-pointer ${
+                      signerRole === 'teamleiter'
+                        ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                    }`}
+                  >
+                    Auftragnehmer (Teamleiter)
+                  </button>
+                </div>
+
                 <p className="text-[11px] text-slate-400">
-                  Der Auftraggeber bestätigt mit seiner Unterschrift auf dem Display die Richtigkeit der obigen Angaben.
+                  {signerRole === 'teamleiter'
+                    ? 'Der Auftragnehmer (Kolonnenführer / Teamleiter) bestätigt mit seiner Unterschrift die ordnungsgemäße Aufnahme bzw. Übergabe.'
+                    : 'Der Auftraggeber bestätigt mit seiner Unterschrift auf dem Display die Richtigkeit der obigen Angaben.'}
                 </p>
 
                 <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl bg-white overflow-hidden touch-none relative shadow-inner">
@@ -583,7 +657,9 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
                     }}
                   />
                   <div className="pointer-events-none absolute bottom-3 left-4 text-[10px] text-slate-300 uppercase tracking-widest font-mono select-none">
-                    Unterschrift des Auftraggebers _________________________
+                    {signerRole === 'teamleiter'
+                      ? 'Unterschrift Auftragnehmer (Teamleiter) _________________________'
+                      : 'Unterschrift Auftraggeber (Kunde) _________________________'}
                   </div>
                 </div>
               </div>
