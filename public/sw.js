@@ -1,6 +1,7 @@
-const CACHE_NAME = 'rothirsch-erp-v1';
+const CACHE_NAME = 'rothirsch-erp-v2.16.2';
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       // Offline fallback page or basic assets could be cached here
@@ -8,6 +9,18 @@ self.addEventListener('install', (event) => {
         '/'
       ]);
     })
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames
+          .filter((name) => name !== CACHE_NAME)
+          .map((name) => caches.delete(name))
+      );
+    }).then(() => self.clients.claim())
   );
 });
 

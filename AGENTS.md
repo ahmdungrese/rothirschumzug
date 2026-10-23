@@ -30,7 +30,16 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.16.1 (Current) – Login Security Hardening, App DNA Validation & German-Only Messages
+### Version 2.16.2 (Current) – Universal Native Validation Shield & Service Worker Cache Purge
+*   **Password Field App DNA Parity & Browser Popup Shield (`src/app/page.tsx`)**:
+    *   Added explicit `onInvalid={(e) => e.preventDefault()}` on `<form>` and input elements to defensively suppress all native browser validation balloons.
+    *   Configured `autoComplete="off"`, `data-lpignore="true"`, and `spellCheck={false}` to prevent third-party credential managers and browser suggestion bubbles from overlaying input fields.
+    *   Added 6-character minimum client validation with instant in-line App DNA feedback and coupled credential failure response directly to `passwordError`.
+*   **PWA Cache Invalidation & Client Claim (`public/sw.js`, `PwaRegister.tsx`)**:
+    *   Bumped Service Worker cache to `rothirsch-erp-v2.16.2`.
+    *   Added `activate` event handler to automatically purge obsolete cache versions and force-claimed active clients via `clients.claim()` and `skipWaiting()`.
+
+### Version 2.16.1 – Login Security Hardening, App DNA Validation & German-Only Messages
 *   **Decoupled Client Validation from Server Rate Limiting (`src/app/page.tsx`)**:
     *   Syntactically invalid inputs (empty fields, malformed characters such as `edwsfdfasgereremmmujz`) are now intercepted client-side and do not trigger a backend authentication request.
     *   Failed attempt counter and exponential backoff are strictly incremented only upon authentic credential failure (`auth/invalid-credential`, `auth/wrong-password`, `auth/user-not-found`) returned by the authentication server.

@@ -213,6 +213,9 @@ export default function Home() {
     if (!trimmedPassword) {
       setPasswordError("Bitte geben Sie Ihr Passwort ein.");
       hasValidationError = true;
+    } else if (trimmedPassword.length < 6) {
+      setPasswordError("Das Passwort muss mindestens 6 Zeichen lang sein.");
+      hasValidationError = true;
     }
 
     // Bei ungültigen Eingaben KEINE Server-Abfrage und KEINE Zählung von Fehlversuchen!
@@ -262,6 +265,7 @@ export default function Home() {
       } else if (isCredentialError) {
         const nextCount = failedAttempts + 1;
         setFailedAttempts(nextCount);
+        setPasswordError("E-Mail-Adresse oder Passwort ist falsch.");
 
         if (nextCount >= MAX_LOGIN_ATTEMPTS) {
           const lockoutUntil = Date.now() + (LOCKOUT_DURATION_SECONDS * 1000);
@@ -341,7 +345,7 @@ export default function Home() {
           </div>
         ) : null}
 
-        <form onSubmit={handleLogin} noValidate className="space-y-5">
+        <form onSubmit={handleLogin} noValidate onInvalid={(e) => e.preventDefault()} className="space-y-5">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-text-muted mb-2">
               E-Mail-Adresse
@@ -354,6 +358,7 @@ export default function Home() {
                 if (emailError) setEmailError("");
                 if (error) setError("");
               }}
+              onInvalid={(e) => e.preventDefault()}
               className={`input-field disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ${
                 emailError
                   ? "border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100"
@@ -361,7 +366,9 @@ export default function Home() {
               }`}
               placeholder="name@rothirsch-umzug.de"
               disabled={isLocked || isSubmitting}
-              autoComplete="username"
+              autoComplete="off"
+              data-lpignore="true"
+              spellCheck={false}
             />
             {emailError && (
               <div className="flex items-center gap-1.5 mt-2 text-xs text-red-400 font-medium animate-in fade-in duration-200">
@@ -382,6 +389,7 @@ export default function Home() {
                 if (passwordError) setPasswordError("");
                 if (error) setError("");
               }}
+              onInvalid={(e) => e.preventDefault()}
               className={`input-field disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ${
                 passwordError
                   ? "border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100"
@@ -389,7 +397,9 @@ export default function Home() {
               }`}
               placeholder="••••••••"
               disabled={isLocked || isSubmitting}
-              autoComplete="current-password"
+              autoComplete="off"
+              data-lpignore="true"
+              spellCheck={false}
             />
             {passwordError && (
               <div className="flex items-center gap-1.5 mt-2 text-xs text-red-400 font-medium animate-in fade-in duration-200">

@@ -8,6 +8,7 @@ export function PwaRegister() {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js').then(
           function (registration) {
+            registration.update();
             console.log('Service Worker registration successful with scope: ', registration.scope);
           },
           function (err) {
