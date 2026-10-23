@@ -9,6 +9,7 @@ import { LockClosedIcon, ExclamationTriangleIcon } from "@heroicons/react/24/out
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_SECONDS = 10 * 60; // 10 Minuten
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
 const STORAGE_ATTEMPTS_KEY = "rothirsch_failed_login_attempts";
 const STORAGE_LOCKOUT_KEY = "rothirsch_login_lockout_until";
@@ -73,6 +74,8 @@ export default function Home() {
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -172,10 +175,48 @@ export default function Home() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+
     setError("");
+    setEmailError("");
+    setPasswordError("");
 
     if (lockoutRemaining > 0) {
       setError(`Zu viele Fehlversuche! Bitte warten Sie noch ${formatTimer(lockoutRemaining)} Minuten.`);
+      return;
+    }
+
+    const trimmedLogin = loginId.trim();
+    const trimmedPassword = password.trim();
+
+    let hasValidationError = false;
+
+    // 1. E-Mail-Validierung (App DNA)
+    if (!trimmedLogin) {
+      setEmailError("Bitte geben Sie Ihre E-Mail-Adresse ein.");
+      hasValidationError = true;
+    } else if (trimmedLogin.includes("@")) {
+      if (!EMAIL_REGEX.test(trimmedLogin)) {
+        setEmailError("Bitte geben Sie eine gültige E-Mail-Adresse ein (z. B. name@rothirsch-umzug.de).");
+        hasValidationError = true;
+      }
+    } else {
+      // Prüfen, ob es sich um eine gültige Telefonnummer handelt (mindestens 6 Ziffern)
+      const digitsOnly = trimmedLogin.replace(/[^0-9]/g, "");
+      const isValidPhoneChars = /^[+0-9\s\-./()]+$/.test(trimmedLogin);
+      if (!isValidPhoneChars || digitsOnly.length < 6) {
+        setEmailError("Ungültige E-Mail-Adresse: Bitte geben Sie eine gültige E-Mail ein.");
+        hasValidationError = true;
+      }
+    }
+
+    // 2. Passwort-Validierung (App DNA)
+    if (!trimmedPassword) {
+      setPasswordError("Bitte geben Sie Ihr Passwort ein.");
+      hasValidationError = true;
+    }
+
+    // Bei ungültigen Eingaben KEINE Server-Abfrage und KEINE Zählung von Fehlversuchen!
+    if (hasValidationError) {
       return;
     }
 
@@ -184,17 +225,21 @@ export default function Home() {
     try {
       // Exponential Backoff Delay vor jedem weiteren Versuch nach vorangegangenen Fehlversuchen
       if (failedAttempts > 0) {
-        const backoffDelayMs = Math.min(Math.pow(2, failedAttempts - 1) * 1000, 8000);
+        const backoffDelayMs = Math.min(Math.pow(2, failedAttempts - 1) * 1000, 4000);
         await new Promise((resolve) => setTimeout(resolve, backoffDelayMs));
       }
 
       // Wenn es kein @ enthält, ist es eine Handynummer -> Fake E-Mail bauen
-      const finalEmail = loginId.includes("@") ? loginId : `${loginId.replace(/[^0-9]/g, '')}@rothirsch-app.de`;
+      const finalEmail = trimmedLogin.includes("@")
+        ? trimmedLogin.toLowerCase()
+        : `${trimmedLogin.replace(/[^0-9]/g, "")}@rothirsch-app.de`;
       
       await signInWithEmailAndPassword(auth, finalEmail, password);
 
       // Reset counters upon successful login
       clearAllSecurityState();
+      setFailedAttempts(0);
+      setLockoutRemaining(0);
 
       router.push("/dashboard");
     } catch (err: any) {
@@ -202,27 +247,41 @@ export default function Home() {
         err?.code === "auth/too-many-requests" ||
         (typeof err?.message === "string" && err.message.includes("auth/too-many-requests"));
 
-      const nextCount = isFirebaseRateLimited
-        ? MAX_LOGIN_ATTEMPTS
-        : failedAttempts + 1;
-      setFailedAttempts(nextCount);
+      const isCredentialError =
+        err?.code === "auth/invalid-credential" ||
+        err?.code === "auth/wrong-password" ||
+        err?.code === "auth/user-not-found" ||
+        err?.code === "auth/user-disabled";
 
-      if (isFirebaseRateLimited || nextCount >= MAX_LOGIN_ATTEMPTS) {
+      if (isFirebaseRateLimited) {
         const lockoutUntil = Date.now() + (LOCKOUT_DURATION_SECONDS * 1000);
-        persistLockoutState(lockoutUntil, nextCount);
+        persistLockoutState(lockoutUntil, MAX_LOGIN_ATTEMPTS);
+        setFailedAttempts(MAX_LOGIN_ATTEMPTS);
         setLockoutRemaining(LOCKOUT_DURATION_SECONDS);
-        setError(
-          isFirebaseRateLimited
-            ? "Sicherheitssperre durch Server aktiviert (auth/too-many-requests)! Zu viele Anmeldeversuche. Der Zugriff ist für 10 Minuten gesperrt / تم تفعيل الحظر الأمني من الخادم بسبب كثرة المحاولات! الدخول محظور لمدة 10 دقائق."
-            : "Sicherheitssperre aktiviert! 5 fehlgeschlagene Anmeldeversuche. Aus Sicherheitsgründen ist die Anmeldung für 10 Minuten gesperrt / تم تفعيل الحظر الأمني! 5 محاولات خاطئة. الدخول محظور لمدة 10 دقائق لحماية النظام."
-        );
+        setError("Sicherheitssperre durch Server aktiviert! Zu viele Anmeldeversuche. Der Zugriff ist für 10 Minuten gesperrt.");
+      } else if (isCredentialError) {
+        const nextCount = failedAttempts + 1;
+        setFailedAttempts(nextCount);
+
+        if (nextCount >= MAX_LOGIN_ATTEMPTS) {
+          const lockoutUntil = Date.now() + (LOCKOUT_DURATION_SECONDS * 1000);
+          persistLockoutState(lockoutUntil, nextCount);
+          setLockoutRemaining(LOCKOUT_DURATION_SECONDS);
+          setError("Sicherheitssperre aktiviert! 5 fehlgeschlagene Anmeldeversuche. Aus Sicherheitsgründen ist die Anmeldung für 10 Minuten gesperrt.");
+        } else {
+          persistAttemptsState(nextCount);
+          const remaining = MAX_LOGIN_ATTEMPTS - nextCount;
+          const nextBackoffSec = Math.min(Math.pow(2, nextCount - 1), 4);
+          setError(
+            `Anmeldung fehlgeschlagen: E-Mail-Adresse oder Passwort ist falsch. Verbleibende Versuche: ${remaining} von ${MAX_LOGIN_ATTEMPTS}${
+              nextBackoffSec > 1 ? ` (Verzögerung: ${nextBackoffSec}s)` : ""
+            }.`
+          );
+        }
+      } else if (err?.code === "auth/network-request-failed") {
+        setError("Netzwerkfehler: Keine Verbindung zum Authentifizierungsserver. Bitte überprüfen Sie Ihre Internetverbindung.");
       } else {
-        persistAttemptsState(nextCount);
-        const remaining = MAX_LOGIN_ATTEMPTS - nextCount;
-        const nextBackoffSec = Math.min(Math.pow(2, nextCount - 1), 8);
-        setError(
-          `Anmeldung fehlgeschlagen (Falsche Anmeldedaten). Verbleibende Versuche: ${remaining} von ${MAX_LOGIN_ATTEMPTS} (Verzögerung: ${nextBackoffSec}s) / فشل تسجيل الدخول. المحاولات المتبقية: ${remaining} من ${MAX_LOGIN_ATTEMPTS}.`
-        );
+        setError("Anmeldung nicht möglich. Bitte überprüfen Sie Ihre Eingaben und versuchen Sie es erneut.");
       }
     } finally {
       setIsSubmitting(false);
@@ -254,14 +313,14 @@ export default function Home() {
           <div className="bg-red-500/15 border-2 border-red-500/50 text-red-300 p-4 rounded-xl mb-6 text-sm flex flex-col gap-2 shadow-lg animate-pulse">
             <div className="flex items-center gap-2 font-bold text-red-400">
               <LockClosedIcon className="w-6 h-6 shrink-0" />
-              <span>Sicherheitssperre aktiv / تم تجميد الدخول</span>
+              <span>Sicherheitssperre aktiv</span>
             </div>
             <p className="text-xs text-red-200/90 leading-relaxed">
               Aufgrund von 5 falschen Anmeldeversuchen wurde der Zugriff temporär gesperrt, um unbefugte Angriffe abzuwehren.
             </p>
             <div className="mt-2 bg-black/40 rounded-lg p-2.5 text-center border border-red-500/30">
               <span className="text-[11px] block uppercase text-red-300 font-semibold tracking-wider">
-                Verbleibende Wartezeit / الوقت المتبقي
+                Verbleibende Wartezeit
               </span>
               <span className="text-2xl font-black font-mono text-white tracking-widest">
                 {formatTimer(lockoutRemaining)}
@@ -282,7 +341,7 @@ export default function Home() {
           </div>
         ) : null}
 
-        <form onSubmit={handleLogin} className="space-y-5">
+        <form onSubmit={handleLogin} noValidate className="space-y-5">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-text-muted mb-2">
               E-Mail-Adresse
@@ -290,12 +349,26 @@ export default function Home() {
             <input
               type="text"
               value={loginId}
-              onChange={(e) => setLoginId(e.target.value)}
-              className="input-field disabled:opacity-50 disabled:cursor-not-allowed"
+              onChange={(e) => {
+                setLoginId(e.target.value);
+                if (emailError) setEmailError("");
+                if (error) setError("");
+              }}
+              className={`input-field disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ${
+                emailError
+                  ? "border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100"
+                  : ""
+              }`}
               placeholder="name@rothirsch-umzug.de"
               disabled={isLocked || isSubmitting}
-              required
+              autoComplete="username"
             />
+            {emailError && (
+              <div className="flex items-center gap-1.5 mt-2 text-xs text-red-400 font-medium animate-in fade-in duration-200">
+                <ExclamationTriangleIcon className="w-4 h-4 shrink-0 text-red-400" />
+                <span>{emailError}</span>
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-text-muted mb-2">
@@ -304,12 +377,26 @@ export default function Home() {
             <input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input-field disabled:opacity-50 disabled:cursor-not-allowed"
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (passwordError) setPasswordError("");
+                if (error) setError("");
+              }}
+              className={`input-field disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ${
+                passwordError
+                  ? "border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100"
+                  : ""
+              }`}
               placeholder="••••••••"
               disabled={isLocked || isSubmitting}
-              required
+              autoComplete="current-password"
             />
+            {passwordError && (
+              <div className="flex items-center gap-1.5 mt-2 text-xs text-red-400 font-medium animate-in fade-in duration-200">
+                <ExclamationTriangleIcon className="w-4 h-4 shrink-0 text-red-400" />
+                <span>{passwordError}</span>
+              </div>
+            )}
           </div>
           
           <button 

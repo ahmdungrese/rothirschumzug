@@ -30,7 +30,18 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.16.0 (Current) – Universal Claims Reporting Hub & Automated Protocol Damage Intake
+### Version 2.16.1 (Current) – Login Security Hardening, App DNA Validation & German-Only Messages
+*   **Decoupled Client Validation from Server Rate Limiting (`src/app/page.tsx`)**:
+    *   Syntactically invalid inputs (empty fields, malformed characters such as `edwsfdfasgereremmmujz`) are now intercepted client-side and do not trigger a backend authentication request.
+    *   Failed attempt counter and exponential backoff are strictly incremented only upon authentic credential failure (`auth/invalid-credential`, `auth/wrong-password`, `auth/user-not-found`) returned by the authentication server.
+*   **Custom App DNA Validation UI**:
+    *   Added `noValidate` to form to disable browser-native validation tooltips.
+    *   Integrated native Rothirsch design system feedback: highlighted input borders, contextual error icons, and in-line validation messages for email and password fields.
+*   **100% German Language Parity for Security & Lockout Alerts**:
+    *   Purged all foreign/multilingual text artifacts from security banners, countdown timers, and rate-limit warnings.
+    *   Standardized clear, professional German notifications for security lockouts, server rate limits, network errors, and remaining login attempts.
+
+### Version 2.16.0 – Universal Claims Reporting Hub & Automated Protocol Damage Intake
 *   **Central Claims Creation Hub (`claims/page.tsx`, `ClaimModal.tsx`)**:
     *   Integrated a prominent "+ Neue Reklamation" action directly in the central claims dashboard (`/dashboard/claims`).
     *   Multi-mode intake: Allows disponents to search and select any customer in the database and bind the claim to any of their specific orders/offers (`AU-...`, `AN-...`) or file a general claim.
