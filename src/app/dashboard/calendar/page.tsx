@@ -470,8 +470,9 @@ export default function CalendarPage() {
           <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
           <input
             type="text"
+            maxLength={60}
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value.replace(/<[^>]*>/g, '').replace(/[\r\n]+/g, '').slice(0, 60))}
             placeholder="Kunde, Ort suchen..."
             className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl bg-bg-card border border-structure focus:outline-none focus:ring-2 focus:ring-[#6E8F64] text-text-main placeholder:text-text-muted transition-all"
           />

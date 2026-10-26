@@ -17,6 +17,7 @@ import { InventoryWizardModal, ROOM_TYPES } from './InventoryWizardModal';
 import { KartonConfigModal } from './KartonConfigModal';
 import { PdfModal } from '@/components/ui/PdfModal';
 import { FLOOR_OPTIONS } from '@/lib/constants';
+import { sanitizeText } from '@/lib/inputValidation';
 import { withDbTimeout, formatFriendlyError } from '@/lib/networkWatchdog';
 import { modalManager } from '@/lib/modalManager';
 import { FIXED_KEYS, getFixedKey, hasFixedService, isRemovalLocked, applyHvzToServices, applyLiftToServices, ensureTransportService, fixedLine, resolveFixedDefs, type FixedServiceKey } from '@/lib/serviceKeys';
@@ -2357,32 +2358,68 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 </div>
                 <div>
                   <label className="block text-xs text-text-muted mb-1">Vorname</label>
-                  <input type="text" value={customerData.firstName} onChange={e => setCustomerData({...customerData, firstName: e.target.value})} className="input-field w-full" />
+                  <input
+                    type="text"
+                    maxLength={50}
+                    value={customerData.firstName}
+                    onChange={e => setCustomerData(prev => ({...prev, firstName: sanitizeText(e.target.value, 50)}))}
+                    className="input-field w-full"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs text-text-muted mb-1">Nachname *</label>
-                  <input type="text" value={customerData.lastName} onChange={e => setCustomerData({...customerData, lastName: e.target.value})} className="input-field w-full" />
+                  <input
+                    type="text"
+                    maxLength={50}
+                    value={customerData.lastName}
+                    onChange={e => setCustomerData(prev => ({...prev, lastName: sanitizeText(e.target.value, 50)}))}
+                    className="input-field w-full"
+                  />
                 </div>
               </>
             ) : (
               <>
                 <div>
                   <label className="block text-xs text-text-muted mb-1">Firmenname *</label>
-                  <input type="text" value={customerData.lastName} onChange={e => setCustomerData({...customerData, lastName: e.target.value})} className="input-field w-full" />
+                  <input
+                    type="text"
+                    maxLength={80}
+                    value={customerData.lastName}
+                    onChange={e => setCustomerData(prev => ({...prev, lastName: sanitizeText(e.target.value, 80)}))}
+                    className="input-field w-full"
+                  />
                 </div>
                 <div>
                   <label className="block text-xs text-text-muted mb-1">Ansprechpartner (Vor- & Nachname)</label>
-                  <input type="text" value={customerData.firstName} onChange={e => setCustomerData({...customerData, firstName: e.target.value})} className="input-field w-full" />
+                  <input
+                    type="text"
+                    maxLength={60}
+                    value={customerData.firstName}
+                    onChange={e => setCustomerData(prev => ({...prev, firstName: sanitizeText(e.target.value, 60)}))}
+                    className="input-field w-full"
+                  />
                 </div>
               </>
             )}
           <div>
             <label className="block text-xs text-text-muted mb-1">E-Mail Adresse</label>
-            <input type="email" value={customerData.email} onChange={e => setCustomerData({...customerData, email: e.target.value})} className="input-field w-full" />
+            <input
+              type="email"
+              maxLength={80}
+              value={customerData.email}
+              onChange={e => setCustomerData(prev => ({...prev, email: sanitizeText(e.target.value, 80).trim()}))}
+              className="input-field w-full"
+            />
           </div>
           <div>
             <label className="block text-xs text-text-muted mb-1">Telefonnummer</label>
-            <input type="text" value={customerData.phone} onChange={e => setCustomerData({...customerData, phone: e.target.value})} className="input-field w-full" />
+            <input
+              type="text"
+              maxLength={35}
+              value={customerData.phone}
+              onChange={e => setCustomerData(prev => ({...prev, phone: sanitizeText(e.target.value, 35)}))}
+              className="input-field w-full"
+            />
           </div>
           <div>
             <label className="block text-xs text-text-muted mb-1">Kundenquelle</label>
@@ -2398,33 +2435,57 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             <div className="grid grid-cols-4 gap-3">
               <div className="col-span-3">
                 <label className="block text-xs text-text-muted mb-1">Straße</label>
-                <input type="text" value={customerData.street} onChange={e => setCustomerData({...customerData, street: e.target.value})} className="input-field w-full" />
+                <input
+                  type="text"
+                  maxLength={80}
+                  value={customerData.street}
+                  onChange={e => setCustomerData(prev => ({...prev, street: sanitizeText(e.target.value, 80)}))}
+                  className="input-field w-full"
+                />
               </div>
               <div className="col-span-1">
                 <label className="block text-xs text-text-muted mb-1">Haus-Nr.</label>
-                <input type="text" value={customerData.houseNr} onChange={e => setCustomerData({...customerData, houseNr: e.target.value})} className="input-field w-full" />
+                <input
+                  type="text"
+                  maxLength={15}
+                  value={customerData.houseNr}
+                  onChange={e => setCustomerData(prev => ({...prev, houseNr: sanitizeText(e.target.value, 15)}))}
+                  className="input-field w-full"
+                />
               </div>
               <div className="col-span-1">
                 <label className="block text-xs text-text-muted mb-1">PLZ</label>
-                <input type="text" value={customerData.zip} onChange={async (e) => {
-                  const val = e.target.value;
-                  setCustomerData(prev => ({...prev, zip: val}));
-                  if (val.length === 5) {
-                    try {
-                      const res = await fetch(`https://api.zippopotam.us/de/${val}`);
-                      if (res.ok) {
-                        const data = await res.json();
-                        if (data.places && data.places.length > 0) {
-                          setCustomerData(prev => ({...prev, zip: val, city: data.places[0]['place name']}));
+                <input
+                  type="text"
+                  maxLength={10}
+                  value={customerData.zip}
+                  onChange={async (e) => {
+                    const val = sanitizeText(e.target.value, 10).replace(/[^0-9a-zA-Z]/g, '');
+                    setCustomerData(prev => ({...prev, zip: val}));
+                    if (val.length === 5) {
+                      try {
+                        const res = await fetch(`https://api.zippopotam.us/de/${val}`);
+                        if (res.ok) {
+                          const data = await res.json();
+                          if (data.places && data.places.length > 0) {
+                            setCustomerData(prev => ({...prev, zip: val, city: data.places[0]['place name']}));
+                          }
                         }
-                      }
-                    } catch(err) {}
-                  }
-                }} className="input-field w-full" />
+                      } catch(err) {}
+                    }
+                  }}
+                  className="input-field w-full"
+                />
               </div>
               <div className="col-span-3">
                 <label className="block text-xs text-text-muted mb-1">Ort</label>
-                <input type="text" value={customerData.city} onChange={e => setCustomerData({...customerData, city: e.target.value})} className="input-field w-full" />
+                <input
+                  type="text"
+                  maxLength={60}
+                  value={customerData.city}
+                  onChange={e => setCustomerData(prev => ({...prev, city: sanitizeText(e.target.value, 60)}))}
+                  className="input-field w-full"
+                />
               </div>
             </div>
           </div>
@@ -2611,12 +2672,37 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             <button onClick={() => copyCustomerAddress('a')} className="text-xs btn-secondary py-1 px-2">Kundenadresse übernehmen</button>
           </div>
           <div className="grid grid-cols-4 gap-3">
-            <div className="col-span-3"><label className="block text-xs text-text-muted mb-1">Straße</label><input id="input-a_street" type="text" value={logistics.a_street} onChange={e => setLogistics({...logistics, a_street: e.target.value})} className="input-field w-full" /></div>
-            <div className="col-span-1"><label className="block text-xs text-text-muted mb-1">Haus-Nr.</label><input id="input-a_houseNr" type="text" value={logistics.a_houseNr} onChange={e => setLogistics({...logistics, a_houseNr: e.target.value})} className="input-field w-full" /></div>
+            <div className="col-span-3">
+              <label className="block text-xs text-text-muted mb-1">Straße</label>
+              <input
+                id="input-a_street"
+                type="text"
+                maxLength={80}
+                value={logistics.a_street}
+                onChange={e => setLogistics((prev: any) => ({...prev, a_street: sanitizeText(e.target.value, 80)}))}
+                className="input-field w-full"
+              />
+            </div>
+            <div className="col-span-1">
+              <label className="block text-xs text-text-muted mb-1">Haus-Nr.</label>
+              <input
+                id="input-a_houseNr"
+                type="text"
+                maxLength={15}
+                value={logistics.a_houseNr}
+                onChange={e => setLogistics((prev: any) => ({...prev, a_houseNr: sanitizeText(e.target.value, 15)}))}
+                className="input-field w-full"
+              />
+            </div>
             <div className="col-span-1">
               <label className="block text-xs text-text-muted mb-1">PLZ</label>
-              <input id="input-a_zip" type="text" value={logistics.a_zip} onChange={async (e) => {
-                  const val = e.target.value;
+              <input
+                id="input-a_zip"
+                type="text"
+                maxLength={10}
+                value={logistics.a_zip}
+                onChange={async (e) => {
+                  const val = sanitizeText(e.target.value, 10).replace(/[^0-9a-zA-Z]/g, '');
                   setLogistics((prev: any) => ({...prev, a_zip: val}));
                   if (val.length === 5) {
                     try {
@@ -2629,9 +2715,21 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       }
                     } catch(err) {}
                   }
-                }} className="input-field w-full" />
+                }}
+                className="input-field w-full"
+              />
             </div>
-            <div className="col-span-3"><label className="block text-xs text-text-muted mb-1">Ort</label><input id="input-a_city" type="text" value={logistics.a_city} onChange={e => setLogistics({...logistics, a_city: e.target.value})} className="input-field w-full" /></div>
+            <div className="col-span-3">
+              <label className="block text-xs text-text-muted mb-1">Ort</label>
+              <input
+                id="input-a_city"
+                type="text"
+                maxLength={60}
+                value={logistics.a_city}
+                onChange={e => setLogistics((prev: any) => ({...prev, a_city: sanitizeText(e.target.value, 60)}))}
+                className="input-field w-full"
+              />
+            </div>
             
             <div id="highlight-floorA" className="col-span-2 transition-all rounded-lg">
               <label className="block text-xs text-text-muted mb-1">Etage</label>
@@ -2878,12 +2976,37 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             <button onClick={() => copyCustomerAddress('b')} className="text-xs btn-secondary py-1 px-2">Kundenadresse übernehmen</button>
           </div>
           <div className="grid grid-cols-4 gap-3">
-            <div className="col-span-3"><label className="block text-xs text-text-muted mb-1">Straße</label><input id="input-b_street" type="text" value={logistics.b_street} onChange={e => setLogistics({...logistics, b_street: e.target.value})} className="input-field w-full" /></div>
-            <div className="col-span-1"><label className="block text-xs text-text-muted mb-1">Haus-Nr.</label><input id="input-b_houseNr" type="text" value={logistics.b_houseNr} onChange={e => setLogistics({...logistics, b_houseNr: e.target.value})} className="input-field w-full" /></div>
+            <div className="col-span-3">
+              <label className="block text-xs text-text-muted mb-1">Straße</label>
+              <input
+                id="input-b_street"
+                type="text"
+                maxLength={80}
+                value={logistics.b_street}
+                onChange={e => setLogistics((prev: any) => ({...prev, b_street: sanitizeText(e.target.value, 80)}))}
+                className="input-field w-full"
+              />
+            </div>
+            <div className="col-span-1">
+              <label className="block text-xs text-text-muted mb-1">Haus-Nr.</label>
+              <input
+                id="input-b_houseNr"
+                type="text"
+                maxLength={15}
+                value={logistics.b_houseNr}
+                onChange={e => setLogistics((prev: any) => ({...prev, b_houseNr: sanitizeText(e.target.value, 15)}))}
+                className="input-field w-full"
+              />
+            </div>
             <div className="col-span-1">
               <label className="block text-xs text-text-muted mb-1">PLZ</label>
-              <input id="input-b_zip" type="text" value={logistics.b_zip} onChange={async (e) => {
-                  const val = e.target.value;
+              <input
+                id="input-b_zip"
+                type="text"
+                maxLength={10}
+                value={logistics.b_zip}
+                onChange={async (e) => {
+                  const val = sanitizeText(e.target.value, 10).replace(/[^0-9a-zA-Z]/g, '');
                   setLogistics((prev: any) => ({...prev, b_zip: val}));
                   if (val.length === 5) {
                     try {
@@ -2896,9 +3019,21 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       }
                     } catch(err) {}
                   }
-                }} className="input-field w-full" />
+                }}
+                className="input-field w-full"
+              />
             </div>
-            <div className="col-span-3"><label className="block text-xs text-text-muted mb-1">Ort</label><input id="input-b_city" type="text" value={logistics.b_city} onChange={e => setLogistics({...logistics, b_city: e.target.value})} className="input-field w-full" /></div>
+            <div className="col-span-3">
+              <label className="block text-xs text-text-muted mb-1">Ort</label>
+              <input
+                id="input-b_city"
+                type="text"
+                maxLength={60}
+                value={logistics.b_city}
+                onChange={e => setLogistics((prev: any) => ({...prev, b_city: sanitizeText(e.target.value, 60)}))}
+                className="input-field w-full"
+              />
+            </div>
             
             <div id="highlight-floorB" className="col-span-2 transition-all rounded-lg">
               <label className="block text-xs text-text-muted mb-1">Etage</label>
@@ -3365,9 +3500,10 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                         <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
                         <input 
                           type="text" 
+                          maxLength={60}
                           placeholder="Weitere Leistungen suchen (z.B. Aufbau Küche, Montage, Kartons)..." 
                           value={catalogSearch} 
-                          onChange={e => setCatalogSearch(e.target.value)} 
+                          onChange={e => setCatalogSearch(sanitizeText(e.target.value, 60))} 
                           className="input-field w-full pl-9 pr-8 py-2 rounded-xl bg-black/20 text-xs shadow-inner" 
                         />
                         {catalogSearch && (

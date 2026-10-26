@@ -6,8 +6,12 @@ import { initializeApp, getApps } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { toast } from "react-hot-toast";
 import { CheckIcon, XMarkIcon, LockClosedIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
-
-const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+import { 
+  validateHumanName, 
+  validateLoginIdentifier, 
+  validatePasswordInput, 
+  sanitizeText 
+} from "@/lib/inputValidation";
 
 // Create secondary app to prevent logging out the admin
 const createSecondaryApp = () => {
@@ -57,52 +61,15 @@ export function TeamAccessManager() {
 
   // Formular-Validierung mit App DNA Regeln (wie auf der Login-Seite)
   const validateInputs = () => {
-    let isValid = true;
-    setNameError("");
-    setLoginError("");
-    setPasswordError("");
+    const errName = validateHumanName(name);
+    const errLogin = validateLoginIdentifier(loginId);
+    const errPass = validatePasswordInput(password);
 
-    const trimmedName = name.trim();
-    const trimmedLogin = loginId.trim();
-    const trimmedPassword = password.trim();
+    setNameError(errName || "");
+    setLoginError(errLogin || "");
+    setPasswordError(errPass || "");
 
-    // 1. Name prüfen
-    if (!trimmedName) {
-      setNameError("Bitte geben Sie einen Namen oder Anzeigenamen ein.");
-      isValid = false;
-    } else if (trimmedName.length < 2) {
-      setNameError("Der Name muss mindestens 2 Zeichen lang sein.");
-      isValid = false;
-    }
-
-    // 2. Handynummer oder E-Mail prüfen (App DNA)
-    if (!trimmedLogin) {
-      setLoginError("Bitte geben Sie eine Handynummer oder E-Mail-Adresse ein.");
-      isValid = false;
-    } else if (trimmedLogin.includes("@")) {
-      if (!EMAIL_REGEX.test(trimmedLogin)) {
-        setLoginError("Bitte geben Sie eine gültige E-Mail-Adresse ein (z. B. name@rothirsch-umzug.de).");
-        isValid = false;
-      }
-    } else {
-      const digitsOnly = trimmedLogin.replace(/[^0-9]/g, "");
-      const isValidPhoneChars = /^[+0-9\s\-./()]+$/.test(trimmedLogin);
-      if (!isValidPhoneChars || digitsOnly.length < 6) {
-        setLoginError("Ungültige Eingabe: Bitte eine gültige Handynummer (mind. 6 Ziffern) oder E-Mail eingeben.");
-        isValid = false;
-      }
-    }
-
-    // 3. Start-Passwort / PIN prüfen (App DNA)
-    if (!trimmedPassword) {
-      setPasswordError("Bitte geben Sie ein Start-Passwort oder einen PIN ein.");
-      isValid = false;
-    } else if (trimmedPassword.length < 6) {
-      setPasswordError("Das Passwort muss mindestens 6 Zeichen oder Ziffern lang sein (z. B. 6-stelliger PIN).");
-      isValid = false;
-    }
-
-    return isValid;
+    return !errName && !errLogin && !errPass;
   };
 
   // Schritt 1: Formular-Validierung & Öffnen der Chef-PIN-Abfrage
@@ -245,10 +212,15 @@ export function TeamAccessManager() {
               <input 
                 type="text" 
                 value={name} 
+                maxLength={50}
                 onChange={e => {
-                  setName(e.target.value);
+                  const cleaned = sanitizeText(e.target.value, 50);
+                  setName(cleaned);
                   if (nameError) setNameError("");
                 }} 
+                onBlur={() => {
+                  setNameError(validateHumanName(name) || "");
+                }}
                 className={`input-field transition-all duration-200 ${
                   nameError ? "border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100" : ""
                 }`} 
@@ -271,10 +243,15 @@ export function TeamAccessManager() {
               <input 
                 type="text" 
                 value={loginId} 
+                maxLength={80}
                 onChange={e => {
-                  setLoginId(e.target.value);
+                  const cleaned = sanitizeText(e.target.value, 80);
+                  setLoginId(cleaned);
                   if (loginError) setLoginError("");
                 }} 
+                onBlur={() => {
+                  setLoginError(validateLoginIdentifier(loginId) || "");
+                }}
                 className={`input-field transition-all duration-200 ${
                   loginError ? "border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100" : ""
                 }`} 
@@ -299,10 +276,15 @@ export function TeamAccessManager() {
               <input 
                 type="text" 
                 value={password} 
+                maxLength={32}
                 onChange={e => {
-                  setPassword(e.target.value);
+                  const cleaned = sanitizeText(e.target.value, 32);
+                  setPassword(cleaned);
                   if (passwordError) setPasswordError("");
                 }} 
+                onBlur={() => {
+                  setPasswordError(validatePasswordInput(password) || "");
+                }}
                 className={`input-field transition-all duration-200 ${
                   passwordError ? "border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100" : ""
                 }`} 

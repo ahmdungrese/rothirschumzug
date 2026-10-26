@@ -36,6 +36,16 @@ export default function SettingsPage() {
   const { profile } = useAuth();
   const [activeTab, setActiveTab] = useState('basisdaten');
   const [showResetModal, setShowResetModal] = useState(false);
+  const [isDev, setIsDev] = useState(false);
+
+  useEffect(() => {
+    if (
+      process.env.NODE_ENV === 'development' ||
+      (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+    ) {
+      setIsDev(true);
+    }
+  }, []);
   const [settings, setSettings] = useState<any>({
     companyName: 'Rothirschumzug',
     street: 'Haydnstr. 16',
@@ -1779,25 +1789,32 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* SEKTION 3: Entwickler-Bereich (Datenbank-Reset) */}
-              <div className="border-t border-red-500/20 pt-6">
-                <div className="bg-red-500/5 border border-red-500/30 rounded-xl p-6 relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
-                  <h3 className="text-lg font-bold text-red-400 mb-2 flex items-center gap-2">
-                    <ExclamationTriangleIcon className="w-5 h-5" />
-                    Datenbank zurücksetzen &amp; Testdaten leeren
-                  </h3>
-                  <p className="text-sm text-text-muted mb-6 max-w-2xl">
-                    Löscht alle erstellten Kunden, Angebote, Rechnungen und Testdokumente unwiderruflich aus der Datenbank und setzt alle Nummernkreise auf 1 zurück. Deine Grundeinstellungen (Texte, Kontaktdaten, Steuersätze) bleiben erhalten.
-                  </p>
-                  <button 
-                    onClick={() => setShowResetModal(true)}
-                    className="btn-primary bg-red-600 hover:bg-red-700 text-white border-none shadow-lg shadow-red-600/20"
-                  >
-                    Datenbank komplett zurücksetzen
-                  </button>
+              {/* SEKTION 3: Entwickler-Bereich (Datenbank-Reset) - Nur in lokaler Entwicklung (run dev) sichtbar */}
+              {isDev && (
+                <div className="border-t border-red-500/20 pt-6">
+                  <div className="bg-red-500/5 border border-red-500/30 rounded-xl p-6 relative overflow-hidden">
+                    <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-lg font-bold text-red-400 flex items-center gap-2">
+                        <ExclamationTriangleIcon className="w-5 h-5" />
+                        Datenbank zurücksetzen &amp; Testdaten leeren
+                      </h3>
+                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                        Nur Lokal (Dev-Modus)
+                      </span>
+                    </div>
+                    <p className="text-sm text-text-muted mb-6 max-w-2xl">
+                      Löscht alle erstellten Kunden, Angebote, Rechnungen und Testdokumente unwiderruflich aus der Datenbank und setzt alle Nummernkreise auf 1 zurück. Deine Grundeinstellungen (Texte, Kontaktdaten, Steuersätze) bleiben erhalten.
+                    </p>
+                    <button 
+                      onClick={() => setShowResetModal(true)}
+                      className="btn-primary bg-red-600 hover:bg-red-700 text-white border-none shadow-lg shadow-red-600/20"
+                    >
+                      Datenbank komplett zurücksetzen
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
           

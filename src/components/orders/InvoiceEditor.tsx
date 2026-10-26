@@ -1368,9 +1368,10 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
                         <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
                         <input 
                           type="text" 
+                          maxLength={60}
                           placeholder="Weitere Leistungen suchen (z.B. Aufbau Küche, Montage, Kartons)..." 
                           value={catalogSearch} 
-                          onChange={e => setCatalogSearch(e.target.value)} 
+                          onChange={e => setCatalogSearch(e.target.value.replace(/<[^>]*>/g, '').replace(/[\r\n]+/g, '').slice(0, 60))} 
                           className="input-field w-full pl-9 pr-8 py-2 rounded-xl bg-black/20 text-xs shadow-inner" 
                         />
                         {catalogSearch && (

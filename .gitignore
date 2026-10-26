@@ -44,3 +44,6 @@ next-env.d.ts
 
 # Firebase Service Account Key
 serviceAccountKey.json
+
+# Scratch files
+scratch/

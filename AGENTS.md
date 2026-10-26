@@ -30,7 +30,27 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.18.0 (Current) – Official IONOS (1&1) SMTP Mail Engine & 1-Click Offer/Invoice Sending
+### Version 2.18.1 (Current) – Global Input Validation, Instant onBlur Field Auditing & Code Injection Defense
+*   **Instant onBlur Field Auditing & Character Strictness (`TeamAccessManager.tsx`, `inputValidation.ts`)**:
+    *   Added instant audit triggers (`onBlur`) when users finish typing and transition away from input fields.
+    *   Strict name verification (`HUMAN_NAME_REGEX`): Rejects exclamation marks, asterisks, hashes, and unsupported symbols in human names while respecting German umlauts and international character sets.
+    *   Strict login identifier auditing: Enforces standard email formatting or valid 6-to-25 digit phone numbers, preventing arbitrary multiline text or invalid payloads.
+*   **Global Text Input Length Caps & Single-Line Enforcement (`OrderEditor.tsx`, `QuickCreateCustomer.tsx`, `customers/[id]/page.tsx`, `page.tsx`)**:
+    *   Enforced explicit `maxLength` limits across all customer identity and address fields: `firstName` (max 50), `lastName` (max 50/80), `company` (max 80), `email` (max 80), `phone` (max 35), `street` (max 80), `houseNr` (max 15), `zip` (max 10), and `city` (max 60).
+    *   Suppressed unintended multiline paste pollution by converting newlines to spaces or stripping them across all single-line inputs.
+*   **Universal Search Bar Hardening & Anti-XSS Sanitization Across All Modules**:
+    *   Applied strict `maxLength={60}` and reactive HTML tag/script tag stripping across all search bars:
+        *   `customers/page.tsx` (Customer Directory search)
+        *   `orders/page.tsx` (Order & Quote Cockpit search)
+        *   `claims/page.tsx` (Claims & Defects search)
+        *   `calendar/page.tsx` (Operational Calendar search)
+        *   `finances/page.tsx` (Invoices & Settlements search)
+        *   `KanbanDispositionBoard.tsx` (Disposition Pipeline search)
+        *   `ClaimModal.tsx` & `OrderEditor.tsx` & `InvoiceEditor.tsx` (Modal & Catalog lookups)
+*   **Anti-Code-Injection Shield (`src/lib/inputValidation.ts`)**:
+    *   Automated detection and sanitization of malicious script tags (`<script>`, `<...>`, `javascript:`, DOM event attributes) preventing XSS and database corruption.
+
+### Version 2.18.0 – Official IONOS (1&1) SMTP Mail Engine & 1-Click Offer/Invoice Sending
 *   **Team Access In-Line Validation & App DNA Parity (`TeamAccessManager.tsx`)**:
     *   Integrated full App DNA real-time field validation matching the login page (`page.tsx`) with contextual German notices.
     *   Name validation (min 2 chars), strict phone/email regex formatting, and 6-character password/PIN enforcement.

@@ -274,8 +274,9 @@ export function KanbanDispositionBoard() {
           <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
+            maxLength={60}
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value.replace(/<[^>]*>/g, '').replace(/[\r\n]+/g, '').slice(0, 60))}
             placeholder="Kunde, Stadt, Auftragsnr..."
             className="w-full pl-9 pr-4 py-1.5 text-xs rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary text-slate-900 dark:text-white placeholder:text-slate-400"
           />

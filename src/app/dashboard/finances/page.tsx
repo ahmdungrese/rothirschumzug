@@ -615,9 +615,10 @@ export default function FinancesPage() {
             <MagnifyingGlassIcon className="w-4 h-4 text-text-muted absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input 
               type="text" 
+              maxLength={60}
               placeholder="Suche nach Kunde oder RE-Nr...." 
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => setSearchTerm(e.target.value.replace(/<[^>]*>/g, '').replace(/[\r\n]+/g, '').slice(0, 60))}
               className="w-full bg-bg-panel border border-structure rounded-xl pl-9 pr-4 py-2 text-xs text-text-main placeholder:text-text-muted focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-xs"
             />
           </div>

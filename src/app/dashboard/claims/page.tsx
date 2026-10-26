@@ -163,8 +163,9 @@ export default function ClaimsPage() {
               <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
               <input
                 type="text"
+                maxLength={60}
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => setSearchQuery(e.target.value.replace(/<[^>]*>/g, '').replace(/[\r\n]+/g, '').slice(0, 60))}
                 placeholder="Schaden, Kunde, Aktenzeichen..."
                 className="w-full pl-9 pr-4 py-2 text-xs rounded-full bg-bg-card border border-structure focus:outline-none focus:ring-2 focus:ring-primary text-text-main placeholder:text-text-muted transition-all"
               />

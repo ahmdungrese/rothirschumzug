@@ -3,8 +3,7 @@ import { Modal } from '@/components/ui/Modal';
 import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
-import { db, auth } from '@/lib/firebase';
-import { collection, getDocs, doc, writeBatch, setDoc } from 'firebase/firestore';
+import { auth } from '@/lib/firebase';
 
 interface ResetDatabaseModalProps {
   onClose: () => void;
@@ -21,46 +20,32 @@ export function ResetDatabaseModal({ onClose, onResetSuccess }: ResetDatabaseMod
   useEffect(() => {
     async function fetchCounts() {
       try {
-        let c: any = null;
-        try {
-          const idToken = await auth.currentUser?.getIdToken();
-          const res = await fetch('/api/reset-database', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${idToken}`
-            },
-            body: JSON.stringify({ action: 'count' })
-          });
-          if (res.ok) {
-            const data = await res.json().catch(() => null);
-            if (data?.success) c = data.counts;
-          }
-        } catch {
-          // Fallback zu direktem Firestore Client
-        }
-
-        if (!c) {
-          const [custSnap, ordersSnap, invSnap] = await Promise.all([
-            getDocs(collection(db, 'customers')).catch(() => ({ size: 0 })),
-            getDocs(collection(db, 'orders')).catch(() => ({ size: 0 })),
-            getDocs(collection(db, 'invoices')).catch(() => ({ size: 0 }))
-          ]);
-          c = {
-            customers: custSnap.size,
-            orders: ordersSnap.size,
-            invoices: invSnap.size
-          };
-        }
-
-        setCounts({
-          customers: c.customers || 0,
-          orders: c.orders || 0,
-          invoices: c.invoices || 0
+        const idToken = await auth.currentUser?.getIdToken();
+        const res = await fetch('/api/reset-database', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify({ action: 'count' })
         });
+        
+        const data = await res.json();
+        if (data.success) {
+          const c = data.counts || {};
+          setCounts({
+            customers: c.customers || 0,
+            orders: c.orders || 0,
+            invoices: c.invoices || 0
+          });
+        } else {
+          toast.error("Fehler beim Abrufen der Zähler.");
+          onClose();
+        }
       } catch (err) {
-        console.error("Fehler beim Laden der Zähler:", err);
-        setCounts({ customers: 0, orders: 0, invoices: 0 });
+        console.error(err);
+        toast.error("Verbindungsfehler.");
+        onClose();
       } finally {
         setLoadingCounts(false);
       }
@@ -73,66 +58,22 @@ export function ResetDatabaseModal({ onClose, onResetSuccess }: ResetDatabaseMod
     setIsResetting(true);
     
     try {
-      let success = false;
-      const deletedSummary = { customers: 0, orders: 0, invoices: 0 };
-
-      // 1. Versuch: Über Server-API
-      try {
-        const idToken = await auth.currentUser?.getIdToken();
-        const res = await fetch('/api/reset-database', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`
-          },
-          body: JSON.stringify({ action: 'reset' })
-        });
-        const data = await res.json().catch(() => null);
-        if (res.ok && data?.success) {
-          success = true;
-          deletedSummary.customers = data.results?.deletedDocs?.customers || 0;
-          deletedSummary.orders = data.results?.deletedDocs?.orders || 0;
-          deletedSummary.invoices = data.results?.deletedDocs?.invoices || 0;
-        }
-      } catch {
-        // Fallback greift unten
-      }
-
-      // 2. Robuster Fallback: Direkter Firestore Client-Reset (garantiert 100% Funktion auf Vercel)
-      if (!success) {
-        const collectionsToPurge = ['customers', 'orders', 'invoices', 'claims', 'activity_logs', 'time_entries'];
-        for (const colName of collectionsToPurge) {
-          try {
-            const snap = await getDocs(collection(db, colName));
-            if (!snap.empty) {
-              const docs = snap.docs;
-              for (let i = 0; i < docs.length; i += 400) {
-                const batch = writeBatch(db);
-                docs.slice(i, i + 400).forEach(d => batch.delete(d.ref));
-                await batch.commit();
-              }
-              if (colName === 'customers') deletedSummary.customers = docs.length;
-              if (colName === 'orders') deletedSummary.orders = docs.length;
-              if (colName === 'invoices') deletedSummary.invoices = docs.length;
-            }
-          } catch (e) {
-            console.warn(`Fehler beim Löschen von ${colName}:`, e);
-          }
-        }
-
-        // Zähler in system/settings zurücksetzen
-        await setDoc(doc(db, 'system', 'settings'), {
-          nextQuoteNumber: 1,
-          nextOrderNumber: 1,
-          nextInvoiceNumber: 1
-        }, { merge: true });
-
-        success = true;
-      }
-
-      if (success) {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/reset-database', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ action: 'reset' })
+      });
+      
+      const data = await res.json();
+      if (data.success) {
         toast.success(
-          `Datenbank komplett zurückgesetzt! (${deletedSummary.customers} Kunden, ${deletedSummary.orders} Aufträge, ${deletedSummary.invoices} Rechnungen gelöscht. Zähler auf 1 gesetzt).`,
+          `Gelöscht: ${data.results?.deletedDocs?.customers || 0} Kunden, ` +
+          `${data.results?.deletedDocs?.orders || 0} Aufträge, ` +
+          `${data.results?.deletedDocs?.invoices || 0} Rechnungen. Zähler auf 1 gesetzt.`,
           { duration: 8000 }
         );
         if (onResetSuccess) {
@@ -142,10 +83,9 @@ export function ResetDatabaseModal({ onClose, onResetSuccess }: ResetDatabaseMod
           window.location.reload();
         }
       } else {
-        toast.error("Fehler beim Zurücksetzen.");
+        toast.error(data.error || "Fehler beim Reset");
       }
     } catch (err: any) {
-      console.error("Reset Fehler:", err);
       toast.error(err.message || "Unbekannter Fehler beim Reset");
     } finally {
       setIsResetting(false);

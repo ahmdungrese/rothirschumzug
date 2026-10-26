@@ -353,8 +353,10 @@ export default function Home() {
             <input
               type="text"
               value={loginId}
+              maxLength={80}
               onChange={(e) => {
-                setLoginId(e.target.value);
+                const cleaned = e.target.value.replace(/<[^>]*>/g, '').replace(/[\r\n]+/g, '');
+                setLoginId(cleaned);
                 if (emailError) setEmailError("");
                 if (error) setError("");
               }}
@@ -384,8 +386,10 @@ export default function Home() {
             <input
               type="password"
               value={password}
+              maxLength={50}
               onChange={(e) => {
-                setPassword(e.target.value);
+                const cleaned = e.target.value.replace(/[\r\n]+/g, '').slice(0, 50);
+                setPassword(cleaned);
                 if (passwordError) setPasswordError("");
                 if (error) setError("");
               }}

@@ -289,8 +289,9 @@ export function ClaimModal({
                   <MagnifyingGlassIcon className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted" />
                   <input
                     type="text"
+                    maxLength={60}
                     value={customerSearch}
-                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    onChange={(e) => setCustomerSearch(e.target.value.replace(/<[^>]*>/g, '').replace(/[\r\n]+/g, '').slice(0, 60))}
                     placeholder="Kunde suchen (Name, Firma, Ort)..."
                     className="w-full pl-10 pr-4 py-2.5 text-xs rounded-2xl bg-bg-card border border-structure focus:outline-none focus:ring-2 focus:ring-primary text-text-main placeholder:text-text-muted"
                   />

@@ -19,6 +19,7 @@ import { SmartBackButton } from '@/components/ui/SmartBackButton';
 import { useAuth } from '@/context/AuthContext';
 import { logActivity } from '@/lib/activityLogger';
 import { triggerHaptic } from '@/lib/haptics';
+import { sanitizeText } from '@/lib/inputValidation';
 
 export default function CustomerProfilePage() {
   const { profile } = useAuth();
@@ -259,8 +260,9 @@ export default function CustomerProfilePage() {
                   <label className="font-bold text-slate-500 uppercase block mb-1">Vorname (Optional)</label>
                   <input
                     type="text"
+                    maxLength={50}
                     value={editFormData.firstName || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, firstName: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, firstName: sanitizeText(e.target.value, 50) })}
                     className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-none font-medium"
                   />
                 </div>
@@ -268,8 +270,9 @@ export default function CustomerProfilePage() {
                   <label className="font-bold text-slate-500 uppercase block mb-1">Nachname</label>
                   <input
                     type="text"
+                    maxLength={50}
                     value={editFormData.lastName || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, lastName: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, lastName: sanitizeText(e.target.value, 50) })}
                     className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-none font-medium"
                   />
                 </div>
@@ -280,8 +283,9 @@ export default function CustomerProfilePage() {
                   <label className="font-bold text-slate-500 uppercase block mb-1">Firma (Optional)</label>
                   <input
                     type="text"
+                    maxLength={80}
                     value={editFormData.company || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, company: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, company: sanitizeText(e.target.value, 80) })}
                     className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-none font-medium"
                   />
                 </div>
@@ -289,9 +293,10 @@ export default function CustomerProfilePage() {
                   <label className="font-bold text-slate-500 uppercase block mb-1">Quelle / Herkunft (Lead Source)</label>
                   <input
                     type="text"
+                    maxLength={40}
                     list="leadSourcesList"
                     value={editFormData.source || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, source: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, source: sanitizeText(e.target.value, 40) })}
                     placeholder="Website, Google, Empfehlung..."
                     className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-none font-medium"
                   />
@@ -313,8 +318,9 @@ export default function CustomerProfilePage() {
                   <label className="font-bold text-slate-500 uppercase block mb-1">Telefon</label>
                   <input
                     type="text"
+                    maxLength={35}
                     value={editFormData.phone || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, phone: sanitizeText(e.target.value, 35) })}
                     className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-none font-medium"
                   />
                 </div>
@@ -322,8 +328,9 @@ export default function CustomerProfilePage() {
                   <label className="font-bold text-slate-500 uppercase block mb-1">E-Mail</label>
                   <input
                     type="email"
+                    maxLength={80}
                     value={editFormData.email || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, email: sanitizeText(e.target.value, 80).trim() })}
                     className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-none font-medium"
                   />
                 </div>
@@ -334,8 +341,9 @@ export default function CustomerProfilePage() {
                   <label className="font-bold text-slate-500 uppercase block mb-1">Straße & Nr.</label>
                   <input
                     type="text"
+                    maxLength={80}
                     value={editFormData.street || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, street: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, street: sanitizeText(e.target.value, 80) })}
                     className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-none font-medium"
                   />
                 </div>
@@ -343,8 +351,9 @@ export default function CustomerProfilePage() {
                   <label className="font-bold text-slate-500 uppercase block mb-1">PLZ & Stadt</label>
                   <input
                     type="text"
+                    maxLength={60}
                     value={editFormData.city || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, city: e.target.value })}
+                    onChange={(e) => setEditFormData({ ...editFormData, city: sanitizeText(e.target.value, 60) })}
                     className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-none font-medium"
                   />
                 </div>

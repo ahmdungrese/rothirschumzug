@@ -7,6 +7,7 @@ import { toast } from 'react-hot-toast';
 import { useAuth } from "@/context/AuthContext";
 import { logActivity } from "@/lib/activityLogger";
 import { useModalBackHandler } from "@/hooks/useModalBackHandler";
+import { sanitizeText } from "@/lib/inputValidation";
 
 export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
   const [type, setType] = useState<"privat" | "firma">("privat");
@@ -126,8 +127,9 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
             <label className="block text-sm font-medium text-text-muted mb-1">{type === 'firma' ? 'Firmenname' : 'Nachname'} *</label>
             <input 
               type="text" 
+              maxLength={80}
               value={lastName}
-              onChange={(e) => setLastName(e.target.value)}
+              onChange={(e) => setLastName(sanitizeText(e.target.value, 80))}
               className="input-field w-full" 
               placeholder={type === 'firma' ? 'Muster GmbH' : 'Müller'}
               required 
@@ -139,8 +141,9 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
           <label className="block text-sm font-medium text-text-muted mb-1">{type === 'firma' ? 'Ansprechpartner (Vorname)' : 'Vorname'} (Optional)</label>
           <input 
             type="text" 
+            maxLength={50}
             value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
+            onChange={(e) => setFirstName(sanitizeText(e.target.value, 50))}
             className="input-field" 
             placeholder="Max"
           />
@@ -151,8 +154,9 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
             <label className="block text-sm font-medium text-text-muted mb-1">Straße</label>
             <input 
               type="text" 
+              maxLength={80}
               value={street}
-              onChange={(e) => setStreet(e.target.value)}
+              onChange={(e) => setStreet(sanitizeText(e.target.value, 80))}
               className="input-field" 
               placeholder="Musterstr."
             />
@@ -161,8 +165,9 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
             <label className="block text-sm font-medium text-text-muted mb-1">Nr.</label>
             <input 
               type="text" 
+              maxLength={15}
               value={houseNr}
-              onChange={(e) => setHouseNr(e.target.value)}
+              onChange={(e) => setHouseNr(sanitizeText(e.target.value, 15))}
               className="input-field" 
               placeholder="12a"
             />
@@ -174,8 +179,9 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
             <label className="block text-sm font-medium text-text-muted mb-1">PLZ</label>
             <input 
               type="text" 
+              maxLength={10}
               value={zip}
-              onChange={(e) => setZip(e.target.value)}
+              onChange={(e) => setZip(sanitizeText(e.target.value, 10).replace(/[^0-9a-zA-Z]/g, ''))}
               className="input-field" 
               placeholder="44787"
             />
@@ -184,8 +190,9 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
             <label className="block text-sm font-medium text-text-muted mb-1">Ort</label>
             <input 
               type="text" 
+              maxLength={60}
               value={city}
-              onChange={(e) => setCity(e.target.value)}
+              onChange={(e) => setCity(sanitizeText(e.target.value, 60))}
               className="input-field" 
               placeholder="Bochum"
             />
@@ -196,9 +203,10 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
           <label className="block text-sm font-medium text-text-muted mb-1">Quelle (Woher kommt der Kunde?)</label>
           <input 
             type="text" 
+            maxLength={40}
             list="sources"
             value={source}
-            onChange={(e) => setSource(e.target.value)}
+            onChange={(e) => setSource(sanitizeText(e.target.value, 40))}
             className="input-field w-full" 
             placeholder="z.B. Google, Check24, Empfehlung..."
           />
@@ -216,8 +224,9 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
           <label className="block text-sm font-medium text-text-muted mb-1">Telefon (Optional, für WhatsApp)</label>
           <input 
             type="text" 
+            maxLength={35}
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={(e) => setPhone(sanitizeText(e.target.value, 35))}
             className="input-field" 
             placeholder="+49 177 4652154"
           />
@@ -226,8 +235,9 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
           <label className="block text-sm font-medium text-text-muted mb-1">E-Mail (Optional)</label>
           <input 
             type="email" 
+            maxLength={80}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => setEmail(sanitizeText(e.target.value, 80).trim())}
             className="input-field" 
             placeholder="kunde@beispiel.de"
           />

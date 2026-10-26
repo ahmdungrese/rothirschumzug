@@ -75,20 +75,22 @@ async function verifyAdmin(req: NextRequest) {
 
 // Hilfsfunktion: Storage Prefix leeren
 async function clearStoragePrefix(prefix: string) {
-  const bucket = adminStorage.bucket();
-  let count = 0;
   try {
+    const bucket = adminStorage.bucket();
+    if (!bucket) return 0;
+    let count = 0;
     const [files] = await bucket.getFiles({ prefix });
     for (const file of files) {
       await file.delete();
       count++;
     }
+    return count;
   } catch (err: any) {
     if (err.code !== 404 && !err.message?.includes('No such object')) {
-      console.error(`Fehler beim Löschen von Storage ${prefix}:`, err);
+      console.warn(`Storage prefix ${prefix} übersprungen:`, err?.message);
     }
+    return 0;
   }
-  return count;
 }
 
 export async function POST(req: NextRequest) {
@@ -145,9 +147,9 @@ export async function POST(req: NextRequest) {
 
       // 3. Settings Zähler zurücksetzen
       await adminDb.doc('system/settings').set({
-        nextQuoteNumber: 1771,
+        nextQuoteNumber: 1,
         nextOrderNumber: 1,
-        nextInvoiceNumber: 1771
+        nextInvoiceNumber: 1
       }, { merge: true });
 
       // 4. Activity Log Eintrag für den Reset erstellen (überlebt den Delete)
