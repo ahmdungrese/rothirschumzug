@@ -160,57 +160,6 @@ export default function SettingsPage() {
   const [newProtocolTemplate, setNewProtocolTemplate] = useState('');
   const [newEmployee, setNewEmployee] = useState('');
   const [newVehicle, setNewVehicle] = useState('');
-  
-  // PIN Protection State
-  const [isSystemUnlocked, setIsSystemUnlocked] = useState(false);
-  const [pinInput, setPinInput] = useState('');
-  const [isVerifyingPin, setIsVerifyingPin] = useState(false);
-
-  const handleUnlockSystem = async () => {
-    const trimmedPin = pinInput.trim();
-    if (!trimmedPin || isVerifyingPin) return;
-    
-    setIsVerifyingPin(true);
-    try {
-      const user = auth.currentUser;
-      if (!user) {
-        toast.error('Keine aktive Benutzersitzung. Bitte laden Sie die Seite neu.');
-        setIsVerifyingPin(false);
-        return;
-      }
-
-      const idToken = await user.getIdToken();
-      const res = await fetch('/api/admin/verify-pin', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json', 
-          'Authorization': `Bearer ${idToken}` 
-        },
-        body: JSON.stringify({ pin: trimmedPin, scope: 'system' })
-      });
-
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
-
-      if (res.ok && data?.valid) {
-        setIsSystemUnlocked(true);
-        setPinInput('');
-        toast.success('Systembereich erfolgreich entsperrt!');
-      } else {
-        const errorMsg = data?.error || (res.status === 403 ? 'Zugriff verweigert: Falscher PIN oder keine Admin-Rechte.' : 'Falscher PIN!');
-        toast.error(errorMsg);
-      }
-    } catch (err: any) {
-      console.error('PIN verification error:', err);
-      toast.error('Server nicht erreichbar oder Netzwerkfehler bei der PIN-Prüfung.');
-    } finally {
-      setIsVerifyingPin(false);
-    }
-  };
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
 
@@ -1413,99 +1362,56 @@ export default function SettingsPage() {
               <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">System & Finanzen</h2>
               <p className="text-sm text-text-muted mb-4">Globale Parameter für Berechnungen, Steuern und Nummernkreise.</p>
               
-              {!isSystemUnlocked ? (
-                <div className="bg-bg-dark border border-red-500/30 p-8 rounded-xl max-w-md mx-auto mt-12 text-center shadow-lg shadow-red-500/10">
-                  <ServerStackIcon className="w-12 h-12 text-red-400 mx-auto mb-4" />
-                  <h3 className="text-xl font-bold text-text-main mb-2">Geschützter Bereich</h3>
-                  <p className="text-sm text-text-muted mb-6">Bitte gib deinen 4-stelligen Admin-PIN ein, um Steuersätze und Nummernkreise zu bearbeiten.</p>
-                  <div className="flex gap-2 justify-center">
-                    <input 
-                      type="password" 
-                      value={pinInput}
-                      disabled={isVerifyingPin}
-                      onChange={e => setPinInput(e.target.value)}
-                      onKeyDown={async e => {
-                        if (e.key === 'Enter') {
-                          await handleUnlockSystem();
-                        }
-                      }}
-                      className="input-field text-center w-32 tracking-widest font-mono text-xl disabled:opacity-50" 
-                      maxLength={4} 
-                      placeholder="****"
-                      autoFocus
-                    />
-                    <button 
-                      onClick={handleUnlockSystem} 
-                      disabled={isVerifyingPin || !pinInput.trim()}
-                      className="btn-primary disabled:opacity-50 flex items-center gap-2"
-                    >
-                      {isVerifyingPin ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          <span>Prüfe...</span>
-                        </>
-                      ) : (
-                        'Entsperren'
-                      )}
-                    </button>
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                  <label className="block text-sm font-medium text-text-main mb-1">Standard Steuersatz (%)</label>
+                  <input type="number" value={settings.taxRate} onChange={e => handleChange('taxRate', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
                 </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                      <label className="block text-sm font-medium text-text-main mb-1">Standard Steuersatz (%)</label>
-                      <input type="number" value={settings.taxRate} onChange={e => handleChange('taxRate', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                    </div>
-                    <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                      <label className="block text-sm font-medium text-text-main mb-1">Mahngebühr pro Stufe (€)</label>
-                      <input type="number" value={settings.dunningFee} onChange={e => handleChange('dunningFee', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                    </div>
-                    <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                      <label className="block text-sm font-medium text-text-main mb-1">Angebotsgültigkeit (Tage)</label>
-                      <p className="text-xs text-text-muted mb-2">Angebote sind standardmäßig so viele Tage gültig.</p>
-                      <input type="number" value={settings.quoteValidDays} onChange={e => handleChange('quoteValidDays', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                    </div>
-                    <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                      <label className="block text-sm font-medium text-text-main mb-1">Nächste Angebotsnummer (Start)</label>
-                      <p className="text-xs text-text-muted mb-2">Das nächste Angebot beginnt mit dieser Nummer.</p>
-                      <input type="number" value={settings.nextQuoteNumber} onChange={e => handleChange('nextQuoteNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                    </div>
-                    <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                      <label className="block text-sm font-medium text-text-main mb-1">Nächste Auftragsnummer (Start)</label>
-                      <p className="text-xs text-text-muted mb-2">Der nächste bestätigte Auftrag beginnt mit dieser Nummer.</p>
-                      <input type="number" value={settings.nextOrderNumber || 1} onChange={e => handleChange('nextOrderNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                    </div>
-                    <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                      <label className="block text-sm font-medium text-text-main mb-1">Nächste Rechnungsnummer (Start)</label>
-                      <p className="text-xs text-text-muted mb-2">Die nächste Rechnung beginnt mit dieser Nummer.</p>
-                      <input type="number" value={settings.nextInvoiceNumber} onChange={e => handleChange('nextInvoiceNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                    </div>
-                  </div>
+                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                  <label className="block text-sm font-medium text-text-main mb-1">Mahngebühr pro Stufe (€)</label>
+                  <input type="number" value={settings.dunningFee} onChange={e => handleChange('dunningFee', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                </div>
+                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                  <label className="block text-sm font-medium text-text-main mb-1">Angebotsgültigkeit (Tage)</label>
+                  <p className="text-xs text-text-muted mb-2">Angebote sind standardmäßig so viele Tage gültig.</p>
+                  <input type="number" value={settings.quoteValidDays} onChange={e => handleChange('quoteValidDays', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                </div>
+                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                  <label className="block text-sm font-medium text-text-main mb-1">Nächste Angebotsnummer (Start)</label>
+                  <p className="text-xs text-text-muted mb-2">Das nächste Angebot beginnt mit dieser Nummer.</p>
+                  <input type="number" value={settings.nextQuoteNumber} onChange={e => handleChange('nextQuoteNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                </div>
+                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                  <label className="block text-sm font-medium text-text-main mb-1">Nächste Auftragsnummer (Start)</label>
+                  <p className="text-xs text-text-muted mb-2">Der nächste bestätigte Auftrag beginnt mit dieser Nummer.</p>
+                  <input type="number" value={settings.nextOrderNumber || 1} onChange={e => handleChange('nextOrderNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                </div>
+                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                  <label className="block text-sm font-medium text-text-main mb-1">Nächste Rechnungsnummer (Start)</label>
+                  <p className="text-xs text-text-muted mb-2">Die nächste Rechnung beginnt mit dieser Nummer.</p>
+                  <input type="number" value={settings.nextInvoiceNumber} onChange={e => handleChange('nextInvoiceNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                </div>
+              </div>
 
-                  {/* DEVELOPER BEREICH */}
-                  {profile?.role === 'admin' && (
-                    <div className="mt-12 border-t border-red-500/20 pt-8">
-                      <div className="bg-red-500/5 border border-red-500/30 rounded-xl p-6 relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
-                        <h3 className="text-lg font-bold text-red-400 mb-2 flex items-center gap-2">
-                          <ExclamationTriangleIcon className="w-5 h-5" />
-                          Entwickler-Bereich
-                        </h3>
-                        <p className="text-sm text-text-muted mb-6 max-w-2xl">
-                          Löscht unwiderruflich alle Kunden, Aufträge und Rechnungen. Nur für die Testphase. Nummernkreise werden auf 1 zurückgesetzt.
-                        </p>
-                        <button 
-                          onClick={() => setShowResetModal(true)}
-                          className="btn-primary bg-red-600 hover:bg-red-700 text-white border-none"
-                        >
-                          Datenbank komplett zurücksetzen
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
+              {/* DEVELOPER BEREICH (TESTPHASE) */}
+              <div className="mt-12 border-t border-red-500/20 pt-8">
+                <div className="bg-red-500/5 border border-red-500/30 rounded-xl p-6 relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
+                  <h3 className="text-lg font-bold text-red-400 mb-2 flex items-center gap-2">
+                    <ExclamationTriangleIcon className="w-5 h-5" />
+                    Entwickler-Bereich (Testphase)
+                  </h3>
+                  <p className="text-sm text-text-muted mb-6 max-w-2xl">
+                    Löscht unwiderruflich alle Kunden, Aufträge und Rechnungen. Nur für die Testphase. Nummernkreise werden auf 1 zurückgesetzt.
+                  </p>
+                  <button 
+                    onClick={() => setShowResetModal(true)}
+                    className="btn-primary bg-red-600 hover:bg-red-700 text-white border-none"
+                  >
+                    Datenbank komplett zurücksetzen
+                  </button>
+                </div>
+              </div>
             </div>
           )}
           

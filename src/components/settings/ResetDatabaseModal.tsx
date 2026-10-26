@@ -92,11 +92,11 @@ export function ResetDatabaseModal({ onClose, onResetSuccess }: ResetDatabaseMod
     }
   };
 
-  if (profile?.role !== 'admin') {
+  if (profile && profile.role && !['admin', 'office', 'tester'].includes(profile.role)) {
     return (
       <Modal onClose={onClose} title="Fehlende Berechtigung">
         <div className="p-4 text-center text-text-muted">
-          Nur Administratoren können die Datenbank zurücksetzen.
+          Nur Administratoren und Tester können die Datenbank zurücksetzen.
         </div>
       </Modal>
     );

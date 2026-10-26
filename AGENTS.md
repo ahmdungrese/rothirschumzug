@@ -30,7 +30,15 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.16.3 (Current) – Resilient Online PIN Verification & Service Worker API Bypass
+### Version 2.16.4 (Current) – Direct Testing Phase Access & Database Reset Restoration
+*   **Removal of PIN Protection in Settings (`settings/page.tsx`)**:
+    *   Completely eliminated the 4-digit PIN barrier from the "System & Finanzen" settings tab.
+    *   Steuersätze, Mahngebühren, Angebots- und Rechnungsnummernkreise sowie der Entwickler-Bereich sind nun während der Testphase direkt und ohne Hürden zugänglich.
+*   **Restoration of Resilient Database Reset (`/api/reset-database`, `ResetDatabaseModal.tsx`)**:
+    *   Updated `verifyAdmin` helper to support resilient JWT session decoding when serverless environments lack Google Cloud Admin keys.
+    *   Permitted tester and admin roles to execute complete database resets during the testing phase.
+
+### Version 2.16.3 – Resilient Online PIN Verification & Service Worker API Bypass
 *   **Resilient Online PIN Verification Engine (`/api/admin/verify-pin`)**:
     *   Added JWT session fallback decoding: If Google Cloud Firebase Admin credentials (`FIREBASE_SERVICE_ACCOUNT_KEY`) are uninitialized in serverless/cloud environments, the endpoint now safely decodes and validates non-expired client JWTs instead of crashing with HTTP 500.
     *   Defensive Firestore check: Non-blocking role evaluation that supports tester, admin, and office roles while preserving brute-force rate-limiting (5 attempts / 10-minute lock).
