@@ -907,24 +907,16 @@ export default function SettingsPage() {
                   </div>
 
                   <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="block text-xs font-semibold text-text-muted uppercase">
-                        Nächste Rechnungsnummer (Aktueller Stand)
-                      </label>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-structure text-text-muted border border-structure flex items-center gap-1 font-normal">
-                        🔒 Schreibgeschützt
-                      </span>
-                    </div>
+                    <label className="block text-xs font-semibold text-text-muted uppercase mb-1.5">
+                      Nächste Rechnungsnummer (Aktueller Stand)
+                    </label>
                     <input 
                       type="number" 
                       disabled
                       readOnly
                       value={settings.nextInvoiceNumber ?? 1} 
-                      className="input-field w-full bg-bg-panel/40 border-dashed text-text-muted cursor-not-allowed text-xl font-bold font-mono py-2.5 opacity-80" 
+                      className="input-field w-full bg-structure/40 border border-structure text-text-muted/70 cursor-not-allowed text-xl font-bold font-mono py-2.5 select-none" 
                     />
-                    <p className="text-xs text-text-muted mt-2">
-                      Hier fest schreibgeschützt. Kann bei Bedarf im geschützten Bereich <strong className="text-primary font-medium">„System & Steuern“</strong> nach PIN-Eingabe angepasst werden.
-                    </p>
                   </div>
                 </div>
 
