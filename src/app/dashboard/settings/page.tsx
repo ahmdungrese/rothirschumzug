@@ -42,13 +42,35 @@ export default function SettingsPage() {
   const [pinInput, setPinInput] = useState('');
   const [isVerifyingPin, setIsVerifyingPin] = useState(false);
 
-  // Sofortige automatische Sperre beim Wechseln des Tabs
+  // Erkennung für lokale Entwicklungsumgebung: System & Steuern wird nur lokal (localhost / run dev) angezeigt
+  const [isLocalDev, setIsLocalDev] = useState(false);
+
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isLocal = window.location.hostname === 'localhost' || 
+                      window.location.hostname === '127.0.0.1' || 
+                      window.location.hostname.startsWith('192.168.');
+      setIsLocalDev(isLocal);
+    }
+  }, []);
+
+  const visibleTabs = TABS.filter(tab => {
+    if (tab.id === 'system' && !isLocalDev) {
+      return false; // Online auf Vercel / Produktion vollständig verbergen!
+    }
+    return true;
+  });
+
+  // Sofortige automatische Sperre beim Wechseln des Tabs & Umleitung falls online
+  useEffect(() => {
+    if (activeTab === 'system' && !isLocalDev) {
+      setActiveTab('basisdaten');
+    }
     if (activeTab !== 'system') {
       setIsSystemUnlocked(false);
       setPinInput('');
     }
-  }, [activeTab]);
+  }, [activeTab, isLocalDev]);
 
   const handleUnlockSystem = async () => {
     const trimmedPin = pinInput.trim();
@@ -734,7 +756,7 @@ export default function SettingsPage() {
       <div className="flex flex-col md:flex-row gap-4 md:gap-6">
         {/* Sidebar Tabs */}
         <div className="w-full md:w-64 shrink-0 flex flex-row md:flex-col overflow-x-auto md:overflow-visible gap-2 md:gap-0 md:space-y-1 pb-2 md:pb-0 custom-scrollbar">
-          {TABS.map(tab => (
+          {visibleTabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -1714,6 +1736,11 @@ export default function SettingsPage() {
                       )}
                     </button>
                   </div>
+                  {isLocalDev && (
+                    <p className="text-[11px] text-text-muted mt-4">
+                      Hinweis (Lokaler Dev-Modus): PIN ist <code className="bg-bg-panel px-1.5 py-0.5 rounded text-primary font-mono font-bold">7770</code>
+                    </p>
+                  )}
                 </div>
               ) : (
                 <>

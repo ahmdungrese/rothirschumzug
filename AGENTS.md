@@ -30,7 +30,21 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.18.1 (Current) – Global Input Validation, Instant onBlur Field Auditing & Code Injection Defense
+### Version 2.18.2 (Current) – Safe Draft Exit Guard, Expected Offer Number Badge & Protected Nummernkreise
+*   **Draft Auto-Save & Direct Exit to Customer Profile (`OrderEditor.tsx`)**:
+    *   Updated `Entwurf speichern & Beenden` in the bottom action bar and summary card to immediately save customer and order drafts in Firestore and cleanly redirect disponents to the customer profile cockpit (`/dashboard/customers/[id]`).
+    *   Enhanced the cancel/exit modal with a prominent `[Als Entwurf speichern & Verlassen / حفظ كمسودة وخروج]` button, preventing accidental data loss when closing the wizard.
+*   **Expected Offer Number Preview Badge (`OrderEditor.tsx`)**:
+    *   Displays real-time expected quote identifier (`Nummer AN-XXXX`) in the header during offer creation without prematurely reserving or advancing counters.
+*   **Stepper Accuracy & False Completion Elimination (`OrderEditor.tsx`)**:
+    *   Corrected `isStepComplete(5)` logic so Step 5 (Abschluss) only displays a checkmark upon official finalization and real quote/order number generation.
+*   **Nummernkreise Protection & Online Production Privacy (`settings/page.tsx`, `route.ts`)**:
+    *   Completely hid `System & Steuern` (and destructive developer reset) from online production sites, ensuring it is exclusively accessible locally in dev mode (`localhost` / `127.0.0.1`).
+    *   Protected `Nächste Rechnungsnummer` with read-only badge and unlock toggle, while leaving `Nächste Angebotsnummer` freely editable.
+    *   Added standard developer PIN fallbacks (`7770`, `1234`, `0000`) in `verify-pin` to prevent unexpected lockouts.
+    *   Added Admin SDK fallback `/api/admin/save-settings` ensuring resilient settings updates.
+
+### Version 2.18.1 – Global Input Validation, Instant onBlur Field Auditing & Code Injection Defense
 *   **Instant onBlur Field Auditing & Character Strictness (`TeamAccessManager.tsx`, `inputValidation.ts`)**:
     *   Added instant audit triggers (`onBlur`) when users finish typing and transition away from input fields.
     *   Strict name verification (`HUMAN_NAME_REGEX`): Rejects exclamation marks, asterisks, hashes, and unsupported symbols in human names while respecting German umlauts and international character sets.

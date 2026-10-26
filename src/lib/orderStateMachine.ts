@@ -80,9 +80,9 @@ export async function changeOrderStatus(
           version: increment(1)
         };
         if (needsOrderNum) {
-          let nextQuoteNumber = 1771;
+          let nextQuoteNumber = 1;
           if (settingsDoc.exists() && settingsDoc.data().nextQuoteNumber !== undefined) {
-            nextQuoteNumber = Math.max(1771, Number(settingsDoc.data().nextQuoteNumber) || 1771);
+            nextQuoteNumber = Math.max(1, Number(settingsDoc.data().nextQuoteNumber) || 1);
           }
           transaction.update(settingsRef, { nextQuoteNumber: nextQuoteNumber + 1 });
           updatePayload.orderNumber = `AN-${nextQuoteNumber}`;
@@ -164,9 +164,9 @@ export async function changeOrderStatus(
     }
 
     if (['quote', 'confirmed', 'completed'].includes(targetStatus) && !order.orderNumber && !updatePayload.orderNumber) {
-      let nextQuoteNumber = 1771;
+      let nextQuoteNumber = 1;
       if (settingsDoc.exists() && settingsDoc.data().nextQuoteNumber !== undefined) {
-        nextQuoteNumber = Math.max(1771, Number(settingsDoc.data().nextQuoteNumber) || 1771);
+        nextQuoteNumber = Math.max(1, Number(settingsDoc.data().nextQuoteNumber) || 1);
       }
       transaction.update(settingsRef, { nextQuoteNumber: nextQuoteNumber + 1 });
       updatePayload.orderNumber = `AN-${nextQuoteNumber}`;
@@ -195,9 +195,9 @@ export async function ensureOrderNumber(orderId: string): Promise<string> {
 
     const settingsRef = doc(db, 'system', 'settings');
     const settingsDoc = await transaction.get(settingsRef);
-    let nextQuoteNumber = 1771;
+    let nextQuoteNumber = 1;
     if (settingsDoc.exists() && settingsDoc.data().nextQuoteNumber !== undefined) {
-      nextQuoteNumber = Math.max(1771, Number(settingsDoc.data().nextQuoteNumber) || 1771);
+      nextQuoteNumber = Math.max(1, Number(settingsDoc.data().nextQuoteNumber) || 1);
     }
 
     const newOrderNumber = `AN-${nextQuoteNumber}`;

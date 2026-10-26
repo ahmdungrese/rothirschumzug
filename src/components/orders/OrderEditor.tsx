@@ -2027,18 +2027,25 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       setSaveStatus('success');
       if (!isSilent) {
         toast.success(
-          targetOrderId
-            ? "Änderungen erfolgreich gespeichert!"
-            : finalStatus === 'confirmed'
-              ? "Auftrag bestätigt & gespeichert!"
-              : "Angebot erfolgreich erstellt!"
+          finalStatus === 'draft'
+            ? (shouldRedirect ? "Entwurf gespeichert & beendet!" : "Entwurf erfolgreich gespeichert!")
+            : targetOrderId
+              ? "Änderungen erfolgreich gespeichert!"
+              : finalStatus === 'confirmed'
+                ? "Auftrag bestätigt & gespeichert!"
+                : "Angebot erfolgreich erstellt!"
         );
       } else {
         toast.success("Entwurf automatisch gesichert", { id: 'auto-save-toast', duration: 2500 });
       }
 
       if (shouldRedirect) {
-        router.push(`/dashboard/customers/${finalCustomerId}`);
+        isBypassingCancelGuard.current = true;
+        if (finalCustomerId) {
+          router.push(`/dashboard/customers/${finalCustomerId}`);
+        } else {
+          router.push('/dashboard/orders');
+        }
       }
     } catch (e: any) {
       console.error("OrderEditor save error:", e); 
@@ -2187,7 +2194,13 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         // Inventory: at least 1 item with quantity > 0
         return Boolean(inventory.length > 0 && inventory.some(i => (i.quantity || 0) > 0));
       case 5:
-        return isStepComplete(1) && isStepComplete(3);
+        // Schritt 5 (Abschluss) ist nur dann erledigt, wenn das Angebot tatsächlich abgeschlossen wurde (Status quote/confirmed mit offizieller Belegnummer)
+        return Boolean(
+          orderStatus &&
+          ['quote', 'confirmed', 'completed', 'invoice_open', 'invoice_paid'].includes(orderStatus) &&
+          orderMeta?.orderNumber &&
+          orderMeta.orderNumber !== 'ENTWURF'
+        );
       default:
         return false;
     }
@@ -2209,11 +2222,48 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-48">
-      <div className="flex justify-between items-center bg-bg-panel border border-structure p-4 rounded-xl shadow-lg mt-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-bg-panel border border-structure p-4 rounded-xl shadow-lg mt-6 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-text-main flex items-center gap-2">
-            {isInvoice ? 'Neue Rechnung' : ((activeOrderId || orderId) ? 'Angebot bearbeiten' : 'Neues Angebot')}
-          </h1>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-2xl font-bold text-text-main">
+              {isInvoice ? 'Neue Rechnung' : ((activeOrderId || orderId) ? 'Angebot bearbeiten' : 'Neues Angebot')}
+            </h1>
+
+            {/* Offizielle oder voraussichtliche Belegnummer (reine Lese-Vorschau) */}
+            {isInvoice ? (
+              orderMeta?.invoiceNumber ? (
+                <span 
+                  title="Offizielle Rechnungsnummer"
+                  className="px-3 py-1 rounded-xl text-xs font-bold font-mono bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-xs"
+                >
+                  Nummer {orderMeta.invoiceNumber}
+                </span>
+              ) : (
+                <span 
+                  title="Voraussichtliche Rechnungsnummer laut aktuellem Zähler (reine Vorschau – wird erst beim Erstellen der Rechnung offiziell vergeben)"
+                  className="px-3 py-1 rounded-xl text-xs font-semibold font-mono bg-structure/50 text-text-muted border border-dashed border-structure"
+                >
+                  Voraussichtlich: Nummer R-{settings?.nextInvoiceNumber || 1771}
+                </span>
+              )
+            ) : (
+              orderMeta?.orderNumber && orderMeta.orderNumber !== 'ENTWURF' ? (
+                <span 
+                  title="Offizielle, vergebene Angebotsnummer"
+                  className="px-3 py-1 rounded-xl text-xs font-bold font-mono bg-blue-500/15 text-blue-400 border border-blue-500/30 shadow-xs"
+                >
+                  Nummer {orderMeta.orderNumber}
+                </span>
+              ) : (
+                <span 
+                  title="Voraussichtliche Angebotsnummer laut aktuellem Zähler (reine Vorschau – wird erst bei Abschluss in Schritt 5 offiziell vergeben)"
+                  className="px-3 py-1 rounded-xl text-xs font-semibold font-mono bg-structure/50 text-text-muted border border-dashed border-structure"
+                >
+                  Voraussichtlich: Nummer AN-{settings?.nextQuoteNumber || 1771}
+                </span>
+              )
+            )}
+          </div>
           <p className="text-sm text-text-muted mt-1">
             {isInvoice ? 'Erstellen Sie eine direkte Rechnung.' : 'Erstellen Sie ein detailliertes Umzugsangebot.'}
           </p>
@@ -4601,11 +4651,12 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => saveOrder('draft', false, false, false)}
+                    onClick={() => saveOrder('draft', false, true, false)}
                     disabled={isSaving}
-                    className="w-full py-2.5 bg-white/[0.03] text-text-muted hover:text-text-main border border-structure/60 rounded-xl font-bold text-xs hover:bg-white/[0.06] transition-all"
+                    className="w-full py-2.5 bg-white/[0.03] text-text-muted hover:text-text-main border border-structure/60 rounded-xl font-bold text-xs hover:bg-white/[0.06] transition-all cursor-pointer flex items-center justify-center gap-1.5"
                   >
-                    Entwurf speichern
+                    <span className="material-symbols-outlined text-sm text-primary">save</span>
+                    <span>Entwurf speichern & Beenden</span>
                   </button>
                 </div>
               </div>
@@ -4991,18 +5042,18 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               {currentStep < 5 && (
                 <button
                   type="button"
-                  onClick={() => saveOrder(isInvoice ? 'invoice_open' : 'draft', false, false, false)}
+                  onClick={() => saveOrder(isInvoice ? 'invoice_open' : 'draft', false, true, false)}
                   disabled={isSaving}
                   className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline bg-structure/40 hover:bg-structure text-text-main transition-all flex items-center gap-1.5 border border-structure cursor-pointer active:scale-95"
-                  title="Als Entwurf zwischenspeichern"
+                  title="Als Entwurf speichern & Beenden"
                 >
                   {isSaving ? (
                     <span className="w-3.5 h-3.5 border-2 border-primary/40 border-t-primary rounded-full animate-spin" />
                   ) : (
                     <span className="material-symbols-outlined text-sm text-primary">save</span>
                   )}
-                  <span className="hidden sm:inline">{isSaving ? 'Speichert...' : 'Entwurf speichern'}</span>
-                  <span className="sm:hidden">{isSaving ? '...' : 'Speichern'}</span>
+                  <span className="hidden sm:inline">{isSaving ? 'Speichert...' : 'Entwurf speichern & Beenden'}</span>
+                  <span className="sm:hidden">{isSaving ? '...' : 'Speichern & Beenden'}</span>
                 </button>
               )}
             </div>
@@ -5137,11 +5188,24 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             <div className="flex flex-col gap-2.5 pt-2">
               <button
                 type="button"
+                onClick={() => {
+                  setShowCancelModal(false);
+                  saveOrder(isInvoice ? 'invoice_open' : 'draft', false, true, false);
+                }}
+                disabled={isSaving}
+                className="w-full py-3 px-4 rounded-xl text-xs font-bold font-headline bg-primary hover:brightness-110 text-white flex items-center justify-center gap-2 shadow-lg shadow-primary/25 transition-all cursor-pointer active:scale-95"
+              >
+                <span className="material-symbols-outlined text-sm">save</span>
+                <span>Als Entwurf speichern & Verlassen / حفظ كمسودة وخروج</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={executeExit}
-                className="w-full py-3 px-4 rounded-xl text-xs font-bold font-headline bg-red-600 hover:bg-red-500 text-white flex items-center justify-center gap-2 shadow-lg shadow-red-600/30 transition-all cursor-pointer active:scale-95"
+                className="w-full py-2.5 px-4 rounded-xl text-xs font-bold font-headline bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
               >
                 <span className="material-symbols-outlined text-sm">delete_forever</span>
-                <span>Verwerfen & Verlassen / إلغاء ومغادرة</span>
+                <span>Verwerfen & Verlassen / إلغاء وتجاهل التغييرات</span>
               </button>
 
               <button
