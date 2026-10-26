@@ -1728,11 +1728,6 @@ export default function SettingsPage() {
                       )}
                     </button>
                   </div>
-                  {isLocalDev && (
-                    <p className="text-[11px] text-text-muted mt-4">
-                      Hinweis (Lokaler Dev-Modus): PIN ist <code className="bg-bg-panel px-1.5 py-0.5 rounded text-primary font-mono font-bold">7770</code>
-                    </p>
-                  )}
                 </div>
               ) : (
                 <>
