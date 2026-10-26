@@ -237,6 +237,11 @@ export default function Home() {
         ? trimmedLogin.toLowerCase()
         : `${trimmedLogin.replace(/[^0-9]/g, "")}@rothirsch-app.de`;
       
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("lastLoggedUid");
+        sessionStorage.removeItem("hasLoggedLogin");
+      }
+
       await signInWithEmailAndPassword(auth, finalEmail, password);
 
       // Reset counters upon successful login

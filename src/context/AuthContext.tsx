@@ -57,9 +57,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             const data = userDocSnap.data() as UserProfile;
             setProfile(data);
 
-            // Login-Aktivität genau einmal pro Sitzung mit echtem Namen loggen
-            if (typeof window !== "undefined" && !sessionStorage.getItem("hasLoggedLogin")) {
-              sessionStorage.setItem("hasLoggedLogin", "true");
+            // Login-Aktivität genau einmal pro Benutzer erfassen (verhindert Blockieren beim Benutzerwechsel)
+            if (typeof window !== "undefined" && sessionStorage.getItem("lastLoggedUid") !== currentUser.uid) {
+              sessionStorage.setItem("lastLoggedUid", currentUser.uid);
               const cleanLoginName = data.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'Mitarbeiter');
               logActivity(currentUser.uid, cleanLoginName, 'LOGIN', 'Erfolgreich am System angemeldet');
             }
@@ -87,6 +87,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     try {
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("lastLoggedUid");
+        sessionStorage.removeItem("hasLoggedLogin");
+      }
       await signOut(auth);
       if (typeof window !== "undefined") {
         window.location.href = "/";
