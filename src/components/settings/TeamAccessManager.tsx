@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
 import { collection, query, onSnapshot, doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { initializeApp, getApps } from "firebase/app";
-import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
+import { getAuth, createUserWithEmailAndPassword, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { toast } from "react-hot-toast";
 import { CheckIcon, XMarkIcon, LockClosedIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import { 
@@ -94,23 +94,42 @@ export function TeamAccessManager() {
     setIsSubmitting(true);
 
     try {
-      const idToken = await auth.currentUser?.getIdToken();
-      const verifyRes = await fetch('/api/admin/verify-pin', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
-        },
-        body: JSON.stringify({ pin: ownerPin.trim(), scope: 'mitarbeiter' })
-      });
+      const trimmedPin = ownerPin.trim();
+      let isAuthorized = false;
 
-      const verifyData = await verifyRes.json();
-      if (!verifyRes.ok || !verifyData.valid) {
-        const msg = verifyData.error || "Falscher Chef-PIN! Zugriff verweigert.";
-        setPinError(msg);
-        toast.error(msg);
-        setIsSubmitting(false);
-        return;
+      // 1. Zuerst prüfen, ob der Inhaber sein echtes Login-Passwort eingegeben hat
+      if (auth.currentUser && auth.currentUser.email) {
+        try {
+          const credential = EmailAuthProvider.credential(auth.currentUser.email, trimmedPin);
+          await reauthenticateWithCredential(auth.currentUser, credential);
+          isAuthorized = true;
+        } catch {
+          // Kein Login-Passwort, fahre mit PIN-Prüfung fort
+        }
+      }
+
+      // 2. Falls nicht über Passwort autorisiert, gegen Inhaber-PINs (7770, 0777, etc.) prüfen
+      if (!isAuthorized) {
+        const idToken = await auth.currentUser?.getIdToken();
+        const verifyRes = await fetch('/api/admin/verify-pin', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify({ pin: trimmedPin, scope: 'mitarbeiter' })
+        });
+
+        const verifyData = await verifyRes.json();
+        if (verifyRes.ok && verifyData.valid) {
+          isAuthorized = true;
+        } else {
+          const msg = verifyData.error || "Falsches Inhaber-Passwort oder falscher Sicherheits-PIN!";
+          setPinError(msg);
+          toast.error(msg);
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       const trimmedLogin = loginId.trim();
@@ -367,7 +386,7 @@ export function TeamAccessManager() {
 
             <form onSubmit={handleConfirmPinAndCreateUser} className="space-y-4">
               <p className="text-xs text-text-muted leading-relaxed">
-                Bitte geben Sie das Inhaber-Passwort (PIN) ein, um den neuen Mitarbeiter{" "}
+                Bitte geben Sie Ihr Inhaber-Passwort oder den Sicherheits-PIN ein, um den neuen Mitarbeiter{" "}
                 <strong className="text-text-main">{name}</strong> anzulegen:
               </p>
 
@@ -378,11 +397,11 @@ export function TeamAccessManager() {
                   setOwnerPin(e.target.value);
                   setPinError("");
                 }}
-                placeholder="••••"
-                maxLength={8}
+                placeholder="Passwort oder PIN..."
+                maxLength={64}
                 autoFocus
                 disabled={isSubmitting}
-                className="input-field w-full text-center tracking-widest font-mono text-xl py-2.5"
+                className="input-field w-full text-center tracking-widest font-mono text-base py-2.5"
                 required
               />
 
