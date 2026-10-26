@@ -89,20 +89,16 @@ export async function POST(req: NextRequest) {
     const pin = typeof body.pin === 'string' ? body.pin.trim() : '';
     const scope = typeof body.scope === 'string' ? body.scope : 'mitarbeiter';
 
-    // Geheime PINs liegen serverseitig (Standard: 7770 System / 0777 Mitarbeiter, sowie Entwickler-Fallbacks)
+    // Geheime PINs liegen serverseitig (Standard: 7770 System / 0777 Mitarbeiter)
     const ownerMitarbeiterPin = process.env.OWNER_MITARBEITER_PIN || '0777';
     const ownerSystemPin = process.env.OWNER_SYSTEM_PIN || '7770';
 
-    const validPins = new Set([
-      ownerMitarbeiterPin,
-      ownerSystemPin,
-      '0777',
-      '7770',
-      '1234',
-      '0000'
-    ]);
-
-    const isValid = validPins.has(pin);
+    let isValid = false;
+    if (scope === 'mitarbeiter') {
+      isValid = pin === ownerMitarbeiterPin || pin === '0777';
+    } else if (scope === 'system') {
+      isValid = pin === ownerSystemPin || pin === '7770';
+    }
 
     if (!isValid) {
       const nextCount = (record?.count || 0) + 1;

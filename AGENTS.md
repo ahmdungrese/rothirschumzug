@@ -41,7 +41,7 @@ This document provides definitive guidance for any AI coding agent working on th
 *   **Nummernkreise Protection & Online Production Privacy (`settings/page.tsx`, `route.ts`)**:
     *   Completely hid `System & Steuern` (and destructive developer reset) from online production sites, ensuring it is exclusively accessible locally in dev mode (`localhost` / `127.0.0.1`).
     *   Protected `Nächste Rechnungsnummer` with read-only badge and unlock toggle, while leaving `Nächste Angebotsnummer` freely editable.
-    *   Added standard developer PIN fallbacks (`7770`, `1234`, `0000`) in `verify-pin` to prevent unexpected lockouts.
+    *   Enforced strict dual security PINs: `7770` exclusively for System/Reset, and `0777` exclusively for new employee creation. Removed test PINs (`1234`).
     *   Added Admin SDK fallback `/api/admin/save-settings` ensuring resilient settings updates.
 
 ### Version 2.18.1 – Global Input Validation, Instant onBlur Field Auditing & Code Injection Defense
