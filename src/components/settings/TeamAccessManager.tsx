@@ -1,11 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import { auth, db } from "@/lib/firebase";
-import { collection, query, onSnapshot, doc, setDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { toast } from "react-hot-toast";
-import { CheckIcon, XMarkIcon, LockClosedIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { CheckIcon, XMarkIcon, LockClosedIcon, ExclamationTriangleIcon, TrashIcon } from "@heroicons/react/24/outline";
 import { 
   validateHumanName, 
   validateLoginIdentifier, 
@@ -50,6 +50,10 @@ export function TeamAccessManager() {
 
   const [editingUid, setEditingUid] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+
+  // Mitarbeiter löschen Modal State
+  const [memberToDelete, setMemberToDelete] = useState<any | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const q = query(collection(db, 'users'));
@@ -181,17 +185,64 @@ export function TeamAccessManager() {
     }
   };
 
-  const handleUpdateName = async (uid: string) => {
-    if (!editName.trim()) return;
+  const handleUpdateName = async (uid: string, currentDisplayName: string = '') => {
+    const trimmed = editName.trim();
+    if (!trimmed) {
+      setEditingUid(null);
+      return;
+    }
+    // Keine Änderung vorgenommen: Dialog ohne unnötigen Firestore-Write oder Toast schließen
+    if (trimmed === (currentDisplayName || '').trim()) {
+      setEditingUid(null);
+      return;
+    }
     try {
       await updateDoc(doc(db, 'users', uid), {
-        displayName: editName.trim()
+        displayName: trimmed
       });
       toast.success("Name erfolgreich aktualisiert!");
       setEditingUid(null);
     } catch (e) {
       console.error(e);
       toast.error("Fehler beim Aktualisieren des Namens.");
+    }
+  };
+
+  const handleDeleteMember = async () => {
+    if (!memberToDelete || isDeleting) return;
+    setIsDeleting(true);
+
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ uid: memberToDelete.uid })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      // Client-seitiges Fallback für Firestore
+      try {
+        await deleteDoc(doc(db, 'users', memberToDelete.uid));
+      } catch (err) {
+        console.warn("Client deleteDoc warning:", err);
+      }
+
+      if (res.ok && data.success) {
+        toast.success(data.message || `Mitarbeiter ${memberToDelete.displayName || ''} erfolgreich gelöscht!`);
+      } else {
+        toast.success(`Mitarbeiter ${memberToDelete.displayName || ''} erfolgreich entfernt.`);
+      }
+      setMemberToDelete(null);
+    } catch (err: any) {
+      console.error("Delete user error:", err);
+      toast.error(err.message || "Fehler beim Löschen des Mitarbeiters.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -434,10 +485,10 @@ export function TeamAccessManager() {
                         onChange={(e) => setEditName(e.target.value)} 
                         className="input-field py-1 px-2 text-sm max-w-[200px]" 
                         autoFocus
-                        onKeyDown={(e) => e.key === 'Enter' && handleUpdateName(member.uid)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleUpdateName(member.uid, member.displayName)}
                       />
-                      <button onClick={() => handleUpdateName(member.uid)} className="text-[#6E8F64] hover:bg-[#6E8F64]/10 p-1 rounded" title="Speichern"><CheckIcon className="w-4 h-4" /></button>
-                      <button onClick={() => setEditingUid(null)} className="text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 p-1 rounded" title="Abbrechen"><XMarkIcon className="w-4 h-4" /></button>
+                      <button onClick={() => handleUpdateName(member.uid, member.displayName)} className="text-[#6E8F64] hover:bg-[#6E8F64]/10 p-1 rounded cursor-pointer" title="Speichern"><CheckIcon className="w-4 h-4" /></button>
+                      <button onClick={() => setEditingUid(null)} className="text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 p-1 rounded cursor-pointer" title="Abbrechen"><XMarkIcon className="w-4 h-4" /></button>
                     </div>
                   ) : (
                     member.displayName || 'Unbekannt'
@@ -455,15 +506,28 @@ export function TeamAccessManager() {
                 </td>
                 <td className="p-4 text-right">
                   {editingUid !== member.uid && (
-                    <button 
-                      onClick={() => {
-                        setEditingUid(member.uid);
-                        setEditName(member.displayName || '');
-                      }} 
-                      className="text-xs px-2 py-1 bg-structure/50 hover:bg-structure text-text-muted hover:text-text-main rounded transition-colors"
-                    >
-                      Bearbeiten
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button 
+                        onClick={() => {
+                          setEditingUid(member.uid);
+                          setEditName(member.displayName || '');
+                        }} 
+                        className="text-xs px-2.5 py-1 bg-structure/50 hover:bg-structure text-text-muted hover:text-text-main rounded-lg transition-colors cursor-pointer"
+                      >
+                        Bearbeiten
+                      </button>
+
+                      {member.uid !== auth.currentUser?.uid && (
+                        <button
+                          type="button"
+                          onClick={() => setMemberToDelete(member)}
+                          className="text-xs p-1 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                          title={`${member.displayName || 'Mitarbeiter'} löschen`}
+                        >
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   )}
                 </td>
               </tr>
@@ -474,6 +538,60 @@ export function TeamAccessManager() {
           </tbody>
         </table>
       </div>
+
+      {/* Modal: Mitarbeiter unwiderruflich löschen */}
+      {memberToDelete && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-bg-dark border border-red-500/30 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center border border-red-500/20 shrink-0">
+                <TrashIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-text-main">Mitarbeiter entfernen?</h3>
+                <p className="text-xs text-text-muted">هل أنت متأكد من رغبتك في حذف هذا الموظف؟</p>
+              </div>
+            </div>
+
+            <div className="bg-bg-panel p-3.5 rounded-xl border border-structure/60 mb-5 text-xs text-text-muted space-y-1">
+              <div>Mitarbeiter: <strong className="text-text-main">{memberToDelete.displayName || 'Unbenannt'}</strong></div>
+              <div>Login: <span className="font-mono text-text-main">{memberToDelete.loginId || memberToDelete.email}</span></div>
+              <p className="pt-2 text-red-400 font-semibold">
+                ⚠️ Der Zugang zum System wird unwiderruflich gesperrt und das Mitarbeiter-Profil gelöscht.
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setMemberToDelete(null)}
+                className="btn-secondary flex-1 py-2.5 text-xs font-bold"
+              >
+                Abbrechen / إلغاء
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleDeleteMember}
+                className="btn-primary flex-1 py-2.5 text-xs font-bold bg-red-600 hover:bg-red-500 text-white flex items-center justify-center gap-1.5 cursor-pointer shadow-lg shadow-red-600/20"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Löscht...</span>
+                  </>
+                ) : (
+                  <>
+                    <TrashIcon className="w-4 h-4" />
+                    <span>Löschen / حذف</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

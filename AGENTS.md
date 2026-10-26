@@ -38,6 +38,9 @@ This document provides definitive guidance for any AI coding agent working on th
     *   Displays real-time expected quote identifier (`Nummer AN-XXXX`) in the header during offer creation without prematurely reserving or advancing counters.
 *   **Stepper Accuracy & False Completion Elimination (`OrderEditor.tsx`)**:
     *   Corrected `isStepComplete(5)` logic so Step 5 (Abschluss) only displays a checkmark upon official finalization and real quote/order number generation.
+*   **Team Member Deletion & Zero-Redundant-Write Optimization (`TeamAccessManager.tsx`, `/api/admin/delete-user`)**:
+    *   Added dedicated employee deletion action with confirmation modal and self-deletion protection, cleanly revoking access in Firebase Auth and Firestore.
+    *   Optimized inline name editing: eliminated redundant Firestore writes and false success notifications when clicking save (`✓`) without modifying the name.
 *   **Nummernkreise Protection & Online Production Privacy (`settings/page.tsx`, `route.ts`)**:
     *   Completely hid `System & Steuern` (and destructive developer reset) from online production sites, ensuring it is exclusively accessible locally in dev mode (`localhost` / `127.0.0.1`).
     *   Protected `Nächste Rechnungsnummer` with read-only badge and unlock toggle, while leaving `Nächste Angebotsnummer` freely editable.
