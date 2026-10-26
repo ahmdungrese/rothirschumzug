@@ -5,7 +5,9 @@ import { collection, query, onSnapshot, doc, setDoc, updateDoc, serverTimestamp 
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { toast } from "react-hot-toast";
-import { CheckIcon, XMarkIcon, LockClosedIcon } from "@heroicons/react/24/outline";
+import { CheckIcon, XMarkIcon, LockClosedIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+
+const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
 
 // Create secondary app to prevent logging out the admin
 const createSecondaryApp = () => {
@@ -32,6 +34,11 @@ export function TeamAccessManager() {
   const [canEditPrices, setCanEditPrices] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // App DNA Validierungs-States
+  const [nameError, setNameError] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+
   // Chef-PIN Bestätigung vor dem Anlegen eines neuen Mitarbeiters
   const [showPinModal, setShowPinModal] = useState(false);
   const [ownerPin, setOwnerPin] = useState("");
@@ -48,14 +55,65 @@ export function TeamAccessManager() {
     return () => unsub();
   }, []);
 
+  // Formular-Validierung mit App DNA Regeln (wie auf der Login-Seite)
+  const validateInputs = () => {
+    let isValid = true;
+    setNameError("");
+    setLoginError("");
+    setPasswordError("");
+
+    const trimmedName = name.trim();
+    const trimmedLogin = loginId.trim();
+    const trimmedPassword = password.trim();
+
+    // 1. Name prüfen
+    if (!trimmedName) {
+      setNameError("Bitte geben Sie einen Namen oder Anzeigenamen ein.");
+      isValid = false;
+    } else if (trimmedName.length < 2) {
+      setNameError("Der Name muss mindestens 2 Zeichen lang sein.");
+      isValid = false;
+    }
+
+    // 2. Handynummer oder E-Mail prüfen (App DNA)
+    if (!trimmedLogin) {
+      setLoginError("Bitte geben Sie eine Handynummer oder E-Mail-Adresse ein.");
+      isValid = false;
+    } else if (trimmedLogin.includes("@")) {
+      if (!EMAIL_REGEX.test(trimmedLogin)) {
+        setLoginError("Bitte geben Sie eine gültige E-Mail-Adresse ein (z. B. name@rothirsch-umzug.de).");
+        isValid = false;
+      }
+    } else {
+      const digitsOnly = trimmedLogin.replace(/[^0-9]/g, "");
+      const isValidPhoneChars = /^[+0-9\s\-./()]+$/.test(trimmedLogin);
+      if (!isValidPhoneChars || digitsOnly.length < 6) {
+        setLoginError("Ungültige Eingabe: Bitte eine gültige Handynummer (mind. 6 Ziffern) oder E-Mail eingeben.");
+        isValid = false;
+      }
+    }
+
+    // 3. Start-Passwort / PIN prüfen (App DNA)
+    if (!trimmedPassword) {
+      setPasswordError("Bitte geben Sie ein Start-Passwort oder einen PIN ein.");
+      isValid = false;
+    } else if (trimmedPassword.length < 6) {
+      setPasswordError("Das Passwort muss mindestens 6 Zeichen oder Ziffern lang sein (z. B. 6-stelliger PIN).");
+      isValid = false;
+    }
+
+    return isValid;
+  };
+
   // Schritt 1: Formular-Validierung & Öffnen der Chef-PIN-Abfrage
   const handleRequestCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !loginId || !password) return;
-    if (password.length < 6) {
-      toast.error("Start-Passwort des Mitarbeiters muss mind. 6 Zeichen haben!");
+    if (isSubmitting) return;
+
+    if (!validateInputs()) {
       return;
     }
+
     setOwnerPin("");
     setPinError("");
     setShowPinModal(true);
@@ -88,42 +146,65 @@ export function TeamAccessManager() {
         return;
       }
 
-      const finalEmail = loginId.includes("@") ? loginId : `${loginId.replace(/[^0-9]/g, '')}@rothirsch-app.de`;
+      const trimmedLogin = loginId.trim();
+      let finalEmail = "";
+      if (trimmedLogin.includes("@")) {
+        finalEmail = trimmedLogin.toLowerCase();
+      } else {
+        const cleanDigits = trimmedLogin.replace(/[^0-9]/g, '');
+        finalEmail = `${cleanDigits}@rothirsch-app.de`;
+      }
 
       const secondaryApp = createSecondaryApp();
       const secondaryAuth = getAuth(secondaryApp);
       const userCredential = await createUserWithEmailAndPassword(secondaryAuth, finalEmail, password);
       const newUid = userCredential.user.uid;
 
-      // Save to Firestore
+      // In Firestore anlegen
       await setDoc(doc(db, 'users', newUid), {
         uid: newUid,
-        displayName: name,
+        displayName: name.trim(),
         email: finalEmail,
         role: role,
-        loginId: loginId,
+        loginId: trimmedLogin,
         canViewPrices: role === 'admin' ? true : role === 'teamlead' ? false : canViewPrices,
         canEditPrices: role === 'admin' ? true : role === 'teamlead' ? false : canEditPrices,
         createdAt: serverTimestamp(),
       });
 
-      toast.success(`Mitarbeiter ${name} erfolgreich angelegt!`);
+      toast.success(`Mitarbeiter ${name.trim()} erfolgreich angelegt!`);
       setShowPinModal(false);
       setOwnerPin("");
       setName("");
       setLoginId("");
       setPassword("");
+      setNameError("");
+      setLoginError("");
+      setPasswordError("");
       setRole("office");
       setCanViewPrices(true);
       setCanEditPrices(true);
     } catch (error: any) {
-      console.error(error);
+      console.error("Mitarbeiter-Erstellungsfehler:", error);
       if (error.code === 'auth/email-already-in-use') {
-        toast.error("Diese E-Mail/Handynummer wird bereits verwendet!");
+        const msg = "Diese E-Mail oder Handynummer ist bereits für einen Mitarbeiter vergeben!";
+        toast.error(msg);
+        setLoginError(msg);
+        setShowPinModal(false);
       } else if (error.code === 'auth/weak-password') {
-        toast.error("Passwort muss mind. 6 Zeichen (oder Zahlen) haben!");
+        const msg = "Passwort ist zu schwach (mind. 6 Zeichen oder Ziffern erforderlich).";
+        toast.error(msg);
+        setPasswordError(msg);
+        setShowPinModal(false);
+      } else if (error.code === 'auth/invalid-email') {
+        const msg = "Ungültiges E-Mail- oder Telefonnummer-Format.";
+        toast.error(msg);
+        setLoginError(msg);
+        setShowPinModal(false);
+      } else if (error.code === 'permission-denied' || error.message?.includes('permission')) {
+        toast.error("Keine Schreibberechtigung in Firestore: Nur Administratoren dürfen neue Mitarbeiter anlegen.");
       } else {
-        toast.error("Fehler beim Anlegen des Mitarbeiters.");
+        toast.error(error.message || "Fehler beim Anlegen des Mitarbeiters.");
       }
     } finally {
       // Sign out from secondary auth just to be clean
@@ -156,29 +237,100 @@ export function TeamAccessManager() {
 
       <div className="bg-bg-dark border border-structure rounded-xl p-6">
         <h3 className="text-text-main font-semibold mb-4">Neuen Mitarbeiter anlegen</h3>
-        <form onSubmit={handleRequestCreateUser} className="space-y-4">
+        <form onSubmit={handleRequestCreateUser} noValidate onInvalid={e => e.preventDefault()} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* NAME */}
             <div>
-              <label className="block text-sm text-text-muted mb-1">Name / Anzeigename</label>
-              <input type="text" value={name} onChange={e => setName(e.target.value)} className="input-field" placeholder="Max Mustermann" required />
+              <label className="block text-sm text-text-muted mb-1 font-medium">Name / Anzeigename</label>
+              <input 
+                type="text" 
+                value={name} 
+                onChange={e => {
+                  setName(e.target.value);
+                  if (nameError) setNameError("");
+                }} 
+                className={`input-field transition-all duration-200 ${
+                  nameError ? "border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100" : ""
+                }`} 
+                placeholder="Max Mustermann" 
+                autoComplete="off"
+                data-lpignore="true"
+                spellCheck={false}
+              />
+              {nameError && (
+                <div className="flex items-center gap-1.5 mt-2 text-xs text-red-400 font-medium animate-in fade-in duration-200">
+                  <ExclamationTriangleIcon className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>{nameError}</span>
+                </div>
+              )}
             </div>
+
+            {/* LOGIN-ID */}
             <div>
-              <label className="block text-sm text-text-muted mb-1">Handynummer oder E-Mail</label>
-              <input type="text" value={loginId} onChange={e => setLoginId(e.target.value)} className="input-field" placeholder="01761234567" required />
+              <label className="block text-sm text-text-muted mb-1 font-medium">Handynummer oder E-Mail</label>
+              <input 
+                type="text" 
+                value={loginId} 
+                onChange={e => {
+                  setLoginId(e.target.value);
+                  if (loginError) setLoginError("");
+                }} 
+                className={`input-field transition-all duration-200 ${
+                  loginError ? "border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100" : ""
+                }`} 
+                placeholder="01761234567 oder name@firma.de" 
+                autoComplete="off"
+                data-lpignore="true"
+                spellCheck={false}
+              />
+              {loginError ? (
+                <div className="flex items-center gap-1.5 mt-2 text-xs text-red-400 font-medium animate-in fade-in duration-200">
+                  <ExclamationTriangleIcon className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>{loginError}</span>
+                </div>
+              ) : (
+                <p className="text-xs text-text-muted mt-1">Dient später als Benutzername beim Login.</p>
+              )}
             </div>
+
+            {/* START-PASSWORT */}
             <div>
-              <label className="block text-sm text-text-muted mb-1">Start-Passwort (z.B. 6-stelliger PIN)</label>
-              <input type="text" value={password} onChange={e => setPassword(e.target.value)} className="input-field" placeholder="123456" minLength={6} required />
-              <p className="text-xs text-text-muted mt-1">Firebase benötigt mind. 6 Zeichen (z.B. 6-stelliger PIN).</p>
+              <label className="block text-sm text-text-muted mb-1 font-medium">Start-Passwort (z.B. 6-stelliger PIN)</label>
+              <input 
+                type="text" 
+                value={password} 
+                onChange={e => {
+                  setPassword(e.target.value);
+                  if (passwordError) setPasswordError("");
+                }} 
+                className={`input-field transition-all duration-200 ${
+                  passwordError ? "border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100" : ""
+                }`} 
+                placeholder="123456" 
+                autoComplete="off"
+                data-lpignore="true"
+                spellCheck={false}
+              />
+              {passwordError ? (
+                <div className="flex items-center gap-1.5 mt-2 text-xs text-red-400 font-medium animate-in fade-in duration-200">
+                  <ExclamationTriangleIcon className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>{passwordError}</span>
+                </div>
+              ) : (
+                <p className="text-xs text-text-muted mt-1">Firebase benötigt mind. 6 Zeichen (z.B. 6-stelliger PIN).</p>
+              )}
             </div>
+
+            {/* ROLLE */}
             <div>
-              <label className="block text-sm text-text-muted mb-1">Rolle (Rechte)</label>
+              <label className="block text-sm text-text-muted mb-1 font-medium">Rolle (Rechte)</label>
               <select value={role} onChange={e => setRole(e.target.value as any)} className="input-field bg-bg-dark">
                 <option value="office">Büroassistent (Kunden, Angebote)</option>
                 <option value="teamlead">Teamleiter (Laufzettel & Kalender)</option>
                 <option value="admin">Admin (Voller Zugriff)</option>
               </select>
             </div>
+
             {role === 'office' && (
               <div className="md:col-span-2 bg-structure/20 p-4 rounded-lg border border-structure mt-2">
                 <h4 className="text-sm font-semibold text-text-main mb-3">Spezielle Rechte für Büroassistenten</h4>
@@ -335,7 +487,7 @@ export function TeamAccessManager() {
               </tr>
             ))}
             {teamMembers.length === 0 && (
-              <tr><td colSpan={3} className="p-8 text-center text-text-muted italic">Keine Mitarbeiter gefunden.</td></tr>
+              <tr><td colSpan={4} className="p-8 text-center text-text-muted italic">Keine Mitarbeiter gefunden.</td></tr>
             )}
           </tbody>
         </table>

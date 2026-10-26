@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon, CalendarIcon, LinkIcon, EnvelopeIcon, ExclamationTriangleIcon, CreditCardIcon, ListBulletIcon, HashtagIcon, ClipboardDocumentListIcon, PlusIcon, TrashIcon, ArrowPathIcon, ShieldCheckIcon, StarIcon } from '@heroicons/react/24/outline';
+import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon, CalendarIcon, LinkIcon, EnvelopeIcon, ExclamationTriangleIcon, CreditCardIcon, ListBulletIcon, HashtagIcon, ClipboardDocumentListIcon, PlusIcon, TrashIcon, ArrowPathIcon, ShieldCheckIcon, StarIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import { TeamAccessManager } from '@/components/settings/TeamAccessManager';
 import { ActivityLogViewer } from '@/components/settings/ActivityLogViewer';
 import { toast } from 'react-hot-toast';
@@ -29,7 +29,7 @@ const TABS = [
   { id: 'protokolle', name: 'Protokolle & Vorlagen', icon: DocumentTextIcon },
   { id: 'system', name: 'System & Steuern', icon: ServerStackIcon },
   { id: 'audit', name: 'Aktivitäts-Logbuch (Audit)', icon: ClipboardDocumentListIcon },
-  { id: 'integration', name: 'Kalender & Smartphone', icon: CalendarIcon },
+  { id: 'integration', name: 'E-Mail (IONOS) & Kalender', icon: EnvelopeIcon },
 ];
 
 export default function SettingsPage() {
@@ -148,11 +148,19 @@ export default function SettingsPage() {
     ],
     protocolCategories: MASTER_PROTOCOL_CATEGORIES,
     protocolTemplates: MASTER_PROTOCOL_SNIPPETS.map(s => s.text),
-    communicationTemplates: MASTER_COMMUNICATION_TEMPLATES
+    communicationTemplates: MASTER_COMMUNICATION_TEMPLATES,
+    smtpHost: 'smtp.ionos.de',
+    smtpPort: '465',
+    smtpUser: 'info@rothirsch-umzug.de',
+    smtpPass: '',
+    fromName: 'Rothirsch Umzüge',
+    smtpBccSelf: true,
   });
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isTestingEmail, setIsTestingEmail] = useState(false);
+  const [showSmtpPassword, setShowSmtpPassword] = useState(false);
   const [newContact, setNewContact] = useState('');
   const [newSource, setNewSource] = useState('');
   const [newPropertyType, setNewPropertyType] = useState('');
@@ -353,6 +361,46 @@ export default function SettingsPage() {
       setTimeout(() => setSaveStatus('idle'), 3000);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleTestEmail = async () => {
+    if (!settings.smtpPass) {
+      toast.error('Bitte gib zuerst dein IONOS E-Mail-Passwort ein.');
+      return;
+    }
+
+    setIsTestingEmail(true);
+    const toastId = toast.loading('Sende Test-E-Mail über IONOS...');
+
+    try {
+      const formData = new FormData();
+      formData.append('isTest', 'true');
+      formData.append('smtpHost', settings.smtpHost || 'smtp.ionos.de');
+      formData.append('smtpPort', String(settings.smtpPort || '465'));
+      formData.append('smtpUser', settings.smtpUser || 'info@rothirsch-umzug.de');
+      formData.append('smtpPass', settings.smtpPass || '');
+      formData.append('fromName', settings.fromName || settings.companyName || 'Rothirsch Umzüge');
+
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/email/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${idToken || ''}`
+        },
+        body: formData
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        toast.success(data.message || '✅ Test-E-Mail erfolgreich! Prüfe dein Outlook-Postfach.', { id: toastId, duration: 6000 });
+      } else {
+        toast.error(`Fehler: ${data.error || 'Verbindung fehlgeschlagen'}`, { id: toastId, duration: 7000 });
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Netzwerkfehler beim Senden.', { id: toastId });
+    } finally {
+      setIsTestingEmail(false);
     }
   };
 
@@ -1318,102 +1366,280 @@ export default function SettingsPage() {
               </div>
           )}
 
-          {/* TAB: Integration (Kalender & Smartphone) */}
+          {/* TAB: Integration (E-Mail IONOS & Kalender) */}
           {activeTab === 'integration' && (
-            <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">
-                Kalender-Integration (Outlook, Samsung & Smartphone)
-              </h2>
-              <p className="text-sm text-text-muted mb-6">
-                Verwalte Termine, Umzüge und Besichtigungen nahtlos auf deinem Smartphone und in deinen gewohnten Kalender-Apps. Kein teures Microsoft 365 Enterprise-Abo nötig – 1-Klick Direktsynchronisation über den weltweiten Kalender-Standard (.ics).
-              </p>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                
-                {/* 1-Klick Kalender Standard Box */}
-                <div className="bg-bg-dark border border-structure p-6 rounded-2xl relative overflow-hidden group space-y-4">
-                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <CalendarIcon className="w-24 h-24 text-blue-500" />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <h3 className="text-lg font-bold text-text-main">Universal 1-Klick Kalender</h3>
-                  </div>
-                  <p className="text-sm text-text-muted relative z-10 leading-relaxed">
-                    Kompatibel mit <strong>Samsung Galaxy Kalender</strong>, <strong>Microsoft Outlook</strong> (App & Web), <strong>Google Kalender</strong> und <strong>Apple iOS / macOS</strong>.
-                  </p>
-
-                  <div className="bg-bg-card p-3.5 rounded-xl border border-structure/60 space-y-2 text-xs text-text-muted">
-                    <div className="flex items-center gap-2 text-text-main font-semibold">
-                      <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>Automatische Emojis &amp; Symbole (🚚 Umzug, 📋 Besichtigung, ⛔ HVZ)</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-text-main font-semibold">
-                      <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>Google Maps Navigation direkt aus dem Kalender aufrufbar</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-text-main font-semibold">
-                      <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>Klickbare Kunden-Telefonnummer für sofortige Anrufe</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-text-main font-semibold">
-                      <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>Volumen (m³), LKW- und Helfer-Einteilung im Beschreibungstext</span>
-                    </div>
-                  </div>
-                  
-                  <div className="pt-2 relative z-10 space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        downloadCalendarEvent({
-                          title: '🚚 Test-Umzug: Max Mustermann (#AU-TEST-001)',
-                          startDate: new Date().toISOString().split('T')[0],
-                          startTime: '08:00',
-                          durationHours: 6,
-                          location: 'A: Haydnstr. 16, 44805 Bochum ➔ B: Hauptstr. 10, 44787 Bochum',
-                          description: 'Test-Kalendereintrag aus der Rothirsch App.\nTelefon: +49 177 4652154\nVolumen: 35 m³\nDisposition: 3 Helfer • 1 LKW (3,5t)',
-                          category: 'Umzug'
-                        }, 'Test_Umzug_Rothirsch');
-                      }}
-                      className="btn-primary w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl shadow-md cursor-pointer"
-                    >
-                      <CalendarIcon className="w-4 h-4" />
-                      <span>Test-Termin jetzt in Kalender eintragen (.ics)</span>
-                    </button>
-                    <p className="text-[11px] text-center text-text-muted">
-                      Tippe hierauf, um sofort zu sehen, wie dein Smartphone den Termin öffnet.
+            <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+              
+              {/* SECTION 1: IONOS E-MAIL (SMTP) */}
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-structure pb-3">
+                  <div>
+                    <h2 className="text-xl font-bold text-text-main flex items-center gap-2">
+                      <EnvelopeIcon className="w-6 h-6 text-primary" />
+                      <span>IONOS E-Mail-Postfach (SMTP)</span>
+                    </h2>
+                    <p className="text-sm text-text-muted mt-1">
+                      Angebote und Rechnungen direkt als PDF-Anhang über dein offizielles Firmen-Postfach <strong>info@rothirsch-umzug.de</strong> versenden.
                     </p>
                   </div>
-
-                </div>
-
-                {/* Smartphone Anleitung Box */}
-                <div className="bg-bg-dark border border-structure p-6 rounded-2xl relative overflow-hidden space-y-4">
-                  <h3 className="text-lg font-bold text-text-main mb-1">
-                    So funktioniert es auf deinem Smartphone
-                  </h3>
-                  <p className="text-xs text-text-muted leading-relaxed">
-                    Egal ob im Büro am PC oder unterwegs auf der Baustelle mit deinem Samsung-Handy:
-                  </p>
-
-                  <ol className="space-y-3 text-xs text-text-muted list-decimal list-inside leading-relaxed">
-                    <li className="p-2.5 rounded-xl bg-bg-card border border-structure/50">
-                      <strong className="text-text-main">1-Klick im Auftrag oder Cockpit:</strong> Bei jedem Auftrag, Termin oder in der Tages-Planung auf den Button <span className="text-blue-400 font-bold">„+ Kalender“</span> tippen.
-                    </li>
-                    <li className="p-2.5 rounded-xl bg-bg-card border border-structure/50">
-                      <strong className="text-text-main">Auswahl auf dem Samsung-Handy:</strong> Dein Handy fragt dich: <em>Mit Samsung Kalender oder Outlook öffnen?</em> Wähle deine bevorzugte App.
-                    </li>
-                    <li className="p-2.5 rounded-xl bg-bg-card border border-structure/50">
-                      <strong className="text-text-main">Speichern &amp; Fertig:</strong> Alle Kundendaten, Adressen, Zeiten und Notizen sind bereits eingetragen. Ein Klick auf <em>Speichern</em> reicht aus!
-                    </li>
-                  </ol>
-
-                  <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-400">
-                    💡 <strong>Tipp:</strong> Auch in der Tages-Planung (<span className="font-semibold">Kalender &gt; Tages-Planung</span>) kannst du mit einem Klick alle Umzüge des Tages gesammelt auf einmal exportieren.
+                  <div className="flex items-center gap-2">
+                    {settings.smtpPass ? (
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 flex items-center gap-1.5">
+                        <CheckIcon className="w-4 h-4" />
+                        <span>Aktiv konfiguriert</span>
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-500/15 text-amber-500 border border-amber-500/30 flex items-center gap-1.5">
+                        <ExclamationTriangleIcon className="w-4 h-4" />
+                        <span>Passwort fehlt</span>
+                      </span>
+                    )}
                   </div>
                 </div>
 
+                <div className="bg-bg-dark border border-structure p-6 rounded-2xl space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    
+                    {/* Server Host */}
+                    <div>
+                      <label className="block text-xs font-bold text-text-main mb-1.5">
+                        Postausgangsserver (SMTP Host)
+                      </label>
+                      <input
+                        type="text"
+                        value={settings.smtpHost || 'smtp.ionos.de'}
+                        onChange={(e) => setSettings({ ...settings, smtpHost: e.target.value })}
+                        className="w-full bg-bg-card border border-structure rounded-xl px-3.5 py-2.5 text-sm text-text-main font-mono focus:border-primary focus:outline-none"
+                        placeholder="smtp.ionos.de"
+                      />
+                      <span className="text-[11px] text-text-muted mt-1 block">Standard bei IONOS: smtp.ionos.de</span>
+                    </div>
+
+                    {/* Port */}
+                    <div>
+                      <label className="block text-xs font-bold text-text-main mb-1.5">
+                        Port &amp; Verschlüsselung
+                      </label>
+                      <input
+                        type="text"
+                        value={settings.smtpPort || '465'}
+                        onChange={(e) => setSettings({ ...settings, smtpPort: e.target.value })}
+                        className="w-full bg-bg-card border border-structure rounded-xl px-3.5 py-2.5 text-sm text-text-main font-mono focus:border-primary focus:outline-none"
+                        placeholder="465"
+                      />
+                      <span className="text-[11px] text-text-muted mt-1 block">Port 465 (SSL/TLS) oder 587 (STARTTLS)</span>
+                    </div>
+
+                    {/* Absendername */}
+                    <div>
+                      <label className="block text-xs font-bold text-text-main mb-1.5">
+                        Absendername (Anzeigename)
+                      </label>
+                      <input
+                        type="text"
+                        value={settings.fromName || settings.companyName || 'Rothirsch Umzüge'}
+                        onChange={(e) => setSettings({ ...settings, fromName: e.target.value })}
+                        className="w-full bg-bg-card border border-structure rounded-xl px-3.5 py-2.5 text-sm text-text-main focus:border-primary focus:outline-none"
+                        placeholder="Rothirsch Umzüge"
+                      />
+                      <span className="text-[11px] text-text-muted mt-1 block">Wird dem Kunden als Absender angezeigt</span>
+                    </div>
+
+                    {/* Benutzername (E-Mail) */}
+                    <div>
+                      <label className="block text-xs font-bold text-text-main mb-1.5">
+                        Benutzername (Deine IONOS E-Mail)
+                      </label>
+                      <input
+                        type="email"
+                        value={settings.smtpUser || 'info@rothirsch-umzug.de'}
+                        onChange={(e) => setSettings({ ...settings, smtpUser: e.target.value })}
+                        className="w-full bg-bg-card border border-structure rounded-xl px-3.5 py-2.5 text-sm text-text-main font-mono focus:border-primary focus:outline-none"
+                        placeholder="info@rothirsch-umzug.de"
+                      />
+                    </div>
+
+                    {/* Passwort */}
+                    <div className="relative">
+                      <label className="block text-xs font-bold text-text-main mb-1.5">
+                        IONOS E-Mail-Passwort
+                      </label>
+                      <div className="relative">
+                        <input
+                          type={showSmtpPassword ? 'text' : 'password'}
+                          value={settings.smtpPass || ''}
+                          onChange={(e) => setSettings({ ...settings, smtpPass: e.target.value })}
+                          className="w-full bg-bg-card border border-structure rounded-xl px-3.5 py-2.5 pr-10 text-sm text-text-main focus:border-primary focus:outline-none"
+                          placeholder="Passwort aus dem IONOS Control Panel"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowSmtpPassword(!showSmtpPassword)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-text-muted hover:text-text-main cursor-pointer"
+                          title={showSmtpPassword ? 'Passwort verbergen' : 'Passwort anzeigen'}
+                        >
+                          {showSmtpPassword ? (
+                            <EyeSlashIcon className="w-5 h-5" />
+                          ) : (
+                            <EyeIcon className="w-5 h-5" />
+                          )}
+                        </button>
+                      </div>
+                      <span className="text-[11px] text-text-muted mt-1 block">Wird sicher in der Datenbank verschlüsselt gespeichert</span>
+                    </div>
+
+                    {/* BCC Option */}
+                    <div className="flex flex-col justify-center">
+                      <label className="flex items-start gap-2.5 cursor-pointer select-none mt-2 p-3 rounded-xl bg-bg-card border border-structure/60 hover:border-primary/40 transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={settings.smtpBccSelf !== false}
+                          onChange={(e) => setSettings({ ...settings, smtpBccSelf: e.target.checked })}
+                          className="w-4 h-4 rounded mt-0.5 text-primary accent-primary cursor-pointer"
+                        />
+                        <div>
+                          <span className="text-xs font-bold text-text-main block">
+                            Kopie an mich selbst (BCC)
+                          </span>
+                          <span className="text-[11px] text-text-muted block leading-tight mt-0.5">
+                            Garantiert, dass jede gesendete E-Mail sofort in deinem Outlook-Postfach auf dem Smartphone sichtbar ist.
+                          </span>
+                        </div>
+                      </label>
+                    </div>
+
+                  </div>
+
+                  {/* Actions Row */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-structure">
+                    <p className="text-xs text-text-muted">
+                      💡 <strong>Tipp:</strong> Klicke auf „Test-E-Mail senden“, um die Zugangsdaten sofort zu prüfen.
+                    </p>
+
+                    <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                      <button
+                        type="button"
+                        onClick={handleTestEmail}
+                        disabled={isTestingEmail || !settings.smtpPass}
+                        className="btn-secondary w-full sm:w-auto py-2.5 px-4 text-xs font-bold flex items-center justify-center gap-2 border-primary/40 text-primary hover:bg-primary/10 disabled:opacity-50 cursor-pointer"
+                      >
+                        <EnvelopeIcon className="w-4 h-4" />
+                        <span>{isTestingEmail ? 'Prüfe Verbindung...' : '✉️ Test-E-Mail senden'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={saveSettings}
+                        disabled={isSaving}
+                        className="btn-primary w-full sm:w-auto py-2.5 px-5 text-xs font-bold flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                      >
+                        <CheckIcon className="w-4 h-4" />
+                        <span>{isSaving ? 'Speichern...' : 'E-Mail-Einstellungen sichern'}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: KALENDER (Universal .ics) */}
+              <div className="space-y-4 pt-4 border-t border-structure">
+                <div>
+                  <h2 className="text-xl font-bold text-text-main flex items-center gap-2">
+                    <CalendarIcon className="w-6 h-6 text-blue-500" />
+                    <span>Kalender-Integration (Outlook, Samsung & Smartphone)</span>
+                  </h2>
+                  <p className="text-sm text-text-muted mt-1">
+                    Verwalte Termine, Umzüge und Besichtigungen nahtlos auf deinem Smartphone und in deinen gewohnten Kalender-Apps. Kein teures Microsoft 365 Enterprise-Abo nötig – 1-Klick Direktsynchronisation über den weltweiten Kalender-Standard (.ics).
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  
+                  {/* 1-Klick Kalender Standard Box */}
+                  <div className="bg-bg-dark border border-structure p-6 rounded-2xl relative overflow-hidden group space-y-4">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <CalendarIcon className="w-24 h-24 text-blue-500" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <h3 className="text-lg font-bold text-text-main">Universal 1-Klick Kalender</h3>
+                    </div>
+                    <p className="text-sm text-text-muted relative z-10 leading-relaxed">
+                      Kompatibel mit <strong>Samsung Galaxy Kalender</strong>, <strong>Microsoft Outlook</strong> (App & Web), <strong>Google Kalender</strong> und <strong>Apple iOS / macOS</strong>.
+                    </p>
+
+                    <div className="bg-bg-card p-3.5 rounded-xl border border-structure/60 space-y-2 text-xs text-text-muted">
+                      <div className="flex items-center gap-2 text-text-main font-semibold">
+                        <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>Automatische Emojis &amp; Symbole (🚚 Umzug, 📋 Besichtigung, ⛔ HVZ)</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-text-main font-semibold">
+                        <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>Google Maps Navigation direkt aus dem Kalender aufrufbar</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-text-main font-semibold">
+                        <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>Klickbare Kunden-Telefonnummer für sofortige Anrufe</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-text-main font-semibold">
+                        <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>Volumen (m³), LKW- und Helfer-Einteilung im Beschreibungstext</span>
+                      </div>
+                    </div>
+                    
+                    <div className="pt-2 relative z-10 space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          downloadCalendarEvent({
+                            title: '🚚 Test-Umzug: Max Mustermann (#AU-TEST-001)',
+                            startDate: new Date().toISOString().split('T')[0],
+                            startTime: '08:00',
+                            durationHours: 6,
+                            location: 'A: Haydnstr. 16, 44805 Bochum ➔ B: Hauptstr. 10, 44787 Bochum',
+                            description: 'Test-Kalendereintrag aus der Rothirsch App.\nTelefon: +49 177 4652154\nVolumen: 35 m³\nDisposition: 3 Helfer • 1 LKW (3,5t)',
+                            category: 'Umzug'
+                          }, 'Test_Umzug_Rothirsch');
+                        }}
+                        className="btn-primary w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl shadow-md cursor-pointer"
+                      >
+                        <CalendarIcon className="w-4 h-4" />
+                        <span>Test-Termin jetzt in Kalender eintragen (.ics)</span>
+                      </button>
+                      <p className="text-[11px] text-center text-text-muted">
+                        Tippe hierauf, um sofort zu sehen, wie dein Smartphone den Termin öffnet.
+                      </p>
+                    </div>
+
+                  </div>
+
+                  {/* Smartphone Anleitung Box */}
+                  <div className="bg-bg-dark border border-structure p-6 rounded-2xl relative overflow-hidden space-y-4">
+                    <h3 className="text-lg font-bold text-text-main mb-1">
+                      So funktioniert es auf deinem Smartphone
+                    </h3>
+                    <p className="text-xs text-text-muted leading-relaxed">
+                      Egal ob im Büro am PC oder unterwegs auf der Baustelle mit deinem Samsung-Handy:
+                    </p>
+
+                    <ol className="space-y-3 text-xs text-text-muted list-decimal list-inside leading-relaxed">
+                      <li className="p-2.5 rounded-xl bg-bg-card border border-structure/50">
+                        <strong className="text-text-main">1-Klick im Auftrag oder Cockpit:</strong> Bei jedem Auftrag, Termin oder in der Tages-Planung auf den Button <span className="text-blue-400 font-bold">„+ Kalender“</span> tippen.
+                      </li>
+                      <li className="p-2.5 rounded-xl bg-bg-card border border-structure/50">
+                        <strong className="text-text-main">Auswahl auf dem Samsung-Handy:</strong> Dein Handy fragt dich: <em>Mit Samsung Kalender oder Outlook öffnen?</em> Wähle deine bevorzugte App.
+                      </li>
+                      <li className="p-2.5 rounded-xl bg-bg-card border border-structure/50">
+                        <strong className="text-text-main">Speichern &amp; Fertig:</strong> Alle Kundendaten, Adressen, Zeiten und Notizen sind bereits eingetragen. Ein Klick auf <em>Speichern</em> reicht aus!
+                      </li>
+                    </ol>
+
+                    <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-400">
+                      💡 <strong>Tipp:</strong> Auch in der Tages-Planung (<span className="font-semibold">Kalender &gt; Tages-Planung</span>) kannst du mit einem Klick alle Umzüge des Tages gesammelt auf einmal exportieren.
+                    </div>
+                  </div>
+
+                </div>
               </div>
             </div>
           )}

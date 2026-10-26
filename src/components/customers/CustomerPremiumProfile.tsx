@@ -59,6 +59,7 @@ import {
 import { StornoModal } from '@/components/finances/StornoModal';
 import { OrderDetailsDrawer } from '@/components/dashboard/OrderDetailsDrawer';
 import { TaskScheduleModal } from '@/components/logistics/TaskScheduleModal';
+import { MessageSenderModal } from '@/components/customers/MessageSenderModal';
 import { generateTickets } from '@/lib/ticketEngine';
 import { MASTER_COMMUNICATION_TEMPLATES } from '@/lib/communicationDefaults';
 
@@ -120,6 +121,7 @@ export function CustomerPremiumProfile({
   const [waCustomText, setWaCustomText] = useState<string>('');
   const [waSearchQuery, setWaSearchQuery] = useState<string>('');
   const [waMobileTab, setWaMobileTab] = useState<'templates' | 'preview'>('templates');
+  const [emailModalOrder, setEmailModalOrder] = useState<any>(null);
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -1783,6 +1785,27 @@ export function CustomerPremiumProfile({
           );
         };
 
+        const renderEmailBtn = (inMenu = false) => {
+          return (
+            <button
+              key="email-sender"
+              type="button"
+              onClick={() => {
+                if (inMenu) setActionsDropdownOpen(false);
+                setEmailModalOrder(activeOrder);
+              }}
+              className={inMenu 
+                ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-primary hover:bg-primary/10 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer" 
+                : "px-3.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold border border-primary/30 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+              }
+              title="Angebot / Rechnung per E-Mail direkt an den Kunden senden"
+            >
+              <EnvelopeIcon className="w-4 h-4 text-primary shrink-0" />
+              <span>E-Mail senden</span>
+            </button>
+          );
+        };
+
         // Smart dynamic selection based on phase & signing state
         let primaryActions: React.ReactNode[] = [];
         let menuActions: (React.ReactNode | null)[] = [];
@@ -1795,6 +1818,7 @@ export function CustomerPremiumProfile({
             renderSignierenBtn(false),
           ];
           menuActions = [
+            renderEmailBtn(true),
             renderKalenderBtn(true),
             renderLaufzettelBtn(true),
             renderProtokollBtn(true),
@@ -1811,6 +1835,7 @@ export function CustomerPremiumProfile({
             renderProtokollBtn(false),
           ];
           menuActions = [
+            renderEmailBtn(true),
             renderKalenderBtn(true),
             renderRechnungBtn(true),
             renderZahlungBtn(true),
@@ -1827,6 +1852,7 @@ export function CustomerPremiumProfile({
             renderWhatsAppBtn(false),
           ];
           menuActions = [
+            renderEmailBtn(true),
             renderKalenderBtn(true),
             renderLaufzettelBtn(true),
             renderStornoBtn(),
@@ -3321,6 +3347,16 @@ export function CustomerPremiumProfile({
             if (onRefresh) onRefresh();
             setScheduleModalTodo(null);
           }}
+        />
+      )}
+
+      {/* Direct E-Mail Sender Modal from Customer Action Hub */}
+      {emailModalOrder && (
+        <MessageSenderModal
+          order={emailModalOrder}
+          customer={customer}
+          defaultTemplateName={hasInvoice ? 't9' : 't3'}
+          onClose={() => setEmailModalOrder(null)}
         />
       )}
 

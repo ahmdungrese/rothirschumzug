@@ -30,7 +30,26 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.17.1 (Current) – Protected Nummernkreise Starting Ranges & Resilient Database Purge
+### Version 2.18.0 (Current) – Official IONOS (1&1) SMTP Mail Engine & 1-Click Offer/Invoice Sending
+*   **Team Access In-Line Validation & App DNA Parity (`TeamAccessManager.tsx`)**:
+    *   Integrated full App DNA real-time field validation matching the login page (`page.tsx`) with contextual German notices.
+    *   Name validation (min 2 chars), strict phone/email regex formatting, and 6-character password/PIN enforcement.
+    *   Dynamic visual styling with red borders (`border-red-500/80`), `ExclamationTriangleIcon`, and instant clearing on keystroke.
+    *   Clean German error mapping for Firebase Auth (`auth/email-already-in-use`, `auth/invalid-email`, `auth/weak-password`, `permission-denied`).
+*   **Official IONOS E-Mail Suite (`settings/page.tsx`, `/api/email/send`)**:
+    *   Added dedicated **IONOS E-Mail-Postfach (SMTP)** configuration panel in `Einstellungen > E-Mail (IONOS) & Kalender`.
+    *   Pre-configured with German standard parameters for IONOS (`smtp.ionos.de`, Port 465 SSL/TLS, `info@rothirsch-umzug.de`, Absendername `Rothirsch Umzüge`).
+    *   Password field with secure show/hide toggle and persistent Firestore encryption in `system/settings`.
+    *   **Automatic BCC Loop to Self (`info@rothirsch-umzug.de`)**: Guaranteed visibility in Outlook and smartphone mail clients for all sent customer communications.
+    *   **1-Click Test-E-Mail Button**: Instant connection verification directly contacting IONOS servers with clear German status reports.
+*   **Direct In-App E-Mail Action Hub (`CustomerPremiumProfile.tsx`, `MessageSenderModal.tsx`)**:
+    *   Integrated `E-Mail senden` into the Customer Profile Action Hub (`•••` dropdown menu) across all project phases.
+    *   Dynamically auto-selects appropriate templates (e.g. `t3 - Angebot schicken` or `t9 - Rechnung schicken`), compiles the matching PDF document on the fly, and attaches it automatically.
+*   **Resilient Email Backend Route (`/api/email/send/route.ts`)**:
+    *   Added JWT fallback verification to prevent serverless authentication crashes when Admin SDK credentials are uninitialized.
+    *   Supports text-only and attachment-backed emails up to 15 MB.
+
+### Version 2.17.1 – Protected Nummernkreise Starting Ranges & Resilient Database Purge
 *   **Configurable Starting Document Ranges (`settings/page.tsx`)**:
     *   **Protected Invoice Start Number (`Nächste Rechnungsnummer`)**: Rendered gray/protected by default with lock badge to prevent accidental modifications during day-to-day operations. Includes an interactive `[✏️ Anpassen]` unlock toggle allowing disponents to freely define custom start numbers (e.g., migrating 45 existing invoices from a previous system).
     *   **Offer Start Number (`Nächste Angebotsnummer`)**: Freely editable with proactive amber notice reminding disponents to click "Speichern" above to commit the new sequence.
