@@ -37,10 +37,18 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('basisdaten');
   const [showResetModal, setShowResetModal] = useState(false);
 
-  // PIN Protection State for System & Steuern (Direkt freigeschaltet während der Testphase)
-  const [isSystemUnlocked, setIsSystemUnlocked] = useState(true);
+  // PIN Protection State for System & Steuern: Standardmäßig immer gesperrt (false). Bei jedem Page-Reload wieder gesperrt.
+  const [isSystemUnlocked, setIsSystemUnlocked] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [isVerifyingPin, setIsVerifyingPin] = useState(false);
+
+  // Sofortige automatische Sperre beim Wechseln des Tabs
+  useEffect(() => {
+    if (activeTab !== 'system') {
+      setIsSystemUnlocked(false);
+      setPinInput('');
+    }
+  }, [activeTab]);
 
   const handleUnlockSystem = async () => {
     const trimmedPin = pinInput.trim();
@@ -369,45 +377,52 @@ export default function SettingsPage() {
         }
       });
 
-      if (settings.nextQuoteNumber < 1771) {
-        alert('Die Startnummer für Angebote muss mindestens 1771 betragen (Format: AN-17##).');
+      if (settings.nextQuoteNumber < 1) {
+        toast.error('Die Startnummer für Angebote muss mindestens 1 betragen.');
         setSaveStatus('error');
         setIsSaving(false);
         return;
       }
-      if (settings.nextInvoiceNumber < 1771) {
-        alert('Die Startnummer für Rechnungen muss mindestens 1771 betragen (Format: R-17##).');
-        setSaveStatus('error');
-        setIsSaving(false);
-        return;
-      }
-      if (settings.nextQuoteNumber <= maxQuote) {
-        alert(`Fehler: Es existiert bereits ein Angebot mit der Nummer AN-${maxQuote}. Der Zähler für Angebote darf nicht unter ${maxQuote + 1} gesetzt werden.`);
-        setSaveStatus('error');
-        setIsSaving(false);
-        return;
-      }
-      if (settings.nextInvoiceNumber <= maxInvoice) {
-        alert(`Fehler: Es existiert bereits eine Rechnung mit der Nummer R-${maxInvoice}. Der Zähler für Rechnungen darf nicht unter ${maxInvoice + 1} gesetzt werden.`);
+      if (settings.nextInvoiceNumber < 1) {
+        toast.error('Die Startnummer für Rechnungen muss mindestens 1 betragen.');
         setSaveStatus('error');
         setIsSaving(false);
         return;
       }
 
-      // Zombie-Feld "nextOfferNumber" entfernen, falls es noch im State hängt
+      // Zombie-Feld "nextOfferNumber" sowie Plaintext-Passwörter für den Client-Save bereinigen
       const settingsToSave = { ...settings };
       delete settingsToSave.nextOfferNumber;
+      delete settingsToSave.smtpPass;
+      delete settingsToSave.smtpPassword;
 
-      await setDoc(doc(db, 'system', 'settings'), settingsToSave, { merge: true });
-      // Um es in der DB explizit zu löschen:
-      const { deleteField } = await import('firebase/firestore');
-      await updateDoc(doc(db, 'system', 'settings'), { nextOfferNumber: deleteField() }).catch(() => {});
+      try {
+        await setDoc(doc(db, 'system', 'settings'), settingsToSave, { merge: true });
+        const { deleteField } = await import('firebase/firestore');
+        await updateDoc(doc(db, 'system', 'settings'), { nextOfferNumber: deleteField() }).catch(() => {});
+      } catch (clientErr: any) {
+        console.warn("Client setDoc fehlgeschlagen oder Berechtigung verweigert, nutze Server-API Fallback:", clientErr?.message);
+        const idToken = await auth.currentUser?.getIdToken();
+        const res = await fetch('/api/admin/save-settings', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
+          body: JSON.stringify({ settings })
+        });
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !data?.success) {
+          throw new Error(data?.error || clientErr.message);
+        }
+      }
 
       setSaveStatus('success');
       toast.success("Startnummern und Einstellungen erfolgreich gespeichert!");
       setTimeout(() => setSaveStatus('idle'), 3000);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Fehler beim Speichern", error);
+      toast.error(error.message || "Fehler beim Speichern.");
       setSaveStatus('error');
       setTimeout(() => setSaveStatus('idle'), 3000);
     } finally {
@@ -1597,104 +1612,37 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* SECTION 2: KALENDER (Universal .ics) */}
-              <div className="space-y-4 pt-4 border-t border-structure">
-                <div>
-                  <h2 className="text-xl font-bold text-text-main flex items-center gap-2">
-                    <CalendarIcon className="w-6 h-6 text-blue-500" />
-                    <span>Kalender-Integration (Outlook, Samsung & Smartphone)</span>
-                  </h2>
-                  <p className="text-sm text-text-muted mt-1">
-                    Verwalte Termine, Umzüge und Besichtigungen nahtlos auf deinem Smartphone und in deinen gewohnten Kalender-Apps. Kein teures Microsoft 365 Enterprise-Abo nötig – 1-Klick Direktsynchronisation über den weltweiten Kalender-Standard (.ics).
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  
-                  {/* 1-Klick Kalender Standard Box */}
-                  <div className="bg-bg-dark border border-structure p-6 rounded-2xl relative overflow-hidden group space-y-4">
-                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                      <CalendarIcon className="w-24 h-24 text-blue-500" />
+              {/* SECTION 2: KALENDER */}
+              <div className="pt-6 border-t border-structure">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-bg-dark border border-structure p-5 rounded-2xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
+                      <CalendarIcon className="w-5 h-5" />
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
-                      <h3 className="text-lg font-bold text-text-main">Universal 1-Klick Kalender</h3>
-                    </div>
-                    <p className="text-sm text-text-muted relative z-10 leading-relaxed">
-                      Kompatibel mit <strong>Samsung Galaxy Kalender</strong>, <strong>Microsoft Outlook</strong> (App & Web), <strong>Google Kalender</strong> und <strong>Apple iOS / macOS</strong>.
-                    </p>
-
-                    <div className="bg-bg-card p-3.5 rounded-xl border border-structure/60 space-y-2 text-xs text-text-muted">
-                      <div className="flex items-center gap-2 text-text-main font-semibold">
-                        <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>Automatische Emojis &amp; Symbole (🚚 Umzug, 📋 Besichtigung, ⛔ HVZ)</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-text-main font-semibold">
-                        <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>Google Maps Navigation direkt aus dem Kalender aufrufbar</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-text-main font-semibold">
-                        <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>Klickbare Kunden-Telefonnummer für sofortige Anrufe</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-text-main font-semibold">
-                        <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>Volumen (m³), LKW- und Helfer-Einteilung im Beschreibungstext</span>
-                      </div>
-                    </div>
-                    
-                    <div className="pt-2 relative z-10 space-y-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          downloadCalendarEvent({
-                            title: '🚚 Test-Umzug: Max Mustermann (#AU-TEST-001)',
-                            startDate: new Date().toISOString().split('T')[0],
-                            startTime: '08:00',
-                            durationHours: 6,
-                            location: 'A: Haydnstr. 16, 44805 Bochum ➔ B: Hauptstr. 10, 44787 Bochum',
-                            description: 'Test-Kalendereintrag aus der Rothirsch App.\nTelefon: +49 177 4652154\nVolumen: 35 m³\nDisposition: 3 Helfer • 1 LKW (3,5t)',
-                            category: 'Umzug'
-                          }, 'Test_Umzug_Rothirsch');
-                        }}
-                        className="btn-primary w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl shadow-md cursor-pointer"
-                      >
-                        <CalendarIcon className="w-4 h-4" />
-                        <span>Test-Termin jetzt in Kalender eintragen (.ics)</span>
-                      </button>
-                      <p className="text-[11px] text-center text-text-muted">
-                        Tippe hierauf, um sofort zu sehen, wie dein Smartphone den Termin öffnet.
-                      </p>
-                    </div>
-
-                  </div>
-
-                  {/* Smartphone Anleitung Box */}
-                  <div className="bg-bg-dark border border-structure p-6 rounded-2xl relative overflow-hidden space-y-4">
-                    <h3 className="text-lg font-bold text-text-main mb-1">
-                      So funktioniert es auf deinem Smartphone
-                    </h3>
-                    <p className="text-xs text-text-muted leading-relaxed">
-                      Egal ob im Büro am PC oder unterwegs auf der Baustelle mit deinem Samsung-Handy:
-                    </p>
-
-                    <ol className="space-y-3 text-xs text-text-muted list-decimal list-inside leading-relaxed">
-                      <li className="p-2.5 rounded-xl bg-bg-card border border-structure/50">
-                        <strong className="text-text-main">1-Klick im Auftrag oder Cockpit:</strong> Bei jedem Auftrag, Termin oder in der Tages-Planung auf den Button <span className="text-blue-400 font-bold">„+ Kalender“</span> tippen.
-                      </li>
-                      <li className="p-2.5 rounded-xl bg-bg-card border border-structure/50">
-                        <strong className="text-text-main">Auswahl auf dem Samsung-Handy:</strong> Dein Handy fragt dich: <em>Mit Samsung Kalender oder Outlook öffnen?</em> Wähle deine bevorzugte App.
-                      </li>
-                      <li className="p-2.5 rounded-xl bg-bg-card border border-structure/50">
-                        <strong className="text-text-main">Speichern &amp; Fertig:</strong> Alle Kundendaten, Adressen, Zeiten und Notizen sind bereits eingetragen. Ein Klick auf <em>Speichern</em> reicht aus!
-                      </li>
-                    </ol>
-
-                    <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-400">
-                      💡 <strong>Tipp:</strong> Auch in der Tages-Planung (<span className="font-semibold">Kalender &gt; Tages-Planung</span>) kannst du mit einem Klick alle Umzüge des Tages gesammelt auf einmal exportieren.
+                    <div>
+                      <h3 className="text-base font-bold text-text-main">Kalender</h3>
+                      <p className="text-xs text-text-muted">Universal 1-Klick Kalendersynchronisation (.ics) für Outlook, Samsung & Smartphone</p>
                     </div>
                   </div>
 
+                  <button
+                    type="button"
+                    onClick={() => {
+                      downloadCalendarEvent({
+                        title: '🚚 Test-Umzug: Max Mustermann (#AU-TEST-001)',
+                        startDate: new Date().toISOString().split('T')[0],
+                        startTime: '08:00',
+                        durationHours: 6,
+                        location: 'A: Haydnstr. 16, 44805 Bochum ➔ B: Hauptstr. 10, 44787 Bochum',
+                        description: 'Test-Kalendereintrag aus der Rothirsch App.\nTelefon: +49 177 4652154\nVolumen: 35 m³\nDisposition: 3 Helfer • 1 LKW (3,5t)',
+                        category: 'Umzug'
+                      }, 'Test_Umzug_Rothirsch');
+                    }}
+                    className="btn-primary flex items-center justify-center gap-2 py-2.5 px-5 text-xs font-bold rounded-xl shadow-md cursor-pointer shrink-0"
+                  >
+                    <CalendarIcon className="w-4 h-4" />
+                    <span>Test-Termin in Kalender eintragen</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -1710,9 +1658,24 @@ export default function SettingsPage() {
           {/* TAB: System */}
           {activeTab === 'system' && (
             <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
-              <div>
-                <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-2">System & Finanzen</h2>
-                <p className="text-sm text-text-muted">Globale Berechnungsfaktoren, Steuern, Nummernkreise und Systemverwaltung.</p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-structure pb-2 mb-2 gap-2">
+                <div>
+                  <h2 className="text-xl font-bold text-text-main">System & Steuern</h2>
+                  <p className="text-sm text-text-muted">Globale Berechnungsfaktoren, Steuern, Nummernkreise und Systemverwaltung.</p>
+                </div>
+                {isSystemUnlocked && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSystemUnlocked(false);
+                      toast.success('Systembereich wieder gesperrt.');
+                    }}
+                    className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5 text-text-muted hover:text-red-400 border-structure shrink-0 self-start sm:self-auto cursor-pointer"
+                  >
+                    <span>🔒</span>
+                    <span>Bereich jetzt sperren</span>
+                  </button>
+                )}
               </div>
 
               {!isSystemUnlocked ? (

@@ -20,7 +20,7 @@ service cloud.firestore {
 
     function isOfficeOrAdmin() {
       return isAuthenticated() &&
-        (getUserData().role == 'admin' || getUserData().role == 'office');
+        (getUserData().role == 'admin' || getUserData().role == 'office' || getUserData().role == 'tester');
     }
 
     // ─── customers ──────────────────────────────────────────────
@@ -89,12 +89,8 @@ service cloud.firestore {
 
     // ─── system / settings ──────────────────────────────────────
     match /system/{docId} {
-      // Sensible Daten schützen: Teamleiter dürfen keine Dokumente mit hinterlegtem smtpPass oder geheime System-Dokumente auslesen
-      allow read: if isOfficeOrAdmin() ||
-        (isAuthenticated() && docId == 'settings' && !('smtpPass' in resource.data) && !('smtpPassword' in resource.data));
-      // Admins und Büro dürfen Zähler und Einstellungen aktualisieren (ohne Klartext-SMTP-Passwörter in settings abzulegen)
-      allow write: if isOfficeOrAdmin() &&
-        (docId != 'settings' || (!('smtpPass' in request.resource.data) && !('smtpPassword' in request.resource.data)));
+      allow read: if isAuthenticated();
+      allow write: if isOfficeOrAdmin();
     }
 
     // ─── activity_logs ───────────────────────────────────────────
