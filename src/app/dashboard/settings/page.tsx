@@ -36,16 +36,57 @@ export default function SettingsPage() {
   const { profile } = useAuth();
   const [activeTab, setActiveTab] = useState('basisdaten');
   const [showResetModal, setShowResetModal] = useState(false);
-  const [isDev, setIsDev] = useState(false);
 
-  useEffect(() => {
-    if (
-      process.env.NODE_ENV === 'development' ||
-      (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
-    ) {
-      setIsDev(true);
+  // PIN Protection State for System & Steuern (Direkt freigeschaltet während der Testphase)
+  const [isSystemUnlocked, setIsSystemUnlocked] = useState(true);
+  const [pinInput, setPinInput] = useState('');
+  const [isVerifyingPin, setIsVerifyingPin] = useState(false);
+
+  const handleUnlockSystem = async () => {
+    const trimmedPin = pinInput.trim();
+    if (!trimmedPin || isVerifyingPin) return;
+    
+    setIsVerifyingPin(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        toast.error('Keine aktive Benutzersitzung. Bitte laden Sie die Seite neu.');
+        setIsVerifyingPin(false);
+        return;
+      }
+
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/admin/verify-pin', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${idToken}` 
+        },
+        body: JSON.stringify({ pin: trimmedPin, scope: 'system' })
+      });
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (res.ok && data?.valid) {
+        setIsSystemUnlocked(true);
+        setPinInput('');
+        toast.success('Systembereich erfolgreich entsperrt!');
+      } else {
+        const errorMsg = data?.error || (res.status === 403 ? 'Zugriff verweigert: Falscher PIN oder keine Admin-Rechte.' : 'Falscher PIN!');
+        toast.error(errorMsg);
+      }
+    } catch (err: any) {
+      console.error('PIN verification error:', err);
+      toast.error('Server nicht erreichbar oder Netzwerkfehler bei der PIN-Prüfung.');
+    } finally {
+      setIsVerifyingPin(false);
     }
-  }, []);
+  };
   const [settings, setSettings] = useState<any>({
     companyName: 'Rothirschumzug',
     street: 'Haydnstr. 16',
@@ -790,7 +831,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono">
-                      Vorschau: AN-{settings.nextQuoteNumber || 1771}
+                      Vorschau: AN-{settings.nextQuoteNumber ?? 1}
                     </span>
                   </div>
 
@@ -800,22 +841,22 @@ export default function SettingsPage() {
                     </label>
                     <input 
                       type="number" 
-                      min="1771"
-                      value={settings.nextQuoteNumber || 1771} 
-                      onChange={e => handleChange('nextQuoteNumber', Math.max(1771, parseInt(e.target.value, 10) || 1771))} 
+                      min="1"
+                      value={settings.nextQuoteNumber ?? 1} 
+                      onChange={e => handleChange('nextQuoteNumber', Math.max(1, parseInt(e.target.value, 10) || 1))} 
                       className="input-field w-full bg-bg-panel text-xl font-bold font-mono py-2.5" 
                     />
                     <p className="text-xs text-text-muted mt-2">
-                      Das nächste erstellte Angebot erhält die Nummer <strong className="text-text-main font-mono">AN-{settings.nextQuoteNumber || 1771}</strong>.
+                      Das nächste erstellte Angebot erhält die Nummer <strong className="text-text-main font-mono">AN-{settings.nextQuoteNumber ?? 1}</strong>.
                     </p>
                   </div>
                 </div>
 
-                {/* 2. Rechnungsnummern (R-...) */}
-                <div className="bg-bg-dark p-6 rounded-2xl border border-structure space-y-4 shadow-sm hover:border-emerald-500/50 transition-colors">
+                {/* 2. Rechnungsnummern (R-...) - Geschützt und nur lesbar */}
+                <div className="bg-bg-dark p-6 rounded-2xl border border-structure space-y-4 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold text-lg font-headline">
+                      <div className="w-11 h-11 rounded-xl bg-slate-500/10 text-slate-400 flex items-center justify-center font-bold text-lg font-headline">
                         R
                       </div>
                       <div>
@@ -823,24 +864,29 @@ export default function SettingsPage() {
                         <p className="text-xs text-text-muted">Format: R-[Nummer]</p>
                       </div>
                     </div>
-                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
-                      Vorschau: R-{settings.nextInvoiceNumber || 1771}
+                    <span className="px-3 py-1 rounded-full text-xs font-bold bg-slate-500/10 text-slate-400 border border-slate-500/20 font-mono">
+                      Vorschau: R-{settings.nextInvoiceNumber ?? 1}
                     </span>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-text-muted uppercase mb-1.5">
-                      Nächste Rechnungsnummer (Startwert)
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-semibold text-text-muted uppercase">
+                        Nächste Rechnungsnummer (Aktueller Stand)
+                      </label>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-structure text-text-muted border border-structure flex items-center gap-1 font-normal">
+                        🔒 Schreibgeschützt
+                      </span>
+                    </div>
                     <input 
                       type="number" 
-                      min="1771"
-                      value={settings.nextInvoiceNumber || 1771} 
-                      onChange={e => handleChange('nextInvoiceNumber', Math.max(1771, parseInt(e.target.value, 10) || 1771))} 
-                      className="input-field w-full bg-bg-panel text-xl font-bold font-mono py-2.5" 
+                      disabled
+                      readOnly
+                      value={settings.nextInvoiceNumber ?? 1} 
+                      className="input-field w-full bg-bg-panel/40 border-dashed text-text-muted cursor-not-allowed text-xl font-bold font-mono py-2.5 opacity-80" 
                     />
                     <p className="text-xs text-text-muted mt-2">
-                      Die nächste ausgestellte Rechnung erhält die Nummer <strong className="text-text-main font-mono">R-{settings.nextInvoiceNumber || 1771}</strong>.
+                      Hier fest schreibgeschützt. Kann bei Bedarf im geschützten Bereich <strong className="text-primary font-medium">„System & Steuern“</strong> nach PIN-Eingabe angepasst werden.
                     </p>
                   </div>
                 </div>
@@ -858,7 +904,7 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 font-mono">
-                      Vorschau: #{settings.nextOrderNumber || 1}
+                      Vorschau: AU-{settings.nextOrderNumber || 1}
                     </span>
                   </div>
 
@@ -1668,152 +1714,191 @@ export default function SettingsPage() {
                 <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-2">System & Finanzen</h2>
                 <p className="text-sm text-text-muted">Globale Berechnungsfaktoren, Steuern, Nummernkreise und Systemverwaltung.</p>
               </div>
-              
-              {/* SEKTION 1: Steuern & Zahlungsbedingungen */}
-              <div>
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted mb-3">Steuern & Zahlungskonditionen</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                    <label className="block text-sm font-medium text-text-main mb-1">Standard Steuersatz (%)</label>
-                    <input type="number" value={settings.taxRate} onChange={e => handleChange('taxRate', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                  </div>
-                  <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                    <label className="block text-sm font-medium text-text-main mb-1">Mahngebühr pro Stufe (€)</label>
-                    <input type="number" value={settings.dunningFee} onChange={e => handleChange('dunningFee', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                  </div>
-                  <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                    <label className="block text-sm font-medium text-text-main mb-1">Angebotsgültigkeit (Tage)</label>
-                    <input type="number" value={settings.quoteValidDays} onChange={e => handleChange('quoteValidDays', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                  </div>
-                </div>
-              </div>
 
-              {/* SEKTION 2: Nummernkreise (Startwerte) */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted">Nummernkreise & Belegnummern</h3>
-                    <p className="text-xs text-text-muted">Hier kannst du festlegen, mit welcher Startnummer neue Angebote, Aufträge und Rechnungen beginnen sollen (z.B. bei Systemwechsel).</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                  {/* ANGEBOTSNUMMER */}
-                  <div className="bg-bg-dark p-4 rounded-xl border border-structure flex flex-col justify-between">
-                    <div>
-                      <label className="block text-sm font-medium text-text-main mb-1">Nächste Angebotsnummer (Start)</label>
-                      <p className="text-xs text-text-muted mb-2">Das nächste erstellte Angebot beginnt mit dieser Nummer.</p>
-                      <input 
-                        type="number" 
-                        value={settings.nextQuoteNumber} 
-                        onChange={e => handleChange('nextQuoteNumber', Number(e.target.value))} 
-                        className="input-field w-full bg-bg-panel font-mono text-base font-semibold" 
-                      />
-                    </div>
-                    <div className="mt-3 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-500 flex items-start gap-1.5">
-                      <span className="text-xs">⚠️</span>
-                      <span>Änderungen an der Startnummer werden erst nach Klick auf <strong>„Speichern“</strong> oben rechts wirksam.</span>
-                    </div>
-                  </div>
-
-                  {/* AUFTRAGSNUMMER */}
-                  <div className="bg-bg-dark p-4 rounded-xl border border-structure flex flex-col justify-between">
-                    <div>
-                      <label className="block text-sm font-medium text-text-main mb-1">Nächste Auftragsnummer (Start)</label>
-                      <p className="text-xs text-text-muted mb-2">Der nächste bestätigte Auftrag beginnt mit dieser Nummer.</p>
-                      <input 
-                        type="number" 
-                        value={settings.nextOrderNumber || 1} 
-                        onChange={e => handleChange('nextOrderNumber', Number(e.target.value))} 
-                        className="input-field w-full bg-bg-panel font-mono text-base font-semibold" 
-                      />
-                    </div>
-                    <p className="text-[11px] text-text-muted mt-3">
-                      Wird bei Bestätigung eines Angebots zum Auftrag automatisch hochgezählt.
-                    </p>
-                  </div>
-
-                  {/* RECHNUNGSNUMMER (GESCHÜTZT MIT FREISCHALTUNG) */}
-                  <div className={`p-4 rounded-xl border transition-all flex flex-col justify-between ${
-                    isInvoiceNumberUnlocked 
-                      ? 'bg-bg-dark border-primary/50 shadow-md shadow-primary/5' 
-                      : 'bg-bg-dark/70 border-structure'
-                  }`}>
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-sm font-medium text-text-main flex items-center gap-1.5">
-                          <span>Nächste Rechnungsnummer</span>
-                          {!isInvoiceNumberUnlocked && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-structure text-text-muted border border-structure font-normal">
-                              🔒 Geschützt
-                            </span>
-                          )}
-                        </label>
-                        <button
-                          type="button"
-                          onClick={() => setIsInvoiceNumberUnlocked(prev => !prev)}
-                          className="text-xs text-primary hover:underline font-medium"
-                        >
-                          {isInvoiceNumberUnlocked ? '✓ Sperren' : '✏️ Anpassen'}
-                        </button>
-                      </div>
-                      <p className="text-xs text-text-muted mb-2">
-                        {isInvoiceNumberUnlocked 
-                          ? 'Freigeschaltet: Gib deine gewünschte Start-Rechnungsnummer ein.' 
-                          : 'Gegen versehentliches Ändern gesperrt. Klicke „Anpassen“ zum Bearbeiten.'}
-                      </p>
-                      <input 
-                        type="number" 
-                        disabled={!isInvoiceNumberUnlocked}
-                        value={settings.nextInvoiceNumber} 
-                        onChange={e => handleChange('nextInvoiceNumber', Number(e.target.value))} 
-                        className={`input-field w-full font-mono text-base font-semibold ${
-                          !isInvoiceNumberUnlocked 
-                            ? 'bg-bg-panel/40 border-dashed text-text-muted cursor-not-allowed opacity-75' 
-                            : 'bg-bg-panel border-primary ring-1 ring-primary/40'
-                        }`} 
-                      />
-                    </div>
-
-                    {isInvoiceNumberUnlocked ? (
-                      <div className="mt-3 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-500 flex items-start gap-1.5">
-                        <span className="text-xs">⚠️</span>
-                        <span>Startnummer angepasst: Bitte unbedingt oben rechts auf <strong>„Speichern“</strong> klicken.</span>
-                      </div>
-                    ) : (
-                      <p className="text-[11px] text-text-muted mt-3">
-                        Klicke oben auf <span className="text-primary font-medium">„Anpassen“</span>, falls du z.B. bei Rechnung 46 starten möchtest.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* SEKTION 3: Entwickler-Bereich (Datenbank-Reset) - Nur in lokaler Entwicklung (run dev) sichtbar */}
-              {isDev && (
-                <div className="border-t border-red-500/20 pt-6">
-                  <div className="bg-red-500/5 border border-red-500/30 rounded-xl p-6 relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-lg font-bold text-red-400 flex items-center gap-2">
-                        <ExclamationTriangleIcon className="w-5 h-5" />
-                        Datenbank zurücksetzen &amp; Testdaten leeren
-                      </h3>
-                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                        Nur Lokal (Dev-Modus)
-                      </span>
-                    </div>
-                    <p className="text-sm text-text-muted mb-6 max-w-2xl">
-                      Löscht alle erstellten Kunden, Angebote, Rechnungen und Testdokumente unwiderruflich aus der Datenbank und setzt alle Nummernkreise auf 1 zurück. Deine Grundeinstellungen (Texte, Kontaktdaten, Steuersätze) bleiben erhalten.
-                    </p>
+              {!isSystemUnlocked ? (
+                <div className="bg-bg-dark border border-red-500/30 p-8 rounded-xl max-w-md mx-auto mt-12 text-center shadow-lg shadow-red-500/10">
+                  <ServerStackIcon className="w-12 h-12 text-red-400 mx-auto mb-4" />
+                  <h3 className="text-xl font-bold text-text-main mb-2">Geschützter Bereich</h3>
+                  <p className="text-sm text-text-muted mb-6">Bitte gib deinen 4-stelligen Admin-PIN ein, um Steuersätze und Nummernkreise zu bearbeiten.</p>
+                  <div className="flex gap-2 justify-center">
+                    <input 
+                      type="password" 
+                      value={pinInput}
+                      disabled={isVerifyingPin}
+                      onChange={e => setPinInput(e.target.value)}
+                      onKeyDown={async e => {
+                        if (e.key === 'Enter') {
+                          await handleUnlockSystem();
+                        }
+                      }}
+                      className="input-field text-center w-32 tracking-widest font-mono text-xl disabled:opacity-50" 
+                      maxLength={4} 
+                      placeholder="****"
+                      autoFocus
+                    />
                     <button 
-                      onClick={() => setShowResetModal(true)}
-                      className="btn-primary bg-red-600 hover:bg-red-700 text-white border-none shadow-lg shadow-red-600/20"
+                      onClick={handleUnlockSystem} 
+                      disabled={isVerifyingPin || !pinInput.trim()}
+                      className="btn-primary disabled:opacity-50 flex items-center gap-2"
                     >
-                      Datenbank komplett zurücksetzen
+                      {isVerifyingPin ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span>Prüfe...</span>
+                        </>
+                      ) : (
+                        'Entsperren'
+                      )}
                     </button>
                   </div>
                 </div>
+              ) : (
+                <>
+                  {/* SEKTION 1: Steuern & Zahlungsbedingungen */}
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted mb-3">Steuern & Zahlungskonditionen</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                      <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                        <label className="block text-sm font-medium text-text-main mb-1">Standard Steuersatz (%)</label>
+                        <input type="number" value={settings.taxRate} onChange={e => handleChange('taxRate', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                      </div>
+                      <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                        <label className="block text-sm font-medium text-text-main mb-1">Mahngebühr pro Stufe (€)</label>
+                        <input type="number" value={settings.dunningFee} onChange={e => handleChange('dunningFee', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                      </div>
+                      <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                        <label className="block text-sm font-medium text-text-main mb-1">Angebotsgültigkeit (Tage)</label>
+                        <input type="number" value={settings.quoteValidDays} onChange={e => handleChange('quoteValidDays', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SEKTION 2: Nummernkreise (Startwerte) */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted">Nummernkreise & Belegnummern</h3>
+                        <p className="text-xs text-text-muted">Hier kannst du festlegen, mit welcher Startnummer neue Angebote, Aufträge und Rechnungen beginnen sollen (z.B. bei Systemwechsel).</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                      {/* ANGEBOTSNUMMER */}
+                      <div className="bg-bg-dark p-4 rounded-xl border border-structure flex flex-col justify-between">
+                        <div>
+                          <label className="block text-sm font-medium text-text-main mb-1">Nächste Angebotsnummer (Start)</label>
+                          <p className="text-xs text-text-muted mb-2">Das nächste erstellte Angebot beginnt mit dieser Nummer.</p>
+                          <input 
+                            type="number" 
+                            min="1"
+                            value={settings.nextQuoteNumber ?? 1} 
+                            onChange={e => handleChange('nextQuoteNumber', Math.max(1, parseInt(e.target.value, 10) || 1))} 
+                            className="input-field w-full bg-bg-panel font-mono text-base font-semibold" 
+                          />
+                        </div>
+                        <div className="mt-3 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-500 flex items-start gap-1.5">
+                          <span className="text-xs">⚠️</span>
+                          <span>Änderungen an der Startnummer werden erst nach Klick auf <strong>„Speichern“</strong> oben rechts wirksam.</span>
+                        </div>
+                      </div>
+
+                      {/* AUFTRAGSNUMMER */}
+                      <div className="bg-bg-dark p-4 rounded-xl border border-structure flex flex-col justify-between">
+                        <div>
+                          <label className="block text-sm font-medium text-text-main mb-1">Nächste Auftragsnummer (Start)</label>
+                          <p className="text-xs text-text-muted mb-2">Der nächste bestätigte Auftrag beginnt mit dieser Nummer.</p>
+                          <input 
+                            type="number" 
+                            min="1"
+                            value={settings.nextOrderNumber || 1} 
+                            onChange={e => handleChange('nextOrderNumber', Math.max(1, parseInt(e.target.value, 10) || 1))} 
+                            className="input-field w-full bg-bg-panel font-mono text-base font-semibold" 
+                          />
+                        </div>
+                        <p className="text-[11px] text-text-muted mt-3">
+                          Wird bei Bestätigung eines Angebots zum Auftrag automatisch hochgezählt.
+                        </p>
+                      </div>
+
+                      {/* RECHNUNGSNUMMER (GESCHÜTZT MIT FREISCHALTUNG) */}
+                      <div className={`p-4 rounded-xl border transition-all flex flex-col justify-between ${
+                        isInvoiceNumberUnlocked 
+                          ? 'bg-bg-dark border-primary/50 shadow-md shadow-primary/5' 
+                          : 'bg-bg-dark/70 border-structure'
+                      }`}>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-sm font-medium text-text-main flex items-center gap-1.5">
+                              <span>Nächste Rechnungsnummer</span>
+                              {!isInvoiceNumberUnlocked && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-structure text-text-muted border border-structure font-normal">
+                                  🔒 Geschützt
+                                </span>
+                              )}
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => setIsInvoiceNumberUnlocked(prev => !prev)}
+                              className="text-xs text-primary hover:underline font-medium"
+                            >
+                              {isInvoiceNumberUnlocked ? '✓ Sperren' : '✏️ Anpassen'}
+                            </button>
+                          </div>
+                          <p className="text-xs text-text-muted mb-2">
+                            {isInvoiceNumberUnlocked 
+                              ? 'Freigeschaltet: Gib deine gewünschte Start-Rechnungsnummer ein (z.B. 41 oder 56).' 
+                              : 'Gegen versehentliches Ändern gesperrt. Klicke „Anpassen“ zum Bearbeiten.'}
+                          </p>
+                          <input 
+                            type="number" 
+                            min="1"
+                            disabled={!isInvoiceNumberUnlocked}
+                            value={settings.nextInvoiceNumber ?? 1} 
+                            onChange={e => handleChange('nextInvoiceNumber', Math.max(1, parseInt(e.target.value, 10) || 1))} 
+                            className={`input-field w-full font-mono text-base font-semibold ${
+                              !isInvoiceNumberUnlocked 
+                                ? 'bg-bg-panel/40 border-dashed text-text-muted cursor-not-allowed opacity-75' 
+                                : 'bg-bg-panel border-primary ring-1 ring-primary/40'
+                            }`} 
+                          />
+                        </div>
+
+                        {isInvoiceNumberUnlocked ? (
+                          <div className="mt-3 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-500 flex items-start gap-1.5">
+                            <span className="text-xs">⚠️</span>
+                            <span>Startnummer angepasst: Bitte unbedingt oben rechts auf <strong>„Speichern“</strong> klicken.</span>
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-text-muted mt-3">
+                            Klicke oben auf <span className="text-primary font-medium">„Anpassen“</span>, falls du z.B. bei Rechnung 41 oder 56 starten möchtest.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* DEVELOPER BEREICH */}
+                  {profile?.role === 'admin' && (
+                    <div className="mt-8 border-t border-red-500/20 pt-6">
+                      <div className="bg-red-500/5 border border-red-500/30 rounded-xl p-6 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
+                        <h3 className="text-lg font-bold text-red-400 mb-2 flex items-center gap-2">
+                          <ExclamationTriangleIcon className="w-5 h-5" />
+                          Entwickler-Bereich
+                        </h3>
+                        <p className="text-sm text-text-muted mb-6 max-w-2xl">
+                          Löscht unwiderruflich alle Kunden, Aufträge und Rechnungen. Nur für die Testphase. Nummernkreise werden auf 1 zurückgesetzt.
+                        </p>
+                        <button 
+                          onClick={() => setShowResetModal(true)}
+                          className="btn-primary bg-red-600 hover:bg-red-700 text-white border-none"
+                        >
+                          Datenbank komplett zurücksetzen
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

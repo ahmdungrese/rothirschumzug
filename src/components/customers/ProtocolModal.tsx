@@ -551,8 +551,9 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
 
                 <textarea
                   rows={5}
+                  maxLength={3000}
                   value={text}
-                  onChange={(e) => setText(e.target.value)}
+                  onChange={(e) => setText(e.target.value.replace(/<[^>]*>/g, '').slice(0, 3000))}
                   className="w-full p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-2 focus:ring-blue-500/40 leading-relaxed font-sans"
                   placeholder="Beschreiben Sie hier die Abnahme, etwaige Mängel oder den Haftungsausschluss..."
                   required

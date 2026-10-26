@@ -18,6 +18,7 @@ import {
 import { StornoModal } from '@/components/finances/StornoModal';
 import { getServiceIcon } from './OrderEditor';
 import { autoCompletePreMoveTasks } from '@/lib/taskStateController';
+import { sanitizeText } from '@/lib/inputValidation';
 
 const STANDARD_SERVICES_A = [
   { id: 'kartonlieferung', name: 'Kartonlieferung vorab', price: 65, unit: 'pauschal', icon: 'inventory_2', defaultDesc: 'Anlieferung von Umzugskartons und Packmaterial vor dem Umzugstermin.' },
@@ -1084,29 +1085,29 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
                   </div>
                   <div>
                     <label className="block text-xs text-text-muted mb-1">Vorname</label>
-                    <input disabled={isLocked} type="text" value={customerData.firstName} onChange={e => setCustomerData({...customerData, firstName: e.target.value})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
+                    <input disabled={isLocked} type="text" maxLength={50} value={customerData.firstName} onChange={e => setCustomerData({...customerData, firstName: sanitizeText(e.target.value, 50)})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
                   </div>
                   <div>
                     <label className="block text-xs text-text-muted mb-1">Nachname *</label>
-                    <input disabled={isLocked} type="text" value={customerData.lastName} onChange={e => setCustomerData({...customerData, lastName: e.target.value})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
+                    <input disabled={isLocked} type="text" maxLength={50} value={customerData.lastName} onChange={e => setCustomerData({...customerData, lastName: sanitizeText(e.target.value, 50)})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
                   </div>
                 </>
               ) : (
                 <>
                   <div className="col-span-2">
                     <label className="block text-xs text-text-muted mb-1">Firmenname *</label>
-                    <input disabled={isLocked} type="text" value={customerData.lastName} onChange={e => setCustomerData({...customerData, lastName: e.target.value})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
+                    <input disabled={isLocked} type="text" maxLength={80} value={customerData.lastName} onChange={e => setCustomerData({...customerData, lastName: sanitizeText(e.target.value, 80)})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
                   </div>
                   <div>
                     <label className="block text-xs text-text-muted mb-1">Ansprechpartner</label>
-                    <input disabled={isLocked} type="text" value={customerData.firstName} onChange={e => setCustomerData({...customerData, firstName: e.target.value})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
+                    <input disabled={isLocked} type="text" maxLength={60} value={customerData.firstName} onChange={e => setCustomerData({...customerData, firstName: sanitizeText(e.target.value, 60)})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
                   </div>
                 </>
               )}
             
             <div>
               <label className="block text-xs text-text-muted mb-1">E-Mail Adresse</label>
-              <input disabled={isLocked} type="email" value={customerData.email} onChange={e => setCustomerData({...customerData, email: e.target.value})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
+              <input disabled={isLocked} type="email" maxLength={80} value={customerData.email} onChange={e => setCustomerData({...customerData, email: sanitizeText(e.target.value, 80).trim()})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
             </div>
 
             <div className="col-span-1 md:col-span-2 lg:col-span-4 mt-2 border-t border-structure pt-4">
@@ -1114,19 +1115,19 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
               <div className="grid grid-cols-4 gap-3">
                 <div className="col-span-3">
                   <label className="block text-xs text-text-muted mb-1">Straße</label>
-                  <input disabled={isLocked} type="text" value={customerData.street} onChange={e => setCustomerData({...customerData, street: e.target.value})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
+                  <input disabled={isLocked} type="text" maxLength={80} value={customerData.street} onChange={e => setCustomerData({...customerData, street: sanitizeText(e.target.value, 80)})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
                 </div>
                 <div className="col-span-1">
                   <label className="block text-xs text-text-muted mb-1">Haus-Nr.</label>
-                  <input disabled={isLocked} type="text" value={customerData.houseNr} onChange={e => setCustomerData({...customerData, houseNr: e.target.value})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
+                  <input disabled={isLocked} type="text" maxLength={15} value={customerData.houseNr} onChange={e => setCustomerData({...customerData, houseNr: sanitizeText(e.target.value, 15)})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
                 </div>
                 <div className="col-span-1">
                   <label className="block text-xs text-text-muted mb-1">PLZ</label>
-                  <input disabled={isLocked} type="text" value={customerData.zip} onChange={e => setCustomerData({...customerData, zip: e.target.value})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
+                  <input disabled={isLocked} type="text" maxLength={10} value={customerData.zip} onChange={e => setCustomerData({...customerData, zip: sanitizeText(e.target.value, 10).replace(/[^0-9a-zA-Z]/g, '')})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
                 </div>
                 <div className="col-span-3">
                   <label className="block text-xs text-text-muted mb-1">Ort</label>
-                  <input disabled={isLocked} type="text" value={customerData.city} onChange={e => setCustomerData({...customerData, city: e.target.value})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
+                  <input disabled={isLocked} type="text" maxLength={60} value={customerData.city} onChange={e => setCustomerData({...customerData, city: sanitizeText(e.target.value, 60)})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
                 </div>
               </div>
             </div>
@@ -1193,28 +1194,30 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-bg-dark p-3 rounded-xl border border-structure">
                     <label className="block text-xs font-bold text-primary mb-2">Auszugsort (Start)</label>
-                    <input disabled={isLocked} type="text" placeholder="Straße & Haus-Nr." value={`${logistics?.a_street || ''} ${logistics?.a_houseNr || ''}`.trim()} onChange={e => {
-                      const parts = e.target.value.split(/(?=\d)/);
+                    <input disabled={isLocked} type="text" maxLength={100} placeholder="Straße & Haus-Nr." value={`${logistics?.a_street || ''} ${logistics?.a_houseNr || ''}`.trim()} onChange={e => {
+                      const cleaned = sanitizeText(e.target.value, 100);
+                      const parts = cleaned.split(/(?=\d)/);
                       const street = parts[0]?.trim() || '';
                       const houseNr = parts.slice(1).join('').trim() || '';
                       setLogistics({...logistics, a_street: street, a_houseNr: houseNr});
                     }} className="input-field w-full mb-2 text-xs disabled:opacity-60 disabled:cursor-not-allowed" />
                     <div className="flex gap-2">
-                      <input disabled={isLocked} type="text" placeholder="PLZ" value={logistics?.a_zip || ''} onChange={e => setLogistics({...logistics, a_zip: e.target.value})} className="input-field w-1/3 text-xs disabled:opacity-60 disabled:cursor-not-allowed" />
-                      <input disabled={isLocked} type="text" placeholder="Ort" value={logistics?.a_city || ''} onChange={e => setLogistics({...logistics, a_city: e.target.value})} className="input-field w-2/3 text-xs disabled:opacity-60 disabled:cursor-not-allowed" />
+                      <input disabled={isLocked} type="text" maxLength={10} placeholder="PLZ" value={logistics?.a_zip || ''} onChange={e => setLogistics({...logistics, a_zip: sanitizeText(e.target.value, 10).replace(/[^0-9a-zA-Z]/g, '')})} className="input-field w-1/3 text-xs disabled:opacity-60 disabled:cursor-not-allowed" />
+                      <input disabled={isLocked} type="text" maxLength={60} placeholder="Ort" value={logistics?.a_city || ''} onChange={e => setLogistics({...logistics, a_city: sanitizeText(e.target.value, 60)})} className="input-field w-2/3 text-xs disabled:opacity-60 disabled:cursor-not-allowed" />
                     </div>
                   </div>
                   <div className="bg-bg-dark p-3 rounded-xl border border-structure">
                     <label className="block text-xs font-bold text-primary mb-2">Einzugsort (Ziel)</label>
-                    <input disabled={isLocked} type="text" placeholder="Straße & Haus-Nr." value={`${logistics?.b_street || ''} ${logistics?.b_houseNr || ''}`.trim()} onChange={e => {
-                      const parts = e.target.value.split(/(?=\d)/);
+                    <input disabled={isLocked} type="text" maxLength={100} placeholder="Straße & Haus-Nr." value={`${logistics?.b_street || ''} ${logistics?.b_houseNr || ''}`.trim()} onChange={e => {
+                      const cleaned = sanitizeText(e.target.value, 100);
+                      const parts = cleaned.split(/(?=\d)/);
                       const street = parts[0]?.trim() || '';
                       const houseNr = parts.slice(1).join('').trim() || '';
                       setLogistics({...logistics, b_street: street, b_houseNr: houseNr});
                     }} className="input-field w-full mb-2 text-xs disabled:opacity-60 disabled:cursor-not-allowed" />
                     <div className="flex gap-2">
-                      <input disabled={isLocked} type="text" placeholder="PLZ" value={logistics?.b_zip || ''} onChange={e => setLogistics({...logistics, b_zip: e.target.value})} className="input-field w-1/3 text-xs disabled:opacity-60 disabled:cursor-not-allowed" />
-                      <input disabled={isLocked} type="text" placeholder="Ort" value={logistics?.b_city || ''} onChange={e => setLogistics({...logistics, b_city: e.target.value})} className="input-field w-2/3 text-xs disabled:opacity-60 disabled:cursor-not-allowed" />
+                      <input disabled={isLocked} type="text" maxLength={10} placeholder="PLZ" value={logistics?.b_zip || ''} onChange={e => setLogistics({...logistics, b_zip: sanitizeText(e.target.value, 10).replace(/[^0-9a-zA-Z]/g, '')})} className="input-field w-1/3 text-xs disabled:opacity-60 disabled:cursor-not-allowed" />
+                      <input disabled={isLocked} type="text" maxLength={60} placeholder="Ort" value={logistics?.b_city || ''} onChange={e => setLogistics({...logistics, b_city: sanitizeText(e.target.value, 60)})} className="input-field w-2/3 text-xs disabled:opacity-60 disabled:cursor-not-allowed" />
                     </div>
                   </div>
                 </div>
@@ -1597,15 +1600,17 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
                             <td className="p-2.5 pl-4 flex flex-col gap-1.5">
                               <input
                                 type="text"
+                                maxLength={100}
                                 disabled={isLocked}
                                 value={svc.name}
-                                onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s))}
+                                onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, name: sanitizeText(e.target.value, 100) } : s))}
                                 className="bg-transparent font-medium text-text-main w-full focus:outline-none focus:bg-black/20 rounded px-1 disabled:opacity-60"
                               />
                               <textarea
+                                maxLength={500}
                                 disabled={isLocked}
                                 value={svc.note || ''}
-                                onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, note: e.target.value } : s))}
+                                onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, note: e.target.value.replace(/<[^>]*>/g, '').slice(0, 500) } : s))}
                                 placeholder="Optionale Beschreibung (erscheint auf der Rechnung)..."
                                 className="text-[10px] text-text-muted bg-black/10 focus:bg-black/20 focus:outline-none rounded px-2 py-1 w-full resize-y min-h-[36px] disabled:opacity-60"
                                 rows={1}
@@ -1839,7 +1844,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
           <div className="space-y-4 mb-8">
             <div>
               <label className="block text-xs text-text-muted mb-1 font-bold">Rechnung Einleitungstext</label>
-              <textarea disabled={isLocked} value={texts.quoteIntro} onChange={e => setTexts({...texts, quoteIntro: e.target.value})} className="input-field w-full h-24 disabled:opacity-60 disabled:cursor-not-allowed" placeholder="Sehr geehrte(r)..." />
+              <textarea disabled={isLocked} maxLength={1000} value={texts.quoteIntro} onChange={e => setTexts({...texts, quoteIntro: e.target.value.replace(/<[^>]*>/g, '').slice(0, 1000)})} className="input-field w-full h-24 disabled:opacity-60 disabled:cursor-not-allowed" placeholder="Sehr geehrte(r)..." />
               {!isLocked && (
                 <div className="flex gap-2 mt-2">
                   <button 
@@ -1874,7 +1879,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
             </div>
             <div>
               <label className="block text-xs text-text-muted mb-1 font-bold">Zahlungsbedingungen</label>
-              <textarea disabled={isLocked} value={texts.paymentTerms} onChange={e => setTexts({...texts, paymentTerms: e.target.value})} className="input-field w-full h-24 disabled:opacity-60 disabled:cursor-not-allowed" placeholder="Zahlbar innerhalb von..." />
+              <textarea disabled={isLocked} maxLength={1000} value={texts.paymentTerms} onChange={e => setTexts({...texts, paymentTerms: e.target.value.replace(/<[^>]*>/g, '').slice(0, 1000)})} className="input-field w-full h-24 disabled:opacity-60 disabled:cursor-not-allowed" placeholder="Zahlbar innerhalb von..." />
               
               {!isLocked && (
                 <div className="flex gap-2 mt-2 flex-wrap">
@@ -1891,7 +1896,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
             </div>
             <div>
               <label className="block text-xs text-text-muted mb-1 font-bold">Rechnung Schlusstext</label>
-              <textarea disabled={isLocked} value={texts.quoteOutro} onChange={e => setTexts({...texts, quoteOutro: e.target.value})} className="input-field w-full h-20 disabled:opacity-60 disabled:cursor-not-allowed" placeholder="Wir bedanken uns..." />
+              <textarea disabled={isLocked} maxLength={1000} value={texts.quoteOutro} onChange={e => setTexts({...texts, quoteOutro: e.target.value.replace(/<[^>]*>/g, '').slice(0, 1000)})} className="input-field w-full h-20 disabled:opacity-60 disabled:cursor-not-allowed" placeholder="Wir bedanken uns..." />
             </div>
           </div>
 

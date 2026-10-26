@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useMemo, useEffect } from "react";
 import { useModalBackHandler } from "@/hooks/useModalBackHandler";
@@ -425,9 +425,10 @@ export function InventoryWizardModal({
                       <MagnifyingGlassIcon className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
                       <input 
                         type="text"
+                        maxLength={60}
                         placeholder={`${activeRoomObj?.name || 'Raum'} durchsuchen...`}
                         value={searchQuery}
-                        onChange={e => setSearchQuery(e.target.value)}
+                        onChange={e => setSearchQuery(e.target.value.replace(/<[^>]*>/g, '').replace(/[\r\n]+/g, '').slice(0, 60))}
                         className="w-full bg-bg-dark border border-structure rounded-lg pl-10 pr-4 py-2.5 text-sm text-text-main focus:border-primary focus:outline-none transition-colors"
                       />
                       {searchQuery && (

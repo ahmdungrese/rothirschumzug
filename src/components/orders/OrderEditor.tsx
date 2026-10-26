@@ -3785,13 +3785,15 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                             <td className="p-2.5 pl-1 flex flex-col gap-1.5">
                               <input
                                 type="text"
+                                maxLength={100}
                                 value={svc.name}
-                                onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, name: e.target.value } : s))}
+                                onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, name: sanitizeText(e.target.value, 100) } : s))}
                                 className="bg-transparent font-medium text-text-main w-full focus:outline-none focus:bg-black/20 rounded px-1"
                               />
                               <textarea
+                                maxLength={500}
                                 value={svc.note || ''}
-                                onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, note: e.target.value } : s))}
+                                onChange={e => setServices(prev => prev.map((s, i) => i === idx ? { ...s, note: e.target.value.replace(/<[^>]*>/g, '').slice(0, 500) } : s))}
                                 placeholder="Optionale Beschreibung (erscheint im Angebot)..."
                                 className="text-[10px] text-text-muted bg-black/10 focus:bg-black/20 focus:outline-none rounded px-2 py-1 w-full resize-y min-h-[36px]"
                                 rows={1}
@@ -4304,8 +4306,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                               </div>
                               <input
                                 type="text"
+                                maxLength={60}
                                 value={customItemName}
-                                onChange={e => setCustomItemName(e.target.value)}
+                                onChange={e => setCustomItemName(sanitizeText(e.target.value, 60))}
                                 placeholder="z.B. Schminktisch"
                                 className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-structure bg-bg-card text-text-main focus:border-primary mb-1.5"
                                 autoFocus
@@ -4434,8 +4437,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 <div className="flex gap-2 relative">
                   <input
                     type="text"
+                    maxLength={120}
                     value={newChecklistItem}
-                    onChange={e => setNewChecklistItem(e.target.value)}
+                    onChange={e => setNewChecklistItem(sanitizeText(e.target.value, 120))}
                     placeholder="Neuer Punkt (z.B. Klaviertragegurt bereitlegen)..."
                     className="input-field w-full pr-10 text-xs py-2"
                     onKeyDown={e => {
@@ -4899,24 +4903,27 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                         <button type="button" onClick={loadStandardTexts} className="text-[10px] text-primary hover:underline">Standard laden</button>
                       </div>
                       <textarea
+                        maxLength={1000}
                         value={texts.quoteIntro}
-                        onChange={e => setTexts({...texts, quoteIntro: e.target.value})}
+                        onChange={e => setTexts({...texts, quoteIntro: e.target.value.replace(/<[^>]*>/g, '').slice(0, 1000)})}
                         className="input-field w-full h-16 text-xs"
                       />
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-text-muted uppercase mb-1 block">Zahlungsbedingungen</label>
                       <textarea
+                        maxLength={1000}
                         value={texts.paymentTerms}
-                        onChange={e => setTexts({...texts, paymentTerms: e.target.value})}
+                        onChange={e => setTexts({...texts, paymentTerms: e.target.value.replace(/<[^>]*>/g, '').slice(0, 1000)})}
                         className="input-field w-full h-14 text-xs"
                       />
                     </div>
                     <div>
                       <label className="text-[10px] font-bold text-text-muted uppercase mb-1 block">Schlusshinweise</label>
                       <textarea
+                        maxLength={1000}
                         value={texts.quoteOutro}
-                        onChange={e => setTexts({...texts, quoteOutro: e.target.value})}
+                        onChange={e => setTexts({...texts, quoteOutro: e.target.value.replace(/<[^>]*>/g, '').slice(0, 1000)})}
                         className="input-field w-full h-16 text-xs"
                       />
                     </div>

@@ -232,9 +232,10 @@ export function ActivityLogViewer() {
           <MagnifyingGlassIcon className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
+            maxLength={60}
             placeholder="Suchen (Mitarbeiter, Details)..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value.replace(/<[^>]*>/g, '').replace(/[\r\n]+/g, '').slice(0, 60))}
             className="input-field pl-9 pr-3 py-1.5 text-xs w-full bg-bg-panel"
           />
         </div>

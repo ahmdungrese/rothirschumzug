@@ -407,8 +407,9 @@ export function MessageSenderModal({
               <span className="text-xs text-primary font-normal">Du kannst diesen Text frei anpassen</span>
             </label>
             <textarea 
+              maxLength={4000}
               value={body} 
-              onChange={e => setBody(e.target.value)}
+              onChange={e => setBody(e.target.value.replace(/<[^>]*>/g, '').slice(0, 4000))}
               className="input-field w-full h-64 text-sm whitespace-pre-wrap text-text-main leading-relaxed"
             />
           </div>

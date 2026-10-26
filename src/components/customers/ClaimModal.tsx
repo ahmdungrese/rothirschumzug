@@ -23,6 +23,7 @@ import {
 import { toast } from 'react-hot-toast';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 import { triggerHaptic } from '@/lib/haptics';
+import { sanitizeText } from '@/lib/inputValidation';
 
 export interface ClaimModalProps {
   customerId?: string;
@@ -372,8 +373,9 @@ export function ClaimModal({
               3. Beschreibung des Schadens / Problems <span className="text-red-500">*</span>
             </label>
             <textarea 
+              maxLength={2000}
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => setDescription(e.target.value.replace(/<[^>]*>/g, '').slice(0, 2000))}
               className="w-full p-3.5 text-xs rounded-2xl bg-bg-card border border-red-500/30 focus:border-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/40 text-text-main h-24 placeholder:text-text-muted leading-relaxed"
               placeholder="Was ist genau passiert? (z.B. Kratzer an der Schranktür beim Transport durch das Treppenhaus, Transportschaden am Fernseher...)"
               required
@@ -391,8 +393,12 @@ export function ClaimModal({
                   type="number"
                   step="0.01"
                   min="0"
+                  max="999999"
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setAmount(isNaN(val) ? '' : Math.max(0, Math.min(val, 999999)).toString());
+                  }}
                   className="w-full px-3.5 py-2.5 text-xs font-mono rounded-2xl bg-bg-card border border-structure focus:outline-none focus:ring-2 focus:ring-primary text-text-main"
                   placeholder="z.B. 150.00"
                 />
@@ -426,8 +432,9 @@ export function ClaimModal({
             </label>
             <input 
               type="text"
+              maxLength={50}
               value={insuranceId}
-              onChange={(e) => setInsuranceId(e.target.value)}
+              onChange={(e) => setInsuranceId(sanitizeText(e.target.value, 50))}
               className="w-full px-3.5 py-2.5 text-xs rounded-2xl bg-bg-card border border-structure focus:outline-none focus:ring-2 focus:ring-primary text-text-main placeholder:text-text-muted font-mono"
               placeholder="z.B. V-123456789"
             />
