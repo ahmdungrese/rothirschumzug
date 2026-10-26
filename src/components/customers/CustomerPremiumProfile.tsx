@@ -22,6 +22,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { calculateRoute, RouteCalculationResult } from '@/lib/routeCalculator';
 import { getSourceBadgeStyle } from './SmartCustomerTable';
+import { exportOrderMoveToCalendar, exportOrderViewingToCalendar } from '@/lib/calendarExport';
 import { 
   DocumentTextIcon, 
   DocumentCheckIcon, 
@@ -1753,6 +1754,35 @@ export function CustomerPremiumProfile({
           );
         };
 
+        const renderKalenderBtn = (inMenu = false) => {
+          const hasMovingDate = Boolean(activeOrder.orderMeta?.movingDateFrom || activeOrder.movingDate || activeOrder.disposition?.movingDate);
+          const hasViewingDate = Boolean(activeOrder.orderMeta?.viewingDate);
+          if (!hasMovingDate && !hasViewingDate) return null;
+
+          return (
+            <button
+              key="kalender"
+              type="button"
+              onClick={() => {
+                if (hasMovingDate) {
+                  exportOrderMoveToCalendar(activeOrder);
+                } else {
+                  exportOrderViewingToCalendar(activeOrder);
+                }
+                if (inMenu) setActionsDropdownOpen(false);
+              }}
+              className={inMenu 
+                ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+                : "px-3.5 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-xs font-bold border border-blue-500/30 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+              }
+              title="Termin in Outlook / Samsung Kalender eintragen"
+            >
+              <CalendarDaysIcon className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+              <span>In Kalender eintragen</span>
+            </button>
+          );
+        };
+
         // Smart dynamic selection based on phase & signing state
         let primaryActions: React.ReactNode[] = [];
         let menuActions: (React.ReactNode | null)[] = [];
@@ -1765,6 +1795,7 @@ export function CustomerPremiumProfile({
             renderSignierenBtn(false),
           ];
           menuActions = [
+            renderKalenderBtn(true),
             renderLaufzettelBtn(true),
             renderProtokollBtn(true),
             renderRechnungBtn(true),
@@ -1780,6 +1811,7 @@ export function CustomerPremiumProfile({
             renderProtokollBtn(false),
           ];
           menuActions = [
+            renderKalenderBtn(true),
             renderRechnungBtn(true),
             renderZahlungBtn(true),
             renderSignierenBtn(true),
@@ -1795,6 +1827,7 @@ export function CustomerPremiumProfile({
             renderWhatsAppBtn(false),
           ];
           menuActions = [
+            renderKalenderBtn(true),
             renderLaufzettelBtn(true),
             renderStornoBtn(),
             renderReklamationBtn(true),

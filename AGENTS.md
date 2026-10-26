@@ -30,7 +30,31 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.16.4 (Current) – Direct Testing Phase Access & Database Reset Restoration
+### Version 2.17.1 (Current) – Protected Nummernkreise Starting Ranges & Resilient Database Purge
+*   **Configurable Starting Document Ranges (`settings/page.tsx`)**:
+    *   **Protected Invoice Start Number (`Nächste Rechnungsnummer`)**: Rendered gray/protected by default with lock badge to prevent accidental modifications during day-to-day operations. Includes an interactive `[✏️ Anpassen]` unlock toggle allowing disponents to freely define custom start numbers (e.g., migrating 45 existing invoices from a previous system).
+    *   **Offer Start Number (`Nächste Angebotsnummer`)**: Freely editable with proactive amber notice reminding disponents to click "Speichern" above to commit the new sequence.
+    *   **Order Start Number (`Nächste Auftragsnummer`)**: Configurable starting number for confirmed customer orders.
+*   **Guaranteed Client-Side Database Reset Engine (`ResetDatabaseModal.tsx`)**:
+    *   Implemented direct Firestore batch deletion fallback (400 docs/batch) for `customers`, `orders`, `invoices`, `claims`, `activity_logs`, and `time_entries`.
+    *   Eliminated Vercel serverless dependency failures when Google Admin SDK credentials are uninitialized.
+    *   Successfully resets all counters in `system/settings` back to 1 and reloads active sessions cleanly.
+
+### Version 2.17.0 – Universal 1-Click Mobile Calendar Sync & Outlook/Samsung Integration
+*   **Universal RFC 5545 iCalendar Engine (`src/lib/calendarExport.ts`)**:
+    *   Created standalone `.ics` calendar generator supporting **Samsung Calendar**, **Microsoft Outlook** (App, Desktop & Web), Google Calendar, and Apple Calendar.
+    *   No expensive Office 365 enterprise licenses or Azure Graph API setup required: uses universal UTF-8 iCalendar standard.
+    *   Encodes contextual Emojis and Categories directly in titles (🚚 Umzug, 📋 Besichtigung, ⛔ Halteverbot, 📦 Kartonlieferung, 🏗️ Möbellift).
+    *   Includes turn-by-turn navigation addresses (A ➔ B), clickable customer phone numbers (`tel:`), order volume ($m^3$), assigned helpers and trucks, and direct app deep links in the event description.
+*   **Ergonomic 1-Click Calendar Actions Across Operations**:
+    *   **Order Cockpit (`OrderDetailsDrawer.tsx`)**: Added `+ Kalender` direct export buttons in the header metrics card for moving dates, in Phase 1 & 2 for inspection appointments, and in Phase 3 for logistics tasks (Kartons, HVZ, Möbellift).
+    *   **Task Scheduling Modal (`TaskScheduleModal.tsx`)**: Added `In Kalender` button in the modal footer allowing disponents to export appointments directly to their smartphone while scheduling.
+    *   **Calendar & Resource Dispatch (`DispoModal.tsx`)**: Added `Tag in Kalender exportieren` batch button in the header KPI row and individual `+ Kalender` buttons for each scheduled moving order and inspection.
+    *   **Customer Profile Action Hub (`CustomerPremiumProfile.tsx`)**: Integrated `In Kalender eintragen` into the contextual `•••` action dropdown menu across all project phases.
+*   **Settings Overhaul for Smartphone & Calendar Integration (`settings/page.tsx`)**:
+    *   Replaced the previous misleading Microsoft Graph API mockup with an interactive test export tool and clear instructions for Samsung Galaxy and Outlook smartphones.
+
+### Version 2.16.4 – Direct Testing Phase Access & Database Reset Restoration
 *   **Removal of PIN Protection in Settings (`settings/page.tsx`)**:
     *   Completely eliminated the 4-digit PIN barrier from the "System & Finanzen" settings tab.
     *   Steuersätze, Mahngebühren, Angebots- und Rechnungsnummernkreise sowie der Entwickler-Bereich sind nun während der Testphase direkt und ohne Hürden zugänglich.

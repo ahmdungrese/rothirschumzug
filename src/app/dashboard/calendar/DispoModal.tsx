@@ -11,8 +11,10 @@ import {
   CheckIcon,
   VideoCameraIcon,
   HomeIcon,
-  ArrowTopRightOnSquareIcon
+  ArrowTopRightOnSquareIcon,
+  CalendarDaysIcon
 } from '@heroicons/react/24/outline';
+import { exportOrderMoveToCalendar, exportOrderViewingToCalendar, exportEntireDayToCalendar } from '@/lib/calendarExport';
 import { CounterInput } from '@/components/ui/CounterInput';
 import { db } from '@/lib/firebase';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -227,7 +229,16 @@ export function DispoModal({
             
             {/* Global Resource KPIs */}
             {dayOrders.length > 0 && (
-              <div className="mt-2.5 flex flex-wrap gap-1.5 sm:gap-2.5 text-[11px] sm:text-xs font-semibold">
+              <div className="mt-2.5 flex flex-wrap items-center gap-1.5 sm:gap-2.5 text-[11px] sm:text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => exportEntireDayToCalendar(dateStr, orders)}
+                  className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30 px-2.5 py-1 rounded-full flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+                  title="Alle Umzüge dieses Tages in Outlook / Samsung Kalender eintragen"
+                >
+                  <CalendarDaysIcon className="w-3.5 h-3.5" />
+                  <span>Tag in Kalender ({dayOrders.length})</span>
+                </button>
                 <span className="bg-bg-panel border border-structure px-2.5 py-1 rounded-full text-text-main flex items-center gap-1.5 shadow-2xs">
                   <UserGroupIcon className="w-3.5 h-3.5 text-primary shrink-0" /> 
                   <span>Helfer: <strong className="text-primary font-headline text-xs sm:text-sm">{totalHelpers}</strong></span>
@@ -377,8 +388,18 @@ export function DispoModal({
                             </div>
                           </div>
 
-                          {/* PDF Laufzettel Download Button */}
-                          <div className="w-full sm:w-auto shrink-0 flex items-center">
+                          {/* Actions: In Kalender & PDF Laufzettel */}
+                          <div className="w-full sm:w-auto shrink-0 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => exportOrderMoveToCalendar(order)}
+                              className="py-2 px-3 text-xs font-bold rounded-xl border border-blue-500/40 text-blue-500 hover:bg-blue-500/10 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                              title="In Outlook / Samsung Kalender eintragen"
+                            >
+                              <CalendarDaysIcon className="w-4 h-4 text-blue-500" />
+                              <span>+ Kalender</span>
+                            </button>
+
                             <PDFDownloadLink
                               document={<EmployeeSheetPDF order={order} customer={{ firstName: order.customerName, lastName: '' }} />}
                               fileName={`Laufzettel_${order.customerName?.replace(/\s+/g, '_') || 'Kunde'}.pdf`}
@@ -511,14 +532,29 @@ export function DispoModal({
                           </span>
                         </label>
 
-                        {task.customerId && (
-                          <Link 
-                            href={`/dashboard/customers/${task.customerId}`}
-                            className="text-[11px] font-bold text-[#6E8F64] hover:underline"
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const relatedOrder = orders.find(o => o.id === task.id);
+                              if (relatedOrder) exportOrderViewingToCalendar(relatedOrder);
+                            }}
+                            className="px-2 py-1 rounded-lg border border-blue-500/30 text-blue-500 hover:bg-blue-500/10 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                            title="Besichtigung in Outlook / Samsung Kalender eintragen"
                           >
-                            Kundenprofil →
-                          </Link>
-                        )}
+                            <CalendarDaysIcon className="w-3.5 h-3.5" />
+                            <span>+ Kalender</span>
+                          </button>
+
+                          {task.customerId && (
+                            <Link 
+                              href={`/dashboard/customers/${task.customerId}`}
+                              className="text-[11px] font-bold text-[#6E8F64] hover:underline"
+                            >
+                              Kundenprofil →
+                            </Link>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}

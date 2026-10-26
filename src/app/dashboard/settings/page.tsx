@@ -14,6 +14,7 @@ import { MASTER_COMMUNICATION_TEMPLATES } from '@/lib/communicationDefaults';
 import { MASTER_PROTOCOL_CATEGORIES, MASTER_PROTOCOL_SNIPPETS } from '@/lib/protocolDefaults';
 import { MASTER_SYSTEM_TEXTS } from '@/lib/textDefaults';
 import { MASTER_PAYMENT_METHODS } from '@/lib/paymentDefaults';
+import { downloadCalendarEvent } from '@/lib/calendarExport';
 
 const TABS = [
   { id: 'basisdaten', name: 'Basisdaten', icon: BuildingOfficeIcon },
@@ -28,7 +29,7 @@ const TABS = [
   { id: 'protokolle', name: 'Protokolle & Vorlagen', icon: DocumentTextIcon },
   { id: 'system', name: 'System & Steuern', icon: ServerStackIcon },
   { id: 'audit', name: 'Aktivitäts-Logbuch (Audit)', icon: ClipboardDocumentListIcon },
-  { id: 'integration', name: 'Kalender (Outlook)', icon: CalendarIcon },
+  { id: 'integration', name: 'Kalender & Smartphone', icon: CalendarIcon },
 ];
 
 export default function SettingsPage() {
@@ -160,6 +161,7 @@ export default function SettingsPage() {
   const [newProtocolTemplate, setNewProtocolTemplate] = useState('');
   const [newEmployee, setNewEmployee] = useState('');
   const [newVehicle, setNewVehicle] = useState('');
+  const [isInvoiceNumberUnlocked, setIsInvoiceNumberUnlocked] = useState(false);
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
 
@@ -1316,33 +1318,100 @@ export default function SettingsPage() {
               </div>
           )}
 
-          {/* TAB: Integration (Kalender & APIs) */}
+          {/* TAB: Integration (Kalender & Smartphone) */}
           {activeTab === 'integration' && (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">Outlook Kalender-Integration</h2>
+              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">
+                Kalender-Integration (Outlook, Samsung & Smartphone)
+              </h2>
               <p className="text-sm text-text-muted mb-6">
-                Verknüpfe hier dein Microsoft Outlook Konto. Sobald ein Termin (Besichtigung/Umzug) in der App gespeichert wird, taucht er automatisch in Echtzeit in deinem Kalender auf.
+                Verwalte Termine, Umzüge und Besichtigungen nahtlos auf deinem Smartphone und in deinen gewohnten Kalender-Apps. Kein teures Microsoft 365 Enterprise-Abo nötig – 1-Klick Direktsynchronisation über den weltweiten Kalender-Standard (.ics).
               </p>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 
-                {/* Outlook Box */}
-                <div className="bg-bg-dark border border-structure p-6 rounded-xl relative overflow-hidden group">
+                {/* 1-Klick Kalender Standard Box */}
+                <div className="bg-bg-dark border border-structure p-6 rounded-2xl relative overflow-hidden group space-y-4">
                   <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                     <CalendarIcon className="w-24 h-24 text-blue-500" />
                   </div>
-                  <h3 className="text-lg font-bold text-text-main mb-2">Microsoft Outlook</h3>
-                  <p className="text-sm text-text-muted mb-6 relative z-10">
-                    Synchronisiert Termine direkt über die Microsoft Graph API in dein Outlook-Konto (Office 365 oder privat).
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <h3 className="text-lg font-bold text-text-main">Universal 1-Klick Kalender</h3>
+                  </div>
+                  <p className="text-sm text-text-muted relative z-10 leading-relaxed">
+                    Kompatibel mit <strong>Samsung Galaxy Kalender</strong>, <strong>Microsoft Outlook</strong> (App & Web), <strong>Google Kalender</strong> und <strong>Apple iOS / macOS</strong>.
                   </p>
+
+                  <div className="bg-bg-card p-3.5 rounded-xl border border-structure/60 space-y-2 text-xs text-text-muted">
+                    <div className="flex items-center gap-2 text-text-main font-semibold">
+                      <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Automatische Emojis &amp; Symbole (🚚 Umzug, 📋 Besichtigung, ⛔ HVZ)</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-text-main font-semibold">
+                      <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Google Maps Navigation direkt aus dem Kalender aufrufbar</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-text-main font-semibold">
+                      <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Klickbare Kunden-Telefonnummer für sofortige Anrufe</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-text-main font-semibold">
+                      <CheckIcon className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Volumen (m³), LKW- und Helfer-Einteilung im Beschreibungstext</span>
+                    </div>
+                  </div>
                   
-                  <div className="space-y-4 relative z-10">
-                    <p className="text-sm font-semibold text-emerald-400">Status: Verbunden</p>
-                    <button className="btn-secondary w-full flex items-center justify-center gap-2 border-blue-500/50 text-blue-400 hover:bg-blue-500/10">
-                      <LinkIcon className="w-5 h-5" /> Outlook Kalender neu synchronisieren
+                  <div className="pt-2 relative z-10 space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        downloadCalendarEvent({
+                          title: '🚚 Test-Umzug: Max Mustermann (#AU-TEST-001)',
+                          startDate: new Date().toISOString().split('T')[0],
+                          startTime: '08:00',
+                          durationHours: 6,
+                          location: 'A: Haydnstr. 16, 44805 Bochum ➔ B: Hauptstr. 10, 44787 Bochum',
+                          description: 'Test-Kalendereintrag aus der Rothirsch App.\nTelefon: +49 177 4652154\nVolumen: 35 m³\nDisposition: 3 Helfer • 1 LKW (3,5t)',
+                          category: 'Umzug'
+                        }, 'Test_Umzug_Rothirsch');
+                      }}
+                      className="btn-primary w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl shadow-md cursor-pointer"
+                    >
+                      <CalendarIcon className="w-4 h-4" />
+                      <span>Test-Termin jetzt in Kalender eintragen (.ics)</span>
                     </button>
+                    <p className="text-[11px] text-center text-text-muted">
+                      Tippe hierauf, um sofort zu sehen, wie dein Smartphone den Termin öffnet.
+                    </p>
                   </div>
 
+                </div>
+
+                {/* Smartphone Anleitung Box */}
+                <div className="bg-bg-dark border border-structure p-6 rounded-2xl relative overflow-hidden space-y-4">
+                  <h3 className="text-lg font-bold text-text-main mb-1">
+                    So funktioniert es auf deinem Smartphone
+                  </h3>
+                  <p className="text-xs text-text-muted leading-relaxed">
+                    Egal ob im Büro am PC oder unterwegs auf der Baustelle mit deinem Samsung-Handy:
+                  </p>
+
+                  <ol className="space-y-3 text-xs text-text-muted list-decimal list-inside leading-relaxed">
+                    <li className="p-2.5 rounded-xl bg-bg-card border border-structure/50">
+                      <strong className="text-text-main">1-Klick im Auftrag oder Cockpit:</strong> Bei jedem Auftrag, Termin oder in der Tages-Planung auf den Button <span className="text-blue-400 font-bold">„+ Kalender“</span> tippen.
+                    </li>
+                    <li className="p-2.5 rounded-xl bg-bg-card border border-structure/50">
+                      <strong className="text-text-main">Auswahl auf dem Samsung-Handy:</strong> Dein Handy fragt dich: <em>Mit Samsung Kalender oder Outlook öffnen?</em> Wähle deine bevorzugte App.
+                    </li>
+                    <li className="p-2.5 rounded-xl bg-bg-card border border-structure/50">
+                      <strong className="text-text-main">Speichern &amp; Fertig:</strong> Alle Kundendaten, Adressen, Zeiten und Notizen sind bereits eingetragen. Ein Klick auf <em>Speichern</em> reicht aus!
+                    </li>
+                  </ol>
+
+                  <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-[11px] text-blue-400">
+                    💡 <strong>Tipp:</strong> Auch in der Tages-Planung (<span className="font-semibold">Kalender &gt; Tages-Planung</span>) kannst du mit einem Klick alle Umzüge des Tages gesammelt auf einmal exportieren.
+                  </div>
                 </div>
 
               </div>
@@ -1358,55 +1427,146 @@ export default function SettingsPage() {
 
           {/* TAB: System */}
           {activeTab === 'system' && (
-            <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">System & Finanzen</h2>
-              <p className="text-sm text-text-muted mb-4">Globale Parameter für Berechnungen, Steuern und Nummernkreise.</p>
+            <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+              <div>
+                <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-2">System & Finanzen</h2>
+                <p className="text-sm text-text-muted">Globale Berechnungsfaktoren, Steuern, Nummernkreise und Systemverwaltung.</p>
+              </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-text-main mb-1">Standard Steuersatz (%)</label>
-                  <input type="number" value={settings.taxRate} onChange={e => handleChange('taxRate', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                </div>
-                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-text-main mb-1">Mahngebühr pro Stufe (€)</label>
-                  <input type="number" value={settings.dunningFee} onChange={e => handleChange('dunningFee', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                </div>
-                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-text-main mb-1">Angebotsgültigkeit (Tage)</label>
-                  <p className="text-xs text-text-muted mb-2">Angebote sind standardmäßig so viele Tage gültig.</p>
-                  <input type="number" value={settings.quoteValidDays} onChange={e => handleChange('quoteValidDays', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                </div>
-                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-text-main mb-1">Nächste Angebotsnummer (Start)</label>
-                  <p className="text-xs text-text-muted mb-2">Das nächste Angebot beginnt mit dieser Nummer.</p>
-                  <input type="number" value={settings.nextQuoteNumber} onChange={e => handleChange('nextQuoteNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                </div>
-                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-text-main mb-1">Nächste Auftragsnummer (Start)</label>
-                  <p className="text-xs text-text-muted mb-2">Der nächste bestätigte Auftrag beginnt mit dieser Nummer.</p>
-                  <input type="number" value={settings.nextOrderNumber || 1} onChange={e => handleChange('nextOrderNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
-                </div>
-                <div className="bg-bg-dark p-4 rounded-xl border border-structure">
-                  <label className="block text-sm font-medium text-text-main mb-1">Nächste Rechnungsnummer (Start)</label>
-                  <p className="text-xs text-text-muted mb-2">Die nächste Rechnung beginnt mit dieser Nummer.</p>
-                  <input type="number" value={settings.nextInvoiceNumber} onChange={e => handleChange('nextInvoiceNumber', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+              {/* SEKTION 1: Steuern & Zahlungsbedingungen */}
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted mb-3">Steuern & Zahlungskonditionen</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                    <label className="block text-sm font-medium text-text-main mb-1">Standard Steuersatz (%)</label>
+                    <input type="number" value={settings.taxRate} onChange={e => handleChange('taxRate', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                  </div>
+                  <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                    <label className="block text-sm font-medium text-text-main mb-1">Mahngebühr pro Stufe (€)</label>
+                    <input type="number" value={settings.dunningFee} onChange={e => handleChange('dunningFee', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                  </div>
+                  <div className="bg-bg-dark p-4 rounded-xl border border-structure">
+                    <label className="block text-sm font-medium text-text-main mb-1">Angebotsgültigkeit (Tage)</label>
+                    <input type="number" value={settings.quoteValidDays} onChange={e => handleChange('quoteValidDays', Number(e.target.value))} className="input-field w-full bg-bg-panel" />
+                  </div>
                 </div>
               </div>
 
-              {/* DEVELOPER BEREICH (TESTPHASE) */}
-              <div className="mt-12 border-t border-red-500/20 pt-8">
+              {/* SEKTION 2: Nummernkreise (Startwerte) */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-text-muted">Nummernkreise & Belegnummern</h3>
+                    <p className="text-xs text-text-muted">Hier kannst du festlegen, mit welcher Startnummer neue Angebote, Aufträge und Rechnungen beginnen sollen (z.B. bei Systemwechsel).</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  {/* ANGEBOTSNUMMER */}
+                  <div className="bg-bg-dark p-4 rounded-xl border border-structure flex flex-col justify-between">
+                    <div>
+                      <label className="block text-sm font-medium text-text-main mb-1">Nächste Angebotsnummer (Start)</label>
+                      <p className="text-xs text-text-muted mb-2">Das nächste erstellte Angebot beginnt mit dieser Nummer.</p>
+                      <input 
+                        type="number" 
+                        value={settings.nextQuoteNumber} 
+                        onChange={e => handleChange('nextQuoteNumber', Number(e.target.value))} 
+                        className="input-field w-full bg-bg-panel font-mono text-base font-semibold" 
+                      />
+                    </div>
+                    <div className="mt-3 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-500 flex items-start gap-1.5">
+                      <span className="text-xs">⚠️</span>
+                      <span>Änderungen an der Startnummer werden erst nach Klick auf <strong>„Speichern“</strong> oben rechts wirksam.</span>
+                    </div>
+                  </div>
+
+                  {/* AUFTRAGSNUMMER */}
+                  <div className="bg-bg-dark p-4 rounded-xl border border-structure flex flex-col justify-between">
+                    <div>
+                      <label className="block text-sm font-medium text-text-main mb-1">Nächste Auftragsnummer (Start)</label>
+                      <p className="text-xs text-text-muted mb-2">Der nächste bestätigte Auftrag beginnt mit dieser Nummer.</p>
+                      <input 
+                        type="number" 
+                        value={settings.nextOrderNumber || 1} 
+                        onChange={e => handleChange('nextOrderNumber', Number(e.target.value))} 
+                        className="input-field w-full bg-bg-panel font-mono text-base font-semibold" 
+                      />
+                    </div>
+                    <p className="text-[11px] text-text-muted mt-3">
+                      Wird bei Bestätigung eines Angebots zum Auftrag automatisch hochgezählt.
+                    </p>
+                  </div>
+
+                  {/* RECHNUNGSNUMMER (GESCHÜTZT MIT FREISCHALTUNG) */}
+                  <div className={`p-4 rounded-xl border transition-all flex flex-col justify-between ${
+                    isInvoiceNumberUnlocked 
+                      ? 'bg-bg-dark border-primary/50 shadow-md shadow-primary/5' 
+                      : 'bg-bg-dark/70 border-structure'
+                  }`}>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-sm font-medium text-text-main flex items-center gap-1.5">
+                          <span>Nächste Rechnungsnummer</span>
+                          {!isInvoiceNumberUnlocked && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-structure text-text-muted border border-structure font-normal">
+                              🔒 Geschützt
+                            </span>
+                          )}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setIsInvoiceNumberUnlocked(prev => !prev)}
+                          className="text-xs text-primary hover:underline font-medium"
+                        >
+                          {isInvoiceNumberUnlocked ? '✓ Sperren' : '✏️ Anpassen'}
+                        </button>
+                      </div>
+                      <p className="text-xs text-text-muted mb-2">
+                        {isInvoiceNumberUnlocked 
+                          ? 'Freigeschaltet: Gib deine gewünschte Start-Rechnungsnummer ein.' 
+                          : 'Gegen versehentliches Ändern gesperrt. Klicke „Anpassen“ zum Bearbeiten.'}
+                      </p>
+                      <input 
+                        type="number" 
+                        disabled={!isInvoiceNumberUnlocked}
+                        value={settings.nextInvoiceNumber} 
+                        onChange={e => handleChange('nextInvoiceNumber', Number(e.target.value))} 
+                        className={`input-field w-full font-mono text-base font-semibold ${
+                          !isInvoiceNumberUnlocked 
+                            ? 'bg-bg-panel/40 border-dashed text-text-muted cursor-not-allowed opacity-75' 
+                            : 'bg-bg-panel border-primary ring-1 ring-primary/40'
+                        }`} 
+                      />
+                    </div>
+
+                    {isInvoiceNumberUnlocked ? (
+                      <div className="mt-3 p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-500 flex items-start gap-1.5">
+                        <span className="text-xs">⚠️</span>
+                        <span>Startnummer angepasst: Bitte unbedingt oben rechts auf <strong>„Speichern“</strong> klicken.</span>
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-text-muted mt-3">
+                        Klicke oben auf <span className="text-primary font-medium">„Anpassen“</span>, falls du z.B. bei Rechnung 46 starten möchtest.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* SEKTION 3: Entwickler-Bereich (Datenbank-Reset) */}
+              <div className="border-t border-red-500/20 pt-6">
                 <div className="bg-red-500/5 border border-red-500/30 rounded-xl p-6 relative overflow-hidden">
                   <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
                   <h3 className="text-lg font-bold text-red-400 mb-2 flex items-center gap-2">
                     <ExclamationTriangleIcon className="w-5 h-5" />
-                    Entwickler-Bereich (Testphase)
+                    Datenbank zurücksetzen &amp; Testdaten leeren
                   </h3>
                   <p className="text-sm text-text-muted mb-6 max-w-2xl">
-                    Löscht unwiderruflich alle Kunden, Aufträge und Rechnungen. Nur für die Testphase. Nummernkreise werden auf 1 zurückgesetzt.
+                    Löscht alle erstellten Kunden, Angebote, Rechnungen und Testdokumente unwiderruflich aus der Datenbank und setzt alle Nummernkreise auf 1 zurück. Deine Grundeinstellungen (Texte, Kontaktdaten, Steuersätze) bleiben erhalten.
                   </p>
                   <button 
                     onClick={() => setShowResetModal(true)}
-                    className="btn-primary bg-red-600 hover:bg-red-700 text-white border-none"
+                    className="btn-primary bg-red-600 hover:bg-red-700 text-white border-none shadow-lg shadow-red-600/20"
                   >
                     Datenbank komplett zurücksetzen
                   </button>

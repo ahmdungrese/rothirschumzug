@@ -17,6 +17,7 @@ import { updateTaskSchedule } from '@/lib/taskStateController';
 import toast from 'react-hot-toast';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 import { triggerHaptic } from '@/lib/haptics';
+import { exportTaskToCalendar } from '@/lib/calendarExport';
 
 interface TaskScheduleModalProps {
   isOpen: boolean;
@@ -197,6 +198,14 @@ export function TaskScheduleModal({
     );
 
     window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
+  };
+
+  const handleExportToCalendar = () => {
+    if (!date) {
+      toast.error('Bitte zuerst ein Datum auswählen.');
+      return;
+    }
+    exportTaskToCalendar(todo.id, parentOrder, date, time, location as any);
   };
 
   const getTaskTitle = () => {
@@ -562,17 +571,30 @@ export function TaskScheduleModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex items-center justify-between gap-3">
-          <button
-            type="button"
-            onClick={handleSendWhatsApp}
-            className="px-3.5 py-2.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 text-xs font-bold flex items-center gap-1.5 transition-colors"
-          >
-            <ChatBubbleLeftRightIcon className="w-4 h-4 text-emerald-600" />
-            <span>Kunde informieren</span>
-          </button>
+        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex items-center justify-between gap-2 sm:gap-3 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handleSendWhatsApp}
+              className="px-3 py-2 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Kunde per WhatsApp benachrichtigen"
+            >
+              <ChatBubbleLeftRightIcon className="w-4 h-4 text-emerald-600" />
+              <span className="hidden sm:inline">WhatsApp</span>
+            </button>
 
-          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleExportToCalendar}
+              className="px-3 py-2 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 hover:bg-blue-100 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="In Outlook / Samsung Kalender eintragen"
+            >
+              <CalendarDaysIcon className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span>In Kalender</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 ml-auto">
             <button
               type="button"
               onClick={onClose}
