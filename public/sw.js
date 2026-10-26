@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rothirsch-erp-v2.16.2';
+const CACHE_NAME = 'rothirsch-erp-v2.16.3';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -25,6 +25,10 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Non-GET requests and API calls must bypass the service worker cache
+  if (event.request.method !== 'GET' || event.request.url.includes('/api/')) {
+    return;
+  }
   // We use network first, fallback to cache for PWA offline criteria
   event.respondWith(
     fetch(event.request).catch(() => {

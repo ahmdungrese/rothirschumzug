@@ -30,7 +30,16 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.16.2 (Current) – Universal Native Validation Shield & Service Worker Cache Purge
+### Version 2.16.3 (Current) – Resilient Online PIN Verification & Service Worker API Bypass
+*   **Resilient Online PIN Verification Engine (`/api/admin/verify-pin`)**:
+    *   Added JWT session fallback decoding: If Google Cloud Firebase Admin credentials (`FIREBASE_SERVICE_ACCOUNT_KEY`) are uninitialized in serverless/cloud environments, the endpoint now safely decodes and validates non-expired client JWTs instead of crashing with HTTP 500.
+    *   Defensive Firestore check: Non-blocking role evaluation that supports tester, admin, and office roles while preserving brute-force rate-limiting (5 attempts / 10-minute lock).
+*   **Service Worker API & Method Bypass (`public/sw.js`)**:
+    *   Explicitly bypassed all `/api/*` routes and non-GET requests in the Service Worker fetch listener, preventing PWA offline cache errors on POST requests.
+*   **Settings PIN Protection Ergonomics (`settings/page.tsx`)**:
+    *   Added session verification (`auth.currentUser`), safe JSON parsing, and a visual loading state ("Prüfe...") to prevent UI lockups and double-submissions.
+
+### Version 2.16.2 – Universal Native Validation Shield & Service Worker Cache Purge
 *   **Password Field App DNA Parity & Browser Popup Shield (`src/app/page.tsx`)**:
     *   Added explicit `onInvalid={(e) => e.preventDefault()}` on `<form>` and input elements to defensively suppress all native browser validation balloons.
     *   Configured `autoComplete="off"`, `data-lpignore="true"`, and `spellCheck={false}` to prevent third-party credential managers and browser suggestion bubbles from overlaying input fields.

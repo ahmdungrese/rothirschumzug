@@ -164,6 +164,53 @@ export default function SettingsPage() {
   // PIN Protection State
   const [isSystemUnlocked, setIsSystemUnlocked] = useState(false);
   const [pinInput, setPinInput] = useState('');
+  const [isVerifyingPin, setIsVerifyingPin] = useState(false);
+
+  const handleUnlockSystem = async () => {
+    const trimmedPin = pinInput.trim();
+    if (!trimmedPin || isVerifyingPin) return;
+    
+    setIsVerifyingPin(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        toast.error('Keine aktive Benutzersitzung. Bitte laden Sie die Seite neu.');
+        setIsVerifyingPin(false);
+        return;
+      }
+
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/admin/verify-pin', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${idToken}` 
+        },
+        body: JSON.stringify({ pin: trimmedPin, scope: 'system' })
+      });
+
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (res.ok && data?.valid) {
+        setIsSystemUnlocked(true);
+        setPinInput('');
+        toast.success('Systembereich erfolgreich entsperrt!');
+      } else {
+        const errorMsg = data?.error || (res.status === 403 ? 'Zugriff verweigert: Falscher PIN oder keine Admin-Rechte.' : 'Falscher PIN!');
+        toast.error(errorMsg);
+      }
+    } catch (err: any) {
+      console.error('PIN verification error:', err);
+      toast.error('Server nicht erreichbar oder Netzwerkfehler bei der PIN-Prüfung.');
+    } finally {
+      setIsVerifyingPin(false);
+    }
+  };
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
 
@@ -1375,57 +1422,31 @@ export default function SettingsPage() {
                     <input 
                       type="password" 
                       value={pinInput}
+                      disabled={isVerifyingPin}
                       onChange={e => setPinInput(e.target.value)}
                       onKeyDown={async e => {
-                        if (e.key === 'Enter' && pinInput.trim()) {
-                          try {
-                            const idToken = await auth.currentUser?.getIdToken();
-                            const res = await fetch('/api/admin/verify-pin', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-                              body: JSON.stringify({ pin: pinInput.trim(), scope: 'system' })
-                            });
-                            const data = await res.json();
-                            if (res.ok && data.valid) {
-                              setIsSystemUnlocked(true);
-                              setPinInput('');
-                            } else {
-                              toast.error(data.error || 'Falsche PIN!');
-                            }
-                          } catch {
-                            toast.error('Fehler bei der PIN-Prüfung.');
-                          }
+                        if (e.key === 'Enter') {
+                          await handleUnlockSystem();
                         }
                       }}
-                      className="input-field text-center w-32 tracking-widest font-mono text-xl" 
+                      className="input-field text-center w-32 tracking-widest font-mono text-xl disabled:opacity-50" 
                       maxLength={4} 
                       placeholder="****"
                       autoFocus
                     />
                     <button 
-                      onClick={async () => {
-                        if (!pinInput.trim()) return;
-                        try {
-                          const idToken = await auth.currentUser?.getIdToken();
-                          const res = await fetch('/api/admin/verify-pin', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${idToken}` },
-                            body: JSON.stringify({ pin: pinInput.trim(), scope: 'system' })
-                          });
-                          const data = await res.json();
-                          if (res.ok && data.valid) {
-                            setIsSystemUnlocked(true);
-                            setPinInput('');
-                          } else {
-                            toast.error(data.error || 'Falsche PIN!');
-                          }
-                        } catch {
-                          toast.error('Fehler bei der PIN-Prüfung.');
-                        }
-                      }} 
-                      className="btn-primary"
+                      onClick={handleUnlockSystem} 
+                      disabled={isVerifyingPin || !pinInput.trim()}
+                      className="btn-primary disabled:opacity-50 flex items-center gap-2"
                     >
-                      Entsperren
+                      {isVerifyingPin ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span>Prüfe...</span>
+                        </>
+                      ) : (
+                        'Entsperren'
+                      )}
                     </button>
                   </div>
                 </div>
