@@ -30,7 +30,18 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.19.0 (Current) – Teamleiter Moving Assignment, Personalized Calendar Dispatch & Zero-Price Laufzettel Engine
+### Version 2.19.1 (Current) – Synchronous Role Guard, Zero-Flash Route Protection & Teamleiter Access Shield
+*   **Zero-Flash Synchronous Role Guard (`dashboard/layout.tsx`, `dashboard/page.tsx`)**:
+    *   Eliminated the "Flash of Unauthorized Content" (وميض المحتوى غير المصرح به) where accessing `/dashboard` as a Teamleiter rendered the Kanban board for a fraction of a second prior to redirecting.
+    *   Replaced post-mount `useEffect` redirection with synchronous permission evaluation before rendering `children`.
+    *   Added double-layer defensive shield in `dashboard/page.tsx`: directly returns `null` if `profile.role === 'teamlead'`.
+*   **Professional "Zugriff eingeschränkt" Guard Banner (`dashboard/layout.tsx`)**:
+    *   Renders an immediate, elegant access restriction card explaining role limitations when unpermitted URLs are accessed.
+    *   Displays role-aware explanation and automatically transitions the user to their authorized operational hub (`/dashboard/calendar` for Teamleiters, `/dashboard` for Office assistants) with an instant manual bypass button.
+*   **Authorized Teamleiter Scope Expansion (`dashboard/layout.tsx`)**:
+    *   Allowed Teamleiters to directly navigate to `/dashboard/customers` and their assigned customer profiles to view routes, inventory, and Laufzettels without getting bounced back to the calendar.
+
+### Version 2.19.0 – Teamleiter Moving Assignment, Personalized Calendar Dispatch & Zero-Price Laufzettel Engine
 *   **Teamleiter Order Assignment Hub (`CustomerPremiumProfile.tsx`, `OrderDetailsDrawer.tsx`)**:
     *   Added dedicated, elegant Teamleiter assignment card on the customer profile page and inside the logistics cockpit drawer.
     *   Disponents can assign any active move to a specific registered `Teamleiter` (or Admin) from a clean dropdown selector.

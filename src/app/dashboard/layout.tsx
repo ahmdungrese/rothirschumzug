@@ -19,24 +19,46 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user, loading, router]);
 
-  // Route-Protection nach Benutzerrollen (Verhindert unberechtigte Zugriffe und Berechtigungsfehler)
-  useEffect(() => {
-    if (!loading && user && profile?.role) {
-      if (profile.role === 'teamlead') {
-        const allowedPaths = ['/dashboard/calendar', '/dashboard/manual'];
-        const isAllowed = allowedPaths.some(p => pathname === p || pathname.startsWith(p + '/'));
-        if (!isAllowed) {
-          router.replace('/dashboard/calendar');
-        }
-      } else if (profile.role === 'office') {
-        const adminOnlyPaths = ['/dashboard/settings', '/dashboard/statistics', '/dashboard/archive'];
-        const isForbidden = adminOnlyPaths.some(p => pathname === p || pathname.startsWith(p + '/'));
-        if (isForbidden) {
-          router.replace('/dashboard');
-        }
+  // Synchronous Role Guard Check: Verhindert jegliches Aufblitzen (Flash) unberechtigter Seiten
+  const isTeamLead = profile?.role === 'teamlead';
+  const isOffice = profile?.role === 'office';
+
+  let isForbidden = false;
+  let redirectTarget = '/dashboard/calendar';
+  let roleTitle = 'Teamleiter';
+  let roleTargetName = 'Kalender';
+
+  if (!loading && user && profile?.role) {
+    if (isTeamLead) {
+      const allowedPaths = ['/dashboard/calendar', '/dashboard/manual', '/dashboard/customers'];
+      const isAllowed = allowedPaths.some(p => pathname === p || pathname.startsWith(p + '/'));
+      if (!isAllowed) {
+        isForbidden = true;
+        redirectTarget = '/dashboard/calendar';
+        roleTitle = 'Teamleiter';
+        roleTargetName = 'Kalender';
+      }
+    } else if (isOffice) {
+      const adminOnlyPaths = ['/dashboard/settings', '/dashboard/statistics', '/dashboard/archive'];
+      const forbidden = adminOnlyPaths.some(p => pathname === p || pathname.startsWith(p + '/'));
+      if (forbidden) {
+        isForbidden = true;
+        redirectTarget = '/dashboard';
+        roleTitle = 'Büromitarbeiter';
+        roleTargetName = 'Dashboard';
       }
     }
-  }, [user, profile, loading, pathname, router]);
+  }
+
+  // Automatische Weiterleitung nach kurzer Anzeige der Hinweismeldung
+  useEffect(() => {
+    if (!loading && user && isForbidden) {
+      const timer = setTimeout(() => {
+        router.replace(redirectTarget);
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, user, isForbidden, redirectTarget, router]);
 
   // Track client-side navigation history in sessionStorage so SmartBackButton always knows real origin
   useEffect(() => {
@@ -151,10 +173,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-5 lg:p-8 pb-6 md:pb-8">
-          <div className={isMainDashboard ? "w-full" : "max-w-7xl mx-auto"}>
-            {children}
-          </div>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-5 lg:p-8 pb-6 md:pb-8 flex flex-col">
+          {isForbidden ? (
+            <div className="flex-1 flex items-center justify-center p-4">
+              <div className="max-w-md w-full mx-auto p-6 md:p-8 rounded-3xl bg-bg-card border border-structure shadow-lg text-center space-y-4 animate-in fade-in">
+                <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-500 flex items-center justify-center mx-auto">
+                  <span className="material-symbols-outlined text-3xl">lock_person</span>
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-text-main font-headline">
+                    Zugriff eingeschränkt (Keine Berechtigung)
+                  </h2>
+                  <p className="text-xs text-text-muted mt-1.5 leading-relaxed">
+                    Als <strong>{roleTitle}</strong> haben Sie keinen Zugriff auf diesen Bereich. Sie werden automatisch zu Ihrem freigegebenen Arbeitsbereich ({roleTargetName}) weitergeleitet.
+                  </p>
+                </div>
+                
+                <div className="p-3 rounded-2xl bg-bg-panel border border-structure/60 text-xs text-text-muted flex items-center justify-center gap-2">
+                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-t-2 border-b-2 border-primary shrink-0" />
+                  <span>Weiterleitung zum {roleTargetName}...</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => router.replace(redirectTarget)}
+                  className="btn-primary w-full py-2.5 text-xs font-bold rounded-xl flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                >
+                  <span>Jetzt zum {roleTargetName} wechseln</span>
+                  <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className={isMainDashboard ? "w-full" : "max-w-7xl mx-auto"}>
+              {children}
+            </div>
+          )}
         </main>
         <BottomNav />
       </div>
