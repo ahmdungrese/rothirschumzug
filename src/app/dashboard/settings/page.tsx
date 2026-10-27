@@ -320,9 +320,24 @@ export default function SettingsPage() {
       if (!Array.isArray(data.paymentMethods) || data.paymentMethods.length === 0) {
         data.paymentMethods = MASTER_PAYMENT_METHODS.map(pm => ({ ...pm }));
       } else {
-        const hasDefault = data.paymentMethods.some((pm: any) => pm.isDefault);
-        if (!hasDefault && data.paymentMethods[0]) {
-          data.paymentMethods[0].isDefault = true;
+        const barzahlungPm = data.paymentMethods.find((pm: any) => pm.name === 'Barzahlung');
+        const legacyDefaultIsUeberweisung = data.paymentMethods[0]?.name === 'Überweisung' && !data.defaultPaymentMethodExplicitlyChanged;
+        
+        if (legacyDefaultIsUeberweisung && barzahlungPm) {
+          data.paymentMethods = data.paymentMethods.map((pm: any) => ({
+            ...pm,
+            isDefault: pm.name === 'Barzahlung'
+          }));
+          data.paymentMethods.sort((a: any, b: any) => (b.name === 'Barzahlung' ? 1 : 0) - (a.name === 'Barzahlung' ? 1 : 0));
+        } else {
+          const hasDefault = data.paymentMethods.some((pm: any) => pm.isDefault);
+          if (!hasDefault) {
+            if (barzahlungPm) {
+              barzahlungPm.isDefault = true;
+            } else if (data.paymentMethods[0]) {
+              data.paymentMethods[0].isDefault = true;
+            }
+          }
         }
       }
 
@@ -634,9 +649,10 @@ export default function SettingsPage() {
   const loadSamplePaymentMethods = () => {
     setSettings((prev: any) => ({
       ...prev,
-      paymentMethods: MASTER_PAYMENT_METHODS.map(pm => ({ ...pm }))
+      paymentMethods: MASTER_PAYMENT_METHODS.map(pm => ({ ...pm })),
+      defaultPaymentMethodExplicitlyChanged: true
     }));
-    toast.success("Standard-Zahlungsarten (Überweisung, Barzahlung, Echtzeit) geladen! Bitte oben auf Speichern klicken.");
+    toast.success("Standard-Zahlungsarten (Barzahlung, Überweisung, Echtzeit) geladen! Bitte oben auf Speichern klicken.");
   };
 
   const setDefaultPaymentMethod = (indexToDefault: number) => {
@@ -650,6 +666,7 @@ export default function SettingsPage() {
 
     const reorderedPms = [targetPm, ...otherPms];
     handleChange('paymentMethods', reorderedPms);
+    handleChange('defaultPaymentMethodExplicitlyChanged', true);
     toast.success(`"${targetPm.name}" als Standard-Zahlungsart festgelegt!`);
   };
 
@@ -2627,7 +2644,7 @@ export default function SettingsPage() {
                         />
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        {pm.isDefault || idx === 0 ? (
+                        {pm.isDefault || (idx === 0 && !settings.paymentMethods?.some((p: any) => p.isDefault)) ? (
                           <span className="text-xs px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-bold flex items-center gap-1 shadow-2xs">
                             <StarIcon className="w-3.5 h-3.5 fill-emerald-500 text-emerald-500" />
                             <span>Standard</span>

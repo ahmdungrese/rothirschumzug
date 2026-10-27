@@ -174,7 +174,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
   const [orderMeta, setOrderMeta] = useState({
     invoiceDate: new Date().toISOString().split('T')[0],
     validUntil: '',
-    paymentMethod: '',
+    paymentMethod: 'Barzahlung',
     manager: profile?.displayName || ''
   });
 
@@ -259,9 +259,12 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
         if (outro) setTexts(t => ({...t, quoteOutro: outro}));
         
         if (!orderId && !sourceOrderId && s.paymentMethods && s.paymentMethods.length > 0) {
-          const defaultPm = s.paymentMethods.find((p: any) => p.isDefault) || s.paymentMethods[0];
-          setOrderMeta(prev => ({...prev, paymentMethod: defaultPm.name}));
-          setTexts(t => ({...t, paymentTerms: defaultPm.textInvoice || defaultPm.textQuote || ''}));
+          const defaultPm = s.paymentMethods.find((p: any) => p.isDefault && (p.name === 'Barzahlung' || s.defaultPaymentMethodExplicitlyChanged))
+            || s.paymentMethods.find((p: any) => p.name === 'Barzahlung')
+            || s.paymentMethods.find((p: any) => p.isDefault)
+            || s.paymentMethods[0];
+          setOrderMeta(prev => ({...prev, paymentMethod: defaultPm?.name || 'Barzahlung'}));
+          setTexts(t => ({...t, paymentTerms: defaultPm?.textInvoice || defaultPm?.textQuote || ''}));
         }
       }
 

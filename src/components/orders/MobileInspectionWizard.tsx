@@ -74,7 +74,7 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
   
   // 2. Termine
   const [orderMeta, setOrderMeta] = useState<any>({
-    movingDateFrom: '', movingDateTo: '', validUntil: '', manager: '', paymentMethod: '', viewingDate: '', viewingTime: '',
+    movingDateFrom: '', movingDateTo: '', validUntil: '', manager: '', paymentMethod: 'Barzahlung', viewingDate: '', viewingTime: '',
     hvzMethod: 'selbst', hvzMethodA: 'selbst', hvzMethodB: 'selbst', hvzLocation: 'a',
     halteverbotDate: '', halteverbotTime: '',
     halteverbotDateA: '', halteverbotTimeA: '',
@@ -280,10 +280,14 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
           const validDate = new Date();
           validDate.setDate(validDate.getDate() + days);
           const validUntilStr = !isNaN(validDate.getTime()) ? validDate.toISOString().split('T')[0] : '';
+          const defaultPm = s.paymentMethods?.find((p: any) => p.isDefault && (p.name === 'Barzahlung' || s.defaultPaymentMethodExplicitlyChanged)) 
+            || s.paymentMethods?.find((p: any) => p.name === 'Barzahlung')
+            || s.paymentMethods?.find((p: any) => p.isDefault) 
+            || s.paymentMethods?.[0];
           setOrderMeta((prev: any) => ({ 
-            ...prev, manager: s.contacts?.[0] || '', paymentMethod: s.paymentMethods?.[0]?.name || '', validUntil: validUntilStr
+            ...prev, manager: s.contacts?.[0] || '', paymentMethod: defaultPm?.name || 'Barzahlung', validUntil: validUntilStr
           }));
-          setTexts({ quoteIntro: s.texts?.quoteIntro || '', paymentTerms: s.paymentMethods?.[0]?.textQuote || '', quoteOutro: s.texts?.quoteGreeting || '' });
+          setTexts({ quoteIntro: s.texts?.quoteIntro || '', paymentTerms: defaultPm?.textQuote || '', quoteOutro: s.texts?.quoteGreeting || '' });
         }
       }
     });

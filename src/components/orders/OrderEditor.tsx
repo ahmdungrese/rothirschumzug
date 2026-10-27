@@ -22,6 +22,7 @@ import { withDbTimeout, formatFriendlyError } from '@/lib/networkWatchdog';
 import { modalManager } from '@/lib/modalManager';
 import { FIXED_KEYS, getFixedKey, hasFixedService, isRemovalLocked, applyHvzToServices, applyLiftToServices, ensureTransportService, fixedLine, resolveFixedDefs, type FixedServiceKey, PAIRED_DEFINITIONS, getPairedRole } from '@/lib/serviceKeys';
 import { ShowcaseServiceItem, DEFAULT_SHOWCASE_SERVICES, AVAILABLE_SHOWCASE_ICONS } from '@/lib/showcaseDefaults';
+import { MASTER_PAYMENT_METHODS } from '@/lib/paymentDefaults';
 
 const getPropertyIcon = (type: string) => {
   const t = (type || '').toLowerCase();
@@ -638,7 +639,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     estimatedDuration: '',
     validUntil: '',
     manager: '',
-    paymentMethod: '',
+    paymentMethod: 'Barzahlung',
     viewingType: '', // 'vor_ort' | 'online' | 'fotos' | ''
     viewingDate: '',
     viewingTime: '',
@@ -1908,7 +1909,14 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           const validDate = new Date();
           validDate.setDate(validDate.getDate() + days);
           
-          const defaultPm = s.paymentMethods?.find((p: any) => p.isDefault) || s.paymentMethods?.[0];
+          const defaultPm = s.paymentMethods?.find((p: any) => p.isDefault && (p.name === 'Barzahlung' || s.defaultPaymentMethodExplicitlyChanged))
+            || s.paymentMethods?.find((p: any) => p.name === 'Barzahlung')
+            || s.paymentMethods?.find((p: any) => p.isDefault)
+            || s.paymentMethods?.[0];
+
+          const defaultPmName = defaultPm?.name || 'Barzahlung';
+          const defaultPmTerms = defaultPm?.textQuote || MASTER_PAYMENT_METHODS.find(m => m.name === 'Barzahlung')?.textQuote || '';
+
           const loggedInName = profile?.displayName?.trim() || '';
           const defaultManager = (loggedInName && s.contacts?.includes(loggedInName))
             ? loggedInName
@@ -1917,12 +1925,12 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           setOrderMeta((prev: any) => ({ 
             ...prev, 
             manager: defaultManager, 
-            paymentMethod: defaultPm?.name || s.paymentMethods?.[0]?.name || '',
+            paymentMethod: defaultPmName,
             validUntil: validDate.toISOString().split('T')[0]
           }));
           setTexts({
             quoteIntro: s.texts?.quoteIntro || '',
-            paymentTerms: defaultPm?.textQuote || s.paymentMethods?.[0]?.textQuote || '',
+            paymentTerms: defaultPmTerms,
             quoteOutro: s.texts?.quoteGreeting || ''
           });
           setServices(prev => ensureTransportService(prev, s));

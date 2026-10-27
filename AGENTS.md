@@ -30,7 +30,14 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.24.0 (Current) – Smart Auto-Save Drafts, Firestore Auto-Draft Deletion & 3-Way Besichtigung Selector
+### Version 2.24.1 (Current) – Default Payment Method "Barzahlung" & Smart Fallback
+*   **Default Payment Method Barzahlung (`paymentDefaults.ts`, `OrderEditor.tsx`, `InvoiceEditor.tsx`, `settings/page.tsx`, `MobileInspectionWizard.tsx`)**:
+    *   **Barzahlung as Universal Default**: Reordered `MASTER_PAYMENT_METHODS` so `Barzahlung` is the primary entry with `isDefault: true` (and `dueDays: 0`, "Am Umzugstag"), while `Überweisung` is set to `isDefault: false`.
+    *   **New Offer Auto-Selection (`OrderEditor.tsx`)**: When creating a new offer (`orderId` is absent), `orderMeta.paymentMethod` initializes to `'Barzahlung'`, and the payment terms automatically load the standard cash payment phrasing (`quoteTerms`), matching AGB § 3 ("Die Zahlung in bar erfolgt direkt nach Abschluss des Umzugs").
+    *   **Legacy Settings Migration Guard (`settings/page.tsx`)**: Upgraded the settings loader to intelligently upgrade legacy default configurations (where `Überweisung` was default only due to initial template seeding) to `Barzahlung`, while fully respecting any explicit custom default selection made by the administrator (`defaultPaymentMethodExplicitlyChanged`).
+    *   **Cross-System Consistency**: Synchronized default payment method selection across `InvoiceEditor.tsx` and `MobileInspectionWizard.tsx`.
+
+### Version 2.24.0 – Smart Auto-Save Drafts, Firestore Auto-Draft Deletion & 3-Way Besichtigung Selector
 *   **Smart Auto-Save Draft Engine (`OrderEditor.tsx`)**:
     *   **Rule 1 (`Nachname` + `Umzugsdatum`)**: In Step 1 (`Auftragsdetails`), as soon as customer `lastName` (or company) AND `movingDateFrom` are entered, the system triggers a silent, debounced auto-save to Firestore as `status: 'draft'`, creating or updating the order document and customer profile in the background without UI interruption.
     *   **Rule 2 (`Weiter` Auto-Save Progression)**: When advancing to any forward step (e.g. Step 1 ➔ Step 2, 2 ➔ 3, etc.), clicking `Weiter` automatically saves all entered data to Firestore as a draft, ensuring zero data loss even if the move date has not been specified yet.
