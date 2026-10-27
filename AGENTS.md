@@ -30,7 +30,68 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.22.0 (Current) – Smart Paired Services Consolidation, Mobile-First Preiskalkulation Tabs, Zero-Preset Boxes & Master Catalog Reset
+### Version 2.24.0 (Current) – Smart Auto-Save Drafts, Firestore Auto-Draft Deletion & 3-Way Besichtigung Selector
+*   **Smart Auto-Save Draft Engine (`OrderEditor.tsx`)**:
+    *   **Rule 1 (`Nachname` + `Umzugsdatum`)**: In Step 1 (`Auftragsdetails`), as soon as customer `lastName` (or company) AND `movingDateFrom` are entered, the system triggers a silent, debounced auto-save to Firestore as `status: 'draft'`, creating or updating the order document and customer profile in the background without UI interruption.
+    *   **Rule 2 (`Weiter` Auto-Save Progression)**: When advancing to any forward step (e.g. Step 1 ➔ Step 2, 2 ➔ 3, etc.), clicking `Weiter` automatically saves all entered data to Firestore as a draft, ensuring zero data loss even if the move date has not been specified yet.
+    *   **Rule 3 (Draft Hygiene Guard)**: If only the customer name is entered without a move date and without clicking `Weiter`, the system refrains from creating premature incomplete records in Firestore, leaving manual persistence to `Entwurf speichern & Beenden`.
+*   **Firestore Auto-Draft Discard & Clean Exit Modal (`OrderEditor.tsx`, `activityLogger.ts`)**:
+    *   **Trash Container Action (`Entwurf verwerfen & endgültig löschen`)**: Integrated a red trash container micro-action both in the top header and bottom docked bar (`TrashIcon`).
+    *   **Strictly German In-App Modal**: Completely purged Arabic strings from the confirmation dialogs (`showCancelModal`, `showNoServicesModal`). Texts are 100% German.
+    *   **Firestore Draft Purging**: Clicking `Entwurf verwerfen & endgültig löschen` permanently deletes any auto-saved draft order document from Firestore (`deleteDoc`) and purges `localStorage`, preventing orphaned ghost drafts in the database.
+*   **Segmented 3-Way Besichtigung Selector (`OrderEditor.tsx`, `CustomerPremiumProfile.tsx`, `OrderDetailsDrawer.tsx`)**:
+    *   **Ultra-Compact Segmented Pill Selector**: Replaced the legacy single button with an ergonomic 4-option pill bar: `[ 📍 Vor-Ort ]`, `[ 📹 Video-Call ]`, `[ 📷 Fotos & Liste ]`, and `[ ✕ Keine ]`, taking minimal vertical space.
+    *   **Online Video-Call Support**: Selecting `Video-Call` schedules a dedicated online appointment (`viewingType: 'online'`) with date and time pickers, displaying a purple-tinted badge: `Online via WhatsApp Video / FaceTime`.
+    *   **Vor-Ort vs Video Distinction**: Customer Profile and Cockpit distinctly identify online video appointments with a purple `Video-Call` badge, avoiding misleading road travel to the loading address and seamlessly integrating with calendar export and video-call communication templates.
+
+### Version 2.23.0 – Unified Communication Engine, In-Flow Smart Catalog Addition & Streamlined Selection
+*   **Dynamic Cartons & Packaging Material Management (`settings/page.tsx`, `KartonConfigModal.tsx`, `OrderEditor.tsx`)**:
+    *   **Custom Carton Naming & Pricing**: Carton labels in `Einstellungen > Leistungskatalog` are now fully editable input fields (`settings.kartonNames`), allowing custom naming and prices for all box types (S, M, L, XL, Bücher, Kleider).
+    *   **Custom Packaging Material (`settings.packmaterials`)**: Added dedicated `Zusätzliches Packmaterial & Zubehör` management section in Settings. Disponents can add, edit, and delete custom supplies (e.g. `Packseide (10 kg)`, `Luftpolsterfolie (100 m)`, `Stretchfolie`, `Klebeband`) with custom prices and units.
+    *   **Configurator Integration (`KartonConfigModal.tsx`)**: In the moving box configurator modal, custom packaging supplies render seamlessly with `+`/`-` quantity controls starting at 0, live subtotal math, and auto-generated contract notes including both boxes and materials.
+*   **Auto-Scroll & Focus on `+ Neue Kategorie` (`settings/page.tsx`)**:
+    *   Clicking `+ Neue Kategorie` now immediately glides smoothly to the newly created category container, automatically focusing and selecting its title input field (`catalog-cat-0-input`), enabling instant typing without manual scrolling.
+*   **In-Flow Smart Catalog Addition (`OrderEditor.tsx`)**:
+    *   **Zero-Clutter Micro-Action**: Added sleek `[ 🔖 In Katalog speichern ]` micro-pill directly on custom service rows.
+    *   **Intelligent Guarding**: Completely invisible for standard catalog items and placeholder names (`Individuelle Leistung`). Only appears when a custom name is typed and not yet in the master catalog.
+    *   **Instant Atomic Firestore Persistence**: 1-click saves the service to `system/settings.catalog` under `Allgemein` with price, unit, and note, updating the live catalog immediately without leaving the order screen or page reloads.
+*   **Clean Paired Checkmark Isolation & Search Streamlining (`OrderEditor.tsx`, `InvoiceEditor.tsx`)**:
+    *   **Single-Checkmark Guarantee**: When paired services from Table A and Table B merge (e.g., `Einpackservice` + `Auspackservice`), checkmarks are cleared from A and B, leaving strictly the consolidated card (`Ein- und Auspackservice`) marked.
+    *   **Purged Catalog Search Clutter**: Removed redundant `Weitere Leistungen suchen` input field across Order and Invoice editors, exposing clean direct category filter pills.
+*   **Unified Communication Architecture (`communicationEngine.ts`, `communicationDefaults.ts`, `TaskScheduleModal.tsx`, `settings/page.tsx`)**:
+    *   **100% Settings Integration**: Eliminated the split between general templates and hardcoded dispatch messages. All messages—including operational task confirmations for Halteverbotszone (`dispo_hvz`), Möbellift (`dispo_moebellift`), Kartons (`dispo_kartons`), and Besichtigung (`dispo_besichtigung`, `dispo_unterwegs`)—are now fully editable inside `Einstellungen > Nachrichten-Vorlagen`.
+    *   **Business Logic Overhaul for Möbellift**: Replaced irrelevant "Passt Ihnen dieser Termin?" inquiries with strict operational instructions: clearly informing the client of the deployment schedule and requiring the space directly under/in front of the window or balcony to be cleared for the lift.
+    *   **Context & Placeholder Protection Guard**: Robust template engine replaces `{{Kunde_Anrede}}`, `{{Kunde_Name}}`, `{{Umzugsdatum}}`, `{{Termin_Details}}`, `{{Sachbearbeiter}}`, `{{Angebot_Summe}}`, `{{Rechnungsnummer}}`, and address tags with intelligent fallback protection (if placeholders are removed by the user in Settings, the engine safely preserves greeting, appointment details, and logged-in employee signature).
+    *   **Post-Save Scheduling Transparency**: Displayed dynamic template source indicator in `TaskScheduleModal` confirming that the message is loaded directly from Settings.
+    *   **Cross-System Unification**: Synchronized template rendering across `CustomerPremiumProfile.tsx`, `LogisticsPage`, `OrderDetailsDrawer.tsx`, and `MessageSenderModal.tsx`.
+
+### Version 2.22.1 – Universal Service Deletion, Transport Deduplication & Cockpit Alert Optimization
+*   **Universal Service Deletion & Transport Flexibility (`serviceKeys.ts`, `OrderEditor.tsx`, `InvoiceEditor.tsx`)**:
+    *   **Unlocked All Services**: Removed `isRemovalLocked` restriction completely (`isRemovalLocked = () => false`), giving disponents 100% freedom to delete any service from `Preiskalkulation` using the `(X)` delete button, including Transport.
+    *   **Always-Visible Touch Delete Button**: Upgraded the `(X)` delete icon in calculation tables to be permanently visible (`opacity-80 sm:opacity-0 group-hover:opacity-100`) so mobile/touchscreen users never have to hover to remove a line.
+    *   **Toggle-Off Transport Support**: Clicking a selected transport card in `Typische Umzugsleistungen` now cleanly deselects and removes it from the order instead of blocking the user with a locked toast notice. Clicking it again re-adds it seamlessly.
+*   **Automatic Catalog Sanitization & Transport De-Duplication (`OrderEditor.tsx`, `InvoiceEditor.tsx`)**:
+    *   Even if legacy Firestore settings contain multiple transport variations, `allgemeinServices` dynamically deduplicates them into strictly **ONE** canonical transport card: `Transport inkl. Be- und Entladung (Personal & LKW)`.
+    *   Normalized legacy kitchen entries and filtered out misplaced services from `Allgemein`.
+*   **Ultra-Slim Cockpit Diagnostic Alert Pills (`OrderDetailsDrawer.tsx`)**:
+    *   Transformed bulky ~70px multi-line warning containers across all phases (Stammdaten, Vertrag, Logistik) into ultra-compact, single-line alert pills (`py-1.5 px-3 rounded-lg text-[11px] leading-none`).
+    *   Added precise pending counter badge (e.g., `3 Aufgaben offen` / `1 Aufgabe offen`) on the right side of the pill.
+    *   Reduced vertical container gaps from `space-y-6` to `space-y-3.5 sm:space-y-4`, pulling critical operational cards (Karton, HVZ, Möbellift, Team) immediately upwards into the viewport without pushing important data below the fold.
+    *   **Zero-Clutter Guarantee**: When all tasks are completed (`isPhase3Ready === true`), alert boxes are 100% hidden with zero visual clutter.
+
+### Version 2.22.0 – Smart Paired Services, Micro-Action Badging, Mobile Post-Save Hub & Google Maps Navigation
+*   **Direct 1-Click Google Maps Navigation for Teamleiter & Addresses (`CustomerPremiumProfile.tsx`, `OrderDetailsDrawer.tsx`)**:
+    *   Added direct `Route (Maps)` navigation button directly inside the **Zuständiger Teamleiter & Laufzettel** control card, allowing the team lead to launch turn-by-turn route navigation from loading address (A) to delivery address (B) in Google Maps with a single click.
+    *   Added dedicated `Maps` quick-action buttons beside both **Beladestelle (Auszug A)** and **Entladestelle (Einzug B)** cards for immediate destination routing.
+*   **Cockpit Zero-Clutter De-Duplication (`OrderDetailsDrawer.tsx`)**:
+    *   Completely purged redundant, verbose inline `[+ Kalender]` and `[WhatsApp]` button strips repeating across every individual logistics card (Kartons, Möbellift, HVZ, Besichtigung, Umzugstermin).
+    *   Consolidated the entire Calendar-Export and WhatsApp customer-notification workflow exclusively into the dedicated post-save hub (`TaskScheduleModal.tsx`), making the Cockpit cards 100% focused, readable, and clean.
+*   **Minimalist Micro-Action Badging & Zero Visual Clutter (`OrderDetailsDrawer.tsx`, `CustomerPremiumProfile.tsx`)**:
+    *   Replaced verbose, visually intrusive `Termin anpassen` text buttons across the Order Cockpit with sleek, minimalist micro-pencil vector buttons (`PencilSquareIcon`) styled with subtle hover tints and tooltips.
+    *   Eliminated repetitive inline text in Customer Profile logistics cards in favor of compact, unobtrusive 2D icon buttons.
+*   **Compact Mobile-First Post-Save Scheduling Hub (`TaskScheduleModal.tsx`)**:
+    *   Completely redesigned the post-save appointment confirmation dialog: eliminated excessive 92vh height stretching on mobile screens.
+    *   Integrated compact confirmation card (`max-w-md max-h-[80vh]`) featuring confirmed dates/times pill, followed by an ergonomic 2-column mobile action grid (`[In Kalender]` and `[Per WhatsApp]`) with visual checkmark feedback upon click, and a streamlined `Fertig & Schließen` button.
 *   **Smart Paired Logistics Services Consolidation (`OrderEditor.tsx`, `serviceKeys.ts`)**:
     *   **Intelligent Auto-Pairing (A + B ➔ Combined)**: When selecting corresponding services at Beladestelle (A) and Entladestelle (B), the engine merges them atomically into a unified consolidated position with `location: 'both'`:
         *   `Abbau von Küche` (A) + `Aufbau von Küche` (B) ➔ `Abbau und Aufbau von Küche` (`kueche_komplett`).

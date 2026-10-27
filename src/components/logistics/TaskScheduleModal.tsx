@@ -21,6 +21,10 @@ import toast from 'react-hot-toast';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 import { triggerHaptic } from '@/lib/haptics';
 import { exportTaskToCalendar } from '@/lib/calendarExport';
+import { useAuth } from '@/context/AuthContext';
+import { db } from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { formatCommunicationMessage, getCommunicationTemplate } from '@/lib/communicationEngine';
 
 interface TaskScheduleModalProps {
   isOpen: boolean;
@@ -148,6 +152,18 @@ export function TaskScheduleModal({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [calendarExported, setCalendarExported] = useState(false);
   const [whatsAppSent, setWhatsAppSent] = useState(false);
+  const { profile } = useAuth();
+  const [settings, setSettings] = useState<any>(null);
+
+  useEffect(() => {
+    let active = true;
+    getDoc(doc(db, 'system', 'settings')).then(snap => {
+      if (snap.exists() && active) {
+        setSettings(snap.data());
+      }
+    }).catch(console.error);
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     setLocation(initialLocation);
@@ -292,7 +308,26 @@ export function TaskScheduleModal({
     }
   };
 
-  // WhatsApp generator with support for dual locations
+  const getActiveTemplateInfo = () => {
+    let templateId = 'dispo_hvz';
+    let fallbackMasterId = 'hvz_info';
+    if (isLift) {
+      templateId = 'dispo_moebellift';
+      fallbackMasterId = 'moebellift_info';
+    } else if (isHV) {
+      templateId = 'dispo_hvz';
+      fallbackMasterId = 'hvz_info';
+    } else if (isKarton) {
+      templateId = 'dispo_kartons';
+      fallbackMasterId = 'kartons_info';
+    } else if (isViewing) {
+      templateId = 'dispo_besichtigung';
+      fallbackMasterId = 't_besichtigung_vorort';
+    }
+    return getCommunicationTemplate(settings, templateId, fallbackMasterId);
+  };
+
+  // WhatsApp generator powered by settings templates & unified communication engine
   const handleSendWhatsApp = () => {
     const phone = parentOrder.billingAddress?.phone || parentOrder.customer?.phone || parentOrder.customerPhone || '';
     if (!phone) {
@@ -300,58 +335,56 @@ export function TaskScheduleModal({
       return;
     }
     const cleanPhone = phone.replace(/[^0-9+]/g, '');
-    const salutation = `Hallo ${parentOrder.customerName || 'Herr/Frau Kunde'},\n\n`;
 
-    let messageBody = '';
+    let templateId = 'dispo_hvz';
+    let fallbackMasterId = 'hvz_info';
+    let taskType: 'lift' | 'hvz' | 'karton' | 'viewing' = 'hvz';
 
     if (isLift) {
-      if (location === 'both') {
-        const fA = dateA ? new Date(dateA).toLocaleDateString('de-DE') : 'Termin folgt';
-        const fB = dateB ? new Date(dateB).toLocaleDateString('de-DE') : 'Termin folgt';
-        messageBody = 
-          `wir haben den Möbellift für Ihren Umzug wie folgt eingeplant:\n\n` +
-          `🏢 Auszugsort (A): am ${fA} um ca. ${timeA || '09:00'} Uhr (${durationA} Std. bis ca. ${endTimePreviewA || ''} Uhr)\n` +
-          `🏠 Einzugsort (B): am ${fB} um ca. ${timeB || '13:00'} Uhr (${durationB} Std. bis ca. ${endTimePreviewB || ''} Uhr)\n\n` +
-          `Passt dieser Ablauf für Sie?\n\nViele Grüße,\nRothirsch Team`;
-      } else if (location === 'b') {
-        const fB = dateB ? new Date(dateB).toLocaleDateString('de-DE') : 'Termin folgt';
-        messageBody = 
-          `wir haben den Möbellift an der Einzugsadresse (B) am ${fB} um ca. ${timeB || '13:00'} Uhr (${durationB} Std. bis ca. ${endTimePreviewB || ''} Uhr) eingeplant.\n\n` +
-          `Passt Ihnen dieser Termin?\n\nViele Grüße,\nRothirsch Team`;
-      } else {
-        const fA = dateA ? new Date(dateA).toLocaleDateString('de-DE') : 'Termin folgt';
-        messageBody = 
-          `wir haben den Möbellift an der Auszugsadresse (A) am ${fA} um ca. ${timeA || '09:00'} Uhr (${durationA} Std. bis ca. ${endTimePreviewA || ''} Uhr) eingeplant.\n\n` +
-          `Passt Ihnen dieser Termin?\n\nViele Grüße,\nRothirsch Team`;
-      }
+      templateId = 'dispo_moebellift';
+      fallbackMasterId = 'moebellift_info';
+      taskType = 'lift';
     } else if (isHV) {
-      if (location === 'both') {
-        const fA = dateA ? new Date(dateA).toLocaleDateString('de-DE') : 'Termin folgt';
-        const fB = dateB ? new Date(dateB).toLocaleDateString('de-DE') : 'Termin folgt';
-        messageBody = 
-          `wir haben die Halteverbotszonen für Ihren Umzug wie folgt terminiert:\n\n` +
-          `🏢 Auszugsort (A): Aufbau am ${fA}${timeA ? ` um ca. ${timeA} Uhr` : ''}\n` +
-          `🏠 Einzugsort (B): Aufbau am ${fB}${timeB ? ` um ca. ${timeB} Uhr` : ''}\n\n` +
-          `Passt Ihnen dieser Ablauf?\n\nViele Grüße,\nRothirsch Team`;
-      } else {
-        const actD = location === 'b' ? dateB : dateA;
-        const actT = location === 'b' ? timeB : timeA;
-        const locTxt = location === 'b' ? 'an der Einzugsadresse' : 'an der Auszugsadresse';
-        const fDate = actD ? new Date(actD).toLocaleDateString('de-DE') : 'Termin folgt';
-        messageBody = 
-          `wir möchten die Halteverbotszone für Ihren Umzug ${locTxt} am ${fDate}${actT ? ` um ca. ${actT} Uhr` : ''} einrichten.\n\n` +
-          `Passt Ihnen dieser Termin?\n\nViele Grüße,\nRothirsch Team`;
-      }
-    } else {
-      const formattedDate = date ? new Date(date).toLocaleDateString('de-DE') : 'einem vereinbarten Termin';
-      const timeText = time ? ` um ca. ${time}` : '';
-      const taskName = isKarton ? 'die Umzugskartons liefern' : 'den Besichtigungstermin durchführen';
-      messageBody = 
-        `wir möchten für Ihren Umzug gerne am ${formattedDate}${timeText} ${taskName}.\n\n` +
-        `Passt Ihnen dieser Termin?\n\nViele Grüße,\nRothirsch Team`;
+      templateId = 'dispo_hvz';
+      fallbackMasterId = 'hvz_info';
+      taskType = 'hvz';
+    } else if (isKarton) {
+      templateId = 'dispo_kartons';
+      fallbackMasterId = 'kartons_info';
+      taskType = 'karton';
+    } else if (isViewing) {
+      templateId = 'dispo_besichtigung';
+      fallbackMasterId = 't_besichtigung_vorort';
+      taskType = 'viewing';
     }
 
-    const message = encodeURIComponent(salutation + messageBody);
+    const tpl = getCommunicationTemplate(settings, templateId, fallbackMasterId);
+    const bodyTemplate = tpl?.body || '';
+
+    const finalMessage = formatCommunicationMessage(bodyTemplate, {
+      customer: parentOrder.customer || parentOrder.billingAddress,
+      order: parentOrder,
+      userProfile: profile,
+      taskType,
+      scheduleDetails: {
+        location,
+        date,
+        time,
+        dateA,
+        timeA,
+        durationA,
+        endTimeA: endTimePreviewA,
+        dateB,
+        timeB,
+        durationB,
+        endTimeB: endTimePreviewB,
+        addressA,
+        addressB,
+        viewingType
+      }
+    });
+
+    const message = encodeURIComponent(finalMessage);
     window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
     setWhatsAppSent(true);
     triggerHaptic('light');
@@ -569,32 +602,40 @@ export function TaskScheduleModal({
   return (
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div 
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in slide-in-from-bottom duration-200"
+        className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-t-3xl sm:rounded-3xl w-full shadow-2xl overflow-hidden flex flex-col transition-all duration-200 ${
+          saveSuccess 
+            ? 'max-w-md max-h-[80vh]' 
+            : 'max-w-lg max-h-[92vh] sm:max-h-[90vh]'
+        } animate-in slide-in-from-bottom duration-200`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Mobile Drag Handle */}
-        <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full mx-auto my-2.5 sm:hidden cursor-grab" />
+        <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full mx-auto my-2 sm:hidden cursor-grab" />
 
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center font-bold">
-              <CalendarDaysIcon className="w-5 h-5" />
+        <div className="flex items-center justify-between p-3.5 sm:p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+          <div className="flex items-center gap-2.5">
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center font-bold shrink-0 ${
+              saveSuccess 
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' 
+                : 'bg-primary/10 text-primary'
+            }`}>
+              {saveSuccess ? <CheckCircleIcon className="w-4 h-4 text-emerald-600" /> : <CalendarDaysIcon className="w-4 h-4" />}
             </div>
             <div>
-              <h3 className="font-headline font-bold text-base text-slate-900 dark:text-white">
-                {getTaskTitle()}
+              <h3 className="font-headline font-bold text-sm text-slate-900 dark:text-white">
+                {saveSuccess ? 'Termin gespeichert' : getTaskTitle()}
               </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Kunde: <span className="font-semibold text-slate-800 dark:text-slate-200">{parentOrder.customerName || 'Kunde'}</span> • Umzug: <span className="font-semibold text-primary">{moveDateDisplay}</span>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                {parentOrder.customerName || 'Kunde'} • Umzug: <span className="font-semibold text-primary">{moveDateDisplay}</span>
               </p>
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
-            <XMarkIcon className="w-5 h-5" />
+            <XMarkIcon className="w-4 h-4" />
           </button>
         </div>
 
@@ -676,55 +717,48 @@ export function TaskScheduleModal({
               )}
             </div>
 
-            {/* Follow-up Actions Section */}
-            <div className="w-full max-w-sm space-y-2 pt-0.5">
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider text-center">
-                Verfügbare Aktionen für diesen Termin
-              </p>
+            {/* Template Source Indicator */}
+            <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 px-3 py-1.5 rounded-xl border border-slate-200/80 dark:border-slate-800 w-full max-w-sm">
+              <span className="truncate">Vorlage: <strong className="text-slate-800 dark:text-slate-200 font-semibold">{getActiveTemplateInfo()?.name || 'Standard'}</strong></span>
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold shrink-0">Aus Einstellungen</span>
+            </div>
 
+            {/* Quick 2-Column Action Buttons */}
+            <div className="grid grid-cols-2 gap-2 pt-1 w-full max-w-sm">
               {/* 1. In Kalender eintragen */}
               <button
                 type="button"
                 onClick={handleExportToCalendar}
-                className="w-full p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100/80 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 transition-all text-left flex items-center justify-between group cursor-pointer shadow-xs active:scale-98"
+                className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100/80 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 transition-all text-center flex flex-col items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                title="In Outlook / Samsung Kalender eintragen"
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                    <CalendarDaysIcon className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="font-headline font-bold text-xs text-blue-950 dark:text-white flex items-center gap-1">
-                      <span>In Smartphone-Kalender eintragen</span>
-                      <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-blue-200/60 dark:bg-blue-900/60 text-blue-800 dark:text-blue-300">.ics</span>
-                    </div>
-                    <p className="text-[10px] text-blue-700/80 dark:text-blue-300/80">
-                      {calendarExported ? '✓ In Kalender exportiert' : 'Für Samsung, Outlook & Smartphone'}
-                    </p>
-                  </div>
+                <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                  <CalendarDaysIcon className="w-4 h-4" />
                 </div>
-                <ArrowRightIcon className="w-3.5 h-3.5 text-blue-500 group-hover:translate-x-0.5 transition-transform" />
+                <div className="leading-tight">
+                  <span className="font-headline font-bold text-xs block">In Kalender</span>
+                  <span className="text-[10px] text-blue-700/80 dark:text-blue-300/80">
+                    {calendarExported ? '✓ Exportiert' : 'Samsung / Outlook'}
+                  </span>
+                </div>
               </button>
 
               {/* 2. WhatsApp Nachricht */}
               <button
                 type="button"
                 onClick={handleSendWhatsApp}
-                className="w-full p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 transition-all text-left flex items-center justify-between group cursor-pointer shadow-xs active:scale-98"
+                className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100/80 dark:hover:bg-emerald-900/50 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 transition-all text-center flex flex-col items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95"
+                title="Kunde per WhatsApp informieren"
               >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-                    <ChatBubbleLeftRightIcon className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <div className="font-headline font-bold text-xs text-emerald-950 dark:text-white flex items-center gap-1">
-                      <span>Kunde per WhatsApp informieren</span>
-                    </div>
-                    <p className="text-[10px] text-emerald-700/80 dark:text-emerald-300/80">
-                      {whatsAppSent ? '✓ WhatsApp geöffnet' : 'Terminbestätigung direkt an den Kunden'}
-                    </p>
-                  </div>
+                <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                  <ChatBubbleLeftRightIcon className="w-4 h-4" />
                 </div>
-                <ArrowRightIcon className="w-3.5 h-3.5 text-emerald-500 group-hover:translate-x-0.5 transition-transform" />
+                <div className="leading-tight">
+                  <span className="font-headline font-bold text-xs block">Per WhatsApp</span>
+                  <span className="text-[10px] text-emerald-700/80 dark:text-emerald-300/80">
+                    {whatsAppSent ? '✓ Geöffnet' : 'Bestätigung senden'}
+                  </span>
+                </div>
               </button>
             </div>
           </div>
@@ -1124,22 +1158,22 @@ export function TaskScheduleModal({
         )}
 
         {/* Footer Actions */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex items-center justify-between gap-3 flex-wrap">
+        <div className="p-3 sm:p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex items-center justify-between gap-3 flex-wrap">
           {saveSuccess ? (
             <>
               <button
                 type="button"
                 onClick={() => setSaveSuccess(false)}
-                className="px-4 py-2.5 rounded-2xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold transition-colors cursor-pointer"
+                className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 underline cursor-pointer"
               >
                 Termin anpassen
               </button>
               <button
                 type="button"
                 onClick={onClose}
-                className="px-6 py-2.5 rounded-2xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold hover:opacity-90 active:scale-95 transition-all shadow-md flex items-center gap-1.5 cursor-pointer ml-auto"
+                className="px-5 py-2 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-xs font-bold hover:opacity-90 active:scale-95 transition-all shadow-sm flex items-center gap-1.5 cursor-pointer ml-auto"
               >
-                <CheckIcon className="w-4 h-4" />
+                <CheckIcon className="w-3.5 h-3.5" />
                 <span>Fertig &amp; Schließen</span>
               </button>
             </>

@@ -56,7 +56,9 @@ import {
   ArrowTopRightOnSquareIcon,
   AdjustmentsHorizontalIcon,
   EllipsisHorizontalIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  VideoCameraIcon,
+  PhotoIcon
 } from '@heroicons/react/24/outline';
 import { StornoModal } from '@/components/finances/StornoModal';
 import { OrderDetailsDrawer } from '@/components/dashboard/OrderDetailsDrawer';
@@ -64,6 +66,7 @@ import { TaskScheduleModal } from '@/components/logistics/TaskScheduleModal';
 import { MessageSenderModal } from '@/components/customers/MessageSenderModal';
 import { generateTickets } from '@/lib/ticketEngine';
 import { MASTER_COMMUNICATION_TEMPLATES } from '@/lib/communicationDefaults';
+import { formatCommunicationMessage } from '@/lib/communicationEngine';
 
 const formatProtocolDate = (val: any) => {
   if (!val) return 'Gerade eben';
@@ -495,7 +498,7 @@ export function CustomerPremiumProfile({
 
   const formatCustomerDate = (dateRaw?: string, timeRaw?: string) => {
     if (!dateRaw || dateRaw === 'requested') return '';
-    if (dateRaw === 'erledigt_fotos') return 'Durch Fotos erledigt ✓';
+    if (dateRaw === 'erledigt_fotos') return 'Durch Fotos erledigt';
     const cleanDatePart = dateRaw.split('T')[0];
     const embeddedTime = dateRaw.includes('T') ? dateRaw.split('T')[1]?.slice(0, 5) : '';
     let formattedDate = cleanDatePart;
@@ -1062,70 +1065,11 @@ export function CustomerPremiumProfile({
   const cleanPhone = (customer?.phone || '').replace(/[^0-9]/g, '');
 
   const formatTemplateText = (templateBody: string) => {
-    let text = templateBody || '';
-    const lastName = (customer?.lastName || '').trim();
-    const firstName = (customer?.firstName || '').trim();
-    const cName = customer?.type === 'firma' 
-      ? lastName 
-      : `${firstName} ${lastName}`.trim() || lastName || 'Kunde';
-
-    const salutationRaw = (customer?.salutation || activeOrder?.orderMeta?.salutation || '').toLowerCase();
-    let formalAnrede = 'Sehr geehrte Damen und Herren';
-    if (customer?.type !== 'firma' && lastName) {
-      if (salutationRaw.includes('herr')) {
-        formalAnrede = `Sehr geehrter Herr ${lastName}`;
-      } else if (salutationRaw.includes('frau')) {
-        formalAnrede = `Sehr geehrte Frau ${lastName}`;
-      } else {
-        formalAnrede = `Guten Tag ${cName}`;
-      }
-    }
-
-    // Salutation & Names
-    text = text.replace(/\{\{Kunde_Anrede\}\}/g, formalAnrede);
-    text = text.replace(/\[Anrede\]/g, formalAnrede);
-    text = text.replace(/\{\{Kunde_Name\}\}/g, cName);
-    text = text.replace(/\[Name\]/g, cName);
-    text = text.replace(/\{\{Kunde_Nachname\}\}/g, lastName || cName);
-    text = text.replace(/\[Nachname\]/g, lastName || cName);
-
-    // Moving Date
-    const rawMoveDate = activeOrder?.orderMeta?.movingDateFrom || activeOrder?.movingDate || activeOrder?.logistics?.movingDate;
-    let moveDate = 'vereinbartem Datum';
-    if (rawMoveDate) {
-      try {
-        moveDate = new Date(rawMoveDate).toLocaleDateString('de-DE');
-      } catch {
-        moveDate = String(rawMoveDate);
-      }
-    }
-    text = text.replace(/\{\{Umzugsdatum\}\}/g, moveDate);
-    text = text.replace(/\[Datum\]/g, moveDate);
-
-    // Offer / Order Total Price
-    const totalGross = activeOrder?.totals?.gross 
-      ? `${Number(activeOrder.totals.gross).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-      : (activeOrder?.price ? `${Number(activeOrder.price).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` : 'wie vereinbart');
-    text = text.replace(/\{\{Angebot_Summe\}\}/g, totalGross);
-    text = text.replace(/\[Summe\]/g, totalGross);
-
-    // Order & Invoice Numbers
-    const orderNum = activeOrder?.orderNumber || activeOrder?.id || '';
-    text = text.replace(/\{\{Auftragsnummer\}\}/g, orderNum);
-    text = text.replace(/\[Auftrag\]/g, orderNum);
-
-    const invNum = activeInvoiceNumber || linkedInvoice?.invoiceNumber || activeOrder?.invoiceNumber || 'liegt bei';
-    text = text.replace(/\{\{Rechnungsnummer\}\}/g, invNum);
-    text = text.replace(/\[Rechnung\]/g, invNum);
-
-    // Employee / Sachbearbeiter
-    const employee = profile?.displayName && !profile.displayName.includes('@')
-      ? profile.displayName
-      : 'Tarek Lababidi';
-    text = text.replace(/\{\{Sachbearbeiter\}\}/g, employee);
-    text = text.replace(/\[Mitarbeiter\]/g, employee);
-
-    return text;
+    return formatCommunicationMessage(templateBody, {
+      customer,
+      order: activeOrder,
+      userProfile: profile
+    });
   };
 
   const handleSendWhatsApp = (bodyToSend: string) => {
@@ -1180,33 +1124,35 @@ export function CustomerPremiumProfile({
             </h1>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={onEditCustomer}
-              className="px-3 py-1.5 rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-all flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 cursor-pointer shadow-2xs"
-            >
-              <PencilSquareIcon className="w-3.5 h-3.5" />
-              <span>Kundendaten</span>
-            </button>
-
-            {activeOrder && (
-              <Link
-                href={`/dashboard/customers/${customer.id}/edit-order/${activeOrder.id}`}
-                className="px-3.5 py-1.5 rounded-xl font-bold text-xs bg-[#6E8F64] hover:bg-[#5C7A53] text-white shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+          {!isTeamLead && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={onEditCustomer}
+                className="px-3 py-1.5 rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-all flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 cursor-pointer shadow-2xs"
               >
-                <DocumentTextIcon className="w-3.5 h-3.5" />
-                <span>Angebot bearbeiten</span>
-              </Link>
-            )}
+                <PencilSquareIcon className="w-3.5 h-3.5" />
+                <span>Kundendaten</span>
+              </button>
 
-            <Link
-              href={`/dashboard/customers/${customer.id}/new-order`}
-              className="py-1.5 px-3.5 rounded-xl font-bold text-xs bg-[#6E8F64]/15 hover:bg-[#6E8F64] text-[#435E3A] dark:text-[#B5D1AC] hover:text-white border border-[#6E8F64]/35 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
-            >
-              <span>+ Neues Angebot</span>
-            </Link>
-          </div>
+              {activeOrder && (
+                <Link
+                  href={`/dashboard/customers/${customer.id}/edit-order/${activeOrder.id}`}
+                  className="px-3.5 py-1.5 rounded-xl font-bold text-xs bg-[#6E8F64] hover:bg-[#5C7A53] text-white shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                >
+                  <DocumentTextIcon className="w-3.5 h-3.5" />
+                  <span>Angebot bearbeiten</span>
+                </Link>
+              )}
+
+              <Link
+                href={`/dashboard/customers/${customer.id}/new-order`}
+                className="py-1.5 px-3.5 rounded-xl font-bold text-xs bg-[#6E8F64]/15 hover:bg-[#6E8F64] text-[#435E3A] dark:text-[#B5D1AC] hover:text-white border border-[#6E8F64]/35 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              >
+                <span>+ Neues Angebot</span>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1220,15 +1166,17 @@ export function CustomerPremiumProfile({
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-headline">
                 Kontaktdaten
               </span>
-              <button
-                type="button"
-                onClick={onEditCustomer}
-                className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-                title="Kundendaten bearbeiten"
-              >
-                <PencilSquareIcon className="w-3.5 h-3.5" />
-                <span>Bearbeiten</span>
-              </button>
+              {!isTeamLead && (
+                <button
+                  type="button"
+                  onClick={onEditCustomer}
+                  className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                  title="Kundendaten bearbeiten"
+                >
+                  <PencilSquareIcon className="w-3.5 h-3.5" />
+                  <span>Bearbeiten</span>
+                </button>
+              )}
             </div>
 
             <div className="space-y-2 text-xs">
@@ -1387,13 +1335,40 @@ export function CustomerPremiumProfile({
                   title="Klicken zum Planen oder Ändern des Besichtigungstermins"
                 >
                   {activeOrder.orderMeta?.viewingDate && activeOrder.orderMeta?.viewingDate !== 'requested' ? (
-                    <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                      <CheckIcon className="w-3.5 h-3.5 shrink-0" />
-                      <span>{formatCustomerDate(activeOrder.orderMeta.viewingDate, activeOrder.orderMeta.viewingTime)}</span>
-                      {currentPhaseInfo.phase >= 3 && (
-                        <span className="text-[10px] text-slate-400 font-normal ml-0.5">(Erledigt)</span>
-                      )}
-                    </span>
+                    (() => {
+                      const vType = (activeOrder.orderMeta?.viewingType || activeOrder.logistics?.viewingType || '').toLowerCase();
+                      const isFotos = activeOrder.orderMeta?.viewingDate === 'erledigt_fotos' || vType === 'fotos';
+                      const isOnline = vType.includes('online') || vType.includes('video');
+
+                      if (isFotos) {
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <PhotoIcon className="w-3.5 h-3.5 text-emerald-500" />
+                            <span>Fotos erledigt</span>
+                          </span>
+                        );
+                      }
+                      if (isOnline) {
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                            <VideoCameraIcon className="w-3.5 h-3.5 text-purple-500" />
+                            <span>Video-Call: {formatCustomerDate(activeOrder.orderMeta.viewingDate, activeOrder.orderMeta.viewingTime)}</span>
+                            {currentPhaseInfo.phase >= 3 && (
+                              <span className="text-[10px] text-slate-400 font-normal ml-0.5">(Erledigt)</span>
+                            )}
+                          </span>
+                        );
+                      }
+                      return (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                          <MapPinIcon className="w-3.5 h-3.5 text-blue-500" />
+                          <span>Vor-Ort: {formatCustomerDate(activeOrder.orderMeta.viewingDate, activeOrder.orderMeta.viewingTime)}</span>
+                          {currentPhaseInfo.phase >= 3 && (
+                            <span className="text-[10px] text-slate-400 font-normal ml-0.5">(Erledigt)</span>
+                          )}
+                        </span>
+                      );
+                    })()
                   ) : (
                     <span className="text-primary underline">+ Termin planen</span>
                   )}
@@ -2711,12 +2686,14 @@ export function CustomerPremiumProfile({
             </p>
           </div>
 
-          <Link
-            href={`/dashboard/customers/${customer.id}/new-order`}
-            className="py-2 px-4 rounded-full font-bold text-xs bg-primary hover:bg-[#b51822] text-white flex items-center gap-1.5 shadow-xs transition-colors"
-          >
-            <span>+ Weiteres Angebot anlegen</span>
-          </Link>
+          {!isTeamLead && (
+            <Link
+              href={`/dashboard/customers/${customer.id}/new-order`}
+              className="py-2 px-4 rounded-full font-bold text-xs bg-primary hover:bg-[#b51822] text-white flex items-center gap-1.5 shadow-xs transition-colors"
+            >
+              <span>+ Weiteres Angebot anlegen</span>
+            </Link>
+          )}
         </div>
 
         {orders.length === 0 ? (

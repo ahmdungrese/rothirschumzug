@@ -23,17 +23,21 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-4 lg:gap-6">
-          {/* Quick Create Action */}
-          <Link 
-            href="/dashboard/orders/new"
-            className="btn-primary py-1.5 px-3 sm:py-2 sm:px-4 text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5 rounded-xl shadow-xs"
-          >
-            <PlusIcon className="w-4 h-4 sm:w-5 sm:h-5" />
-            <span className="hidden sm:inline">Neues Angebot</span>
-            <span className="sm:hidden font-bold">Angebot</span>
-          </Link>
+          {/* Quick Create Action - nur für Büro & Admin (niemals für Teamleiter) */}
+          {profile?.role !== 'teamlead' && (
+            <Link 
+              href="/dashboard/orders/new"
+              className="btn-primary py-1.5 px-3 sm:py-2 sm:px-4 text-xs sm:text-sm whitespace-nowrap flex items-center gap-1.5 rounded-xl shadow-xs"
+            >
+              <PlusIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+              <span className="hidden sm:inline">Neues Angebot</span>
+              <span className="sm:hidden font-bold">Angebot</span>
+            </Link>
+          )}
 
-          <div className="hidden sm:block h-6 w-px bg-structure"></div>
+          {profile?.role !== 'teamlead' && (
+            <div className="hidden sm:block h-6 w-px bg-structure"></div>
+          )}
 
           {/* Anti-Vergess System (Glocke) */}
           <NotificationBell />

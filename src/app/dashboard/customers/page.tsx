@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot } from 'firebase/firestore';
 import { SmartCustomerCard } from '@/components/customers/SmartCustomerCard';
@@ -12,6 +14,16 @@ type CustomerFilterTab = 'all' | 'confirmed' | 'negotiation' | 'draft' | 'invoic
 type CustomerSortOption = 'activity' | 'moving_date' | 'name_asc' | 'created_desc';
 
 export default function CustomersPage() {
+  const { profile } = useAuth();
+  const router = useRouter();
+
+  // Shield: Teamleiter haben keinen Zugriff auf die Kundenliste der Firma
+  useEffect(() => {
+    if (profile?.role === 'teamlead') {
+      router.replace('/dashboard/calendar');
+    }
+  }, [profile?.role, router]);
+
   const [customers, setCustomers] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,6 +33,8 @@ export default function CustomersPage() {
   const [showNewModal, setShowNewModal] = useState(false);
 
   useEffect(() => {
+    if (profile?.role === 'teamlead') return;
+
     // 1. Fetch Customers
     const qCustomers = query(collection(db, 'customers'));
     const unsubCustomers = onSnapshot(qCustomers, (snapshot) => {
@@ -135,6 +149,10 @@ export default function CustomersPage() {
 
     return result;
   }, [customersWithOrders, filterTab, searchQuery, sortBy]);
+
+  if (profile?.role === 'teamlead') {
+    return null;
+  }
 
   if (loading) {
     return <div className="flex justify-center p-12"><div className="animate-spin h-8 w-8 border-t-2 border-primary rounded-full"></div></div>;

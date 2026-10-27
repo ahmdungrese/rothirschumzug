@@ -26,7 +26,7 @@ export const MASTER_COMMUNICATION_TEMPLATES: CommunicationTemplate[] = [
   // 2. Besichtigung
   {
     id: 't_besichtigung_vorort',
-    name: 'Besichtigung (Vor-Ort-Termin)',
+    name: 'Besichtigung (Vor-Ort-Termin anfragen)',
     category: 'Besichtigung',
     subject: 'Vor-Ort-Besichtigungstermin für Ihren Umzug',
     body: '{{Kunde_Anrede}},\n\num Ihnen ein absolut verlässliches Festpreisangebot zu erstellen, würden wir gerne eine persönliche Vor-Ort-Besichtigung bei Ihnen durchführen.\n\nBitte teilen Sie uns kurz mit, an welchen Tagen und Uhrzeiten es Ihnen am besten passt.\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge'
@@ -37,6 +37,20 @@ export const MASTER_COMMUNICATION_TEMPLATES: CommunicationTemplate[] = [
     category: 'Besichtigung',
     subject: 'Online- / Video-Besichtigung für Ihren Umzug',
     body: '{{Kunde_Anrede}},\n\ngerne bieten wir Ihnen eine bequeme Online-Video-Besichtigung (via WhatsApp-Video oder FaceTime) an. In nur 10–15 Minuten schauen wir uns gemeinsam die Räumlichkeiten und Möbel an, um Ihr Festpreisangebot sofort fertigzustellen.\n\nWann passt es Ihnen am besten für einen kurzen Video-Call?\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge'
+  },
+  {
+    id: 'dispo_besichtigung',
+    name: 'Besichtigung – Terminbestätigung',
+    category: 'Besichtigung',
+    subject: 'Bestätigung Ihres Besichtigungstermins – Rothirsch Umzüge',
+    body: '{{Kunde_Anrede}},\n\nhiermit bestätigen wir verbindlich unseren gemeinsamen Besichtigungstermin für Ihren Umzug:\n\n{{Termin_Details}}\n\nUnser Kundenberater wird sich alle Räumlichkeiten und das Umzugsgut gemeinsam mit Ihnen ansehen, um Ihr Festpreisangebot verbindlich fertigzustellen.\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge'
+  },
+  {
+    id: 'dispo_unterwegs',
+    name: 'Besichtigung – Ich bin unterwegs',
+    category: 'Besichtigung',
+    subject: 'Auf dem Weg zum Besichtigungstermin – Rothirsch Umzüge',
+    body: 'Hallo {{Kunde_Name}},\n\nich bin pünktlich auf dem Weg zu Ihnen für unseren Besichtigungstermin{{Termin_Details}}.\n\nBis gleich!\nViele Grüße,\n{{Sachbearbeiter}}\nRothirsch Umzüge'
   },
 
   // 3. Angebot
@@ -85,7 +99,28 @@ export const MASTER_COMMUNICATION_TEMPLATES: CommunicationTemplate[] = [
     body: '{{Kunde_Anrede}},\n\nkurze Information zu Ihrem Umzug am {{Umzugsdatum}}: Unser Team wird voraussichtlich zwischen 8:00 und 9:00 Uhr bei Ihnen an der Beladestelle eintreffen.\n\nDie Teamleitung wird sich ca. 30 Minuten vor Ankunft nochmals kurz telefonisch bei Ihnen melden.\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge'
   },
 
-  // 5. Logistik
+  // 5. Logistik & Disposition
+  {
+    id: 'dispo_hvz',
+    name: 'Halteverbotszone (HVZ) – Termin & Aufbau',
+    category: 'Logistik',
+    subject: 'Terminbestätigung Halteverbotszone (HVZ) – Rothirsch Umzüge',
+    body: '{{Kunde_Anrede}},\n\nwir haben die amtlich genehmigte Halteverbotszone (HVZ) für Ihren Umzugstermin am {{Umzugsdatum}} wie folgt terminiert:\n\n{{Termin_Details}}\n\nDie vorschriftsmäßige Beschilderung sowie das Aufstellprotokoll werden rechtzeitig vor Ort mit dem gesetzlichen Vorlauf eingerichtet, um kurze Tragewege zu sichern.\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge'
+  },
+  {
+    id: 'dispo_moebellift',
+    name: 'Möbellift – Einsatz & Stellplatz-Freihaltung',
+    category: 'Logistik',
+    subject: 'Möbellift-Einsatz für Ihren Umzug – Rothirsch Umzüge',
+    body: '{{Kunde_Anrede}},\n\nfür Ihren Umzug am {{Umzugsdatum}} haben wir den Einsatz unseres Möbellifts (Außenaufzugs) wie folgt verbindlich eingeplant:\n\n{{Termin_Details}}\n\n⚠️ Wichtiger Hinweis zur Vorbereitung:\nBitte stellen Sie unbedingt sicher, dass der Stellplatz direkt vor und unter dem entsprechenden Fenster bzw. Balkon am Einsatztag vollständig frei geräumt und ungehindert zugänglich bleibt, damit wir unseren Außenaufzug sicher positionieren und aufbauen können.\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge'
+  },
+  {
+    id: 'dispo_kartons',
+    name: 'Umzugskartons – Liefertermin',
+    category: 'Logistik',
+    subject: 'Lieferung Ihrer Umzugskartons – Rothirsch Umzüge',
+    body: '{{Kunde_Anrede}},\n\nIhre bestellten Umzugskartons und Packmaterialien liefern wir wie folgt an:\n\n{{Termin_Details}}\n\nBitte stellen Sie sicher, dass zum vereinbarten Zeitfenster jemand vor Ort ist, um das Material in Empfang zu nehmen.\n\nMit freundlichen Grüßen\n{{Sachbearbeiter}}\nRothirsch Umzüge'
+  },
   {
     id: 'hvz_info',
     name: 'Halteverbotszone (HVZ) Info',

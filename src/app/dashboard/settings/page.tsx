@@ -706,8 +706,57 @@ export default function SettingsPage() {
   };
 
   const addCategory = () => {
-    // Fügt die neue Kategorie GANZ OBEN in die Liste ein, damit man sie sofort sieht
-    setSettings({ ...settings, catalog: [{ category: 'Neue Kategorie', items: [] }, ...settings.catalog] });
+    // Fügt die neue Kategorie GANZ OBEN in die Liste ein und scrollt/fokussiert direkt dorthin
+    setSettings((prev: any) => ({
+      ...prev,
+      catalog: [{ category: 'Neue Kategorie', items: [] }, ...(prev.catalog || [])]
+    }));
+    setTimeout(() => {
+      const el = document.getElementById('catalog-cat-0-input') as HTMLInputElement | null;
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.focus();
+        el.select();
+      }
+    }, 100);
+  };
+
+  const addPackmaterialItem = () => {
+    const list = [...(settings.packmaterials || [
+      { id: 'pm_seide', name: 'Packseide / Packpapier (10 kg)', price: 25.0, unit: 'Pckg' },
+      { id: 'pm_folie', name: 'Luftpolsterfolie (100 m)', price: 30.0, unit: 'Rolle' },
+      { id: 'pm_stretch', name: 'Stretchfolie (Handrolle)', price: 15.0, unit: 'Rolle' },
+      { id: 'pm_band', name: 'Klebeband (PVC)', price: 3.5, unit: 'Rolle' }
+    ])];
+    list.push({
+      id: `pm_${Date.now()}`,
+      name: 'Neues Packmaterial',
+      price: 10.0,
+      unit: 'Stk'
+    });
+    setSettings((prev: any) => ({ ...prev, packmaterials: list }));
+  };
+
+  const updatePackmaterialItem = (idx: number, field: string, value: any) => {
+    const list = [...(settings.packmaterials || [
+      { id: 'pm_seide', name: 'Packseide / Packpapier (10 kg)', price: 25.0, unit: 'Pckg' },
+      { id: 'pm_folie', name: 'Luftpolsterfolie (100 m)', price: 30.0, unit: 'Rolle' },
+      { id: 'pm_stretch', name: 'Stretchfolie (Handrolle)', price: 15.0, unit: 'Rolle' },
+      { id: 'pm_band', name: 'Klebeband (PVC)', price: 3.5, unit: 'Rolle' }
+    ])];
+    list[idx] = { ...list[idx], [field]: value };
+    setSettings((prev: any) => ({ ...prev, packmaterials: list }));
+  };
+
+  const removePackmaterialItem = (idx: number) => {
+    const list = [...(settings.packmaterials || [
+      { id: 'pm_seide', name: 'Packseide / Packpapier (10 kg)', price: 25.0, unit: 'Pckg' },
+      { id: 'pm_folie', name: 'Luftpolsterfolie (100 m)', price: 30.0, unit: 'Rolle' },
+      { id: 'pm_stretch', name: 'Stretchfolie (Handrolle)', price: 15.0, unit: 'Rolle' },
+      { id: 'pm_band', name: 'Klebeband (PVC)', price: 3.5, unit: 'Rolle' }
+    ])];
+    list.splice(idx, 1);
+    setSettings((prev: any) => ({ ...prev, packmaterials: list }));
   };
 
   const toggleShowcaseService = (idx: number) => {
@@ -1279,21 +1328,43 @@ export default function SettingsPage() {
           {/* TAB: Vorlagen (Smarte Kommunikation) */}
           {activeTab === 'vorlagen' && (
             <div className="space-y-6 animate-in slide-in-from-right-4 duration-300">
-              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">Smarte Nachrichten-Vorlagen</h2>
+              <h2 className="text-xl font-bold text-text-main border-b border-structure pb-2 mb-4">Smarte Nachrichten-Vorlagen (WhatsApp & E-Mail)</h2>
               <div className="flex flex-col gap-4 mb-6">
-                <p className="text-sm text-text-muted">Hier pflegst du die Vorlagen für das Kommunikations-Center in der Kundenakte. Nutze die folgenden Platzhalter, die beim Senden automatisch durch echte Daten ersetzt werden:</p>
+                <p className="text-sm text-text-muted">
+                  Hier pflegst du sämtliche Nachrichtenvorlagen für Kundenkommunikation und operative Disposition (Möbellift, Halteverbot, Kartons, Besichtigung, Angebote &amp; Rechnungen). Klicke auf einen Platzhalter, um ihn zu kopieren:
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {['{{Kunde_Anrede}}', '{{Kunde_Name}}', '{{Kunde_Nachname}}', '{{Umzugsdatum}}', '{{Angebot_Summe}}', '{{Sachbearbeiter}}'].map(variable => (
-                    <span key={variable} className="text-xs bg-structure/50 border border-structure text-text-main px-2 py-1 rounded cursor-default select-all hover:bg-structure transition-colors">
-                      {variable}
-                    </span>
+                  {[
+                    { tag: '{{Kunde_Anrede}}', desc: 'Anrede (Sehr geehrte/r ...)' },
+                    { tag: '{{Kunde_Name}}', desc: 'Vollständiger Name' },
+                    { tag: '{{Umzugsdatum}}', desc: 'Umzugsdatum' },
+                    { tag: '{{Termin_Details}}', desc: 'Möbellift / HVZ / Karton / Besichtigung Einsatzzeiten' },
+                    { tag: '{{Sachbearbeiter}}', desc: 'Name des eingeloggten Mitarbeiters' },
+                    { tag: '{{Angebot_Summe}}', desc: 'Festpreis / Summe' },
+                    { tag: '{{Rechnungsnummer}}', desc: 'Rechnungsnummer' },
+                    { tag: '{{Auszug_Adresse}}', desc: 'Auszugsort A' },
+                    { tag: '{{Einzug_Adresse}}', desc: 'Einzugsort B' },
+                  ].map(item => (
+                    <button
+                      key={item.tag}
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(item.tag);
+                        toast.success(`${item.tag} in die Zwischenablage kopiert!`);
+                      }}
+                      className="text-xs bg-structure/50 hover:bg-primary/20 border border-structure hover:border-primary text-text-main px-2.5 py-1 rounded-lg cursor-pointer transition-colors flex items-center gap-1.5 shadow-2xs"
+                      title={`${item.desc} (Klicken zum Kopieren)`}
+                    >
+                      <span className="font-mono font-bold text-primary">{item.tag}</span>
+                      <span className="text-[10px] text-text-muted hidden sm:inline">({item.desc})</span>
+                    </button>
                   ))}
                 </div>
                 <div className="flex gap-4">
                   <button 
                     onClick={() => {
                       const newId = `t${Date.now()}`;
-                      const newTpl = { id: newId, name: 'Neue Vorlage', subject: '', body: '' };
+                      const newTpl = { id: newId, name: 'Neue Vorlage', category: 'Allgemein', subject: '', body: '' };
                       handleChange('communicationTemplates', [...(settings.communicationTemplates || []), newTpl]);
                     }}
                     className="btn-primary py-2 px-4"
@@ -1302,7 +1373,7 @@ export default function SettingsPage() {
                   </button>
                   <button 
                     onClick={() => {
-                      if (confirm('Möchten Sie alle 17 Standard-Nachrichtenvorlagen synchronisieren? Ihre Anpassungen bleiben erhalten.')) {
+                      if (confirm('Möchten Sie alle Standard-Nachrichtenvorlagen (inkl. Möbellift, HVZ, Kartons, Besichtigung, Angebote & Rechnungen) synchronisieren? Ihre eigenen Anpassungen bleiben erhalten.')) {
                         const currentTemplates = settings.communicationTemplates || [];
                         const commMap = new Map<string, any>();
                         MASTER_COMMUNICATION_TEMPLATES.forEach(t => commMap.set(t.id, t));
@@ -1316,7 +1387,7 @@ export default function SettingsPage() {
                           }
                         });
                         handleChange('communicationTemplates', Array.from(commMap.values()));
-                        toast.success("Alle 17 Standard-Nachrichtenvorlagen geladen! Bitte oben auf Speichern klicken.");
+                        toast.success("Standard-Nachrichtenvorlagen synchronisiert! Bitte oben auf Speichern klicken.");
                       }
                     }}
                     className="btn-secondary py-2 px-4"
@@ -2009,7 +2080,150 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* Standardpreise für Umzugskartons & Packmaterial */}
+              {/* 1. Feste Kernleistungen Block */}
+              {(() => {
+                const fixedDefs = resolveFixedDefs(settings);
+                return (
+                  <div className="bg-bg-dark border border-structure p-5 rounded-2xl shadow-sm space-y-4">
+                    <div className="border-b border-structure/60 pb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-primary text-xl">verified</span>
+                        <h3 className="text-base font-bold text-text-main">Feste Kernleistungen</h3>
+                      </div>
+                      <p className="text-xs text-text-muted mt-1">
+                        Diese vier Leistungen erkennt das Programm an einem festen internen Schlüssel. Du kannst Name, Preis, Einheit und Beschreibung frei ändern.
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      {FIXED_KEYS.map(key => {
+                        const def = fixedDefs[key];
+                        const cur = settings.fixedServices?.[key] || {};
+                        const priceVal = cur.price !== undefined ? cur.price : (key === 'hvz' && settings.fixedPrices?.hvz !== undefined ? settings.fixedPrices.hvz : def.price);
+                        return (
+                          <div key={key} className="p-3.5 rounded-xl bg-bg-panel border border-structure/50 space-y-2">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <span className="material-symbols-outlined text-primary text-lg shrink-0">{def.icon}</span>
+                                <div className="flex-1 min-w-0">
+                                  <label className="text-[10px] uppercase font-bold text-text-muted block">
+                                    Name ({key}) {key === 'hvz' && <span className="text-primary font-normal">· Preis für beide Adressen (bei einer Adresse die Hälfte)</span>}
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={cur.name !== undefined ? cur.name : def.name}
+                                    onChange={e => setSettings({
+                                      ...settings,
+                                      fixedServices: {
+                                        ...(settings.fixedServices || {}),
+                                        [key]: { ...(settings.fixedServices?.[key] || {}), name: e.target.value }
+                                      }
+                                    })}
+                                    className="input-field text-xs font-bold w-full py-1 mt-0.5"
+                                    placeholder={def.name}
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={priceVal === '' ? '' : priceVal}
+                                    onChange={e => {
+                                      const val = e.target.value === '' ? '' : parseFloat(e.target.value);
+                                      setSettings({
+                                        ...settings,
+                                        fixedServices: {
+                                          ...(settings.fixedServices || {}),
+                                          [key]: { ...(settings.fixedServices?.[key] || {}), price: val }
+                                        }
+                                      });
+                                    }}
+                                    className="input-field text-xs w-24 text-right py-1"
+                                    placeholder="0.00"
+                                  />
+                                  <span className="text-text-muted text-xs">€</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <input
+                                    type="text"
+                                    value={cur.unit !== undefined ? cur.unit : def.unit}
+                                    onChange={e => setSettings({
+                                      ...settings,
+                                      fixedServices: {
+                                        ...(settings.fixedServices || {}),
+                                        [key]: { ...(settings.fixedServices?.[key] || {}), unit: e.target.value }
+                                      }
+                                    })}
+                                    className="input-field text-xs w-20 text-center py-1"
+                                    placeholder="Einheit"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            <div>
+                              <input
+                                type="text"
+                                value={cur.desc !== undefined ? cur.desc : def.desc}
+                                onChange={e => setSettings({
+                                  ...settings,
+                                  fixedServices: {
+                                    ...(settings.fixedServices || {}),
+                                    [key]: { ...(settings.fixedServices?.[key] || {}), desc: e.target.value }
+                                  }
+                                })}
+                                className="input-field text-xs text-text-muted w-full py-1"
+                                placeholder="Beschreibung / Hinweistext..."
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 2. Kategorien & Leistungen im Katalog */}
+              <div className="space-y-6">
+                {settings.catalog.map((cat: any, cIdx: number) => (
+                  <div key={cIdx} className="bg-bg-dark border border-structure p-4 rounded-xl">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-structure pb-2 mb-3 gap-2">
+                      <div className="flex-1 w-full sm:w-auto flex items-center gap-2">
+                        <span className="text-text-muted text-sm font-bold">Kategorie:</span>
+                        <input
+                          id={`catalog-cat-${cIdx}-input`}
+                          type="text"
+                          value={cat.category}
+                          onChange={e => updateCategoryName(cIdx, e.target.value)}
+                          className="bg-transparent border border-white/10 text-text-main text-lg font-bold focus:outline-none focus:ring-1 focus:ring-primary rounded px-2 py-0.5 w-full sm:w-auto transition-all"
+                        />
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <button onClick={() => addCatalogItem(cIdx)} className="text-primary hover:underline text-xs">+ Element hinzufügen</button>
+                        <button onClick={() => removeCategory(cIdx)} className="text-red-400 hover:text-red-300 text-xs hover:underline">Kategorie löschen</button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {cat.items.map((item: any, iIdx: number) => (
+                        <div key={iIdx} className="flex flex-col md:flex-row justify-between items-start md:items-center bg-bg-panel p-2 rounded border border-structure/50 gap-2">
+                          <input type="text" value={item.name} onChange={e => updateCatalogItem(cIdx, iIdx, 'name', e.target.value)} className="input-field text-sm flex-1 w-full" placeholder="Bezeichnung" />
+                          <div className="flex items-center gap-2 w-full md:w-auto">
+                            <input type="number" value={item.price} onChange={e => updateCatalogItem(cIdx, iIdx, 'price', parseFloat(e.target.value)||0)} className="input-field text-sm w-24 text-right" placeholder="Preis €" />
+                            <span className="text-text-muted text-sm">€</span>
+                            <input type="text" value={item.unit} onChange={e => updateCatalogItem(cIdx, iIdx, 'unit', e.target.value)} className="input-field text-sm w-20 text-center" placeholder="Einheit" />
+                            <button onClick={() => removeCatalogItem(cIdx, iIdx)} className="text-red-400 hover:bg-red-400/20 p-2 rounded transition-colors">&times;</button>
+                          </div>
+                        </div>
+                      ))}
+                      {cat.items.length === 0 && <p className="text-xs text-text-muted italic py-2">Keine Leistungen in dieser Kategorie.</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* 3. Standardpreise für Umzugskartons & Packmaterial */}
               <div className="bg-bg-dark border border-structure p-5 rounded-2xl space-y-4 shadow-sm">
                 <div className="flex items-center gap-2.5 border-b border-structure/70 pb-3">
                   <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center font-bold">
@@ -2029,39 +2243,169 @@ export default function SettingsPage() {
                     { key: 'xl', label: 'Umzugskarton XL', sub: 'Extra groß (Leichtes Volumen)', def: 4.50 },
                     { key: 'buecher', label: 'Bücherkarton', sub: 'Verstärkter Doppelboden', def: 3.00 },
                     { key: 'kleider', label: 'Kleiderkarton', sub: 'Inkl. Metall-Kleiderstange', def: 12.00 },
-                  ].map(k => (
-                    <div key={k.key} className="bg-bg-panel p-3.5 rounded-xl border border-structure/60 space-y-2 hover:border-amber-500/40 transition-colors">
-                      <div className="flex justify-between items-start">
-                        <span className="text-xs font-bold text-text-main">{k.label}</span>
-                        <span className="text-[10px] text-text-muted font-medium bg-white/[0.04] px-1.5 py-0.5 rounded">pro Stk.</span>
+                  ].map(k => {
+                    const isDisabled = (settings.disabledKartons || []).includes(k.key);
+                    return (
+                      <div
+                        key={k.key}
+                        className={`p-3.5 rounded-xl border space-y-2.5 transition-all ${
+                          isDisabled
+                            ? 'bg-bg-panel/40 border-structure/40 opacity-60'
+                            : 'bg-bg-panel border-structure/60 hover:border-amber-500/40'
+                        }`}
+                      >
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center">
+                            <label className="text-[10px] uppercase font-bold text-text-muted">Bezeichnung</label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const cur = settings.disabledKartons || [];
+                                const next = cur.includes(k.key)
+                                  ? cur.filter((x: string) => x !== k.key)
+                                  : [...cur, k.key];
+                                setSettings((prev: any) => ({ ...prev, disabledKartons: next }));
+                              }}
+                              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border transition-all cursor-pointer ${
+                                isDisabled
+                                  ? 'bg-red-500/10 text-red-400 border-red-500/30 hover:bg-red-500/20'
+                                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                              }`}
+                              title={isDisabled ? 'Klicken, um diesen Kartontyp zu aktivieren' : 'Klicken, um diesen Kartontyp zu deaktivieren'}
+                            >
+                              <span className="material-symbols-outlined text-[11px]">
+                                {isDisabled ? 'visibility_off' : 'check'}
+                              </span>
+                              <span>{isDisabled ? 'Deaktiviert' : 'Aktiv'}</span>
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            value={settings.kartonNames?.[k.key] ?? k.label}
+                            placeholder={k.label}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setSettings((prev: any) => ({
+                                ...prev,
+                                kartonNames: {
+                                  ...(prev.kartonNames || {}),
+                                  [k.key]: val
+                                }
+                              }));
+                            }}
+                            className="input-field text-xs font-bold text-text-main w-full"
+                          />
+                        </div>
+                        <p className="text-[10px] text-text-muted line-clamp-1">{k.sub}</p>
+                        <div className="space-y-1 pt-0.5">
+                          <div className="flex justify-between items-center">
+                            <label className="text-[10px] uppercase font-bold text-text-muted">Standardpreis (Netto)</label>
+                            <span className="text-[10px] text-text-muted font-medium bg-white/[0.04] px-1.5 py-0.5 rounded">pro Stk.</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="number"
+                              step="0.10"
+                              min="0"
+                              value={settings.kartonPrices?.[k.key] ?? k.def}
+                              onChange={e => {
+                                const val = parseFloat(e.target.value) || 0;
+                                setSettings((prev: any) => ({
+                                  ...prev,
+                                  kartonPrices: {
+                                    ...(prev.kartonPrices || {}),
+                                    [k.key]: val
+                                  }
+                                }));
+                              }}
+                              className="input-field text-sm font-bold w-full text-right font-mono"
+                            />
+                            <span className="text-text-muted text-sm font-semibold">€</span>
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-[10px] text-text-muted line-clamp-1">{k.sub}</p>
-                      <div className="flex items-center gap-2 pt-1">
-                        <input
-                          type="number"
-                          step="0.10"
-                          min="0"
-                          value={settings.kartonPrices?.[k.key] ?? k.def}
-                          onChange={e => {
-                            const val = parseFloat(e.target.value) || 0;
-                            setSettings((prev: any) => ({
-                              ...prev,
-                              kartonPrices: {
-                                ...(prev.kartonPrices || {}),
-                                [k.key]: val
-                              }
-                            }));
-                          }}
-                          className="input-field text-sm font-bold w-full text-right font-mono"
-                        />
-                        <span className="text-text-muted text-sm font-semibold">€</span>
-                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Zusätzliches Packmaterial & Zubehör */}
+                <div className="pt-4 border-t border-structure/60 space-y-3">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                    <div>
+                      <h4 className="font-bold text-text-main text-sm flex items-center gap-2">
+                        <span className="material-symbols-outlined text-amber-500 text-lg">layers</span>
+                        Zusätzliches Packmaterial & Zubehör
+                      </h4>
+                      <p className="text-[11px] text-text-muted">
+                        Fügen Sie weiteres Packmaterial hinzu (z.B. Packseide, Luftpolsterfolie, Stretchfolie, Klebeband).
+                      </p>
                     </div>
-                  ))}
+                    <button
+                      type="button"
+                      onClick={addPackmaterialItem}
+                      className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1 font-semibold text-primary border-primary/30 hover:bg-primary/10 cursor-pointer shrink-0"
+                    >
+                      <span className="material-symbols-outlined text-sm">add</span>
+                      <span>Packmaterial hinzufügen</span>
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {((settings.packmaterials && settings.packmaterials.length > 0)
+                      ? settings.packmaterials
+                      : [
+                          { id: 'pm_seide', name: 'Packseide / Packpapier (10 kg)', price: 25.0, unit: 'Pckg' },
+                          { id: 'pm_folie', name: 'Luftpolsterfolie (100 m)', price: 30.0, unit: 'Rolle' },
+                          { id: 'pm_stretch', name: 'Stretchfolie (Handrolle)', price: 15.0, unit: 'Rolle' },
+                          { id: 'pm_band', name: 'Klebeband (PVC)', price: 3.5, unit: 'Rolle' }
+                        ]
+                    ).map((pm: any, pIdx: number) => (
+                      <div key={pm.id || pIdx} className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-bg-panel p-2.5 rounded-xl border border-structure/50 gap-2.5">
+                        <div className="flex-1 w-full sm:w-auto">
+                          <input
+                            type="text"
+                            value={pm.name}
+                            onChange={e => updatePackmaterialItem(pIdx, 'name', e.target.value)}
+                            className="input-field text-xs font-semibold w-full"
+                            placeholder="Bezeichnung des Packmaterials"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2 w-full sm:w-auto">
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              step="0.10"
+                              min="0"
+                              value={pm.price}
+                              onChange={e => updatePackmaterialItem(pIdx, 'price', parseFloat(e.target.value) || 0)}
+                              className="input-field text-xs w-20 text-right font-mono font-bold"
+                              placeholder="0.00"
+                            />
+                            <span className="text-text-muted text-xs">€</span>
+                          </div>
+                          <input
+                            type="text"
+                            value={pm.unit || 'Stk'}
+                            onChange={e => updatePackmaterialItem(pIdx, 'unit', e.target.value)}
+                            className="input-field text-xs w-20 text-center"
+                            placeholder="Einheit"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removePackmaterialItem(pIdx)}
+                            className="text-text-muted hover:text-red-400 p-1.5 rounded-lg hover:bg-red-400/10 transition-colors cursor-pointer"
+                            title="Packmaterial entfernen"
+                          >
+                            &times;
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              {/* Werbeblock & Service-Portfolio für Angebote (Seite 2) */}
+              {/* 4. Werbeblock & Service-Portfolio für Angebote (Seite 2) */}
               <div className="bg-bg-dark border border-structure p-5 rounded-2xl space-y-5 shadow-sm">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-structure/70 pb-3 gap-2">
                   <div className="flex items-center gap-2.5">
@@ -2216,141 +2560,6 @@ export default function SettingsPage() {
                     <strong>Tipp:</strong> Im Angebot-Editor (Schritt 5) können Sie für einzelne Angebote bei Bedarf Services mit einem Klick abwählen oder hinzufügen (z. B. <em>Endreinigung</em> zuschalten oder <em>Küchenmontage</em> für Kunden ohne Küche deaktivieren).
                   </span>
                 </div>
-              </div>
-              
-              {/* Feste Kernleistungen Block */}
-              {(() => {
-                const fixedDefs = resolveFixedDefs(settings);
-                return (
-                  <div className="bg-bg-dark border border-structure p-5 rounded-2xl shadow-sm space-y-4">
-                    <div className="border-b border-structure/60 pb-3">
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-primary text-xl">verified</span>
-                        <h3 className="text-base font-bold text-text-main">Feste Kernleistungen</h3>
-                      </div>
-                      <p className="text-xs text-text-muted mt-1">
-                        Diese vier Leistungen erkennt das Programm an einem festen internen Schlüssel. Du kannst Name, Preis, Einheit und Beschreibung frei ändern.
-                      </p>
-                    </div>
-
-                    <div className="space-y-3">
-                      {FIXED_KEYS.map(key => {
-                        const def = fixedDefs[key];
-                        const cur = settings.fixedServices?.[key] || {};
-                        const priceVal = cur.price !== undefined ? cur.price : (key === 'hvz' && settings.fixedPrices?.hvz !== undefined ? settings.fixedPrices.hvz : def.price);
-                        return (
-                          <div key={key} className="p-3.5 rounded-xl bg-bg-panel border border-structure/50 space-y-2">
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                              <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <span className="material-symbols-outlined text-primary text-lg shrink-0">{def.icon}</span>
-                                <div className="flex-1 min-w-0">
-                                  <label className="text-[10px] uppercase font-bold text-text-muted block">
-                                    Name ({key}) {key === 'hvz' && <span className="text-primary font-normal">· Preis für beide Adressen (bei einer Adresse die Hälfte)</span>}
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={cur.name !== undefined ? cur.name : def.name}
-                                    onChange={e => setSettings({
-                                      ...settings,
-                                      fixedServices: {
-                                        ...(settings.fixedServices || {}),
-                                        [key]: { ...(settings.fixedServices?.[key] || {}), name: e.target.value }
-                                      }
-                                    })}
-                                    className="input-field text-xs font-bold w-full py-1 mt-0.5"
-                                    placeholder={def.name}
-                                  />
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <div className="flex items-center gap-1">
-                                  <input
-                                    type="number"
-                                    min={0}
-                                    value={priceVal === '' ? '' : priceVal}
-                                    onChange={e => {
-                                      const val = e.target.value === '' ? '' : parseFloat(e.target.value);
-                                      setSettings({
-                                        ...settings,
-                                        fixedServices: {
-                                          ...(settings.fixedServices || {}),
-                                          [key]: { ...(settings.fixedServices?.[key] || {}), price: val }
-                                        }
-                                      });
-                                    }}
-                                    className="input-field text-xs w-24 text-right py-1"
-                                    placeholder="0.00"
-                                  />
-                                  <span className="text-text-muted text-xs">€</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <input
-                                    type="text"
-                                    value={cur.unit !== undefined ? cur.unit : def.unit}
-                                    onChange={e => setSettings({
-                                      ...settings,
-                                      fixedServices: {
-                                        ...(settings.fixedServices || {}),
-                                        [key]: { ...(settings.fixedServices?.[key] || {}), unit: e.target.value }
-                                      }
-                                    })}
-                                    className="input-field text-xs w-20 text-center py-1"
-                                    placeholder="Einheit"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                            <div>
-                              <input
-                                type="text"
-                                value={cur.desc !== undefined ? cur.desc : def.desc}
-                                onChange={e => setSettings({
-                                  ...settings,
-                                  fixedServices: {
-                                    ...(settings.fixedServices || {}),
-                                    [key]: { ...(settings.fixedServices?.[key] || {}), desc: e.target.value }
-                                  }
-                                })}
-                                className="input-field text-xs text-text-muted w-full py-1"
-                                placeholder="Beschreibung / Hinweistext..."
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
-              <div className="space-y-6">
-                {settings.catalog.map((cat: any, cIdx: number) => (
-                  <div key={cIdx} className="bg-bg-dark border border-structure p-4 rounded-xl">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-structure pb-2 mb-3 gap-2">
-                      <div className="flex-1 w-full sm:w-auto flex items-center gap-2">
-                        <span className="text-text-muted text-sm font-bold">Kategorie:</span>
-                        <input type="text" value={cat.category} onChange={e => updateCategoryName(cIdx, e.target.value)} className="bg-transparent border-none text-text-main text-lg font-bold focus:outline-none focus:ring-1 focus:ring-primary rounded px-1 w-full sm:w-auto" />
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <button onClick={() => addCatalogItem(cIdx)} className="text-primary hover:underline text-xs">+ Element hinzufügen</button>
-                        <button onClick={() => removeCategory(cIdx)} className="text-red-400 hover:text-red-300 text-xs hover:underline">Kategorie löschen</button>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      {cat.items.map((item: any, iIdx: number) => (
-                        <div key={iIdx} className="flex flex-col md:flex-row justify-between items-start md:items-center bg-bg-panel p-2 rounded border border-structure/50 gap-2">
-                          <input type="text" value={item.name} onChange={e => updateCatalogItem(cIdx, iIdx, 'name', e.target.value)} className="input-field text-sm flex-1 w-full" placeholder="Bezeichnung" />
-                          <div className="flex items-center gap-2 w-full md:w-auto">
-                            <input type="number" value={item.price} onChange={e => updateCatalogItem(cIdx, iIdx, 'price', parseFloat(e.target.value)||0)} className="input-field text-sm w-24 text-right" placeholder="Preis €" />
-                            <span className="text-text-muted text-sm">€</span>
-                            <input type="text" value={item.unit} onChange={e => updateCatalogItem(cIdx, iIdx, 'unit', e.target.value)} className="input-field text-sm w-20 text-center" placeholder="Einheit" />
-                            <button onClick={() => removeCatalogItem(cIdx, iIdx)} className="text-red-400 hover:bg-red-400/20 p-2 rounded transition-colors">&times;</button>
-                          </div>
-                        </div>
-                      ))}
-                      {cat.items.length === 0 && <p className="text-xs text-text-muted italic py-2">Keine Leistungen in dieser Kategorie.</p>}
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           )}

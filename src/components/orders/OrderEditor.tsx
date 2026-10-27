@@ -1,14 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, TruckIcon, MapPinIcon, ExclamationTriangleIcon, StarIcon, BuildingOffice2Icon, HomeIcon, BriefcaseIcon, BuildingLibraryIcon, ArchiveBoxIcon, WrenchIcon, SparklesIcon, PlusCircleIcon, TagIcon, ArrowsUpDownIcon, NoSymbolIcon, ArrowUpTrayIcon, MagnifyingGlassIcon, ShoppingCartIcon, XMarkIcon, PhotoIcon, CalendarDaysIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, TrashIcon, CalculatorIcon, DocumentTextIcon, EyeIcon, EyeSlashIcon, CheckCircleIcon, TruckIcon, MapPinIcon, ExclamationTriangleIcon, StarIcon, BuildingOffice2Icon, HomeIcon, BriefcaseIcon, BuildingLibraryIcon, ArchiveBoxIcon, WrenchIcon, SparklesIcon, PlusCircleIcon, TagIcon, ArrowsUpDownIcon, NoSymbolIcon, ArrowUpTrayIcon, MagnifyingGlassIcon, ShoppingCartIcon, XMarkIcon, PhotoIcon, CalendarDaysIcon, VideoCameraIcon, BanknotesIcon, CreditCardIcon, UserIcon } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 import { useAuth } from '@/context/AuthContext';
 import { logActivity } from '@/lib/activityLogger';
 import { CheckCircleIcon as CheckCircleIconSolid } from '@heroicons/react/24/solid';
 import { toast } from 'react-hot-toast';
-import { db } from '@/lib/firebase';
-import { collection, addDoc, doc, getDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '@/lib/firebase';
+import { collection, addDoc, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { calculateRoute } from '@/lib/routeCalculator';
 import { changeOrderStatus } from '@/lib/orderStateMachine';
@@ -475,6 +475,36 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const searchParams = useSearchParams();
   const isInvoice = searchParams?.get('type') === 'invoice';
   const { profile } = useAuth();
+
+  // Shield: Teamleiter dürfen unter keinen Umständen Angebote bearbeiten oder erstellen
+  useEffect(() => {
+    if (profile?.role === 'teamlead') {
+      router.replace('/dashboard/calendar');
+    }
+  }, [profile?.role, router]);
+
+  if (profile?.role === 'teamlead') {
+    return (
+      <div className="flex-1 flex items-center justify-center min-h-[400px] p-6 text-center">
+        <div className="max-w-md bg-bg-panel border border-structure rounded-3xl p-8 space-y-4 shadow-xl">
+          <div className="w-16 h-16 rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/20 flex items-center justify-center mx-auto">
+            <span className="material-symbols-outlined text-3xl">lock</span>
+          </div>
+          <h2 className="text-lg font-bold text-text-main font-headline">Zugriff verweigert</h2>
+          <p className="text-xs text-text-muted leading-relaxed">
+            Als <strong>Teamleiter</strong> können Sie keine Angebote oder Aufträge bearbeiten. Ihre Aufgaben sind im Einsatz-Kalender und auf dem Laufzettel hinterlegt.
+          </p>
+          <button
+            onClick={() => router.replace('/dashboard/calendar')}
+            className="btn-primary py-2.5 px-5 text-xs font-bold rounded-xl"
+          >
+            Zum Kalender wechseln
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const canEditPrices = profile?.role === 'admin' ? true : profile?.canEditPrices ?? true;
   const canViewPrices = profile?.role === 'admin' ? true : profile?.canViewPrices ?? true;
   const [isSaving, setIsSaving] = useState(false);
@@ -520,6 +550,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   };
 
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [isDeletingDraft, setIsDeletingDraft] = useState(false);
   const isBypassingCancelGuard = useRef(false);
 
   const executeExit = () => {
@@ -536,8 +567,37 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     }
   };
 
+  const handleDiscardAndDeleteDraft = async () => {
+    setIsDeletingDraft(true);
+    try {
+      const targetOrderId = activeOrderId || orderId;
+      // Only delete if it is an unsaved/draft order to protect confirmed contracts and active invoices
+      if (targetOrderId && (!orderStatus || orderStatus === 'draft')) {
+        await deleteDoc(doc(db, 'orders', targetOrderId));
+        const cleanCreatorName = profile?.displayName || profile?.email?.split('@')[0] || 'Team';
+        await logActivity(
+          profile?.uid || 'unknown',
+          cleanCreatorName,
+          'DELETE_DRAFT',
+          `Entwurf für Kunde ${customerData.lastName || 'Unbekannt'} verworfen und gelöscht`
+        );
+      }
+      try {
+        localStorage.removeItem(`rothirsch_order_draft_${targetOrderId || 'new'}`);
+      } catch {}
+      toast.success('Entwurf wurde verworfen und gelöscht.');
+    } catch (err) {
+      console.error('Fehler beim Löschen des Entwurfs:', err);
+      toast.error('Fehler beim Verwerfen des Entwurfs.');
+    } finally {
+      setIsDeletingDraft(false);
+      executeExit();
+    }
+  };
+
   const handleSafeCancel = () => {
     const isDirty = Boolean(
+      activeOrderId ||
       customerDataRef.current.lastName?.trim() ||
       customerDataRef.current.phone?.trim() ||
       customerDataRef.current.street?.trim() ||
@@ -579,6 +639,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     validUntil: '',
     manager: '',
     paymentMethod: '',
+    viewingType: '', // 'vor_ort' | 'online' | 'fotos' | ''
     viewingDate: '',
     viewingTime: '',
     hvzMethod: 'selbst',
@@ -1086,6 +1147,36 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     return () => clearTimeout(timer);
   }, [customerData, orderMeta, logistics, inventory, services, activeOrderId, orderId]);
 
+  // Rule 1: Auto-save draft to Firestore when customer lastName (or company) AND movingDateFrom are entered
+  const lastAutoSaveSignatureRef = useRef<string>('');
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const hasName = Boolean(customerData.lastName?.trim());
+    const hasMovingDate = Boolean(orderMeta.movingDateFrom?.trim());
+
+    // Both must be present to trigger silent Firestore auto-save in Step 1
+    if (!hasName || !hasMovingDate) return;
+
+    const signature = `${customerData.type}|${customerData.lastName?.trim()}|${customerData.firstName?.trim()}|${customerData.phone?.trim()}|${customerData.email?.trim()}|${orderMeta.movingDateFrom?.trim()}|${orderMeta.movingDateTo || ''}|${orderMeta.viewingDate || ''}|${orderMeta.viewingType || ''}`;
+
+    if (lastAutoSaveSignatureRef.current === signature) return;
+
+    const timer = setTimeout(async () => {
+      if (isAutoSavingRef.current || isSaving) return;
+      isAutoSavingRef.current = true;
+      try {
+        lastAutoSaveSignatureRef.current = signature;
+        await saveOrder(isInvoice ? 'invoice_open' : 'draft', false, false, true);
+      } catch (err) {
+        console.error('Auto-save error (Rule 1):', err);
+      } finally {
+        isAutoSavingRef.current = false;
+      }
+    }, 1200);
+
+    return () => clearTimeout(timer);
+  }, [customerData, orderMeta.movingDateFrom, orderMeta.movingDateTo, orderMeta.viewingDate, orderMeta.viewingType, isInvoice]);
+
   useEffect(() => {
     if (orderMeta.movingDateTo) {
       setShowBisDate(true);
@@ -1111,7 +1202,6 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const toggleFixedLine = (key: 'transport' | 'kartons' | 'moebellift') => {
     const existing = services.find(s => getFixedKey(s) === key);
     if (existing) {
-      if (isRemovalLocked(existing)) return;
       setServices(prev => prev.filter(s => s !== existing));
       if (key === 'moebellift') setLogistics((l: any) => ({ ...l, a_furnitureLift: false, b_furnitureLift: false }));
     } else {
@@ -1126,7 +1216,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     if (fixedKey === 'transport' || srv.id === 'trans_basis' || srv.id === 'trans_be_ent') {
       const existing = services.find(s => getFixedKey(s) === 'transport' || s.id === 'trans_basis' || s.id === 'trans_be_ent');
       if (existing) {
-        toast('Transport ist als feste Basisleistung im Angebot hinterlegt', { icon: '🚛' });
+        setServices(prev => prev.filter(s => getFixedKey(s) !== 'transport' && s.id !== 'trans_basis' && s.id !== 'trans_be_ent'));
         return;
       }
       setServices(prev => ensureTransportService(prev, settings));
@@ -1332,6 +1422,68 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     }
   };
 
+  const [savingCatalogSvcId, setSavingCatalogSvcId] = useState<string | null>(null);
+
+  const handleSaveServiceToCatalog = async (svc: any) => {
+    const trimmedName = (svc.name || '').trim();
+    if (!trimmedName || trimmedName.toLowerCase() === 'individuelle leistung') {
+      toast.error('Bitte geben Sie zuerst einen gültigen Leistungsnamen ein.');
+      return;
+    }
+
+    try {
+      setSavingCatalogSvcId(svc.id || svc.name);
+
+      const currentCatalog = Array.isArray(settings?.catalog) ? JSON.parse(JSON.stringify(settings.catalog)) : [];
+      let allgemeinCat = currentCatalog.find((c: any) => (c.category || '').trim().toLowerCase() === 'allgemein');
+
+      const newItem = {
+        name: trimmedName,
+        price: Number(svc.unitPrice) || 0,
+        unit: svc.unit || 'Pauschal',
+        description: svc.note || ''
+      };
+
+      if (allgemeinCat) {
+        if (!Array.isArray(allgemeinCat.items)) allgemeinCat.items = [];
+        const exists = allgemeinCat.items.some((it: any) => (it.name || '').trim().toLowerCase() === trimmedName.toLowerCase());
+        if (!exists) {
+          allgemeinCat.items.push(newItem);
+        }
+      } else {
+        currentCatalog.unshift({
+          category: 'Allgemein',
+          items: [newItem]
+        });
+      }
+
+      try {
+        await setDoc(doc(db, 'system', 'settings'), { catalog: currentCatalog }, { merge: true });
+      } catch (err: any) {
+        console.warn('Direct setDoc failed, trying server API fallback:', err?.message);
+        const idToken = await auth.currentUser?.getIdToken();
+        if (idToken) {
+          await fetch('/api/admin/save-settings', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({ settings: { ...settings, catalog: currentCatalog } })
+          });
+        }
+      }
+
+      setSettings((prev: any) => ({ ...prev, catalog: currentCatalog }));
+      toast.success(`'${trimmedName}' dauerhaft im Katalog gespeichert!`);
+    } catch (e: any) {
+      console.error('Error saving service to catalog:', e);
+      toast.error('Konnte nicht im Katalog gespeichert werden.');
+    } finally {
+      setSavingCatalogSvcId(null);
+    }
+  };
+
   const isStandardServiceSelected = (srvId?: string, srvName?: string) => {
     const fixedKey = getFixedKey({ id: srvId, name: srvName });
     if (fixedKey === 'transport' || srvId === 'trans_basis' || srvId === 'trans_be_ent') {
@@ -1357,15 +1509,17 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         });
       }
       if (paired.role === 'a') {
+        // Nur aktiv markieren, wenn Einzelleistung A separat gebucht ist (nicht bei Kombi-Service)
         return services.some(s => {
           const r = getPairedRole(s);
-          return r?.pairKey === paired.pairKey && (r.role === 'a' || r.role === 'combined' || s.location === 'both' || s.location === 'a');
+          return r?.pairKey === paired.pairKey && r.role === 'a' && s.location !== 'both';
         });
       }
       if (paired.role === 'b') {
+        // Nur aktiv markieren, wenn Einzelleistung B separat gebucht ist (nicht bei Kombi-Service)
         return services.some(s => {
           const r = getPairedRole(s);
-          return r?.pairKey === paired.pairKey && (r.role === 'b' || r.role === 'combined' || s.location === 'both' || s.location === 'b');
+          return r?.pairKey === paired.pairKey && r.role === 'b' && s.location !== 'both';
         });
       }
     }
@@ -1410,17 +1564,57 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
   const allgemeinServices = useMemo(() => {
     const fromSettings = settings?.catalog?.find((c: any) => (c.category || '').trim().toLowerCase() === 'allgemein')?.items;
-    if (fromSettings && Array.isArray(fromSettings) && fromSettings.length > 0) {
-      return fromSettings.map((item: any, idx: number) => ({
-        id: item.id || `allg_${idx}`,
-        name: item.name,
-        price: item.price ?? item.defaultPrice ?? 0,
-        unit: item.unit || 'Pauschal',
-        icon: item.icon || getServiceIcon(item.name),
-        defaultDesc: item.description || item.defaultDesc || ''
-      }));
+    const rawList = (fromSettings && Array.isArray(fromSettings) && fromSettings.length > 0)
+      ? fromSettings.map((item: any, idx: number) => ({
+          id: item.id || `allg_${idx}`,
+          name: item.name,
+          price: item.price ?? item.defaultPrice ?? 0,
+          unit: item.unit || 'Pauschal',
+          icon: item.icon || getServiceIcon(item.name),
+          defaultDesc: item.description || item.defaultDesc || ''
+        }))
+      : DEFAULT_ALLGEMEIN_SERVICES;
+
+    // Deduplicate and canonicalize:
+    // Guarantee that Transport only appears ONCE in the list, and clean any duplicate/legacy cards.
+    let transportSeen = false;
+    const seenNames = new Set<string>();
+    const sanitized: any[] = [];
+
+    for (const item of rawList) {
+      const isTrans = getFixedKey(item) === 'transport' || (item.name || '').toLowerCase().includes('transport inkl');
+      if (isTrans) {
+        if (transportSeen) continue; // Skip redundant duplicate transport card!
+        transportSeen = true;
+        sanitized.push({
+          ...item,
+          id: 'trans_basis',
+          name: 'Transport inkl. Be- und Entladung (Personal & LKW)',
+          unit: 'Pauschal',
+          icon: 'local_shipping'
+        });
+        continue;
+      }
+
+      let name = (item.name || '').trim();
+      // Normalize legacy kitchen name
+      if (name.includes('Küchenauf- und abbau') || name.includes('Küchenabbau und Aufbau')) {
+        name = 'Küchenabbau und -aufbau';
+      }
+
+      // If "Arbeitsplatte anpassen" is in legacy Allgemein, let Küchenservice own it
+      if (name.toLowerCase() === 'arbeitsplatte anpassen') {
+        continue;
+      }
+
+      const key = name.toLowerCase();
+      if (!seenNames.has(key)) {
+        seenNames.add(key);
+        sanitized.push({ ...item, name });
+      }
     }
-    return DEFAULT_ALLGEMEIN_SERVICES;
+
+    return sanitized;
   }, [settings?.catalog]);
 
   const servicesA = useMemo(() => {
@@ -1715,10 +1909,14 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           validDate.setDate(validDate.getDate() + days);
           
           const defaultPm = s.paymentMethods?.find((p: any) => p.isDefault) || s.paymentMethods?.[0];
+          const loggedInName = profile?.displayName?.trim() || '';
+          const defaultManager = (loggedInName && s.contacts?.includes(loggedInName))
+            ? loggedInName
+            : (s.contacts?.find((c: string) => loggedInName && c.toLowerCase().includes(loggedInName.toLowerCase())) || s.contacts?.[0] || loggedInName || '');
 
           setOrderMeta((prev: any) => ({ 
             ...prev, 
-            manager: s.contacts?.[0] || '', 
+            manager: defaultManager, 
             paymentMethod: defaultPm?.name || s.paymentMethods?.[0]?.name || '',
             validUntil: validDate.toISOString().split('T')[0]
           }));
@@ -1763,6 +1961,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             validUntil: data.orderMeta?.validUntil || '',
             manager: data.orderMeta?.manager || '',
             paymentMethod: data.orderMeta?.paymentMethod || '',
+            viewingType: data.orderMeta?.viewingType || data.logistics?.viewingType || data.viewingType || (data.orderMeta?.viewingDate === 'erledigt_fotos' ? 'fotos' : data.orderMeta?.viewingDate ? 'vor_ort' : ''),
             viewingDate: data.orderMeta?.viewingDate || data.viewingDate || '',
             viewingTime: data.orderMeta?.viewingTime || data.logistics?.viewingTime || '',
             hvzMethod: data.orderMeta?.hvzMethod || data.logistics?.hvzMethod || 'selbst',
@@ -2146,14 +2345,17 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       }
 
       const calculatedCbmValue = calculateQuickCbm();
+      const resolvedViewingType = orderMeta.viewingType || (orderMeta.viewingDate === 'erledigt_fotos' ? 'fotos' : orderMeta.viewingDate ? 'vor_ort' : '');
       const finalOrderMeta = {
         ...orderMeta,
+        viewingType: resolvedViewingType,
         halteverbotDate: orderMeta.halteverbotDateA || orderMeta.halteverbotDate || logistics.hvzDateA || logistics.hvzDate || '',
         halteverbotTime: orderMeta.halteverbotTimeA || orderMeta.halteverbotTime || logistics.hvzTimeA || logistics.hvzTime || '',
         roomCounts
       };
       const finalLogistics = {
         ...logistics,
+        viewingType: resolvedViewingType,
         estimatedVolume: calculatedCbmValue,
         hvzDate: logistics.hvzDateA || logistics.hvzDate || finalOrderMeta.halteverbotDate || '',
         hvzTime: logistics.hvzTimeA || logistics.hvzTime || finalOrderMeta.halteverbotTime || ''
@@ -2179,6 +2381,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         orderMeta: finalOrderMeta,
         logistics: finalLogistics,
         viewingDate: finalOrderMeta.viewingDate || '', // Expose on root level for calendar
+        viewingType: resolvedViewingType,
         isFlatRate,
         flatRateNet,
         services,
@@ -2369,14 +2572,14 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
     goToStep(targetStep);
 
-    // Auto-save as draft when arriving at Step 5 (Abschluss)
-    if (targetStep === 5 && !isAutoSavingRef.current && !isSaving) {
+    // Rule 2: Auto-save draft to Firestore on moving forward (Weiter from Step 1 to Step 2, or any step advancement)
+    if (!isAutoSavingRef.current && !isSaving && (urlCustomerId || customerData.lastName?.trim())) {
       isAutoSavingRef.current = true;
       setTimeout(async () => {
         try {
           await saveOrder(isInvoice ? 'invoice_open' : 'draft', false, false, true);
         } catch (err) {
-          console.error("Auto-save draft error:", err);
+          console.error("Auto-save draft error on step advance:", err);
         } finally {
           isAutoSavingRef.current = false;
         }
@@ -2476,6 +2679,30 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           <p className="text-sm text-text-muted mt-1">
             {isInvoice ? 'Erstellen Sie eine direkte Rechnung.' : 'Erstellen Sie ein detailliertes Umzugsangebot.'}
           </p>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          {saveStatus === 'saving' && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+              <span>Speichert...</span>
+            </span>
+          )}
+          {saveStatus === 'success' && activeOrderId && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Entwurf gesichert</span>
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleSafeCancel}
+            className="p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold font-headline text-text-muted hover:text-red-400 bg-white/[0.03] hover:bg-red-500/10 border border-structure hover:border-red-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
+            title="Vorgang abbrechen / Entwurf verwerfen"
+          >
+            <TrashIcon className="w-3.5 h-3.5 text-red-400" />
+            <span className="hidden sm:inline">Abbrechen</span>
+          </button>
         </div>
       </div>
       {/* Invoiced Warning Banner */}
@@ -2788,10 +3015,64 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               </div>
             </div>
           </div>
+        </div>
+      </section>
 
-          <div id="highlight-movingDate" className="rounded-xl transition-all">
-            <label className="flex justify-between items-center text-xs text-text-muted mb-1">
-              <span>Umzugsdatum (von)</span>
+      {/* 2. Auftrags- & Termindetails */}
+      <section className="glass-panel p-5 sm:p-6 rounded-2xl shadow-xl border-t-4 border-t-primary shadow-lg space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-structure/80 gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-text-main flex items-center gap-2">
+              <TruckIcon className="w-5 h-5 text-primary" />
+              <span>Auftrags- &amp; Termindetails</span>
+            </h2>
+            <p className="text-xs text-text-muted mt-0.5">
+              Legen Sie den Umzugstermin, die Besichtigungsart und die Zahlungskonditionen fest.
+            </p>
+          </div>
+
+          {/* Compact Administrative Bar: Ansprechpartner & Gültig bis */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Ansprechpartner: Compact Pill with UserIcon */}
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/[0.03] border border-structure/70 text-xs text-text-muted hover:border-primary/40 transition-colors">
+              <UserIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="text-[10px] uppercase font-bold tracking-wider text-text-muted hidden sm:inline">Berater:</span>
+              <select
+                value={orderMeta.manager}
+                onChange={e => setOrderMeta({ ...orderMeta, manager: e.target.value })}
+                className="bg-transparent text-text-main font-bold text-xs outline-none cursor-pointer hover:text-primary transition-colors pr-1"
+                title="Zuständigen Kundenberater anpassen"
+              >
+                <option value="" className="bg-bg-panel text-text-main">Berater wählen...</option>
+                {settings.contacts?.map((c: string) => <option key={c} value={c} className="bg-bg-panel text-text-main">{c}</option>)}
+              </select>
+            </div>
+
+            {/* Gültig bis: Compact Pill with Calendar Icon */}
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white/[0.03] border border-structure/70 text-xs text-text-muted hover:border-primary/40 transition-colors">
+              <CalendarDaysIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="text-[10px] uppercase font-bold tracking-wider text-text-muted hidden sm:inline">Gültig bis:</span>
+              <input
+                type="date"
+                value={orderMeta.validUntil}
+                onChange={e => setOrderMeta({ ...orderMeta, validUntil: e.target.value })}
+                className="bg-transparent text-text-main font-bold text-xs outline-none cursor-pointer hover:text-primary transition-colors"
+                title="Gültigkeitsdatum des Angebots anpassen"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Core Operational Row: Umzugsdatum (Left) & Besichtigung (Right) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          
+          {/* Left Column: Umzugstermin (takes 5 cols on lg) */}
+          <div id="highlight-movingDate" className="lg:col-span-5 bg-white/[0.02] border border-structure/60 p-4 rounded-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-text-main flex items-center gap-1.5">
+                <CalendarDaysIcon className="w-4 h-4 text-primary" />
+                <span>Umzugsdatum (von) *</span>
+              </label>
               <button 
                 type="button" 
                 onClick={() => {
@@ -2800,134 +3081,260 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   }
                   setShowBisDate(!showBisDate);
                 }} 
-                className="text-primary hover:opacity-70 transition-opacity flex items-center gap-1"
+                className="text-xs font-bold text-primary hover:underline transition-all flex items-center gap-1 cursor-pointer"
               >
                 {showBisDate ? (
                   <>Ohne "bis" <span className="text-[10px]">▲</span></>
                 ) : (
-                  <>+ "bis" <span className="text-[10px]">▼</span></>
+                  <>+ Zeitraum ("bis") <span className="text-[10px]">▼</span></>
                 )}
               </button>
-            </label>
-            <input id="input-movingDateFrom" type="date" value={orderMeta.movingDateFrom} onChange={e => setOrderMeta({...orderMeta, movingDateFrom: e.target.value})} className="input-field w-full" />
-            
-            {showBisDate && (
-              <div className="mt-3 animate-fade-in">
-                <label className="block text-xs text-text-muted mb-1">Umzugsdatum (bis)</label>
-                <input type="date" value={orderMeta.movingDateTo} onChange={e => setOrderMeta({...orderMeta, movingDateTo: e.target.value})} className="input-field w-full" />
-              </div>
-            )}
-          </div>
-          <div id="highlight-viewingDate" className="rounded-xl transition-all">
-            <div className="flex items-center justify-between text-xs text-text-muted mb-1">
-              <span>Besichtigungstermin</span>
-              {orderMeta.viewingDate !== 'erledigt_fotos' ? (
-                <button
-                  type="button"
-                  onClick={() => setOrderMeta({ ...orderMeta, viewingDate: 'erledigt_fotos', viewingTime: '' })}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#6E8F64]/10 hover:bg-[#6E8F64]/20 text-[#435E3A] dark:text-[#B5D1AC] border border-[#6E8F64]/30 shadow-2xs hover:shadow-xs transition-all cursor-pointer active:scale-95 whitespace-nowrap shrink-0"
-                  title="Besichtigung entfällt – wurde bereits per Fotos/Inventarliste geklärt"
-                >
-                  <PhotoIcon className="w-3 h-3 text-[#6E8F64]" />
-                  <span>Durch Fotos</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setOrderMeta({ ...orderMeta, viewingDate: '', viewingTime: '' })}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-bg-panel hover:bg-slate-200 dark:hover:bg-slate-700 text-text-muted hover:text-text-main border border-structure shadow-2xs transition-all cursor-pointer whitespace-nowrap shrink-0"
-                >
-                  <CalendarDaysIcon className="w-3 h-3 text-primary" />
-                  <span>Termin wählen</span>
-                </button>
-              )}
             </div>
 
-            {orderMeta.viewingDate === 'erledigt_fotos' ? (
-              <div className="p-3 rounded-xl bg-[#6E8F64]/10 border border-[#6E8F64]/25 text-xs font-semibold text-[#435E3A] dark:text-[#B5D1AC] flex items-center justify-between shadow-2xs">
-                <div className="flex items-center gap-2">
-                  <CheckCircleIcon className="w-4 h-4 text-[#6E8F64] shrink-0" />
-                  <span>Besichtigung durch Fotos & Inventarliste erledigt</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setOrderMeta({ ...orderMeta, viewingDate: '', viewingTime: '' })}
-                  className="text-[11px] underline font-bold hover:opacity-80 text-[#435E3A] dark:text-[#B5D1AC] cursor-pointer"
-                >
-                  Ändern
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <input
-                  id="input-viewingDate"
-                  type="date"
-                  value={['requested', 'erledigt_fotos'].includes(orderMeta.viewingDate) ? '' : (orderMeta.viewingDate || '').split('T')[0]}
-                  onChange={e => {
-                    const newDate = e.target.value;
-                    const timeMatch = (orderMeta.viewingTime || '').match(/(\d{2}:\d{2})/);
-                    const isoTime = timeMatch ? timeMatch[1] : ((orderMeta.viewingDate || '').includes('T') ? (orderMeta.viewingDate || '').split('T')[1]?.slice(0, 5) : '');
-                    const combined = newDate ? (isoTime ? `${newDate}T${isoTime}` : newDate) : '';
-                    setOrderMeta({ ...orderMeta, viewingDate: combined, viewingDateOnly: newDate });
-                  }}
-                  className="input-field w-full text-xs"
+            <input 
+              id="input-movingDateFrom" 
+              type="date" 
+              value={orderMeta.movingDateFrom} 
+              onChange={e => setOrderMeta({...orderMeta, movingDateFrom: e.target.value})} 
+              className="input-field w-full text-sm font-semibold" 
+            />
+            
+            {showBisDate && (
+              <div className="pt-2 border-t border-structure/40 animate-fade-in space-y-1">
+                <label className="block text-xs font-medium text-text-muted">Umzugsdatum (bis)</label>
+                <input 
+                  type="date" 
+                  value={orderMeta.movingDateTo} 
+                  onChange={e => setOrderMeta({...orderMeta, movingDateTo: e.target.value})} 
+                  className="input-field w-full text-sm" 
                 />
-                <select
-                  value={orderMeta.viewingTime || ((orderMeta.viewingDate || '').includes('T') ? (orderMeta.viewingDate || '').split('T')[1]?.slice(0, 5) : '')}
-                  onChange={e => {
-                    const newTime = e.target.value;
-                    const datePart = ['requested', 'erledigt_fotos'].includes(orderMeta.viewingDate) ? '' : (orderMeta.viewingDate || '').split('T')[0];
-                    const timeMatch = newTime.match(/(\d{2}:\d{2})/);
-                    const isoTime = timeMatch ? timeMatch[1] : '';
-                    const combined = datePart ? (isoTime ? `${datePart}T${isoTime}` : datePart) : '';
-                    setOrderMeta({ ...orderMeta, viewingTime: newTime, viewingDate: combined });
-                  }}
-                  className="input-field w-full text-xs"
-                >
-                  <option value="">Uhrzeit / Zeitfenster...</option>
-                  <option value="08:00 - 12:00">08:00 - 12:00 (Vormittag)</option>
-                  <option value="10:00 - 14:00">10:00 - 14:00 (Mittag)</option>
-                  <option value="13:00 - 17:00">13:00 - 17:00 (Nachmittag)</option>
-                  <option value="09:00">09:00 Uhr</option>
-                  <option value="10:00">10:00 Uhr</option>
-                  <option value="11:00">11:00 Uhr</option>
-                  <option value="12:00">12:00 Uhr</option>
-                  <option value="14:00">14:00 Uhr</option>
-                  <option value="15:00">15:00 Uhr</option>
-                  <option value="16:00">16:00 Uhr</option>
-                  <option value="17:00">17:00 Uhr</option>
-                  <option value="18:00">18:00 Uhr</option>
-                  <option value="Ganztägig">Ganztägig (Flexibel)</option>
-                </select>
               </div>
             )}
-            {orderMeta.viewingDate === 'requested' && (
-              <p className="text-xs font-bold text-orange-400 mt-1">Kunde hat Besichtigung angefragt!</p>
-            )}
-            <p className="text-[10px] text-text-muted mt-1">Synchronisiert automatisch mit Kundenakte, Cockpit & Kalender.</p>
-          </div>
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Gültig bis</label>
-            <input type="date" value={orderMeta.validUntil} onChange={e => setOrderMeta({...orderMeta, validUntil: e.target.value})} className="input-field w-full" />
-          </div>
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Ansprechpartner (Berater)</label>
-            <select value={orderMeta.manager} onChange={e => setOrderMeta({...orderMeta, manager: e.target.value})} className="input-field w-full">
-              <option value="">Wählen...</option>
-              {settings.contacts?.map((c:string) => <option key={c} value={c}>{c}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs text-text-muted mb-1">Zahlungsmethode</label>
-            <select value={orderMeta.paymentMethod} onChange={e => {
-              setOrderMeta({...orderMeta, paymentMethod: e.target.value});
-              const pm = settings.paymentMethods?.find((p:any) => p.name === e.target.value);
-              if (pm) setTexts(t => ({...t, paymentTerms: pm.textQuote}));
-            }} className="input-field w-full">
-              {settings.paymentMethods?.map((pm:any) => <option key={pm.name} value={pm.name}>{pm.name}</option>)}
-            </select>
           </div>
 
+          {/* Right Column: Besichtigung Selector (takes 7 cols on lg) */}
+          <div id="highlight-viewingDate" className="lg:col-span-7 bg-white/[0.02] border border-structure/60 p-4 rounded-2xl space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-text-main">Besichtigung</span>
+                <span className="text-[10px] text-text-muted">(Optional)</span>
+              </div>
+
+              {/* Segmented Pill Selector: 3 Options + Dynamic 'Keine' Reset Button */}
+              <div className="inline-flex p-1 rounded-xl bg-bg-dark/80 border border-structure/80 text-xs font-bold flex-wrap gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const isCurrentlyVorOrt = orderMeta.viewingType === 'vor_ort' || (!orderMeta.viewingType && orderMeta.viewingDate && orderMeta.viewingDate !== 'erledigt_fotos');
+                    if (isCurrentlyVorOrt) {
+                      setOrderMeta((prev: any) => ({ ...prev, viewingType: '', viewingDate: '', viewingTime: '' }));
+                    } else {
+                      setOrderMeta((prev: any) => ({
+                        ...prev,
+                        viewingType: 'vor_ort',
+                        viewingDate: prev.viewingDate === 'erledigt_fotos' ? '' : prev.viewingDate
+                      }));
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                    (orderMeta.viewingType === 'vor_ort' || (!orderMeta.viewingType && orderMeta.viewingDate && orderMeta.viewingDate !== 'erledigt_fotos'))
+                      ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-xs'
+                      : 'text-text-muted hover:text-text-main'
+                  }`}
+                >
+                  <MapPinIcon className="w-3.5 h-3.5" />
+                  <span>Vor-Ort</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (orderMeta.viewingType === 'online') {
+                      setOrderMeta((prev: any) => ({ ...prev, viewingType: '', viewingDate: '', viewingTime: '' }));
+                    } else {
+                      setOrderMeta((prev: any) => ({
+                        ...prev,
+                        viewingType: 'online',
+                        viewingDate: prev.viewingDate === 'erledigt_fotos' ? '' : prev.viewingDate
+                      }));
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                    orderMeta.viewingType === 'online'
+                      ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30 shadow-xs'
+                      : 'text-text-muted hover:text-text-main'
+                  }`}
+                >
+                  <VideoCameraIcon className="w-3.5 h-3.5" />
+                  <span>Video-Call</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (orderMeta.viewingType === 'fotos' || orderMeta.viewingDate === 'erledigt_fotos') {
+                      setOrderMeta((prev: any) => ({ ...prev, viewingType: '', viewingDate: '', viewingTime: '' }));
+                    } else {
+                      setOrderMeta((prev: any) => ({
+                        ...prev,
+                        viewingType: 'fotos',
+                        viewingDate: 'erledigt_fotos',
+                        viewingTime: ''
+                      }));
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                    (orderMeta.viewingType === 'fotos' || orderMeta.viewingDate === 'erledigt_fotos')
+                      ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-xs'
+                      : 'text-text-muted hover:text-text-main'
+                  }`}
+                >
+                  <PhotoIcon className="w-3.5 h-3.5" />
+                  <span>Fotos &amp; Liste</span>
+                </button>
+
+                {/* 'Keine' appears dynamically ONLY when a viewing option is selected */}
+                {Boolean(orderMeta.viewingType || orderMeta.viewingDate) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOrderMeta((prev: any) => ({
+                        ...prev,
+                        viewingType: '',
+                        viewingDate: '',
+                        viewingTime: ''
+                      }));
+                    }}
+                    className="px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 text-xs font-bold animate-in fade-in zoom-in-95 duration-150"
+                    title="Besichtigung zurücksetzen / Keine"
+                  >
+                    <XMarkIcon className="w-3.5 h-3.5 text-red-400" />
+                    <span>Keine</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Content for Fotos & Liste */}
+            {(orderMeta.viewingType === 'fotos' || orderMeta.viewingDate === 'erledigt_fotos') && (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between text-xs text-emerald-400">
+                <div className="flex items-center gap-2">
+                  <CheckCircleIcon className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <span className="font-semibold">Besichtigung durch Fotos &amp; Inventarliste erledigt</span>
+                </div>
+              </div>
+            )}
+
+            {/* Content for Vor-Ort or Video-Call */}
+            {(orderMeta.viewingType === 'online' || orderMeta.viewingType === 'vor_ort' || (!orderMeta.viewingType && orderMeta.viewingDate && orderMeta.viewingDate !== 'erledigt_fotos')) && (
+              <div className="space-y-2.5 pt-1 animate-in fade-in duration-200">
+                <div className="flex items-center gap-2">
+                  {orderMeta.viewingType === 'online' ? (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-500/15 text-purple-400 border border-purple-500/30">
+                      <VideoCameraIcon className="w-3.5 h-3.5 text-purple-400" />
+                      <span>Online Video-Call (WhatsApp Video / FaceTime)</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-500/15 text-blue-400 border border-blue-500/30">
+                      <MapPinIcon className="w-3.5 h-3.5 text-blue-400" />
+                      <span>Vor-Ort-Besichtigung beim Kunden (Auszug A)</span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <input
+                    id="input-viewingDate"
+                    type="date"
+                    value={['requested', 'erledigt_fotos'].includes(orderMeta.viewingDate) ? '' : (orderMeta.viewingDate || '').split('T')[0]}
+                    onChange={e => {
+                      const newDate = e.target.value;
+                      const timeMatch = (orderMeta.viewingTime || '').match(/(\d{2}:\d{2})/);
+                      const isoTime = timeMatch ? timeMatch[1] : ((orderMeta.viewingDate || '').includes('T') ? (orderMeta.viewingDate || '').split('T')[1]?.slice(0, 5) : '');
+                      const combined = newDate ? (isoTime ? `${newDate}T${isoTime}` : newDate) : '';
+                      setOrderMeta((prev: any) => ({
+                        ...prev,
+                        viewingType: prev.viewingType || 'vor_ort',
+                        viewingDate: combined,
+                        viewingDateOnly: newDate
+                      }));
+                    }}
+                    className="input-field w-full text-xs"
+                  />
+                  <select
+                    value={orderMeta.viewingTime || ((orderMeta.viewingDate || '').includes('T') ? (orderMeta.viewingDate || '').split('T')[1]?.slice(0, 5) : '')}
+                    onChange={e => {
+                      const newTime = e.target.value;
+                      const datePart = ['requested', 'erledigt_fotos'].includes(orderMeta.viewingDate) ? '' : (orderMeta.viewingDate || '').split('T')[0];
+                      const timeMatch = newTime.match(/(\d{2}:\d{2})/);
+                      const isoTime = timeMatch ? timeMatch[1] : '';
+                      const combined = datePart ? (isoTime ? `${datePart}T${isoTime}` : datePart) : '';
+                      setOrderMeta((prev: any) => ({
+                        ...prev,
+                        viewingType: prev.viewingType || 'vor_ort',
+                        viewingTime: newTime,
+                        viewingDate: combined
+                      }));
+                    }}
+                    className="input-field w-full text-xs"
+                  >
+                    <option value="">Uhrzeit / Zeitfenster...</option>
+                    <option value="08:00 - 12:00">08:00 - 12:00 (Vormittag)</option>
+                    <option value="10:00 - 14:00">10:00 - 14:00 (Mittag)</option>
+                    <option value="13:00 - 17:00">13:00 - 17:00 (Nachmittag)</option>
+                    <option value="09:00">09:00 Uhr</option>
+                    <option value="10:00">10:00 Uhr</option>
+                    <option value="11:00">11:00 Uhr</option>
+                    <option value="12:00">12:00 Uhr</option>
+                    <option value="14:00">14:00 Uhr</option>
+                    <option value="15:00">15:00 Uhr</option>
+                    <option value="16:00">16:00 Uhr</option>
+                    <option value="17:00">17:00 Uhr</option>
+                    <option value="18:00">18:00 Uhr</option>
+                    <option value="Ganztägig">Ganztägig (Flexibel)</option>
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Core Financial Row: Zahlungsmethode (Ergonomic Pill Cards) */}
+        <div className="bg-white/[0.02] border border-structure/60 p-4 rounded-2xl space-y-2.5">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold text-text-main flex items-center gap-1.5">
+              <CreditCardIcon className="w-4 h-4 text-primary" />
+              <span>Zahlungsmethode *</span>
+            </label>
+            <span className="text-[11px] text-text-muted">Wird direkt in die Angebots- und Rechnungsbedingungen übernommen</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            {settings.paymentMethods?.map((pm: any) => {
+              const isSelected = orderMeta.paymentMethod === pm.name;
+              return (
+                <button
+                  key={pm.name}
+                  type="button"
+                  onClick={() => {
+                    setOrderMeta({ ...orderMeta, paymentMethod: pm.name });
+                    if (pm.textQuote) {
+                      setTexts(t => ({ ...t, paymentTerms: pm.textQuote }));
+                    }
+                  }}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold font-headline transition-all flex items-center gap-2 cursor-pointer border active:scale-95 ${
+                    isSelected
+                      ? 'bg-primary/20 text-primary border-primary/50 shadow-xs ring-1 ring-primary/40'
+                      : 'bg-white/[0.03] hover:bg-white/[0.06] text-text-muted hover:text-text-main border-structure'
+                  }`}
+                >
+                  <BanknotesIcon className={`w-4 h-4 ${isSelected ? 'text-primary' : 'text-text-muted'}`} />
+                  <span>{pm.name}</span>
+                  {isSelected && <CheckCircleIcon className="w-3.5 h-3.5 text-primary ml-0.5" />}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </section>
 
@@ -3674,18 +4081,6 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               </p>
             </div>
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setIsPricingExpanded(!isPricingExpanded)}
-                className="hidden lg:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-structure bg-white/[0.03] hover:bg-white/[0.07] text-xs font-bold text-text-main transition-all cursor-pointer shadow-sm"
-                title={isPricingExpanded ? 'Zurück zur geteilten Ansicht' : 'Preiskalkulation über volle Breite vergrößern'}
-              >
-                <span className="material-symbols-outlined text-base text-primary">
-                  {isPricingExpanded ? 'view_column' : 'open_in_full'}
-                </span>
-                <span>{isPricingExpanded ? 'Geteilte Ansicht' : 'Fokus-Kalkulation'}</span>
-              </button>
-
               <label className={`flex items-center gap-2 bg-white/[0.03] px-3.5 py-2 rounded-xl border border-structure shadow-sm ${!canEditPrices ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                 <input 
                   type="checkbox" 
@@ -3836,28 +4231,6 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
                   {showFullCatalog && (
                     <div className="space-y-3.5 animate-in fade-in duration-200">
-                      {/* Search Bar */}
-                      <div className="relative">
-                        <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-                        <input 
-                          type="text" 
-                          maxLength={60}
-                          placeholder="Weitere Leistungen suchen (z.B. Aufbau Küche, Montage, Kartons)..." 
-                          value={catalogSearch} 
-                          onChange={e => setCatalogSearch(sanitizeText(e.target.value, 60))} 
-                          className="input-field w-full pl-9 pr-8 py-2 rounded-xl bg-black/20 text-xs shadow-inner" 
-                        />
-                        {catalogSearch && (
-                          <button
-                            type="button"
-                            onClick={() => setCatalogSearch('')}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-white"
-                          >
-                            <XMarkIcon className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-
                       {/* Category Filter Tabs */}
                       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
                         <button 
@@ -4081,13 +4454,13 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                     <button
                       type="button"
                       onClick={() => setIsPricingExpanded(!isPricingExpanded)}
-                      className="hidden lg:flex items-center gap-1 text-[11px] text-text-muted hover:text-primary transition-colors cursor-pointer px-2 py-0.5 rounded-lg bg-white/[0.04] border border-white/5"
-                      title={isPricingExpanded ? 'Geteilte Ansicht' : 'Volle Bildschirmbreite für Preiskalkulation'}
+                      className="hidden lg:flex items-center gap-1.5 text-xs text-text-muted hover:text-primary transition-colors cursor-pointer px-2.5 py-1 rounded-lg bg-white/[0.04] border border-structure/60 hover:border-primary/40 shadow-sm"
+                      title={isPricingExpanded ? 'Zurück zur geteilten Ansicht' : 'Preiskalkulation auf volle Bildschirmbreite vergrößern'}
                     >
-                      <span className="material-symbols-outlined text-base">
+                      <span className="material-symbols-outlined text-sm text-primary">
                         {isPricingExpanded ? 'fullscreen_exit' : 'fullscreen'}
                       </span>
-                      <span>{isPricingExpanded ? 'Geteilt' : 'Fokus'}</span>
+                      <span>{isPricingExpanded ? 'Geteilte Ansicht' : 'Fokus'}</span>
                     </button>
                     <span className="text-[11px] font-bold text-text-muted bg-structure/50 px-2 py-0.5 rounded-full">
                       {services.length} Positionen
@@ -4177,37 +4550,62 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                                 className="text-[10px] text-text-muted bg-black/10 focus:bg-black/20 focus:outline-none rounded px-2 py-1 w-full resize-y min-h-[36px]"
                                 rows={1}
                               />
-                              <div className="flex items-center gap-1.5 pt-0.5">
-                                <span className="text-[10px] font-bold text-text-muted uppercase">Ort:</span>
-                                <div className="inline-flex rounded-lg p-0.5 bg-structure/40 border border-white/5">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleServiceLocationChange(idx, 'a')}
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${
-                                      svc.location === 'a' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main'
-                                    }`}
-                                  >
-                                    A (Beladung)
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleServiceLocationChange(idx, 'b')}
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${
-                                      svc.location === 'b' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main'
-                                    }`}
-                                  >
-                                    B (Entladung)
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleServiceLocationChange(idx, 'both')}
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${
-                                      !svc.location || svc.location === 'both' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main'
-                                    }`}
-                                  >
-                                    Beide
-                                  </button>
+                              <div className="flex items-center justify-between flex-wrap gap-2 pt-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] font-bold text-text-muted uppercase">Ort:</span>
+                                  <div className="inline-flex rounded-lg p-0.5 bg-structure/40 border border-white/5">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleServiceLocationChange(idx, 'a')}
+                                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${
+                                        svc.location === 'a' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main'
+                                      }`}
+                                    >
+                                      A (Beladung)
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleServiceLocationChange(idx, 'b')}
+                                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${
+                                        svc.location === 'b' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main'
+                                      }`}
+                                    >
+                                      B (Entladung)
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleServiceLocationChange(idx, 'both')}
+                                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition-all ${
+                                        !svc.location || svc.location === 'both' ? 'bg-primary text-white shadow-xs' : 'text-text-muted hover:text-text-main'
+                                      }`}
+                                    >
+                                      Beide
+                                    </button>
+                                  </div>
                                 </div>
+
+                                {/* Smart Micro-Action: Save custom service permanently to Typische Leistungen */}
+                                {(() => {
+                                  const trimmed = (svc.name || '').trim();
+                                  if (!trimmed || trimmed.toLowerCase() === 'individuelle leistung') return null;
+                                  const alreadyInCatalog = allgemeinServices.some((a: any) => (a.name || '').trim().toLowerCase() === trimmed.toLowerCase());
+                                  if (alreadyInCatalog) return null;
+
+                                  const isSaving = savingCatalogSvcId === (svc.id || svc.name);
+
+                                  return (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveServiceToCatalog(svc)}
+                                      disabled={isSaving}
+                                      className="inline-flex items-center gap-1 text-[10px] font-medium text-text-muted hover:text-primary bg-white/[0.03] hover:bg-primary/10 border border-white/10 hover:border-primary/30 px-2 py-0.5 rounded-md transition-all cursor-pointer shadow-2xs active:scale-95"
+                                      title="Diese Leistung dauerhaft im Katalog zu typischen Umzugsleistungen (Allgemein) hinzufügen"
+                                    >
+                                      <span className="material-symbols-outlined text-[12px] text-primary">bookmark_add</span>
+                                      <span>{isSaving ? 'Wird gespeichert...' : 'In Katalog speichern'}</span>
+                                    </button>
+                                  );
+                                })()}
                               </div>
                               {((svc as any).isKartonService || svc.id === 'kartons_bereit' || (svc.name || '').toLowerCase().includes('umzugskarton') || (svc.name || '').toLowerCase().includes('kartons bereitstellen')) && (
                                 <div className="pt-1">
@@ -4349,25 +4747,23 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                               )}
                             </td>
                             <td className="pr-2 text-right">
-                              {!isRemovalLocked(svc) && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const sKey = getFixedKey(svc);
-                                    setServices(services.filter((_, i) => i !== idx));
-                                    if (sKey === 'hvz') {
-                                      setLogistics((l: any) => ({ ...l, a_parking: false, b_parking: false }));
-                                    }
-                                    if (sKey === 'moebellift') {
-                                      setLogistics((l: any) => ({ ...l, a_furnitureLift: false, b_furnitureLift: false }));
-                                    }
-                                  }}
-                                  className="text-text-muted hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                                  title="Position entfernen"
-                                >
-                                  <XMarkIcon className="w-4 h-4" />
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const sKey = getFixedKey(svc);
+                                  setServices(services.filter((_, i) => i !== idx));
+                                  if (sKey === 'hvz') {
+                                    setLogistics((l: any) => ({ ...l, a_parking: false, b_parking: false }));
+                                  }
+                                  if (sKey === 'moebellift') {
+                                    setLogistics((l: any) => ({ ...l, a_furnitureLift: false, b_furnitureLift: false }));
+                                  }
+                                }}
+                                className="text-text-muted/60 hover:text-red-400 p-1 transition-opacity cursor-pointer inline-flex items-center justify-center opacity-80 sm:opacity-0 group-hover:opacity-100"
+                                title="Position entfernen"
+                              >
+                                <XMarkIcon className="w-4 h-4" />
+                              </button>
                             </td>
                           </tr>
                         ))}
@@ -5409,23 +5805,34 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             {/* LEFT: Zurück or Abbrechen */}
             <div className="flex items-center gap-2 shrink-0">
               {currentStep > 1 ? (
-                <button
-                  type="button"
-                  onClick={handleStepBack}
-                  disabled={isSaving}
-                  className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline bg-structure/50 hover:bg-structure text-text-main transition-all flex items-center gap-1.5 border border-structure active:scale-95 cursor-pointer"
-                >
-                  <span className="material-symbols-outlined text-sm">arrow_back</span>
-                  <span>Zurück</span>
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={handleStepBack}
+                    disabled={isSaving}
+                    className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline bg-structure/50 hover:bg-structure text-text-main transition-all flex items-center gap-1.5 border border-structure active:scale-95 cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-sm">arrow_back</span>
+                    <span>Zurück</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSafeCancel}
+                    disabled={isSaving}
+                    className="p-2 rounded-xl text-xs font-semibold text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-all flex items-center cursor-pointer"
+                    title="Vorgang abbrechen / Entwurf verwerfen"
+                  >
+                    <TrashIcon className="w-4 h-4 text-red-400" />
+                  </button>
+                </>
               ) : (
                 <button
                   type="button"
                   onClick={handleSafeCancel}
                   disabled={isSaving}
-                  className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline text-text-muted hover:text-text-main transition-colors flex items-center gap-1 cursor-pointer"
+                  className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-all flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span className="material-symbols-outlined text-sm">close</span>
+                  <TrashIcon className="w-4 h-4 text-red-400" />
                   <span className="hidden xs:inline">Abbrechen</span>
                 </button>
               )}
@@ -5507,9 +5914,6 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               <h3 className="text-xl font-headline font-bold text-text-main">
                 Keine Leistungen erfasst
               </h3>
-              <p className="text-xs font-semibold text-amber-400">
-                لم تقم بإضافة أي خدمات بعد (0,00 €)
-              </p>
               <p className="text-xs text-text-muted leading-relaxed pt-1">
                 Es wurden bisher noch keine Einzelleistungen oder Pauschalbeträge hinterlegt. Möchten Sie jetzt Leistungen auswählen oder das Angebot trotzdem ohne Leistungen erstellen?
               </p>
@@ -5536,8 +5940,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 }}
                 className="btn-primary py-3 px-4 rounded-xl text-xs font-bold font-headline flex items-center justify-center gap-2 shadow-lg shadow-primary/25 cursor-pointer"
               >
-                <span className="material-symbols-outlined text-sm">add_circle</span>
-                <span>Leistungen hinzufügen (Schritt 3) / إضافة خدمات</span>
+                <PlusCircleIcon className="w-4 h-4" />
+                <span>Leistungen hinzufügen (Schritt 3)</span>
               </button>
 
               <button
@@ -5552,7 +5956,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 }}
                 className="py-2.5 px-4 rounded-xl text-xs font-bold text-text-muted hover:text-text-main bg-white/[0.04] hover:bg-white/[0.08] border border-structure transition cursor-pointer"
               >
-                Trotzdem erstellen / المتابعة والإنشاء رغم ذلك
+                Trotzdem ohne Leistungen erstellen
               </button>
 
               <button
@@ -5563,7 +5967,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 }}
                 className="text-[11px] text-text-muted hover:text-text-main underline pt-1 cursor-pointer"
               >
-                Abbrechen / إلغاء
+                Abbrechen
               </button>
             </div>
           </div>
@@ -5575,18 +5979,15 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
           <div className="bg-bg-panel border-2 border-red-500/30 rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl space-y-5 text-center animate-in zoom-in-95 duration-200">
             <div className="w-16 h-16 rounded-2xl bg-red-500/10 text-red-400 border border-red-500/25 flex items-center justify-center mx-auto shadow-inner">
-              <span className="material-symbols-outlined text-3xl">warning</span>
+              <TrashIcon className="w-8 h-8 text-red-400" />
             </div>
 
             <div className="space-y-2">
               <h3 className="text-xl font-headline font-bold text-text-main">
                 {isInvoice ? 'Rechnungserstellung abbrechen?' : 'Angebotserstellung abbrechen?'}
               </h3>
-              <p className="text-xs font-semibold text-red-400">
-                هل أنت متأكد من رغبتك في إلغاء العملية؟
-              </p>
-              <p className="text-xs text-text-muted leading-relaxed pt-1">
-                Nicht gespeicherte Eingaben gehen verloren. Möchten Sie die Bearbeitung wirklich verlassen?
+              <p className="text-xs text-text-muted leading-relaxed">
+                Möchten Sie die Bearbeitung wirklich beenden? Bereits automatisch gespeicherte Entwürfe können hier endgültig gelöscht oder als Entwurf behalten werden.
               </p>
             </div>
 
@@ -5597,28 +5998,30 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   setShowCancelModal(false);
                   saveOrder(isInvoice ? 'invoice_open' : 'draft', false, true, false);
                 }}
-                disabled={isSaving}
+                disabled={isSaving || isDeletingDraft}
                 className="w-full py-3 px-4 rounded-xl text-xs font-bold font-headline bg-primary hover:brightness-110 text-white flex items-center justify-center gap-2 shadow-lg shadow-primary/25 transition-all cursor-pointer active:scale-95"
               >
-                <span className="material-symbols-outlined text-sm">save</span>
-                <span>Als Entwurf speichern & Verlassen / حفظ كمسودة وخروج</span>
+                <CheckCircleIcon className="w-4 h-4" />
+                <span>Als Entwurf behalten & verlassen</span>
               </button>
 
               <button
                 type="button"
-                onClick={executeExit}
+                onClick={handleDiscardAndDeleteDraft}
+                disabled={isSaving || isDeletingDraft}
                 className="w-full py-2.5 px-4 rounded-xl text-xs font-bold font-headline bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95"
               >
-                <span className="material-symbols-outlined text-sm">delete_forever</span>
-                <span>Verwerfen & Verlassen / إلغاء وتجاهل التغييرات</span>
+                <TrashIcon className="w-4 h-4 text-red-400" />
+                <span>{isDeletingDraft ? 'Löscht Entwurf...' : 'Entwurf verwerfen & endgültig löschen'}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowCancelModal(false)}
+                disabled={isDeletingDraft}
                 className="w-full py-2.5 px-4 rounded-xl text-xs font-bold text-text-muted hover:text-text-main bg-white/[0.04] hover:bg-white/[0.08] border border-structure transition-all cursor-pointer"
               >
-                Weiter bearbeiten / البقاء ومتابعة العمل
+                Weiter bearbeiten
               </button>
             </div>
           </div>
@@ -5645,6 +6048,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         }}
         existingService={selectedKartonService}
         defaultPrices={settings?.kartonPrices}
+        kartonNames={settings?.kartonNames}
+        disabledKartons={settings?.disabledKartons}
+        packmaterials={settings?.packmaterials}
         onSave={handleSaveKartonService}
         onRemove={handleRemoveKartonService}
       />

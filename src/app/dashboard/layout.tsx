@@ -30,8 +30,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!loading && user && profile?.role) {
     if (isTeamLead) {
-      const allowedPaths = ['/dashboard/calendar', '/dashboard/manual', '/dashboard/customers'];
-      const isAllowed = allowedPaths.some(p => pathname === p || pathname.startsWith(p + '/'));
+      // Teamleiter dürfen NIEMALS:
+      // 1. Die gesamte Kundenliste der Firma sehen (/dashboard/customers)
+      // 2. Angebote/Aufträge erstellen oder bearbeiten (/edit-order, /new-order, /dashboard/orders)
+      // 3. Finanzen, Einstellungen, Statistiken, Archiv sehen
+      const isCustomerList = pathname === '/dashboard/customers' || pathname === '/dashboard/customers/';
+      const isOrderEditor = pathname.includes('/edit-order') || pathname.includes('/new-order') || pathname.startsWith('/dashboard/orders');
+
+      const isAllowed = !isCustomerList && !isOrderEditor && (
+        pathname === '/dashboard/calendar' ||
+        pathname.startsWith('/dashboard/calendar/') ||
+        pathname === '/dashboard/manual' ||
+        pathname.startsWith('/dashboard/manual/') ||
+        (pathname.startsWith('/dashboard/customers/') && !isOrderEditor)
+      );
       if (!isAllowed) {
         isForbidden = true;
         redirectTarget = '/dashboard/calendar';

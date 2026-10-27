@@ -524,17 +524,52 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
 
   const allgemeinServices = useMemo(() => {
     const fromSettings = settings?.catalog?.find((c: any) => (c.category || '').trim().toLowerCase() === 'allgemein')?.items;
-    if (fromSettings && Array.isArray(fromSettings) && fromSettings.length > 0) {
-      return fromSettings.map((item: any, idx: number) => ({
-        id: item.id || `allg_${idx}`,
-        name: item.name,
-        price: item.price ?? item.defaultPrice ?? 0,
-        unit: item.unit || 'Pauschal',
-        icon: item.icon || getServiceIcon(item.name),
-        defaultDesc: item.description || item.defaultDesc || ''
-      }));
+    const rawList = (fromSettings && Array.isArray(fromSettings) && fromSettings.length > 0)
+      ? fromSettings.map((item: any, idx: number) => ({
+          id: item.id || `allg_${idx}`,
+          name: item.name,
+          price: item.price ?? item.defaultPrice ?? 0,
+          unit: item.unit || 'Pauschal',
+          icon: item.icon || getServiceIcon(item.name),
+          defaultDesc: item.description || item.defaultDesc || ''
+        }))
+      : DEFAULT_ALLGEMEIN_SERVICES;
+
+    let transportSeen = false;
+    const seenNames = new Set<string>();
+    const sanitized: any[] = [];
+
+    for (const item of rawList) {
+      const isTrans = (item.name || '').toLowerCase().includes('transport inkl');
+      if (isTrans) {
+        if (transportSeen) continue;
+        transportSeen = true;
+        sanitized.push({
+          ...item,
+          id: 'trans_basis',
+          name: 'Transport inkl. Be- und Entladung (Personal & LKW)',
+          unit: 'Pauschal',
+          icon: 'local_shipping'
+        });
+        continue;
+      }
+
+      let name = (item.name || '').trim();
+      if (name.includes('Küchenauf- und abbau') || name.includes('Küchenabbau und Aufbau')) {
+        name = 'Küchenabbau und -aufbau';
+      }
+      if (name.toLowerCase() === 'arbeitsplatte anpassen') {
+        continue;
+      }
+
+      const key = name.toLowerCase();
+      if (!seenNames.has(key)) {
+        seenNames.add(key);
+        sanitized.push({ ...item, name });
+      }
     }
-    return DEFAULT_ALLGEMEIN_SERVICES;
+
+    return sanitized;
   }, [settings?.catalog]);
 
   const servicesA = useMemo(() => {
@@ -1390,28 +1425,6 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
 
                   {showFullCatalog && (
                     <div className="space-y-3.5 animate-in fade-in duration-200">
-                      {/* Search Bar */}
-                      <div className="relative">
-                        <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" />
-                        <input 
-                          type="text" 
-                          maxLength={60}
-                          placeholder="Weitere Leistungen suchen (z.B. Aufbau Küche, Montage, Kartons)..." 
-                          value={catalogSearch} 
-                          onChange={e => setCatalogSearch(e.target.value.replace(/<[^>]*>/g, '').replace(/[\r\n]+/g, '').slice(0, 60))} 
-                          className="input-field w-full pl-9 pr-8 py-2 rounded-xl bg-black/20 text-xs shadow-inner" 
-                        />
-                        {catalogSearch && (
-                          <button
-                            type="button"
-                            onClick={() => setCatalogSearch('')}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-white"
-                          >
-                            <XMarkIcon className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-
                       {/* Category Filter Tabs */}
                       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none">
                         <button 
@@ -1760,7 +1773,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
                                 <button
                                   type="button"
                                   onClick={() => setServices(services.filter(s => s.id !== svc.id))}
-                                  className="text-text-muted hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                                  className="text-text-muted/60 hover:text-red-400 p-1 transition-opacity cursor-pointer inline-flex items-center justify-center opacity-80 sm:opacity-0 group-hover:opacity-100"
                                 >
                                   <XMarkIcon className="w-4 h-4" />
                                 </button>

@@ -25,7 +25,9 @@ import {
   ArrowPathIcon,
   EyeIcon,
   UserIcon,
-  UserGroupIcon
+  UserGroupIcon,
+  VideoCameraIcon,
+  PhotoIcon
 } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/navigation';
 import { evaluateOrderLogistics } from '@/lib/orderValidation';
@@ -42,7 +44,8 @@ import { doc, getDoc, updateDoc, onSnapshot, collection, query, serverTimestamp 
 import toast from 'react-hot-toast';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 import { modalManager } from '@/lib/modalManager';
-import { exportOrderMoveToCalendar, exportOrderViewingToCalendar, exportTaskToCalendar } from '@/lib/calendarExport';
+import { useAuth } from '@/context/AuthContext';
+import { formatCommunicationMessage, getCommunicationTemplate } from '@/lib/communicationEngine';
 
 interface OrderDetailsDrawerProps {
   order: any;
@@ -101,6 +104,16 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
   const currentOrderPhase = getInitialPhase(order?.status || 'draft', order);
   const [activePhaseTab, setActivePhaseTab] = useState<number>(initialPhase || currentOrderPhase);
+  const { profile } = useAuth();
+  const [settings, setSettings] = useState<any>(null);
+
+  useEffect(() => {
+    let active = true;
+    getDoc(doc(db, 'system', 'settings')).then(snap => {
+      if (snap.exists() && active) setSettings(snap.data());
+    }).catch(console.error);
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (initialPhase) {
@@ -716,17 +729,6 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                   {evaluation.movingDateDisplay}
                 </p>
               </div>
-              {(order.orderMeta?.movingDateFrom || order.movingDate) && (
-                <button
-                  type="button"
-                  onClick={() => exportOrderMoveToCalendar(order)}
-                  className="px-2 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-bold flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
-                  title="In Outlook / Samsung Kalender eintragen"
-                >
-                  <CalendarDaysIcon className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">+ Kalender</span>
-                </button>
-              )}
             </div>
 
             <div className="p-2 sm:p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 col-span-2 sm:col-span-1 flex items-center justify-between sm:block">
@@ -789,19 +791,24 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           </div>
 
           {/* 3. Phase Specific Content Area */}
-          <div className="p-4 sm:p-5 space-y-6">
+          <div className="p-4 sm:p-5 space-y-4">
 
           {/* ========================================================================= */}
           {/* PHASE 1: NEU / LEAD-QUALIFIZIERUNG */}
           {/* ========================================================================= */}
           {activePhaseTab === 1 && (
-            <div className="space-y-6">
-              {/* Context-aware alert only when critical contact data is completely missing */}
+            <div className="space-y-3.5 sm:space-y-4">
+              {/* Ultra-Slim single-line alert pill - only when critical contact data is missing */}
               {(!custPhone && !custEmail) && (
-                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2.5 text-xs text-amber-700 dark:text-amber-400">
-                  <span className="material-symbols-outlined text-lg shrink-0">priority_high</span>
-                  <span>
-                    <strong>Unvollständige Kontaktdaten:</strong> Weder Telefonnummer noch E-Mail-Adresse für {custName} hinterlegt. Bitte mindestens eine Kontaktmöglichkeit erfassen.
+                <div className="py-1.5 px-3 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-2 text-[11px] text-amber-800 dark:text-amber-300 leading-none">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <ExclamationTriangleIcon className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <span className="truncate">
+                      <strong>Unvollständige Kontaktdaten:</strong> Weder Telefon noch E-Mail für {custName} hinterlegt.
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-amber-600/80 dark:text-amber-400/80 shrink-0">
+                    Fehlt
                   </span>
                 </div>
               )}
@@ -910,21 +917,34 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                     <span className="text-slate-600 dark:text-slate-400 shrink-0">Besichtigungstermin</span>
                     <div className="flex items-center gap-2">
                       {order.orderMeta?.viewingDate ? (
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                            <CheckIcon className="w-3.5 h-3.5 shrink-0" />
-                            <span>{formatScheduleDate(order.orderMeta?.viewingDate, order.orderMeta?.viewingTime)}</span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => exportOrderViewingToCalendar(order)}
-                            className="px-2 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
-                            title="In Outlook / Samsung Kalender eintragen"
-                          >
-                            <CalendarDaysIcon className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Kalender</span>
-                          </button>
-                        </div>
+                        (() => {
+                          const vType = (order.orderMeta?.viewingType || order.logistics?.viewingType || '').toLowerCase();
+                          const isFotos = order.orderMeta?.viewingDate === 'erledigt_fotos' || vType === 'fotos';
+                          const isOnline = vType.includes('online') || vType.includes('video');
+
+                          if (isFotos) {
+                            return (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                <PhotoIcon className="w-3.5 h-3.5 text-emerald-500" />
+                                <span>Fotos erledigt</span>
+                              </span>
+                            );
+                          }
+                          if (isOnline) {
+                            return (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                                <VideoCameraIcon className="w-3.5 h-3.5 text-purple-500" />
+                                <span>Video-Call: {formatScheduleDate(order.orderMeta?.viewingDate, order.orderMeta?.viewingTime)}</span>
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                              <MapPinIcon className="w-3.5 h-3.5 text-blue-500" />
+                              <span>Vor-Ort: {formatScheduleDate(order.orderMeta?.viewingDate, order.orderMeta?.viewingTime)}</span>
+                            </span>
+                          );
+                        })()
                       ) : (
                         <span className="text-slate-400 italic">Noch nicht geplant</span>
                       )}
@@ -1000,7 +1020,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           {/* PHASE 2: IN VERHANDLUNG / BESICHTIGUNG & SIGNATUR */}
           {/* ========================================================================= */}
           {activePhaseTab === 2 && (
-            <div className="space-y-6">
+            <div className="space-y-3.5 sm:space-y-4">
               {/* Digital Signature & Signed Photo Upload - Compact Executive Row */}
               {(() => {
                 const isSigned = Boolean(
@@ -1028,22 +1048,17 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
                 if (isDraftWithoutOffer) {
                   return (
-                    <div className="panel p-3 border border-amber-500/30 bg-amber-500/5 dark:bg-amber-950/20 rounded-xl flex items-center justify-between gap-3 flex-wrap">
+                    <div className="py-1.5 px-3 border border-amber-500/25 bg-amber-500/10 rounded-lg flex items-center justify-between gap-2">
                       {hiddenFileInput}
-                      <div className="flex items-center gap-2 min-w-0">
-                        <DocumentCheckIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                        <div className="min-w-0">
-                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate">
-                            Vertragsbestätigung
-                          </span>
-                          <span className="text-[11px] text-amber-700 dark:text-amber-400 block truncate">
-                            Noch im Entwurf – bitte zuerst Angebot erstellen.
-                          </span>
-                        </div>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <ExclamationTriangleIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                        <span className="text-[11px] text-amber-800 dark:text-amber-300 truncate">
+                          <strong className="font-bold">Noch im Entwurf:</strong> Bitte zuerst Angebot erstellen.
+                        </span>
                       </div>
                       <Link
                         href={`${editOrderUrl}${editOrderUrl.includes('?') ? '&' : '?'}step=3`}
-                        className="py-1.5 px-3 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition-all shadow-xs shrink-0"
+                        className="py-1 px-2 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold transition-all shadow-xs shrink-0"
                       >
                         Angebot bearbeiten
                       </Link>
@@ -1053,7 +1068,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
                 if (isSigned) {
                   return (
-                    <div className="panel p-3 border-2 border-emerald-500 bg-emerald-500/10 dark:bg-emerald-950/30 rounded-xl flex items-center justify-between gap-2 flex-wrap">
+                    <div className="panel py-2 px-3 border border-emerald-500/40 bg-emerald-500/10 dark:bg-emerald-950/30 rounded-xl flex items-center justify-between gap-2 flex-wrap">
                       {hiddenFileInput}
                       <div className="flex items-center gap-2 min-w-0">
                         <DocumentCheckIcon className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -1175,9 +1190,34 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                   <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-500/60 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
-                          <CheckCircleIcon className="w-4 h-4 text-emerald-600" />
-                          <span>{order.orderMeta?.viewingType || 'Geplanter Besichtigungstermin'}</span>
+                        <p className="text-xs font-bold flex items-center gap-1.5">
+                          {(() => {
+                            const vType = (order.orderMeta?.viewingType || order.logistics?.viewingType || '').toLowerCase();
+                            const isOnline = vType.includes('online') || vType.includes('video');
+                            const isFotos = order.orderMeta?.viewingDate === 'erledigt_fotos' || vType === 'fotos';
+                            if (isFotos) {
+                              return (
+                                <>
+                                  <PhotoIcon className="w-4 h-4 text-emerald-600 shrink-0" />
+                                  <span className="text-emerald-900 dark:text-emerald-200">Per Fotos & Liste erledigt</span>
+                                </>
+                              );
+                            }
+                            if (isOnline) {
+                              return (
+                                <>
+                                  <VideoCameraIcon className="w-4 h-4 text-purple-600 shrink-0" />
+                                  <span className="text-purple-900 dark:text-purple-200">Video-Besichtigung (Online-Call)</span>
+                                </>
+                              );
+                            }
+                            return (
+                              <>
+                                <MapPinIcon className="w-4 h-4 text-blue-600 shrink-0" />
+                                <span className="text-blue-900 dark:text-blue-200">Vor-Ort-Besichtigung</span>
+                              </>
+                            );
+                          })()}
                         </p>
                         <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 mt-0.5">
                           {formatScheduleDate(order.orderMeta?.viewingDate, order.orderMeta?.viewingTime)}
@@ -1186,7 +1226,8 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                       <span className="material-symbols-outlined text-emerald-600 text-xl">calendar_today</span>
                     </div>
 
-                    {addressA && (
+                    {/* Address only shown if Vor-Ort */}
+                    {addressA && !(order.orderMeta?.viewingType || '').toLowerCase().includes('online') && !(order.orderMeta?.viewingType || '').toLowerCase().includes('video') && order.orderMeta?.viewingDate !== 'erledigt_fotos' && (
                       <div className="text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-emerald-200/60 dark:border-emerald-900/40 flex items-center justify-between gap-2">
                         <span className="truncate flex items-center gap-1">
                           <MapPinIcon className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
@@ -1205,6 +1246,13 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                       </div>
                     )}
 
+                    {((order.orderMeta?.viewingType || '').toLowerCase().includes('online') || (order.orderMeta?.viewingType || '').toLowerCase().includes('video')) && (
+                      <div className="text-[11px] text-purple-700 dark:text-purple-300 pt-2 border-t border-purple-200/60 dark:border-purple-900/40 flex items-center gap-1.5 font-medium">
+                        <VideoCameraIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                        <span>Online-Termin via WhatsApp Video / FaceTime</span>
+                      </div>
+                    )}
+
                     <div className="pt-2 border-t border-[#6E8F64]/25 flex items-center gap-2">
                       <Link
                         href={`${editOrderUrl}${editOrderUrl.includes('?') ? '&' : '?'}step=4`}
@@ -1217,25 +1265,26 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                         <button
                           type="button"
                           onClick={() => {
-                            const timeText = order.orderMeta?.viewingTime ? ` (${order.orderMeta.viewingTime})` : '';
-                            handleDirectWhatsApp(`Hallo ${custName}, ich bin pünktlich auf dem Weg zu Ihnen für unseren Besichtigungstermin${timeText}. Bis gleich!`);
+                            const tpl = getCommunicationTemplate(settings, 'dispo_unterwegs', 'dispo_besichtigung');
+                            const body = tpl?.body || 'Hallo {{Kunde_Name}},\n\nich bin pünktlich auf dem Weg zu Ihnen für unseren Besichtigungstermin{{Termin_Details}}.\n\nBis gleich!\nViele Grüße,\n{{Sachbearbeiter}}\nRothirsch Umzüge';
+                            const text = formatCommunicationMessage(body, {
+                              customer,
+                              order,
+                              userProfile: profile,
+                              taskType: 'unterwegs',
+                              scheduleDetails: {
+                                time: order.orderMeta?.viewingTime || ''
+                              }
+                            });
+                            handleDirectWhatsApp(text);
                           }}
                           className="px-3 py-2 rounded-xl bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] hover:bg-[#6E8F64] hover:text-white border border-[#6E8F64]/35 text-xs font-bold flex items-center gap-1 transition-colors"
-                          title="Ich bin unterwegs senden"
+                          title="Ich bin unterwegs senden (aus Vorlagen)"
                         >
                           <ChatBubbleLeftRightIcon className="w-4 h-4" />
                           <span>Unterwegs</span>
                         </button>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => exportOrderViewingToCalendar(order)}
-                        className="px-3 py-2 rounded-xl bg-blue-500/15 text-blue-600 dark:text-blue-400 hover:bg-blue-500 hover:text-white border border-blue-500/25 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                        title="Besichtigung in Outlook / Samsung Kalender eintragen"
-                      >
-                        <CalendarDaysIcon className="w-4 h-4" />
-                        <span>Kalender</span>
-                      </button>
                     </div>
                   </div>
                 ) : (
@@ -1376,14 +1425,26 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
               (!showLift || isLiftDone) &&
               isTeamDone;
 
+            const openTasksCount = [
+              showKartons && !isKartonsDone,
+              showHvz && !isHvzDone,
+              showLift && !isLiftDone,
+              !isTeamDone
+            ].filter(Boolean).length;
+
             return (
-            <div className="space-y-6">
-              {/* Context-aware alert only when booked logistics tasks are actually open */}
+            <div className="space-y-3.5 sm:space-y-4">
+              {/* Ultra-Slim single-line alert pill - only when tasks are pending; auto-hidden when all complete */}
               {!isPhase3Ready && (
-                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-xs text-amber-800 dark:text-amber-300">
-                  <span className="material-symbols-outlined text-base shrink-0">priority_high</span>
-                  <span>
-                    <strong>Offene Logistik:</strong> Bitte Team/LKW-Disposition sowie Termine für gebuchte Zusatzleistungen bestätigen.
+                <div className="py-1.5 px-3 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-2 text-[11px] text-amber-800 dark:text-amber-300 leading-none">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <ExclamationTriangleIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span className="truncate">
+                      <strong>Offene Logistik:</strong> Zusatzleistungen &amp; Team-Disposition bestätigen
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-amber-600/80 dark:text-amber-400/80 shrink-0">
+                    {openTasksCount} {openTasksCount === 1 ? 'Aufgabe offen' : 'Aufgaben offen'}
                   </span>
                 </div>
               )}
@@ -1466,34 +1527,8 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-700">
-                          <span>
-                            Lieferung: {formatScheduleDate(order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate, order.orderMeta?.kartonDeliveryTime || order.logistics?.boxDeliveryTime) || 'Noch nicht terminiert'}
-                          </span>
-                          {(order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate) && (
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={() => exportTaskToCalendar('kartons_liefern', order, order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate, order.orderMeta?.kartonDeliveryTime || order.logistics?.boxDeliveryTime)}
-                                className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-bold cursor-pointer"
-                                title="In Outlook / Samsung Kalender eintragen"
-                              >
-                                <CalendarDaysIcon className="w-3.5 h-3.5" />
-                                <span>+ Kalender</span>
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const date = formatScheduleDate(order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate, order.orderMeta?.kartonDeliveryTime || order.logistics?.boxDeliveryTime);
-                                  handleDirectWhatsApp(`Guten Tag, Ihre Umzugskartons werden am ${date} geliefert.`);
-                                }}
-                                className="text-emerald-600 hover:underline flex items-center gap-1 font-bold"
-                                title="WhatsApp Nachricht senden"
-                              >
-                                <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
-                                <span>WhatsApp</span>
-                              </button>
-                            </div>
-                          )}
+                        <div className="text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-700">
+                          Lieferung: {formatScheduleDate(order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate, order.orderMeta?.kartonDeliveryTime || order.logistics?.boxDeliveryTime) || 'Noch nicht terminiert'}
                         </div>
                       </div>
                     )}
@@ -1603,52 +1638,26 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                             </a>
                           </div>
 
-                          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-700">
-                            <div>
-                              {isHvzScheduled ? (
-                                resolvedHvzLoc === 'both' ? (
-                                  <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
-                                    <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-800 dark:text-amber-300 font-semibold">
-                                      A: {formatScheduleDate(order.orderMeta?.halteverbotDateA || order.orderMeta?.halteverbotDate || order.logistics?.hvzDate)}
-                                      {(order.orderMeta?.halteverbotTimeA || order.orderMeta?.halteverbotTime || order.logistics?.hvzTime) ? ` (${order.orderMeta?.halteverbotTimeA || order.orderMeta?.halteverbotTime || order.logistics?.hvzTime} Uhr)` : ''}
-                                    </span>
-                                    <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-800 dark:text-amber-300 font-semibold">
-                                      B: {formatScheduleDate(order.orderMeta?.halteverbotDateB || order.orderMeta?.halteverbotDate || order.logistics?.hvzDate)}
-                                      {(order.orderMeta?.halteverbotTimeB || order.orderMeta?.halteverbotTime || order.logistics?.hvzTime) ? ` (${order.orderMeta?.halteverbotTimeB || order.orderMeta?.halteverbotTime || order.logistics?.hvzTime} Uhr)` : ''}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <span>
-                                    Aufbau: <strong className="text-slate-900 dark:text-white">{formatScheduleDate(order.orderMeta?.halteverbotDate || order.logistics?.hvzDate, order.orderMeta?.halteverbotTime || order.logistics?.hvzTime)}</strong>
+                          <div className="text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-700">
+                            {isHvzScheduled ? (
+                              resolvedHvzLoc === 'both' ? (
+                                <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
+                                  <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-800 dark:text-amber-300 font-semibold">
+                                    A: {formatScheduleDate(order.orderMeta?.halteverbotDateA || order.orderMeta?.halteverbotDate || order.logistics?.hvzDate)}
+                                    {(order.orderMeta?.halteverbotTimeA || order.orderMeta?.halteverbotTime || order.logistics?.hvzTime) ? ` (${order.orderMeta?.halteverbotTimeA || order.orderMeta?.halteverbotTime || order.logistics?.hvzTime} Uhr)` : ''}
                                   </span>
-                                )
+                                  <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-800 dark:text-amber-300 font-semibold">
+                                    B: {formatScheduleDate(order.orderMeta?.halteverbotDateB || order.orderMeta?.halteverbotDate || order.logistics?.hvzDate)}
+                                    {(order.orderMeta?.halteverbotTimeB || order.orderMeta?.halteverbotTime || order.logistics?.hvzTime) ? ` (${order.orderMeta?.halteverbotTimeB || order.orderMeta?.halteverbotTime || order.logistics?.hvzTime} Uhr)` : ''}
+                                  </span>
+                                </div>
                               ) : (
-                                'Aufbau: Noch nicht terminiert'
-                              )}
-                            </div>
-                            {isHvzScheduled && (
-                              <div className="flex items-center gap-2 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => exportTaskToCalendar('halteverbot', order, order.orderMeta?.halteverbotDate || order.logistics?.hvzDate, order.orderMeta?.halteverbotTime || order.logistics?.hvzTime, resolvedHvzLoc as any)}
-                                  className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-bold cursor-pointer"
-                                  title="In Outlook / Samsung Kalender eintragen"
-                                >
-                                  <CalendarDaysIcon className="w-3.5 h-3.5" />
-                                  <span>+ Kalender</span>
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    const date = formatScheduleDate(order.orderMeta?.halteverbotDate || order.logistics?.hvzDate, order.orderMeta?.halteverbotTime || order.logistics?.hvzTime);
-                                    handleDirectWhatsApp(`Guten Tag, die Halteverbotszone für Ihren Umzug wird am ${date} vorschriftsmäßig aufgestellt.`);
-                                  }}
-                                  className="text-emerald-600 hover:underline flex items-center gap-1 font-bold"
-                                  title="WhatsApp Nachricht senden"
-                                >
-                                  <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
-                                  <span>WhatsApp</span>
-                                </button>
-                              </div>
+                                <span>
+                                  Aufbau: <strong className="text-slate-900 dark:text-white">{formatScheduleDate(order.orderMeta?.halteverbotDate || order.logistics?.hvzDate, order.orderMeta?.halteverbotTime || order.logistics?.hvzTime)}</strong>
+                                </span>
+                              )
+                            ) : (
+                              'Aufbau: Noch nicht terminiert'
                             )}
                           </div>
                         </div>
@@ -1726,56 +1735,27 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                             )}
                           </div>
 
-                          <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-slate-700">
-                            <div>
-                              {isLiftScheduled ? (
-                                resolvedLiftLoc === 'both' ? (
-                                  <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
-                                    <span className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 font-semibold">
-                                      A: {formatScheduleDate(order.orderMeta?.moebelliftDateA || order.orderMeta?.moebelliftDate)}
-                                      {(order.orderMeta?.moebelliftTimeA || order.orderMeta?.moebelliftTime) ? ` (${order.orderMeta?.moebelliftTimeA || order.orderMeta?.moebelliftTime}-${order.orderMeta?.moebelliftEndTimeA || ''} • ${order.orderMeta?.moebelliftDurationA || '2'}h)` : ''}
-                                    </span>
-                                    <span className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 font-semibold">
-                                      B: {formatScheduleDate(order.orderMeta?.moebelliftDateB || order.orderMeta?.moebelliftDate)}
-                                      {(order.orderMeta?.moebelliftTimeB || order.orderMeta?.moebelliftTime) ? ` (${order.orderMeta?.moebelliftTimeB || order.orderMeta?.moebelliftTime}-${order.orderMeta?.moebelliftEndTimeB || ''} • ${order.orderMeta?.moebelliftDurationB || '2'}h)` : ''}
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <>
-                                    Geplant: <strong className="text-slate-900 dark:text-white">{formatScheduleDate(order.orderMeta.moebelliftDate || order.orderMeta?.moebelliftDateA || order.orderMeta?.moebelliftDateB)}</strong>
-                                    {order.orderMeta?.moebelliftTime && ` • ${order.orderMeta.moebelliftTime} - ${order.orderMeta.moebelliftEndTime || ''} Uhr (${order.orderMeta.moebelliftDuration || '3'} Std.)`}
-                                  </>
-                                )
+                          <div className="text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-slate-700">
+                            {isLiftScheduled ? (
+                              resolvedLiftLoc === 'both' ? (
+                                <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
+                                  <span className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 font-semibold">
+                                    A: {formatScheduleDate(order.orderMeta?.moebelliftDateA || order.orderMeta?.moebelliftDate)}
+                                    {(order.orderMeta?.moebelliftTimeA || order.orderMeta?.moebelliftTime) ? ` (${order.orderMeta?.moebelliftTimeA || order.orderMeta?.moebelliftTime}-${order.orderMeta?.moebelliftEndTimeA || ''} • ${order.orderMeta?.moebelliftDurationA || '2'}h)` : ''}
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 font-semibold">
+                                    B: {formatScheduleDate(order.orderMeta?.moebelliftDateB || order.orderMeta?.moebelliftDate)}
+                                    {(order.orderMeta?.moebelliftTimeB || order.orderMeta?.moebelliftTime) ? ` (${order.orderMeta?.moebelliftTimeB || order.orderMeta?.moebelliftTime}-${order.orderMeta?.moebelliftEndTimeB || ''} • ${order.orderMeta?.moebelliftDurationB || '2'}h)` : ''}
+                                  </span>
+                                </div>
                               ) : (
-                                'Termin noch nicht festgelegt'
-                              )}
-                            </div>
-                            {isLiftScheduled && (
-                              <div className="flex items-center gap-2 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => exportTaskToCalendar('moebellift_buchen', order, order.orderMeta?.moebelliftDate || order.orderMeta?.moebelliftDateA || order.orderMeta?.moebelliftDateB, order.orderMeta?.moebelliftTime, resolvedLiftLoc as any)}
-                                  className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-bold cursor-pointer"
-                                  title="In Outlook / Samsung Kalender eintragen"
-                                >
-                                  <CalendarDaysIcon className="w-3.5 h-3.5" />
-                                  <span>+ Kalender</span>
-                                </button>
-                                {custPhone && (
-                                  <button
-                                    onClick={() => {
-                                      const date = formatScheduleDate(order.orderMeta?.moebelliftDate || order.orderMeta?.moebelliftDateA || order.orderMeta?.moebelliftDateB);
-                                      const timeStr = order.orderMeta?.moebelliftTime ? ` um ${order.orderMeta.moebelliftTime} Uhr` : '';
-                                      handleDirectWhatsApp(`Guten Tag, der Möbellift für Ihren Umzug kommt am ${date}${timeStr}.`);
-                                    }}
-                                    className="text-emerald-600 hover:underline flex items-center gap-1 font-bold"
-                                    title="WhatsApp Nachricht senden"
-                                  >
-                                    <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
-                                    <span>WhatsApp</span>
-                                  </button>
-                                )}
-                              </div>
+                                <>
+                                  Geplant: <strong className="text-slate-900 dark:text-white">{formatScheduleDate(order.orderMeta.moebelliftDate || order.orderMeta?.moebelliftDateA || order.orderMeta?.moebelliftDateB)}</strong>
+                                  {order.orderMeta?.moebelliftTime && ` • ${order.orderMeta.moebelliftTime} - ${order.orderMeta.moebelliftEndTime || ''} Uhr (${order.orderMeta.moebelliftDuration || '3'} Std.)`}
+                                </>
+                              )
+                            ) : (
+                              'Termin noch nicht festgelegt'
                             )}
                           </div>
                         </div>
@@ -2083,7 +2063,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           {/* PHASE 4: ABGESCHLOSSEN / PROTOKOLL & RECHNUNG */}
           {/* ========================================================================= */}
           {activePhaseTab === 4 && (
-            <div className="space-y-6">
+            <div className="space-y-3.5 sm:space-y-4">
               {/* Action Buttons: Protocol & Invoice */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <button

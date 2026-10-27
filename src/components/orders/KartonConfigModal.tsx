@@ -30,6 +30,9 @@ export interface KartonConfigModalProps {
     buecher?: number;
     kleider?: number;
   };
+  kartonNames?: Record<string, string>;
+  disabledKartons?: string[];
+  packmaterials?: Array<{ id: string; name: string; price: number; unit: string }>;
   onSave: (serviceData: {
     name: string;
     quantity: number;
@@ -37,10 +40,17 @@ export interface KartonConfigModalProps {
     unit: string;
     note: string;
     isKartonService: boolean;
-    kartonDetails: KartonDetailsState;
+    kartonDetails: any;
   }) => void;
   onRemove?: () => void;
 }
+
+const DEFAULT_PACKMATERIALS = [
+  { id: 'pm_seide', name: 'Packseide / Packpapier (10 kg)', price: 25.0, unit: 'Pckg' },
+  { id: 'pm_folie', name: 'Luftpolsterfolie (100 m)', price: 30.0, unit: 'Rolle' },
+  { id: 'pm_stretch', name: 'Stretchfolie (Handrolle)', price: 15.0, unit: 'Rolle' },
+  { id: 'pm_band', name: 'Klebeband (PVC)', price: 3.5, unit: 'Rolle' }
+];
 
 const KARTON_TYPES: {
   key: keyof KartonDetailsState;
@@ -62,10 +72,17 @@ export function KartonConfigModal({
   onClose,
   existingService,
   defaultPrices,
+  kartonNames,
+  disabledKartons,
+  packmaterials,
   onSave,
   onRemove
 }: KartonConfigModalProps) {
   useModalBackHandler(isOpen, onClose);
+
+  const activeKartonTypes = useMemo(() => {
+    return KARTON_TYPES.filter(k => !(disabledKartons || []).includes(k.key));
+  }, [disabledKartons]);
 
   const [details, setDetails] = useState<KartonDetailsState>({
     s: { qty: 0, price: 2.50 },
@@ -76,6 +93,7 @@ export function KartonConfigModal({
     kleider: { qty: 0, price: 12.00 },
   });
 
+  const [packmatState, setPackmatState] = useState<Record<string, { qty: number; price: number; name: string; unit: string }>>({});
   const [billingMode, setBillingMode] = useState<'pauschal' | 'stueck'>('pauschal');
 
   // Initialize state when modal opens or existingService changes
@@ -109,14 +127,28 @@ export function KartonConfigModal({
       },
     };
 
-    // Initialize with 0 for all items (clean start without hardcoded presets)
     setDetails(initial);
+
+    // Initialize packmaterials
+    const effectivePackmaterials = (packmaterials && packmaterials.length > 0) ? packmaterials : DEFAULT_PACKMATERIALS;
+    const initialPm: Record<string, { qty: number; price: number; name: string; unit: string }> = {};
+    for (const pm of effectivePackmaterials) {
+      const saved = existingService?.kartonDetails?.packmaterials?.[pm.id];
+      initialPm[pm.id] = {
+        qty: saved?.qty || 0,
+        price: saved?.price ?? pm.price ?? 0,
+        name: saved?.name || pm.name,
+        unit: saved?.unit || pm.unit || 'Stk'
+      };
+    }
+    setPackmatState(initialPm);
+
     if (existingService?.unit?.toLowerCase() === 'stk') {
       setBillingMode('stueck');
     } else {
       setBillingMode('pauschal');
     }
-  }, [isOpen, existingService, defaultPrices]);
+  }, [isOpen, existingService, defaultPrices, packmaterials]);
 
   const updateQty = (key: keyof KartonDetailsState, delta: number) => {
     setDetails(prev => ({
@@ -148,35 +180,84 @@ export function KartonConfigModal({
     }));
   };
 
+  const updatePackmatQty = (id: string, delta: number) => {
+    setPackmatState(prev => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        qty: Math.max(0, (prev[id]?.qty || 0) + delta)
+      }
+    }));
+  };
+
+  const setPackmatQtyDirect = (id: string, val: number) => {
+    setPackmatState(prev => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        qty: Math.max(0, val)
+      }
+    }));
+  };
+
+  const setPackmatPriceDirect = (id: string, val: number) => {
+    setPackmatState(prev => ({
+      ...prev,
+      [id]: {
+        ...prev[id],
+        price: Math.max(0, val)
+      }
+    }));
+  };
+
   // Calculations
-  const totalCount = useMemo(() => {
+  const totalCartonCount = useMemo(() => {
     return Object.values(details).reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
   }, [details]);
 
-  const totalPrice = useMemo(() => {
+  const totalPackmatCount = useMemo(() => {
+    return Object.values(packmatState).reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+  }, [packmatState]);
+
+  const totalItemsCount = totalCartonCount + totalPackmatCount;
+
+  const totalCartonPrice = useMemo(() => {
     return Object.values(details).reduce((sum, item) => sum + ((Number(item.qty) || 0) * (Number(item.price) || 0)), 0);
   }, [details]);
 
+  const totalPackmatPrice = useMemo(() => {
+    return Object.values(packmatState).reduce((sum, item) => sum + ((Number(item.qty) || 0) * (Number(item.price) || 0)), 0);
+  }, [packmatState]);
+
+  const totalPrice = totalCartonPrice + totalPackmatPrice;
+
   const itemsBreakdown = useMemo(() => {
     const parts: string[] = [];
-    if (details.s.qty > 0) parts.push(`${details.s.qty}x S`);
-    if (details.m.qty > 0) parts.push(`${details.m.qty}x M`);
-    if (details.l.qty > 0) parts.push(`${details.l.qty}x L`);
-    if (details.xl.qty > 0) parts.push(`${details.xl.qty}x XL`);
-    if (details.buecher.qty > 0) parts.push(`${details.buecher.qty}x Bücher`);
-    if (details.kleider.qty > 0) parts.push(`${details.kleider.qty}x Kleider`);
+    if (details.s.qty > 0) parts.push(`${details.s.qty}x ${kartonNames?.s || 'S'}`);
+    if (details.m.qty > 0) parts.push(`${details.m.qty}x ${kartonNames?.m || 'M'}`);
+    if (details.l.qty > 0) parts.push(`${details.l.qty}x ${kartonNames?.l || 'L'}`);
+    if (details.xl.qty > 0) parts.push(`${details.xl.qty}x ${kartonNames?.xl || 'XL'}`);
+    if (details.buecher.qty > 0) parts.push(`${details.buecher.qty}x ${kartonNames?.buecher || 'Bücher'}`);
+    if (details.kleider.qty > 0) parts.push(`${details.kleider.qty}x ${kartonNames?.kleider || 'Kleider'}`);
+    
+    Object.values(packmatState).forEach(pm => {
+      if (pm.qty > 0) {
+        parts.push(`${pm.qty}x ${pm.name}`);
+      }
+    });
+
     return parts;
-  }, [details]);
+  }, [details, packmatState, kartonNames]);
 
   const generatedNote = useMemo(() => {
-    if (totalCount === 0) return 'Keine Kartons ausgewählt.';
-    return `Bereitstellung von ${totalCount} Umzugskartons vorab. Enthält: ${itemsBreakdown.join(', ')}.`;
-  }, [totalCount, itemsBreakdown]);
+    if (totalItemsCount === 0) return 'Keine Kartons oder Packmaterialien ausgewählt.';
+    return `Bereitstellung von Umzugskartons & Packmaterial vorab. Enthält: ${itemsBreakdown.join(', ')}.`;
+  }, [totalItemsCount, itemsBreakdown]);
 
   if (!isOpen) return null;
 
   const handleConfirm = () => {
-    if (totalCount <= 0) {
+    if (totalItemsCount <= 0) {
       if (onRemove && existingService) {
         onRemove();
         onClose();
@@ -184,16 +265,21 @@ export function KartonConfigModal({
       }
     }
 
+    const fullDetails = {
+      ...details,
+      packmaterials: packmatState
+    };
+
     if (billingMode === 'stueck') {
-      const avgPrice = totalCount > 0 ? Math.round((totalPrice / totalCount) * 100) / 100 : 0;
+      const avgPrice = totalItemsCount > 0 ? Math.round((totalPrice / totalItemsCount) * 100) / 100 : 0;
       onSave({
         name: 'Umzugskartons & Packmaterial',
-        quantity: totalCount,
+        quantity: totalItemsCount,
         unitPrice: avgPrice,
         unit: 'Stk',
         note: generatedNote,
         isKartonService: true,
-        kartonDetails: details
+        kartonDetails: fullDetails
       });
     } else {
       onSave({
@@ -203,7 +289,7 @@ export function KartonConfigModal({
         unit: 'Pauschal',
         note: generatedNote,
         isKartonService: true,
-        kartonDetails: details
+        kartonDetails: fullDetails
       });
     }
 
@@ -241,7 +327,7 @@ export function KartonConfigModal({
         {/* Content Body: 6 Box Sizes */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {KARTON_TYPES.map(k => {
+            {activeKartonTypes.map(k => {
               const current = details[k.key] || { qty: 0, price: k.defaultPrice };
               const isSelected = current.qty > 0;
               const subtotal = current.qty * current.price;
@@ -262,7 +348,7 @@ export function KartonConfigModal({
                       </span>
                       <div>
                         <span className="text-xs font-bold text-text-main block">
-                          {k.name}
+                          {kartonNames?.[k.key] || k.name}
                         </span>
                         <span className="text-[10px] text-text-muted leading-tight block line-clamp-1">
                           {k.sub}
@@ -340,7 +426,100 @@ export function KartonConfigModal({
             })}
           </div>
 
-          {/* Note Preview & Billing Mode */}
+          {/* Zusätzliches Packmaterial & Zubehör */}
+          {Object.keys(packmatState).length > 0 && (
+            <div className="pt-2 space-y-2.5">
+              <div className="flex items-center gap-2 border-b border-structure/40 pb-1.5">
+                <span className="material-symbols-outlined text-amber-500 text-base">layers</span>
+                <span className="text-xs font-headline font-bold text-text-main">
+                  Zusätzliches Packmaterial & Schutzbedarf
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {Object.entries(packmatState).map(([id, pm]) => {
+                  const isSelected = pm.qty > 0;
+                  const subtotal = pm.qty * pm.price;
+
+                  return (
+                    <div
+                      key={id}
+                      className={`p-3 rounded-2xl border transition-all ${
+                        isSelected
+                          ? 'bg-amber-500/[0.06] border-amber-500/40 shadow-xs'
+                          : 'bg-bg-dark/50 border-structure/60 hover:border-structure'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`material-symbols-outlined text-base shrink-0 ${isSelected ? 'text-amber-500' : 'text-text-muted'}`}>
+                            layers
+                          </span>
+                          <div className="min-w-0">
+                            <span className="text-xs font-bold text-text-main block truncate">
+                              {pm.name}
+                            </span>
+                            <span className="text-[10px] text-text-muted block">
+                              Einheit: {pm.unit}
+                            </span>
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <span className="text-[11px] font-mono font-bold text-amber-500 shrink-0">
+                            {subtotal.toFixed(2)} €
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/[0.04]">
+                        {/* Quantity Selector */}
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => updatePackmatQty(id, -1)}
+                            className="w-6 h-6 rounded-md bg-white/[0.04] hover:bg-white/[0.08] text-text-muted hover:text-text-main text-xs font-bold transition-colors cursor-pointer"
+                            title="-1"
+                          >
+                            -
+                          </button>
+                          <input
+                            type="number"
+                            min="0"
+                            value={pm.qty === 0 ? '' : pm.qty}
+                            placeholder="0"
+                            onChange={e => setPackmatQtyDirect(id, parseInt(e.target.value, 10) || 0)}
+                            className="w-12 h-6 rounded-md bg-black/30 border border-structure/80 text-center text-xs font-bold font-mono text-text-main focus:outline-none focus:border-amber-500/60"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => updatePackmatQty(id, 1)}
+                            className="w-6 h-6 rounded-md bg-white/[0.04] hover:bg-white/[0.08] text-text-muted hover:text-text-main text-xs font-bold transition-colors cursor-pointer"
+                            title="+1"
+                          >
+                            +
+                          </button>
+                        </div>
+
+                        {/* Price Input */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <input
+                            type="number"
+                            step="0.10"
+                            min="0"
+                            value={pm.price}
+                            onChange={e => setPackmatPriceDirect(id, parseFloat(e.target.value) || 0)}
+                            className="w-14 h-6 rounded-md bg-black/20 border border-structure/60 text-right pr-1 text-xs font-medium font-mono text-text-muted focus:text-text-main focus:outline-none focus:border-amber-500/60"
+                            title="Einzelpreis Netto"
+                          />
+                          <span className="text-[10px] text-text-muted">€/{pm.unit}</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <div className="mt-4 p-3.5 rounded-2xl bg-bg-dark border border-structure/60 space-y-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider">
@@ -379,7 +558,7 @@ export function KartonConfigModal({
           <div className="flex items-baseline gap-2">
             <span className="text-xs text-text-muted font-bold">Summe Kartons:</span>
             <span className="text-lg font-extrabold font-headline text-text-main">
-              {totalCount} Stk.
+              {totalItemsCount} Stk.
             </span>
             <span className="text-xs text-text-muted">•</span>
             <span className="text-lg font-extrabold font-headline text-amber-500">
@@ -418,7 +597,7 @@ export function KartonConfigModal({
               className="flex-1 sm:flex-none px-5 py-2 rounded-xl text-xs font-bold text-white bg-primary hover:bg-primary-hover shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <CheckIcon className="w-4 h-4" />
-              <span>Übernehmen ({totalCount} Stk.)</span>
+              <span>Übernehmen ({totalItemsCount} Stk.)</span>
             </button>
           </div>
         </div>

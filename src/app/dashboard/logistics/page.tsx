@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
-import { collection, query, onSnapshot } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import Link from 'next/link';
 import { 
@@ -28,6 +28,7 @@ import { TaskScheduleModal } from '@/components/logistics/TaskScheduleModal';
 import { PaymentManager } from '@/components/orders/PaymentManager';
 import { calculateOpenAmount } from '@/lib/financeHelpers';
 import { getFixedKey, hasFixedService } from '@/lib/serviceKeys';
+import { formatCommunicationMessage, getCommunicationTemplate } from '@/lib/communicationEngine';
 import toast from 'react-hot-toast';
 
 export default function LogisticsPage() {
@@ -39,6 +40,15 @@ export default function LogisticsPage() {
   const [customers, setCustomers] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [paymentModalOrder, setPaymentModalOrder] = useState<any | null>(null);
+  const [settings, setSettings] = useState<any>(null);
+
+  useEffect(() => {
+    let active = true;
+    getDoc(doc(db, 'system', 'settings')).then(snap => {
+      if (snap.exists() && active) setSettings(snap.data());
+    }).catch(console.error);
+    return () => { active = false; };
+  }, []);
 
   // Status Tab: 'offen' (default) vs 'erledigt'
   const [statusTab, setStatusTab] = useState<'offen' | 'erledigt'>('offen');
@@ -457,22 +467,51 @@ export default function LogisticsPage() {
     };
   };
 
-  // Helper to send task-aware WhatsApp message
+  // Helper to send task-aware WhatsApp message powered by settings templates
   const triggerTaskWhatsApp = (todo: SystemTicket, parentOrder: any, custPhone: string, custName: string, scheduled: any, e: React.MouseEvent) => {
     const isViewing = todo.id === 'viewing_requested';
     const isKarton = todo.id === 'kartons_liefern';
     const isHV = todo.id === 'halteverbot';
+    const isLift = todo.id === 'moebellift_buchen';
+
+    let templateId = 'dispo_hvz';
+    let fallbackId = 'hvz_info';
+    let taskType = 'hvz';
 
     if (isViewing) {
-      const timeText = parentOrder?.orderMeta?.viewingTime ? ` um ${parentOrder.orderMeta.viewingTime} Uhr` : '';
-      handleDirectWhatsApp(custPhone, `Hallo ${custName}, ich bin pünktlich auf dem Weg zu Ihnen für unseren Besichtigungstermin${timeText}. Bis gleich!`, e);
-    } else if (isKarton && scheduled) {
-      handleDirectWhatsApp(custPhone, `Guten Tag ${custName}, Ihre Umzugskartons werden am ${scheduled.date} ${scheduled.time ? 'im Zeitfenster ' + scheduled.time : ''} geliefert. Viele Grüße, Rothirsch Umzüge`, e);
-    } else if (isHV && scheduled) {
-      handleDirectWhatsApp(custPhone, `Guten Tag ${custName}, die Halteverbotszone für Ihren Umzug wird am ${scheduled.date} aufgebaut. Viele Grüße, Rothirsch Umzüge`, e);
-    } else {
-      handleDirectWhatsApp(custPhone, undefined, e);
+      templateId = 'dispo_unterwegs';
+      fallbackId = 'dispo_besichtigung';
+      taskType = 'unterwegs';
+    } else if (isKarton) {
+      templateId = 'dispo_kartons';
+      fallbackId = 'kartons_info';
+      taskType = 'karton';
+    } else if (isLift) {
+      templateId = 'dispo_moebellift';
+      fallbackId = 'moebellift_info';
+      taskType = 'lift';
     }
+
+    const tpl = getCommunicationTemplate(settings, templateId, fallbackId);
+    const body = tpl?.body || '';
+
+    const text = formatCommunicationMessage(body, {
+      customer: parentOrder?.customer || parentOrder?.billingAddress,
+      order: parentOrder,
+      userProfile: profile,
+      taskType,
+      scheduleDetails: {
+        date: scheduled?.date,
+        time: scheduled?.time,
+        dateA: parentOrder?.orderMeta?.halteverbotDateA || parentOrder?.orderMeta?.moebelliftDateA || scheduled?.date,
+        timeA: parentOrder?.orderMeta?.halteverbotTimeA || parentOrder?.orderMeta?.moebelliftTimeA || scheduled?.time,
+        dateB: parentOrder?.orderMeta?.halteverbotDateB || parentOrder?.orderMeta?.moebelliftDateB || scheduled?.date,
+        timeB: parentOrder?.orderMeta?.halteverbotTimeB || parentOrder?.orderMeta?.moebelliftTimeB || scheduled?.time,
+        location: parentOrder?.orderMeta?.moebelliftLocation || parentOrder?.orderMeta?.hvzLocation || 'a'
+      }
+    });
+
+    handleDirectWhatsApp(custPhone, text, e);
   };
 
   if (loading) {

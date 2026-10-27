@@ -109,8 +109,8 @@ export function hasFixedService(services: ServiceLike[] | undefined | null, key:
   return Array.isArray(services) && services.some(s => getFixedKey(s) === key);
 }
 
-/** Nur Transport ist nicht löschbar. Namen sind frei änderbar. */
-export const isRemovalLocked = (service: ServiceLike) => getFixedKey(service) === 'transport';
+/** Alle Leistungen sind für Disponenten frei entfernbar. */
+export const isRemovalLocked = (_service: ServiceLike) => false;
 
 /** Paired Services Definitions (Intelligente Logistik-Paare zwischen Belade- und Entladestelle) */
 export interface PairedDefinition {

@@ -9,6 +9,7 @@ export type ActivityAction =
   | 'CREATE_ORDER' 
   | 'UPDATE_ORDER' 
   | 'ARCHIVE_ORDER'
+  | 'DELETE_DRAFT'
   | 'CREATE_INVOICE'
   | 'CANCEL_INVOICE'
   | 'SETTLE_CLAIM';

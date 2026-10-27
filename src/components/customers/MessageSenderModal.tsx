@@ -8,69 +8,7 @@ import { pdf } from '@react-pdf/renderer';
 import { OrderPDF } from '../pdf/OrderPDF';
 import { InvoicePDF } from '../pdf/InvoicePDF';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
-
-const DEFAULT_COMMUNICATION_TEMPLATES = [
-  {
-    id: 't1',
-    name: 'Erstkontakt (Bilder oder Liste erhalten)',
-    subject: 'Angebot für Ihren Umzug',
-    body: '{{Kunde_Anrede}},\n\nvielen Dank für Ihr Interesse an unserem Service und für die Übersendung der Bilder.\n\nGerne erstellen wir Ihnen ein individuelles Angebot mit Festpreis und lassen Ihnen dieses zeitnah zukommen.\n\nSollten Sie vorab noch weitere Fragen haben, stehen wir Ihnen selbstverständlich jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge\n\nKontaktdaten: Telefon: +49 1590 6603011 | E-Mail: info@rothirsch-umzug.de | Webseite: www.rothirsch-umzug.de'
-  },
-  {
-    id: 't2',
-    name: 'Erstkontakt (Keine Bilder oder Liste)',
-    subject: 'Ihre Umzugsanfrage',
-    body: '{{Kunde_Anrede}},\n\nvielen Dank für Ihr Interesse an unserem Service. Gerne erstellen wir für Sie ein Angebot mit einem festen Preis. Teilen Sie uns bitte Bilder oder eine Liste mit den gewünschten Leistungen mit. Sie können uns auch gerne Ihre Telefonnummer mitteilen oder uns jederzeit anrufen, um Ihren Umzug zu besprechen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge\n\nKontaktdaten: Telefon: +49 1590 6603011 | E-Mail: info@rothirsch-umzug.de | Webseite: www.rothirsch-umzug.de'
-  },
-  {
-    id: 't3',
-    name: 'Angebot schicken',
-    subject: 'Ihr Umzugsangebot – Festpreis',
-    body: '{{Kunde_Anrede}},\n\nanbei sende ich Ihnen unser verbindliches Angebot für Ihren bevorstehenden Umzug am [Datum]. Bitte überprüfen Sie die angehängte Datei für die detaillierten Informationen und Konditionen.\n\nBei Rothirsch Umzüge legen wir großen Wert auf den Schutz Ihrer Möbel. Daher werden alle Möbelstücke sorgfältig mit Umzugsdecken und hochwertigen Schutzmaterialien geschützt.\n\nEs handelt sich bei unserem Angebot um einen Festpreis ([Summe]). Sie können darauf vertrauen, dass es keine unerwarteten zusätzlichen Gebühren gibt.\n\nWenn Sie mit dem Angebot zufrieden sind, bitten wir Sie um eine kurze Bestätigung, damit wir Ihren Wunschtermin verbindlich für Sie reservieren können.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 't4',
-    name: 'Nachfrage zu Ihrem Umzugsangebot',
-    subject: 'Nachfrage zu Ihrem Umzugsangebot',
-    body: '{{Kunde_Anrede}},\n\nich wollte mich kurz erkundigen, ob Sie bereits eine Entscheidung zu unserem Angebot getroffen haben. Der gewünschte Termin am [Datum] ist aktuell noch verfügbar – allerdings erhalten wir viele Anfragen, sodass eine zeitnahe Rückmeldung wichtig für die Reservierung ist.\n\nSollten noch Fragen offen sein oder Sie Anpassungen wünschen, können wir das gerne telefonisch besprechen.\n\nGeben Sie uns einfach kurz Bescheid.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 't5',
-    name: 'Aktualisiertes Angebot schicken',
-    subject: 'Ihr aktualisiertes Umzugsangebot',
-    body: '{{Kunde_Anrede}},\n\nvielen Dank für Ihre Rückmeldung. Anbei senden wir Ihnen das überarbeitete Angebot sowie die angepasste Umzugsliste, die Ihren Änderungswünschen entspricht.\n\nFalls Sie noch weitere Fragen haben oder weitere Anpassungen benötigen, stehen wir Ihnen jederzeit gern zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 't6',
-    name: 'Absage',
-    subject: 'Schade, dass es nicht geklappt hat',
-    body: '{{Kunde_Anrede}},\n\nes ist schade zu hören, dass Sie sich für einen anderen Anbieter entschieden haben. Wir wünschen Ihnen dennoch viel Erfolg und einen reibungslosen Umzug.\n\nSollten Sie in Zukunft erneut Unterstützung benötigen, stehen wir Ihnen jederzeit gerne zur Verfügung.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 't7',
-    name: 'Bestätigung (Auftragsbestätigung & Termin)',
-    subject: 'Auftragsbestätigung für Ihren Umzug',
-    body: '{{Kunde_Anrede}},\n\nvielen Dank für Ihr Vertrauen und das unterzeichnete Angebot! Hiermit bestätige ich Ihnen verbindlich den Umzugstermin am [Datum].\n\nWir freuen uns auf die Zusammenarbeit und darauf, Ihnen den Weg in Ihr neues Zuhause so angenehm wie möglich zu gestalten.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 't8',
-    name: 'Zeit des Umzugs (Wann trifft das Team ein?)',
-    subject: 'Ihre Umzugs-Uhrzeit / Ankunftszeit unseres Teams',
-    body: '{{Kunde_Anrede}},\n\nkurze Information zu Ihrem Umzug am [Datum]: Unser Team wird voraussichtlich zwischen 08:30 und 09:30 Uhr bei Ihnen an der Beladestelle eintreffen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 't9',
-    name: 'Rechnung schicken',
-    subject: 'Ihre Rechnung – Rothirsch Umzüge',
-    body: '{{Kunde_Anrede}},\n\nanbei erhalten Sie die Rechnung für die von uns erbrachten Dienstleistungen. Sollten Sie Fragen oder Anmerkungen haben, stehe ich Ihnen selbstverständlich gerne zur Verfügung.\n\nWir möchten uns herzlich für Ihr Vertrauen bedanken! Falls Sie mit unserer Arbeit zufrieden waren, würden wir uns sehr über eine kurze Bewertung auf Google oder Check24 freuen.\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  },
-  {
-    id: 't10',
-    name: 'Dank für Bewertung',
-    subject: 'Vielen Dank für Ihre Bewertung!',
-    body: '{{Kunde_Anrede}},\n\nvielen Dank für Ihre großartige Bewertung! Wir freuen uns wirklich sehr über Ihr positives Feedback und es ist schön zu hören, dass alles nach Ihren Wünschen gelaufen ist. Es war uns eine Freude, Ihren Umzug durchzuführen!\n\nMit freundlichen Grüßen\n[Mitarbeiter]\nRothirsch Umzüge'
-  }
-];
+import { MASTER_COMMUNICATION_TEMPLATES } from '@/lib/communicationDefaults';
 
 export function MessageSenderModal({ 
   order, 
@@ -84,7 +22,7 @@ export function MessageSenderModal({
   onClose: () => void 
 }) {
   useModalBackHandler(true, onClose, 'message-sender-modal');
-  const [templates, setTemplates] = useState<any[]>(DEFAULT_COMMUNICATION_TEMPLATES);
+  const [templates, setTemplates] = useState<any[]>(MASTER_COMMUNICATION_TEMPLATES);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -147,7 +85,7 @@ export function MessageSenderModal({
   
   useEffect(() => {
     const loadSettings = async () => {
-      let mergedTemplates = [...DEFAULT_COMMUNICATION_TEMPLATES];
+      let mergedTemplates = [...MASTER_COMMUNICATION_TEMPLATES];
       let loadedSettings: any = null;
       try {
         const docSnap = await getDoc(doc(db, 'system', 'settings'));
@@ -160,12 +98,12 @@ export function MessageSenderModal({
             data.communicationTemplates.forEach((t: any) => {
               if (t && t.id) customMap.set(t.id, t);
             });
-            mergedTemplates = DEFAULT_COMMUNICATION_TEMPLATES.map(def => {
+            mergedTemplates = MASTER_COMMUNICATION_TEMPLATES.map(def => {
               const custom = customMap.get(def.id);
               return custom ? { ...def, ...custom } : def;
             });
             data.communicationTemplates.forEach((t: any) => {
-              if (t && !DEFAULT_COMMUNICATION_TEMPLATES.some(d => d.id === t.id)) {
+              if (t && !MASTER_COMMUNICATION_TEMPLATES.some(d => d.id === t.id)) {
                 mergedTemplates.push(t);
               }
             });
