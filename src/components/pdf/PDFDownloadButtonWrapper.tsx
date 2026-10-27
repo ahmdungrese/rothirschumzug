@@ -30,6 +30,9 @@ export default function PDFDownloadButtonWrapper({
   const [settings, setSettings] = useState<any>(null);
   const { profile } = useAuth();
   
+  const isTeamLead = profile?.role === 'teamlead' || profile?.canViewPrices === false;
+  const resolvedType = isTeamLead && type !== 'protocol' ? 'employee' : type;
+
   const candidates = [
     order?.orderMeta?.contactPerson,
     order?.contactPerson,
@@ -60,10 +63,10 @@ export default function PDFDownloadButtonWrapper({
   }
 
   const getDocument = () => {
-    if (type === 'employee') return <EmployeeSheetPDF order={order} customer={customer} employeeName={employeeName} settings={settings} />;
-    if (type === 'invoice') return <InvoicePDF order={order} customer={customer} settings={settings} employeeName={employeeName} />;
-    if (type === 'contract') return <OrderPDF order={order} customer={customer} settings={settings} isContract={true} employeeName={employeeName} />;
-    if (type === 'protocol') return <ProtocolPDF order={order} customer={customer} employeeName={employeeName} settings={settings} />;
+    if (resolvedType === 'employee') return <EmployeeSheetPDF order={order} customer={customer} employeeName={employeeName} settings={settings} />;
+    if (resolvedType === 'invoice') return <InvoicePDF order={order} customer={customer} settings={settings} employeeName={employeeName} />;
+    if (resolvedType === 'contract') return <OrderPDF order={order} customer={customer} settings={settings} isContract={true} employeeName={employeeName} />;
+    if (resolvedType === 'protocol') return <ProtocolPDF order={order} customer={customer} employeeName={employeeName} settings={settings} />;
     return <OrderPDF order={order} customer={customer} settings={settings} employeeName={employeeName} />;
   };
 
@@ -88,15 +91,15 @@ export default function PDFDownloadButtonWrapper({
     
     const address = order?.logistics?.b_street ? `${order.logistics.b_street} ${order.logistics.b_houseNr || ''}`.trim() : 'Unbekannt';
 
-    if (type === 'employee') return `Laufzettel - ${suffix} - ${address}.pdf`;
-    if (type === 'invoice') {
+    if (resolvedType === 'employee') return `Laufzettel - ${suffix} - ${address}.pdf`;
+    if (resolvedType === 'invoice') {
       const isKorr = Boolean(order?.isKorrektur || order?.isCorrection);
       const isStorno = Boolean(order?.isStorno);
       const prefix = isStorno ? 'Stornorechnung' : (isKorr ? 'Korrekturrechnung' : 'Rechnung');
       return `${prefix} ${order?.invoiceNumber || orderNum} - ${suffix}.pdf`;
     }
-    if (type === 'contract') return `Auftragsbestätigung ${order?.contractNumber || orderNum} - ${suffix}.pdf`;
-    if (type === 'protocol') return `Protokoll ${order?.contractNumber || orderNum} - ${suffix}.pdf`;
+    if (resolvedType === 'contract') return `Auftragsbestätigung ${order?.contractNumber || orderNum} - ${suffix}.pdf`;
+    if (resolvedType === 'protocol') return `Protokoll ${order?.contractNumber || orderNum} - ${suffix}.pdf`;
     return `Angebot ${orderNum} - ${suffix}.pdf`;
   };
 

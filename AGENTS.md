@@ -30,7 +30,19 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.24.1 (Current) – Default Payment Method "Barzahlung" & Smart Fallback
+### Version 2.25.0 (Current) – Strict Teamleiter Security Lockdown & Zero-Leak Isolation
+*   **Total Cockpit & Orders Blocking (`OrderDetailsDrawer.tsx`, `orders/page.tsx`)**:
+    *   **Cockpit Shield (`OrderDetailsDrawer.tsx`)**: Completely blocked `OrderDetailsDrawer` from rendering for `teamlead` (and users with `canViewPrices === false`), automatically triggering `onClose()` and returning `null`.
+    *   **Orders Page Shield (`orders/page.tsx`)**: Blocked access to `/dashboard/orders` for Teamleiter, immediately redirecting to `/dashboard/calendar` to prevent viewing order lists, financial statuses, or prices.
+*   **PDF Price Isolation & Guaranteed Laufzettel Enforcement (`PdfModal.tsx`, `PDFDownloadButtonWrapper.tsx`, `InlinePDFViewerWrapper.tsx`)**:
+    *   Any PDF modal or download action initiated by a Teamleiter automatically forces `resolvedType = 'employee'` (Laufzettel) unless `protocol` is requested. Teamleiters can never view or download offers, contracts, or invoices containing prices.
+*   **Clean Operational Customer Profile (`CustomerPremiumProfile.tsx`)**:
+    *   **Purged Financial Data**: Hidden all prices, sums, and gross totals from order cards and multi-order pickers.
+    *   **Purged Office Elements**: Completely hidden `customer.source` (Kundenquelle), customer email address (phone preserved for calling), and auxiliary office dates (HVZ, Möbellift, Karton delivery, Besichtigung).
+    *   **Purged Phase Bar & Controls**: Removed the entire executive phase pipeline bar (`Phase 1` through `Phase 4`), `Prüfen` button, and bottom administrative section (`Rechnung erstellen`, `Stornieren`, etc.).
+    *   **Strictly 4 Operational Actions**: Filtered primary actions to strictly `[ Laufzettel (PDF) ]`, `[ Protokoll erfassen ]`, `[ Schaden melden ]`, and `[ Route (Maps) ]`.
+
+### Version 2.24.1 – Default Payment Method "Barzahlung" & Smart Fallback
 *   **Default Payment Method Barzahlung (`paymentDefaults.ts`, `OrderEditor.tsx`, `InvoiceEditor.tsx`, `settings/page.tsx`, `MobileInspectionWizard.tsx`)**:
     *   **Barzahlung as Universal Default**: Reordered `MASTER_PAYMENT_METHODS` so `Barzahlung` is the primary entry with `isDefault: true` (and `dueDays: 0`, "Am Umzugstag"), while `Überweisung` is set to `isDefault: false`.
     *   **New Offer Auto-Selection (`OrderEditor.tsx`)**: When creating a new offer (`orderId` is absent), `orderMeta.paymentMethod` initializes to `'Barzahlung'`, and the payment terms automatically load the standard cash payment phrasing (`quoteTerms`), matching AGB § 3 ("Die Zahlung in bar erfolgt direkt nach Abschluss des Umzugs").

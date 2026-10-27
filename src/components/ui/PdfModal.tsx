@@ -17,7 +17,12 @@ interface PdfModalProps {
 
 export function PdfModal({ order, customer, type, onClose, forceLiveQuote = false }: PdfModalProps) {
   useModalBackHandler(true, onClose, 'pdf-modal');
+  const { profile } = useAuth();
   const [settings, setSettings] = useState<any>(null);
+
+  // Security guard: If user cannot view prices or is teamlead, force 'employee' (Laufzettel) unless it's 'protocol'
+  const isTeamLead = profile?.role === 'teamlead' || profile?.canViewPrices === false;
+  const resolvedType = isTeamLead && type !== 'protocol' ? 'employee' : type;
 
   useEffect(() => {
     getDoc(doc(db, 'system', 'settings')).then(docSnap => {
@@ -38,7 +43,7 @@ export function PdfModal({ order, customer, type, onClose, forceLiveQuote = fals
         <h2 className="text-base sm:text-xl font-bold text-text-main flex items-center gap-2 sm:gap-3">
           Dokumenten-Vorschau
           <span className="text-xs font-normal text-text-muted bg-white/5 px-2 py-0.5 rounded">
-            {type === 'invoice' ? 'Rechnung' : type === 'protocol' ? 'Protokoll' : type === 'employee' ? 'Laufzettel' : 'Angebot/Auftrag'}
+            {resolvedType === 'invoice' ? 'Rechnung' : resolvedType === 'protocol' ? 'Protokoll' : resolvedType === 'employee' ? 'Laufzettel' : 'Angebot/Auftrag'}
           </span>
         </h2>
         <div className="flex items-center gap-2 sm:gap-3">
@@ -46,14 +51,14 @@ export function PdfModal({ order, customer, type, onClose, forceLiveQuote = fals
           <PDFDownloadButton 
             order={order} 
             customer={customer} 
-            type={type} 
+            type={resolvedType} 
             openInNewTab={true}
             className="hidden sm:flex items-center gap-1.5 bg-white/10 hover:bg-white/15 text-text-main px-3 py-2 rounded-xl text-xs font-semibold border border-structure transition-colors" 
           />
           <PDFDownloadButton 
             order={order} 
             customer={customer} 
-            type={type} 
+            type={resolvedType} 
             className="flex items-center gap-1.5 sm:gap-2 bg-primary text-white px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md hover:bg-primary/90 transition-colors cursor-pointer" 
           />
           <button 
@@ -73,7 +78,7 @@ export function PdfModal({ order, customer, type, onClose, forceLiveQuote = fals
             <InlinePDFViewer 
               order={order} 
               customer={customer} 
-              type={type}
+              type={resolvedType}
               forceLiveQuote={forceLiveQuote}
             />
           ) : (

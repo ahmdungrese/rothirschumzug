@@ -22,6 +22,8 @@ import {
   FolderOpenIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
 import { toast } from 'react-hot-toast';
 import { PaymentManager } from '@/components/orders/PaymentManager';
 import { OrderDetailsDrawer } from '@/components/dashboard/OrderDetailsDrawer';
@@ -247,6 +249,15 @@ function OrderActionsDropdown({
 }
 
 export default function OrdersPage() {
+  const { profile, loading: authLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!authLoading && profile?.role === 'teamlead') {
+      router.replace('/dashboard/calendar');
+    }
+  }, [authLoading, profile?.role, router]);
+
   const [orders, setOrders] = useState<any[]>([]);
   const [customersMap, setCustomersMap] = useState<Map<string, any>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -264,6 +275,7 @@ export default function OrdersPage() {
   const [sortBy, setSortBy] = useState<SortOption>('urgency');
 
   useEffect(() => {
+    if (authLoading || profile?.role === 'teamlead') return;
     // 1. Fetch Orders (All non-archived orders, including billed & completed moves)
     const unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
       const fetched = snapshot.docs
@@ -477,8 +489,12 @@ export default function OrdersPage() {
     return result;
   }, [orders, filterTab, searchQuery, sortBy]);
 
-  if (loading) {
+  if (authLoading || (loading && profile?.role !== 'teamlead')) {
     return <div className="flex justify-center p-12"><div className="animate-spin h-8 w-8 border-t-2 border-primary rounded-full"></div></div>;
+  }
+
+  if (profile?.role === 'teamlead') {
+    return null;
   }
 
   return (

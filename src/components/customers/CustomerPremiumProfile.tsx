@@ -1099,7 +1099,7 @@ export function CustomerPremiumProfile({
               <span className="text-xs font-semibold text-slate-400">
                 Kunden-ID: #{customer?.id?.slice(-5).toUpperCase() || 'KD'}
               </span>
-              {customer?.source && (
+              {!isTeamLead && customer?.source && (
                 <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider border ${getSourceBadgeStyle(customer.source)}`}>
                   {customer.source}
                 </span>
@@ -1205,29 +1205,31 @@ export function CustomerPremiumProfile({
                 )}
               </div>
 
-              {/* Email */}
-              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-[#6E8F64]/10 text-[#6E8F64] dark:text-[#93B489] flex items-center justify-center shrink-0">
-                    <EnvelopeIcon className="w-4 h-4" />
+              {/* Email (nur für Büro & Admin) */}
+              {!isTeamLead && (
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-[#6E8F64]/10 text-[#6E8F64] dark:text-[#93B489] flex items-center justify-center shrink-0">
+                      <EnvelopeIcon className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block leading-none mb-0.5">E-Mail</span>
+                      <a href={`mailto:${customer?.email}`} className="font-bold text-slate-800 dark:text-slate-200 hover:text-primary truncate block max-w-[140px] sm:max-w-[180px]">
+                        {customer?.email || 'Keine E-Mail hinterlegt'}
+                      </a>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold block leading-none mb-0.5">E-Mail</span>
-                    <a href={`mailto:${customer?.email}`} className="font-bold text-slate-800 dark:text-slate-200 hover:text-primary truncate block max-w-[140px] sm:max-w-[180px]">
-                      {customer?.email || 'Keine E-Mail hinterlegt'}
+                  {customer?.email && (
+                    <a
+                      href={`mailto:${customer.email}`}
+                      className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-primary hover:text-white transition-colors text-slate-700 dark:text-slate-200 shrink-0"
+                      title="E-Mail schreiben"
+                    >
+                      <EnvelopeIcon className="w-3.5 h-3.5" />
                     </a>
-                  </div>
+                  )}
                 </div>
-                {customer?.email && (
-                  <a
-                    href={`mailto:${customer.email}`}
-                    className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-primary hover:text-white transition-colors text-slate-700 dark:text-slate-200 shrink-0"
-                    title="E-Mail schreiben"
-                  >
-                    <EnvelopeIcon className="w-3.5 h-3.5" />
-                  </a>
-                )}
-              </div>
+              )}
 
               {/* Main Address */}
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60">
@@ -1325,6 +1327,7 @@ export function CustomerPremiumProfile({
               )}
             </div>
 
+            {!isTeamLead && (
             <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5 text-xs">
               {/* 1. Besichtigungstermin */}
               <div className="flex items-center justify-between p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60">
@@ -1462,6 +1465,7 @@ export function CustomerPremiumProfile({
                 </div>
               )}
             </div>
+            )}
           </div>
           );
         })()}
@@ -1897,20 +1901,40 @@ export function CustomerPremiumProfile({
           );
         };
 
+        const renderRouteMapsBtn = () => {
+          if (!hasA && !hasB) return null;
+          const url = hasA && hasB
+            ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(aAddressFull)}&destination=${encodeURIComponent(bAddressFull)}`
+            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(aAddressFull || bAddressFull)}`;
+          return (
+            <a
+              key="route-maps-btn"
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3.5 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-xs font-bold border border-blue-500/30 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+              title="Umzugsroute A ➔ B in Google Maps öffnen"
+            >
+              <MapPinIcon className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+              <span>Route (Maps)</span>
+            </a>
+          );
+        };
+
         // Smart dynamic selection based on phase & signing state
         let primaryActions: React.ReactNode[] = [];
         let menuActions: (React.ReactNode | null)[] = [];
 
         if (isTeamLead) {
-          // Teamleiter: Ausschlielich operative Aktionen (Laufzettel, Protokoll, Kalender, Reklamation)
+          // Teamleiter: Ausschließlich operative Aktionen (Laufzettel, Protokoll, Schaden melden, Route Maps)
           primaryActions = [
             renderLaufzettelBtn(false),
             renderProtokollBtn(false),
+            renderReklamationBtn(false),
+            renderRouteMapsBtn(),
             renderKalenderBtn(false),
-          ];
-          menuActions = [
-            renderReklamationBtn(true),
-          ];
+          ].filter(Boolean);
+          menuActions = [];
         } else if (currentPhaseInfo.phase <= 2 && !isSigned) {
           // Phase 1 & 2: Negotiation / Offer
           primaryActions = [
@@ -2011,8 +2035,8 @@ export function CustomerPremiumProfile({
         );
       })()}
 
-      {/* Streamlined Executive Phase Bar: Ultra-Compact Single Row */}
-      {activeOrder && (
+      {/* Streamlined Executive Phase Bar: Ultra-Compact Single Row (nur für Büro & Admin) */}
+      {!isTeamLead && activeOrder && (
         <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
           
           {/* Left: 4 Interactive Phase Circles & Status Label */}
@@ -2447,9 +2471,11 @@ export function CustomerPremiumProfile({
                         </span>
                       </div>
                       <div className="text-right shrink-0">
-                        <span className="text-xs font-bold text-primary block">
-                          €{ordTot.gross.toLocaleString('de-DE')}
-                        </span>
+                        {!isTeamLead && (
+                          <span className="text-xs font-bold text-primary block">
+                            €{ordTot.gross.toLocaleString('de-DE')}
+                          </span>
+                        )}
                         <span className="text-[9px] uppercase font-bold text-slate-400">
                           {ord.status}
                         </span>
@@ -2724,16 +2750,18 @@ export function CustomerPremiumProfile({
                       </Link>
                     )}
 
-                    {/* 2. Auftrags-Cockpit & Prüfung (Drawer) */}
-                    <button
-                      type="button"
-                      onClick={() => setDrawerOrder(ord)}
-                      className="px-3 py-2 rounded-xl text-xs font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-all flex items-center gap-1 cursor-pointer"
-                      title="Auftrags-Cockpit & Phasen-Prüfung im Drawer öffnen"
-                    >
-                      <AdjustmentsHorizontalIcon className="w-3.5 h-3.5" />
-                      <span>Prüfen</span>
-                    </button>
+                    {/* 2. Auftrags-Cockpit & Prüfung (Drawer - nur für Büro & Admin) */}
+                    {!isTeamLead && (
+                      <button
+                        type="button"
+                        onClick={() => setDrawerOrder(ord)}
+                        className="px-3 py-2 rounded-xl text-xs font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-all flex items-center gap-1 cursor-pointer"
+                        title="Auftrags-Cockpit & Phasen-Prüfung im Drawer öffnen"
+                      >
+                        <AdjustmentsHorizontalIcon className="w-3.5 h-3.5" />
+                        <span>Prüfen</span>
+                      </button>
+                    )}
 
                     {/* 3. Laufzettel (für Teamleiter) oder PDF Vorschau (für Büro) */}
                     {isTeamLead ? (
@@ -2793,8 +2821,8 @@ export function CustomerPremiumProfile({
                       </button>
                     )}
 
-                    {/* 5. Intelligente Phase-spezifische Aktion (Signatur vs Rechnung) für inaktive Aufträge */}
-                    {['quote', 'clarification', 'verhandlung'].includes(ord.status) && !(ord.signature || ord.orderMeta?.customerSignature) && !ordLatestCancelledNum ? (
+                    {/* 5. Intelligente Phase-spezifische Aktion (Signatur vs Rechnung) für inaktive Aufträge (nur Büro & Admin) */}
+                    {!isTeamLead && (['quote', 'clarification', 'verhandlung'].includes(ord.status) && !(ord.signature || ord.orderMeta?.customerSignature) && !ordLatestCancelledNum ? (
                       !isThisActive ? (
                         <div className="flex items-center gap-1.5">
                           <button
@@ -2849,7 +2877,7 @@ export function CustomerPremiumProfile({
                         <DocumentCheckIcon className="w-3.5 h-3.5" />
                         <span>{ordLatestCancelledNum ? 'Korrekturrechnung erstellen' : 'Rechnung erstellen'}</span>
                       </button>
-                    ) : null}
+                    ) : null)}
                   </div>
                 </div>
               );

@@ -17,6 +17,9 @@ export default function InlinePDFViewerWrapper({ order, customer, type = 'order'
   const [isGenerating, setIsGenerating] = useState(false);
   const { profile } = useAuth();
 
+  const isTeamLead = profile?.role === 'teamlead' || profile?.canViewPrices === false;
+  const resolvedType = isTeamLead && type !== 'protocol' ? 'employee' : type;
+
   useEffect(() => {
     const checkMobile = () => {
       const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
@@ -50,10 +53,10 @@ export default function InlinePDFViewerWrapper({ order, customer, type = 'order'
   }, []);
 
   const getDocument = () => {
-    if (type === 'employee') return <EmployeeSheetPDF order={order} customer={customer} employeeName={employeeName} settings={settings} />;
-    if (type === 'invoice') return <InvoicePDF order={order} customer={customer} settings={settings} employeeName={employeeName} />;
-    if (type === 'contract') return <OrderPDF order={order} customer={customer} settings={settings} isContract={true} employeeName={employeeName} />;
-    if (type === 'protocol') return <ProtocolPDF order={order} customer={customer} employeeName={employeeName} settings={settings} />;
+    if (resolvedType === 'employee') return <EmployeeSheetPDF order={order} customer={customer} employeeName={employeeName} settings={settings} />;
+    if (resolvedType === 'invoice') return <InvoicePDF order={order} customer={customer} settings={settings} employeeName={employeeName} />;
+    if (resolvedType === 'contract') return <OrderPDF order={order} customer={customer} settings={settings} isContract={true} employeeName={employeeName} />;
+    if (resolvedType === 'protocol') return <ProtocolPDF order={order} customer={customer} employeeName={employeeName} settings={settings} />;
     
     // For 'order', use confirmedSnapshot if it exists and order is no longer in draft/quote, UNLESS forceLiveQuote is true
     const isPastQuote = ['confirmed', 'completed', 'invoice_open', 'invoice_paid', 'invoice_overdue', 'invoice_cancelled'].includes(order.status);
@@ -69,15 +72,15 @@ export default function InlinePDFViewerWrapper({ order, customer, type = 'order'
   };
 
   const getDocTitle = () => {
-    if (type === 'invoice') return (order?.isKorrektur || order?.isCorrection) ? 'Korrekturrechnung' : order?.isStorno ? 'Stornorechnung' : 'Rechnung';
-    if (type === 'employee') return 'Mitarbeiter-Laufzettel';
-    if (type === 'protocol') return 'Übergabeprotokoll';
-    if (type === 'contract') return 'Auftragsbestätigung';
+    if (resolvedType === 'invoice') return (order?.isKorrektur || order?.isCorrection) ? 'Korrekturrechnung' : order?.isStorno ? 'Stornorechnung' : 'Rechnung';
+    if (resolvedType === 'employee') return 'Mitarbeiter-Laufzettel';
+    if (resolvedType === 'protocol') return 'Übergabeprotokoll';
+    if (resolvedType === 'contract') return 'Auftragsbestätigung';
     return 'Angebot';
   };
 
   const getDocNumber = () => {
-    if (type === 'invoice') return order?.invoiceNumber || (order?.orderNumber ? `R-${order.orderNumber}` : '#RECHNUNG');
+    if (resolvedType === 'invoice') return order?.invoiceNumber || (order?.orderNumber ? `R-${order.orderNumber}` : '#RECHNUNG');
     return order?.orderNumber || (order?.id ? `#${order.id.slice(-5).toUpperCase()}` : '#DOKUMENT');
   };
 

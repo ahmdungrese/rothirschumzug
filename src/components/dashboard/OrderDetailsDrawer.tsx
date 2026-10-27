@@ -57,10 +57,19 @@ interface OrderDetailsDrawerProps {
 
 export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase, onClose, onRefresh }: OrderDetailsDrawerProps) {
   const router = useRouter();
+  const { profile } = useAuth();
+  const isTeamLead = profile?.role === 'teamlead' || profile?.canViewPrices === false;
+
+  useEffect(() => {
+    if (isTeamLead) {
+      onClose();
+    }
+  }, [isTeamLead, onClose]);
+
   const [order, setOrder] = useState<any>(initialOrder);
 
   // Close drawer gracefully on mobile back button / swipe gesture
-  useModalBackHandler(Boolean(initialOrder), onClose, 'order-drawer');
+  useModalBackHandler(Boolean(initialOrder && !isTeamLead), onClose, 'order-drawer');
 
   // Sync when switching to a different order ID (keep live onSnapshot as single source of truth for current order)
   useEffect(() => {
@@ -104,7 +113,6 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
   const currentOrderPhase = getInitialPhase(order?.status || 'draft', order);
   const [activePhaseTab, setActivePhaseTab] = useState<number>(initialPhase || currentOrderPhase);
-  const { profile } = useAuth();
   const [settings, setSettings] = useState<any>(null);
 
   useEffect(() => {
@@ -544,6 +552,8 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
       : `https://wa.me/${intlPhone}`;
     window.open(url, '_blank');
   };
+
+  if (!order || isTeamLead) return null;
 
   return (
     <div className="fixed inset-0 z-[80] overflow-hidden bg-black/60 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
