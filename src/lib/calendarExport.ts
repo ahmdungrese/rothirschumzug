@@ -326,8 +326,24 @@ export function exportOrderViewingToCalendar(order: any): void {
 /**
  * 3. Export Specific Task Schedule (HVZ, Kartons, Lift)
  */
-export function exportTaskToCalendar(todoId: string, order: any, scheduledDate: string, scheduledTime?: string, locationOpt?: 'a' | 'b' | 'both'): void {
-  if (!scheduledDate) {
+export function exportTaskToCalendar(
+  todoId: string, 
+  order: any, 
+  scheduledDate: string, 
+  scheduledTime?: string, 
+  locationOpt?: 'a' | 'b' | 'both',
+  customExtras?: {
+    dateA?: string;
+    timeA?: string;
+    durationA?: number | string;
+    endTimeA?: string;
+    dateB?: string;
+    timeB?: string;
+    durationB?: number | string;
+    endTimeB?: string;
+  }
+): void {
+  if (!scheduledDate && !customExtras?.dateA && !customExtras?.dateB) {
     toast.error('Bitte zuerst ein Datum wählen.');
     return;
   }
@@ -336,11 +352,6 @@ export function exportTaskToCalendar(todoId: string, order: any, scheduledDate: 
   const orderNum = order?.orderNumber || (order?.id ? `#${order.id.slice(0, 6)}` : '');
   const phone = order?.customerPhone || order?.phone || '';
 
-  let title = '';
-  let category: CalendarEventPayload['category'] = 'Logistik';
-  let defaultDuration = 2;
-  let loc = '';
-
   const aStreet = [order?.logistics?.a_street, order?.logistics?.a_houseNr].filter(Boolean).join(' ');
   const aCity = [order?.logistics?.a_zip, order?.logistics?.a_city].filter(Boolean).join(' ');
   const addrA = [aStreet, aCity].filter(Boolean).join(', ');
@@ -348,6 +359,90 @@ export function exportTaskToCalendar(todoId: string, order: any, scheduledDate: 
   const bStreet = [order?.logistics?.b_street, order?.logistics?.b_houseNr].filter(Boolean).join(' ');
   const bCity = [order?.logistics?.b_zip, order?.logistics?.b_city].filter(Boolean).join(' ');
   const addrB = [bStreet, bCity].filter(Boolean).join(', ');
+
+  // If both locations are requested and it's a lift or HVZ, export two separate calendar events!
+  if (locationOpt === 'both' && (todoId === 'moebellift_buchen' || todoId === 'moebellift' || todoId === 'halteverbot' || todoId === 'hvz')) {
+    if (todoId === 'moebellift_buchen' || todoId === 'moebellift') {
+      const dateA = customExtras?.dateA || order?.orderMeta?.moebelliftDateA || scheduledDate;
+      const timeA = customExtras?.timeA || order?.orderMeta?.moebelliftTimeA || scheduledTime || '09:00';
+      const durA = Number(customExtras?.durationA || order?.orderMeta?.moebelliftDurationA || order?.orderMeta?.moebelliftDuration) || 2;
+      const endA = customExtras?.endTimeA || order?.orderMeta?.moebelliftEndTimeA;
+
+      const dateB = customExtras?.dateB || order?.orderMeta?.moebelliftDateB || scheduledDate;
+      const timeB = customExtras?.timeB || order?.orderMeta?.moebelliftTimeB || '13:00';
+      const durB = Number(customExtras?.durationB || order?.orderMeta?.moebelliftDurationB || order?.orderMeta?.moebelliftDuration) || 2;
+      const endB = customExtras?.endTimeB || order?.orderMeta?.moebelliftEndTimeB;
+
+      const eventA: CalendarEventPayload = {
+        title: `🏗️ Möbellift: ${custName} (Auszug A)`,
+        startDate: dateA,
+        startTime: timeA,
+        durationHours: durA,
+        endTime: endA,
+        location: `Auszugsort (A): ${addrA || 'Adresse A'}`,
+        description: `Möbellift-Einsatz am Auszugsort (A)\nKunde: ${custName}\nAuftrag: ${orderNum}\nTelefon: ${phone}\nOrt: ${addrA}\n${getOrderAppUrl(order?.id)}`,
+        category: 'Möbellift',
+        url: getOrderAppUrl(order?.id),
+        orderId: order?.id
+      };
+
+      const eventB: CalendarEventPayload = {
+        title: `🏗️ Möbellift: ${custName} (Einzug B)`,
+        startDate: dateB,
+        startTime: timeB,
+        durationHours: durB,
+        endTime: endB,
+        location: `Einzugsort (B): ${addrB || 'Adresse B'}`,
+        description: `Möbellift-Einsatz am Einzugsort (B)\nKunde: ${custName}\nAuftrag: ${orderNum}\nTelefon: ${phone}\nOrt: ${addrB}\n${getOrderAppUrl(order?.id)}`,
+        category: 'Möbellift',
+        url: getOrderAppUrl(order?.id),
+        orderId: order?.id
+      };
+
+      downloadCalendarEvent([eventA, eventB], `Moebellift_${custName}_Beide_Orte_${(dateA || '').split('T')[0]}`);
+      return;
+    }
+
+    if (todoId === 'halteverbot' || todoId === 'hvz') {
+      const dateA = customExtras?.dateA || order?.orderMeta?.halteverbotDateA || scheduledDate;
+      const timeA = customExtras?.timeA || order?.orderMeta?.halteverbotTimeA || scheduledTime || '08:00';
+
+      const dateB = customExtras?.dateB || order?.orderMeta?.halteverbotDateB || scheduledDate;
+      const timeB = customExtras?.timeB || order?.orderMeta?.halteverbotTimeB || scheduledTime || '08:00';
+
+      const eventA: CalendarEventPayload = {
+        title: `⛔ Halteverbot (Auszug A): ${custName}`,
+        startDate: dateA,
+        startTime: timeA,
+        durationHours: 2,
+        location: `Auszugsort (A): ${addrA || 'Adresse A'}`,
+        description: `Halteverbotszone am Auszugsort (A)\nKunde: ${custName}\nAuftrag: ${orderNum}\nTelefon: ${phone}\nOrt: ${addrA}\n${getOrderAppUrl(order?.id)}`,
+        category: 'Halteverbot',
+        url: getOrderAppUrl(order?.id),
+        orderId: order?.id
+      };
+
+      const eventB: CalendarEventPayload = {
+        title: `⛔ Halteverbot (Einzug B): ${custName}`,
+        startDate: dateB,
+        startTime: timeB,
+        durationHours: 2,
+        location: `Einzugsort (B): ${addrB || 'Adresse B'}`,
+        description: `Halteverbotszone am Einzugsort (B)\nKunde: ${custName}\nAuftrag: ${orderNum}\nTelefon: ${phone}\nOrt: ${addrB}\n${getOrderAppUrl(order?.id)}`,
+        category: 'Halteverbot',
+        url: getOrderAppUrl(order?.id),
+        orderId: order?.id
+      };
+
+      downloadCalendarEvent([eventA, eventB], `Halteverbot_${custName}_Beide_Orte_${(dateA || '').split('T')[0]}`);
+      return;
+    }
+  }
+
+  let title = '';
+  let category: CalendarEventPayload['category'] = 'Logistik';
+  let defaultDuration = 2;
+  let loc = '';
 
   if (locationOpt === 'b') {
     loc = `Zielort (B): ${addrB}`;
@@ -359,6 +454,7 @@ export function exportTaskToCalendar(todoId: string, order: any, scheduledDate: 
 
   switch (todoId) {
     case 'halteverbot':
+    case 'hvz':
       title = `⛔ Halteverbot einrichten: ${custName}`;
       category = 'Halteverbot';
       defaultDuration = 2;
@@ -369,9 +465,10 @@ export function exportTaskToCalendar(todoId: string, order: any, scheduledDate: 
       defaultDuration = 2;
       break;
     case 'moebellift_buchen':
+    case 'moebellift':
       title = `🏗️ Möbellift-Einsatz: ${custName}`;
       category = 'Möbellift';
-      defaultDuration = 4;
+      defaultDuration = Number(customExtras?.durationA || customExtras?.durationB || order?.orderMeta?.moebelliftDuration) || 3;
       break;
     case 'viewing_requested':
     case 'viewing_date':

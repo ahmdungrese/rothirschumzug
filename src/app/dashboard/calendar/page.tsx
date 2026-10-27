@@ -174,32 +174,79 @@ export default function CalendarPage() {
 
         // 2. Halteverbot
         if ((o.logistics?.noParkingZone || o.logistics?.a_parking || o.logistics?.b_parking || hasFixedService(o.services, 'hvz')) && isConfirmed) {
-          let hvDateStr = o.orderMeta?.halteverbotDate || '';
-          if (!hvDateStr) {
-            let hvDate = new Date(movingDateObj);
-            hvDate.setDate(hvDate.getDate() - 7);
-            if (hvDate < createdAtObj) hvDate = new Date(createdAtObj);
-            hvDateStr = `${hvDate.getFullYear()}-${String(hvDate.getMonth() + 1).padStart(2, '0')}-${String(hvDate.getDate()).padStart(2, '0')}`;
-          }
-          const cleanHvDate = hvDateStr.split("T")[0];
-          if (map[cleanHvDate]) {
-            totalLogistics++;
-            map[cleanHvDate].push({
-              id: o.id + '_hv',
-              ticketId: 'halteverbot',
-              type: 'parking',
-              category: 'logistics',
-              symbol: 'local_parking',
-              shortLabel: 'HVZ',
-              customerName: custShortName,
-              title: `HVZ • ${custShortName}`,
-              address: o.logistics?.a_city || 'HVZ einrichten',
-              orderId: o.id,
-              customerId: o.customerId,
-              isDone: isTaskCompleted(o, 'halteverbot'),
-              timeStr: o.orderMeta?.halteverbotTime,
-              colorClass: 'bg-amber-500/12 text-amber-800 border-amber-500/25 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50'
-            });
+          const isBoth = (o.orderMeta?.hvzLocation || o.logistics?.hvzLocation) === 'both';
+          const dateA = o.orderMeta?.halteverbotDateA;
+          const dateB = o.orderMeta?.halteverbotDateB;
+
+          if (isBoth && (dateA || dateB)) {
+            if (dateA && map[dateA.split('T')[0]]) {
+              const cleanA = dateA.split('T')[0];
+              totalLogistics++;
+              map[cleanA].push({
+                id: o.id + '_hv_a',
+                ticketId: 'halteverbot',
+                type: 'parking',
+                category: 'logistics',
+                symbol: 'local_parking',
+                shortLabel: 'HVZ A',
+                customerName: custShortName,
+                title: `HVZ (Auszug) • ${custShortName}`,
+                address: o.logistics?.a_city || 'HVZ Auszug A',
+                orderId: o.id,
+                customerId: o.customerId,
+                isDone: isTaskCompleted(o, 'halteverbot'),
+                timeStr: o.orderMeta?.halteverbotTimeA || o.orderMeta?.halteverbotTime,
+                colorClass: 'bg-amber-500/12 text-amber-800 border-amber-500/25 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50'
+              });
+            }
+            if (dateB && map[dateB.split('T')[0]]) {
+              const cleanB = dateB.split('T')[0];
+              totalLogistics++;
+              map[cleanB].push({
+                id: o.id + '_hv_b',
+                ticketId: 'halteverbot',
+                type: 'parking',
+                category: 'logistics',
+                symbol: 'local_parking',
+                shortLabel: 'HVZ B',
+                customerName: custShortName,
+                title: `HVZ (Einzug) • ${custShortName}`,
+                address: o.logistics?.b_city || 'HVZ Einzug B',
+                orderId: o.id,
+                customerId: o.customerId,
+                isDone: isTaskCompleted(o, 'halteverbot'),
+                timeStr: o.orderMeta?.halteverbotTimeB || o.orderMeta?.halteverbotTime,
+                colorClass: 'bg-amber-500/12 text-amber-800 border-amber-500/25 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50'
+              });
+            }
+          } else {
+            let hvDateStr = o.orderMeta?.halteverbotDate || '';
+            if (!hvDateStr) {
+              let hvDate = new Date(movingDateObj);
+              hvDate.setDate(hvDate.getDate() - 7);
+              if (hvDate < createdAtObj) hvDate = new Date(createdAtObj);
+              hvDateStr = `${hvDate.getFullYear()}-${String(hvDate.getMonth() + 1).padStart(2, '0')}-${String(hvDate.getDate()).padStart(2, '0')}`;
+            }
+            const cleanHvDate = hvDateStr.split("T")[0];
+            if (map[cleanHvDate]) {
+              totalLogistics++;
+              map[cleanHvDate].push({
+                id: o.id + '_hv',
+                ticketId: 'halteverbot',
+                type: 'parking',
+                category: 'logistics',
+                symbol: 'local_parking',
+                shortLabel: 'HVZ',
+                customerName: custShortName,
+                title: `HVZ • ${custShortName}`,
+                address: o.logistics?.a_city || 'HVZ einrichten',
+                orderId: o.id,
+                customerId: o.customerId,
+                isDone: isTaskCompleted(o, 'halteverbot'),
+                timeStr: o.orderMeta?.halteverbotTime,
+                colorClass: 'bg-amber-500/12 text-amber-800 border-amber-500/25 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50'
+              });
+            }
           }
         }
 
@@ -236,32 +283,79 @@ export default function CalendarPage() {
 
         // 4. Möbellift buchen
         if ((o.logistics?.a_furnitureLift || o.logistics?.b_furnitureLift || hasFixedService(o.services, 'moebellift')) && isConfirmed) {
-          let liftDateStr = o.orderMeta?.moebelliftDate || '';
-          if (!liftDateStr) {
-            let liftDate = new Date(movingDateObj);
-            liftDate.setDate(liftDate.getDate() - 3);
-            if (liftDate < createdAtObj) liftDate = new Date(createdAtObj);
-            liftDateStr = `${liftDate.getFullYear()}-${String(liftDate.getMonth() + 1).padStart(2, '0')}-${String(liftDate.getDate()).padStart(2, '0')}`;
-          }
-          const cleanLiftDate = liftDateStr.split("T")[0];
-          if (map[cleanLiftDate]) {
-            totalLogistics++;
-            map[cleanLiftDate].push({
-              id: o.id + '_lift',
-              ticketId: 'moebellift_buchen',
-              type: 'lift',
-              category: 'logistics',
-              symbol: 'elevator',
-              shortLabel: 'Lift',
-              customerName: custShortName,
-              title: `Lift • ${custShortName}`,
-              address: o.logistics?.a_city || 'Lift reservieren',
-              orderId: o.id,
-              customerId: o.customerId,
-              isDone: isTaskCompleted(o, 'moebellift_buchen'),
-              timeStr: o.orderMeta?.moebelliftTime,
-              colorClass: 'bg-sky-500/12 text-sky-800 border-sky-500/25 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50'
-            });
+          const isBoth = (o.orderMeta?.moebelliftLocation || o.logistics?.moebelliftLocation) === 'both';
+          const dateA = o.orderMeta?.moebelliftDateA;
+          const dateB = o.orderMeta?.moebelliftDateB;
+
+          if (isBoth && (dateA || dateB)) {
+            if (dateA && map[dateA.split('T')[0]]) {
+              const cleanA = dateA.split('T')[0];
+              totalLogistics++;
+              map[cleanA].push({
+                id: o.id + '_lift_a',
+                ticketId: 'moebellift_buchen',
+                type: 'lift',
+                category: 'logistics',
+                symbol: 'elevator',
+                shortLabel: 'Lift A',
+                customerName: custShortName,
+                title: `Lift (Auszug) • ${custShortName}`,
+                address: o.logistics?.a_city || 'Lift Auszug A',
+                orderId: o.id,
+                customerId: o.customerId,
+                isDone: isTaskCompleted(o, 'moebellift_buchen'),
+                timeStr: o.orderMeta?.moebelliftTimeA || o.orderMeta?.moebelliftTime,
+                colorClass: 'bg-sky-500/12 text-sky-800 border-sky-500/25 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50'
+              });
+            }
+            if (dateB && map[dateB.split('T')[0]]) {
+              const cleanB = dateB.split('T')[0];
+              totalLogistics++;
+              map[cleanB].push({
+                id: o.id + '_lift_b',
+                ticketId: 'moebellift_buchen',
+                type: 'lift',
+                category: 'logistics',
+                symbol: 'elevator',
+                shortLabel: 'Lift B',
+                customerName: custShortName,
+                title: `Lift (Einzug) • ${custShortName}`,
+                address: o.logistics?.b_city || 'Lift Einzug B',
+                orderId: o.id,
+                customerId: o.customerId,
+                isDone: isTaskCompleted(o, 'moebellift_buchen'),
+                timeStr: o.orderMeta?.moebelliftTimeB || o.orderMeta?.moebelliftTime,
+                colorClass: 'bg-sky-500/12 text-sky-800 border-sky-500/25 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50'
+              });
+            }
+          } else {
+            let liftDateStr = o.orderMeta?.moebelliftDate || '';
+            if (!liftDateStr) {
+              let liftDate = new Date(movingDateObj);
+              liftDate.setDate(liftDate.getDate() - 3);
+              if (liftDate < createdAtObj) liftDate = new Date(createdAtObj);
+              liftDateStr = `${liftDate.getFullYear()}-${String(liftDate.getMonth() + 1).padStart(2, '0')}-${String(liftDate.getDate()).padStart(2, '0')}`;
+            }
+            const cleanLiftDate = liftDateStr.split("T")[0];
+            if (map[cleanLiftDate]) {
+              totalLogistics++;
+              map[cleanLiftDate].push({
+                id: o.id + '_lift',
+                ticketId: 'moebellift_buchen',
+                type: 'lift',
+                category: 'logistics',
+                symbol: 'elevator',
+                shortLabel: 'Lift',
+                customerName: custShortName,
+                title: `Lift • ${custShortName}`,
+                address: o.logistics?.a_city || 'Lift reservieren',
+                orderId: o.id,
+                customerId: o.customerId,
+                isDone: isTaskCompleted(o, 'moebellift_buchen'),
+                timeStr: o.orderMeta?.moebelliftTime,
+                colorClass: 'bg-sky-500/12 text-sky-800 border-sky-500/25 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50'
+              });
+            }
           }
         }
       }

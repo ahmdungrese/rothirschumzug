@@ -32,7 +32,15 @@ export function calculateOrderTotals(order: any): FinancialTotals {
   // 3. Manual calculation based on FlatRate vs Services
   let net = 0;
   if (order.isFlatRate) {
-    net = order.flatRateNet || 0;
+    const separateItemsNet = (order.services && Array.isArray(order.services))
+      ? order.services.reduce((acc: number, curr: any) => {
+          if (curr.showPriceInFlatRate && !curr.isIncluded) {
+            return acc + ((curr.quantity || 0) * (curr.unitPrice || 0));
+          }
+          return acc;
+        }, 0)
+      : 0;
+    net = (order.flatRateNet || 0) + separateItemsNet;
   } else if (order.services && Array.isArray(order.services)) {
     net = order.services.reduce((acc: number, curr: any) => {
       if (curr.isIncluded) return acc;

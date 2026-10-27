@@ -790,8 +790,8 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
             }
           }
 
-          const rawNext = settingsSnap.data()?.nextInvoiceNumber !== undefined ? Number(settingsSnap.data()?.nextInvoiceNumber) : 1771;
-          const nextInvoiceNumber = Math.max(1771, rawNext || 1771, maxPreviousNum + 1);
+          const rawNext = settingsSnap.data()?.nextInvoiceNumber !== undefined ? Number(settingsSnap.data()?.nextInvoiceNumber) : 1;
+          const nextInvoiceNumber = Math.max(1, rawNext || 1, maxPreviousNum + 1);
           const invoiceNum = `R-${nextInvoiceNumber}`;
           assignedInvoiceNum = invoiceNum;
 

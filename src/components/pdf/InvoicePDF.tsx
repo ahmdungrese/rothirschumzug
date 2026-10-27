@@ -11,19 +11,20 @@ const styles = StyleSheet.create({
   page: {
     ...pdfCommonStyles.page,
     paddingTop: 24,
-    paddingBottom: 82, // Protects fixed footer at top 762pt
+    paddingBottom: 58, // Optimal spacing protecting fixed footer at top 762pt while fitting up to 8 services on 1 page
   },
   pageComfort: {
-    paddingTop: 28,
+    paddingTop: 26,
+    paddingBottom: 58,
   },
   
   customerDateBox: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   customerDateBoxComfort: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
   customerBox: {
     width: '52%',
@@ -103,16 +104,18 @@ const styles = StyleSheet.create({
   
   // Document Title & Salutation Spacing
   mainTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontFamily: 'Helvetica-Bold',
     color: PDF_COLORS.primary,
-    marginTop: 2,
-    marginBottom: 4,
+    marginTop: 4,
+    marginBottom: 7,
+    lineHeight: 1.25,
   },
   mainTitleComfort: {
-    fontSize: 18,
-    marginTop: 4,
-    marginBottom: 6,
+    fontSize: 19.5,
+    marginTop: 6,
+    marginBottom: 8,
+    lineHeight: 1.25,
   },
   introText: {
     fontSize: 8.5,
@@ -123,7 +126,7 @@ const styles = StyleSheet.create({
   introTextComfort: {
     fontSize: 9,
     lineHeight: 1.4,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   
   routeCard: {
@@ -135,12 +138,12 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     paddingHorizontal: 7,
     paddingVertical: 5,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   routeCardComfort: {
-    paddingVertical: 7,
+    paddingVertical: 6,
     paddingHorizontal: 8,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   routeHeader: {
     fontSize: 7.5,
@@ -171,10 +174,10 @@ const styles = StyleSheet.create({
   // Table
   table: {
     ...pdfCommonStyles.table,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   tableComfort: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
   tableHeader: {
     ...pdfCommonStyles.tableHeader,
@@ -233,7 +236,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   paymentCol: {
     width: '52%',
@@ -276,7 +279,7 @@ const styles = StyleSheet.create({
   // Comfort Mode Finance Blocks (Stacked, Full-Width & Rich Spacing)
   totalsWrapperComfort: {
     alignItems: 'flex-end',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   totalsColComfort: {
     width: '45%',
@@ -284,20 +287,20 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     borderWidth: 1,
     borderColor: PDF_COLORS.border,
-    padding: 8,
+    padding: 7,
   },
   totalRowComfort: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 2,
+    paddingVertical: 1.5,
     fontSize: 8.5,
     color: PDF_COLORS.textMuted,
   },
   totalRowGrandComfort: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingTop: 5,
-    marginTop: 3,
+    paddingTop: 4,
+    marginTop: 2,
     borderTopWidth: 1.5,
     borderTopColor: PDF_COLORS.primary,
     fontSize: 10.5,
@@ -309,8 +312,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: PDF_COLORS.border,
     borderRadius: 4,
-    padding: 8,
-    marginBottom: 6,
+    padding: 6,
+    marginBottom: 4,
   },
   bankRowComfort: {
     flexDirection: 'row',

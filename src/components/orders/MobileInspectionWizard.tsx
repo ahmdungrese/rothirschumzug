@@ -514,8 +514,8 @@ export function MobileInspectionWizard({ orderId, onClose }: { orderId?: string,
           toast.success("Besichtigung erfolgreich und sicher aktualisiert!", { id: toastId });
         } else {
           payload.status = 'draft';
-          const rawQuote = settings?.nextQuoteNumber !== undefined ? Number(settings.nextQuoteNumber) : 1771;
-          const nextQuote = Math.max(1771, rawQuote || 1771);
+          const rawQuote = settings?.nextQuoteNumber !== undefined ? Number(settings.nextQuoteNumber) : 1;
+          const nextQuote = Math.max(1, rawQuote || 1);
           payload.orderNumber = `AN-${nextQuote}`;
           payload.createdAt = serverTimestamp();
           payload.createdBy = profile?.displayName || 'Außendienst';

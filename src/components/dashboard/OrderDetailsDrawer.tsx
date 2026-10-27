@@ -616,6 +616,18 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
               </a>
             )}
 
+            {(addressA || addressB || order.billingAddress?.street || order.customer?.street) && (
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressA || addressB || order.billingAddress?.street || order.customer?.street || '')}`}
+                target="_blank"
+                rel="noreferrer"
+                className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center transition-colors shrink-0"
+                title="Adresse in Google Maps öffnen"
+              >
+                <MapPinIcon className="w-3.5 h-3.5 text-primary" />
+              </a>
+            )}
+
             <div className="ml-auto flex items-center gap-1.5 shrink-0">
               {/* PDF Vorschau Button next to Editor */}
               {(() => {
@@ -916,13 +928,28 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                       ) : (
                         <span className="text-slate-400 italic">Noch nicht geplant</span>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => handleOpenSchedule({ id: 'viewing_requested', name: 'Besichtigung' })}
-                        className="px-2 py-1 rounded-lg bg-primary/10 text-primary hover:bg-primary hover:text-white font-bold text-[11px] transition-colors"
-                      >
-                        Planen
-                      </button>
+                      {(() => {
+                        const hasViewingAppointment = Boolean(order.orderMeta?.viewingDate);
+                        return hasViewingAppointment ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSchedule({ id: 'viewing_requested', name: 'Besichtigung' })}
+                            className="p-1 rounded-md text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-500/10 transition-colors cursor-pointer shrink-0"
+                            title="Besichtigungstermin anpassen"
+                          >
+                            <PencilSquareIcon className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSchedule({ id: 'viewing_requested', name: 'Besichtigung' })}
+                            className="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-bold hover:bg-primary hover:text-white transition-colors cursor-pointer shrink-0"
+                            title="Besichtigungstermin planen"
+                          >
+                            + Planen
+                          </button>
+                        );
+                      })()}
                     </div>
                   </div>
                 </div>
@@ -1414,13 +1441,28 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                           </div>
 
                           <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => handleOpenSchedule({ id: 'kartons_liefern', kanbanCategory: 'kartons', name: 'Kartons' })}
-                              className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-                            >
-                              <CalendarDaysIcon className="w-3.5 h-3.5" />
-                              <span>Termin</span>
-                            </button>
+                            {(() => {
+                              const isKartonsScheduled = Boolean(order.orderMeta?.kartonDeliveryDate || order.logistics?.boxDeliveryDate);
+                              return isKartonsScheduled ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenSchedule({ id: 'kartons_liefern', kanbanCategory: 'kartons', name: 'Kartons' })}
+                                  className="p-1 rounded-md text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-500/10 transition-colors cursor-pointer shrink-0"
+                                  title="Kartonliefer-Termin anpassen"
+                                >
+                                  <PencilSquareIcon className="w-3.5 h-3.5" />
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenSchedule({ id: 'kartons_liefern', kanbanCategory: 'kartons', name: 'Kartons' })}
+                                  className="px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-700 dark:text-orange-400 text-[10px] font-bold hover:bg-orange-500 hover:text-white transition-colors cursor-pointer shrink-0"
+                                  title="Kartonlieferung planen"
+                                >
+                                  + Planen
+                                </button>
+                              );
+                            })()}
                           </div>
                         </div>
 
@@ -1461,6 +1503,12 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                       const resolvedHvzMethod = order.orderMeta?.hvzMethod || order.logistics?.hvzMethod || 'selbst';
                       const resolvedHvzLoc = order.orderMeta?.hvzLocation || order.logistics?.hvzLocation || 
                         (order.logistics?.a_parking && order.logistics?.b_parking ? 'both' : order.logistics?.b_parking ? 'b' : 'a');
+                      const isHvzScheduled = Boolean(
+                        order.orderMeta?.halteverbotDate || 
+                        order.logistics?.hvzDate ||
+                        order.orderMeta?.halteverbotDateA ||
+                        order.orderMeta?.halteverbotDateB
+                      );
                       return (
                         <div className={`p-3.5 rounded-xl border-2 transition-all flex flex-col gap-2.5 ${
                           isHvzDone
@@ -1516,13 +1564,25 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                               </div>
                             </div>
 
-                            <button
-                              onClick={() => handleOpenSchedule({ id: 'halteverbot', kanbanCategory: 'halteverbot', name: 'Halteverbot' })}
-                              className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-                            >
-                              <CalendarDaysIcon className="w-3.5 h-3.5" />
-                              <span>Termin planen</span>
-                            </button>
+                            {isHvzScheduled ? (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSchedule({ id: 'halteverbot', kanbanCategory: 'halteverbot', name: 'Halteverbot' })}
+                                className="p-1 rounded-md text-slate-400 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-500/10 transition-colors cursor-pointer shrink-0"
+                                title="Halteverbots-Termine anpassen"
+                              >
+                                <PencilSquareIcon className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSchedule({ id: 'halteverbot', kanbanCategory: 'halteverbot', name: 'Halteverbot' })}
+                                className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[10px] font-bold hover:bg-amber-500 hover:text-white transition-colors cursor-pointer shrink-0"
+                                title="Halteverbotszone planen"
+                              >
+                                + Planen
+                              </button>
+                            )}
                           </div>
 
                           {/* Address & Navigation */}
@@ -1544,11 +1604,30 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                           </div>
 
                           <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-100 dark:border-slate-700">
-                            <span>
-                              Aufbau: {formatScheduleDate(order.orderMeta?.halteverbotDate || order.logistics?.hvzDate, order.orderMeta?.halteverbotTime || order.logistics?.hvzTime) || 'Noch nicht terminiert'}
-                            </span>
-                            {(order.orderMeta?.halteverbotDate || order.logistics?.hvzDate) && (
-                              <div className="flex items-center gap-2">
+                            <div>
+                              {isHvzScheduled ? (
+                                resolvedHvzLoc === 'both' ? (
+                                  <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
+                                    <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-800 dark:text-amber-300 font-semibold">
+                                      A: {formatScheduleDate(order.orderMeta?.halteverbotDateA || order.orderMeta?.halteverbotDate || order.logistics?.hvzDate)}
+                                      {(order.orderMeta?.halteverbotTimeA || order.orderMeta?.halteverbotTime || order.logistics?.hvzTime) ? ` (${order.orderMeta?.halteverbotTimeA || order.orderMeta?.halteverbotTime || order.logistics?.hvzTime} Uhr)` : ''}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-800 dark:text-amber-300 font-semibold">
+                                      B: {formatScheduleDate(order.orderMeta?.halteverbotDateB || order.orderMeta?.halteverbotDate || order.logistics?.hvzDate)}
+                                      {(order.orderMeta?.halteverbotTimeB || order.orderMeta?.halteverbotTime || order.logistics?.hvzTime) ? ` (${order.orderMeta?.halteverbotTimeB || order.orderMeta?.halteverbotTime || order.logistics?.hvzTime} Uhr)` : ''}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span>
+                                    Aufbau: <strong className="text-slate-900 dark:text-white">{formatScheduleDate(order.orderMeta?.halteverbotDate || order.logistics?.hvzDate, order.orderMeta?.halteverbotTime || order.logistics?.hvzTime)}</strong>
+                                  </span>
+                                )
+                              ) : (
+                                'Aufbau: Noch nicht terminiert'
+                              )}
+                            </div>
+                            {isHvzScheduled && (
+                              <div className="flex items-center gap-2 shrink-0">
                                 <button
                                   type="button"
                                   onClick={() => exportTaskToCalendar('halteverbot', order, order.orderMeta?.halteverbotDate || order.logistics?.hvzDate, order.orderMeta?.halteverbotTime || order.logistics?.hvzTime, resolvedHvzLoc as any)}
@@ -1578,7 +1657,14 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
                     {/* Task: Möbellift */}
                     {showLift && (() => {
-                      const resolvedLiftLoc = order.orderMeta?.moebelliftLocation || order.logistics?.moebelliftLocation || (order.logistics?.b_furnitureLift && !order.logistics?.a_furnitureLift ? 'b' : 'a');
+                      const resolvedLiftLoc = order.orderMeta?.moebelliftLocation || order.logistics?.moebelliftLocation || 
+                        (order.logistics?.a_furnitureLift && order.logistics?.b_furnitureLift ? 'both' : order.logistics?.b_furnitureLift ? 'b' : 'a');
+                      const isLiftScheduled = Boolean(
+                        order.orderMeta?.moebelliftDate || 
+                        order.logistics?.moebelliftDate ||
+                        order.orderMeta?.moebelliftDateA ||
+                        order.orderMeta?.moebelliftDateB
+                      );
                       return (
                         <div className={`p-3.5 rounded-xl border-2 transition-all flex flex-col gap-2.5 ${
                           isLiftDone
@@ -1604,6 +1690,11 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                                       <HomeIcon className="w-3 h-3" />
                                       <span>Einzugsort (B)</span>
                                     </>
+                                  ) : resolvedLiftLoc === 'both' ? (
+                                    <>
+                                      <ArrowPathIcon className="w-3 h-3" />
+                                      <span>Beide Orte (A & B)</span>
+                                    </>
                                   ) : (
                                     <>
                                       <BuildingOfficeIcon className="w-3 h-3" />
@@ -1614,31 +1705,56 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                               </div>
                             </div>
 
-                            <button
-                              onClick={() => handleOpenSchedule({ id: 'moebellift_buchen', kanbanCategory: 'moebellift', name: 'Möbellift' })}
-                              className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-                            >
-                              <CalendarDaysIcon className="w-3.5 h-3.5" />
-                              <span>Termin planen</span>
-                            </button>
+                            {isLiftScheduled ? (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSchedule({ id: 'moebellift_buchen', kanbanCategory: 'moebellift', name: 'Möbellift' })}
+                                className="p-1 rounded-md text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10 transition-colors cursor-pointer shrink-0"
+                                title="Möbellift-Einsatzzeiten anpassen"
+                              >
+                                <PencilSquareIcon className="w-3.5 h-3.5" />
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenSchedule({ id: 'moebellift_buchen', kanbanCategory: 'moebellift', name: 'Möbellift' })}
+                                className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-400 text-[10px] font-bold hover:bg-blue-500 hover:text-white transition-colors cursor-pointer shrink-0"
+                                title="Möbellift reservieren"
+                              >
+                                + Planen
+                              </button>
+                            )}
                           </div>
 
                           <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-slate-700">
-                            <span>
-                              {order.orderMeta?.moebelliftDate ? (
-                                <>
-                                  Geplant: <strong className="text-slate-900 dark:text-white">{formatScheduleDate(order.orderMeta.moebelliftDate)}</strong>
-                                  {order.orderMeta?.moebelliftTime && ` • ${order.orderMeta.moebelliftTime} - ${order.orderMeta.moebelliftEndTime || ''} Uhr (${order.orderMeta.moebelliftDuration || '3'} Std.)`}
-                                </>
+                            <div>
+                              {isLiftScheduled ? (
+                                resolvedLiftLoc === 'both' ? (
+                                  <div className="flex items-center gap-1.5 flex-wrap text-[11px]">
+                                    <span className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 font-semibold">
+                                      A: {formatScheduleDate(order.orderMeta?.moebelliftDateA || order.orderMeta?.moebelliftDate)}
+                                      {(order.orderMeta?.moebelliftTimeA || order.orderMeta?.moebelliftTime) ? ` (${order.orderMeta?.moebelliftTimeA || order.orderMeta?.moebelliftTime}-${order.orderMeta?.moebelliftEndTimeA || ''} • ${order.orderMeta?.moebelliftDurationA || '2'}h)` : ''}
+                                    </span>
+                                    <span className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 font-semibold">
+                                      B: {formatScheduleDate(order.orderMeta?.moebelliftDateB || order.orderMeta?.moebelliftDate)}
+                                      {(order.orderMeta?.moebelliftTimeB || order.orderMeta?.moebelliftTime) ? ` (${order.orderMeta?.moebelliftTimeB || order.orderMeta?.moebelliftTime}-${order.orderMeta?.moebelliftEndTimeB || ''} • ${order.orderMeta?.moebelliftDurationB || '2'}h)` : ''}
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <>
+                                    Geplant: <strong className="text-slate-900 dark:text-white">{formatScheduleDate(order.orderMeta.moebelliftDate || order.orderMeta?.moebelliftDateA || order.orderMeta?.moebelliftDateB)}</strong>
+                                    {order.orderMeta?.moebelliftTime && ` • ${order.orderMeta.moebelliftTime} - ${order.orderMeta.moebelliftEndTime || ''} Uhr (${order.orderMeta.moebelliftDuration || '3'} Std.)`}
+                                  </>
+                                )
                               ) : (
                                 'Termin noch nicht festgelegt'
                               )}
-                            </span>
-                            {order.orderMeta?.moebelliftDate && (
-                              <div className="flex items-center gap-2">
+                            </div>
+                            {isLiftScheduled && (
+                              <div className="flex items-center gap-2 shrink-0">
                                 <button
                                   type="button"
-                                  onClick={() => exportTaskToCalendar('moebellift_buchen', order, order.orderMeta.moebelliftDate, order.orderMeta?.moebelliftTime, resolvedLiftLoc as any)}
+                                  onClick={() => exportTaskToCalendar('moebellift_buchen', order, order.orderMeta?.moebelliftDate || order.orderMeta?.moebelliftDateA || order.orderMeta?.moebelliftDateB, order.orderMeta?.moebelliftTime, resolvedLiftLoc as any)}
                                   className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-bold cursor-pointer"
                                   title="In Outlook / Samsung Kalender eintragen"
                                 >
@@ -1648,8 +1764,8 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                                 {custPhone && (
                                   <button
                                     onClick={() => {
-                                      const date = formatScheduleDate(order.orderMeta.moebelliftDate);
-                                      const timeStr = order.orderMeta.moebelliftTime ? ` um ${order.orderMeta.moebelliftTime} Uhr` : '';
+                                      const date = formatScheduleDate(order.orderMeta?.moebelliftDate || order.orderMeta?.moebelliftDateA || order.orderMeta?.moebelliftDateB);
+                                      const timeStr = order.orderMeta?.moebelliftTime ? ` um ${order.orderMeta.moebelliftTime} Uhr` : '';
                                       handleDirectWhatsApp(`Guten Tag, der Möbellift für Ihren Umzug kommt am ${date}${timeStr}.`);
                                     }}
                                     className="text-emerald-600 hover:underline flex items-center gap-1 font-bold"
@@ -1818,7 +1934,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                                   <option value="">-- Kein Teamleiter zugewiesen --</option>
                                   {drawerTeamLeads.map((lead) => (
                                     <option key={lead.uid} value={lead.uid}>
-                                      🚚 {lead.displayName} ({lead.role === 'teamlead' ? 'Teamleiter' : 'Admin'})
+                                      {lead.displayName} ({lead.role === 'teamlead' ? 'Teamleiter' : 'Admin'})
                                     </option>
                                   ))}
                                 </select>
@@ -1850,18 +1966,34 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                                 'Kein Umzugstermin im Angebot angegeben'
                               )}
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setPdfModalType('employee');
-                                setPdfModalOpen(true);
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-bold border border-amber-500/30 transition-all flex items-center gap-1 cursor-pointer"
-                              title="Operativen Mitarbeiter-Laufzettel (PDF ohne Preise) öffnen"
-                            >
-                              <TruckIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                              <span>Laufzettel PDF</span>
-                            </button>
+                            <div className="flex items-center gap-2">
+                              {(addressA || addressB) && (
+                                <a
+                                  href={addressA && addressB
+                                    ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(addressA)}&destination=${encodeURIComponent(addressB)}`
+                                    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressA || addressB)}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-xs font-bold border border-blue-500/30 transition-all flex items-center gap-1 cursor-pointer"
+                                  title="Umzugsroute A ➔ B in Google Maps öffnen"
+                                >
+                                  <MapPinIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                  <span>Route (Maps)</span>
+                                </a>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPdfModalType('employee');
+                                  setPdfModalOpen(true);
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-bold border border-amber-500/30 transition-all flex items-center gap-1 cursor-pointer"
+                                title="Operativen Mitarbeiter-Laufzettel (PDF ohne Preise) öffnen"
+                              >
+                                <TruckIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                <span>Laufzettel PDF</span>
+                              </button>
+                            </div>
                           </div>
                         </div>
                       );

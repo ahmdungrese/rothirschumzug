@@ -250,7 +250,7 @@ export function CustomerPremiumProfile({
         assignedTeamLeadName: leadName || null,
       });
 
-      toast.success(leadUid ? `Teamleiter „${leadName}“ erfolgreich zugewiesen! 🚚` : 'Teamleiter-Zuweisung aufgehoben');
+      toast.success(leadUid ? `Teamleiter „${leadName}“ erfolgreich zugewiesen` : 'Teamleiter-Zuweisung aufgehoben');
       if (onRefresh) onRefresh();
     } catch (err) {
       console.error('Fehler bei Teamleiter-Zuweisung:', err);
@@ -1281,16 +1281,29 @@ export function CustomerPremiumProfile({
               </div>
 
               {/* Main Address */}
-              <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60">
-                <div className="w-8 h-8 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
-                  <HomeIcon className="w-4 h-4" />
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="w-8 h-8 rounded-lg bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center shrink-0">
+                    <HomeIcon className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold block leading-none mb-0.5">Kundenadresse</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 truncate block">
+                      {customer?.street ? `${customer.street}, ${customer.zip || ''} ${customer.city || ''}` : 'Keine Stamm-Adresse hinterlegt'}
+                    </span>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block leading-none mb-0.5">Kundenadresse</span>
-                  <span className="font-bold text-slate-800 dark:text-slate-200 truncate block">
-                    {customer?.street ? `${customer.street}, ${customer.zip || ''} ${customer.city || ''}` : 'Keine Stamm-Adresse hinterlegt'}
-                  </span>
-                </div>
+                {customer?.street && (
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([customer.street, customer.houseNr, customer.zip, customer.city].filter(Boolean).join(' '))}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-1.5 rounded-lg bg-slate-200 dark:bg-slate-700 hover:bg-primary hover:text-white transition-colors text-slate-700 dark:text-slate-200 shrink-0"
+                    title="In Google Maps öffnen"
+                  >
+                    <MapPinIcon className="w-3.5 h-3.5" />
+                  </a>
+                )}
               </div>
             </div>
           </div>
@@ -1404,10 +1417,16 @@ export function CustomerPremiumProfile({
                     className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
                     title="Klicken zum Planen oder Ändern der Halteverbotszone"
                   >
-                    {activeOrder.orderMeta?.halteverbotDate || activeOrder.logistics?.hvzDate ? (
-                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    {(activeOrder.orderMeta?.halteverbotDate || activeOrder.logistics?.hvzDate || activeOrder.orderMeta?.halteverbotDateA || activeOrder.orderMeta?.halteverbotDateB) ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 flex-wrap justify-end">
                         <CheckIcon className="w-3.5 h-3.5 shrink-0" />
-                        <span>{formatCustomerDate(activeOrder.orderMeta?.halteverbotDate || activeOrder.logistics?.hvzDate, activeOrder.orderMeta?.halteverbotTime || activeOrder.logistics?.hvzTime)}</span>
+                        <span>
+                          {(activeOrder.orderMeta?.hvzLocation || activeOrder.logistics?.hvzLocation) === 'both' && (activeOrder.orderMeta?.halteverbotDateA || activeOrder.orderMeta?.halteverbotDateB)
+                            ? `A: ${formatCustomerDate(activeOrder.orderMeta?.halteverbotDateA || activeOrder.orderMeta?.halteverbotDate, activeOrder.orderMeta?.halteverbotTimeA || activeOrder.orderMeta?.halteverbotTime)} | B: ${formatCustomerDate(activeOrder.orderMeta?.halteverbotDateB || activeOrder.orderMeta?.halteverbotDate, activeOrder.orderMeta?.halteverbotTimeB || activeOrder.orderMeta?.halteverbotTime)}`
+                            : formatCustomerDate(activeOrder.orderMeta?.halteverbotDate || activeOrder.logistics?.hvzDate || activeOrder.orderMeta?.halteverbotDateA || activeOrder.orderMeta?.halteverbotDateB, activeOrder.orderMeta?.halteverbotTime || activeOrder.logistics?.hvzTime || activeOrder.orderMeta?.halteverbotTimeA || activeOrder.orderMeta?.halteverbotTimeB)
+                          }
+                        </span>
+                        <PencilSquareIcon className="w-3.5 h-3.5 text-slate-400 hover:text-primary shrink-0 ml-0.5 inline" title="Termin anpassen" />
                       </span>
                     ) : (
                       <span className="text-primary underline">+ Termin planen</span>
@@ -1427,9 +1446,10 @@ export function CustomerPremiumProfile({
                     title="Klicken zum Planen oder Ändern der Kartonlieferung"
                   >
                     {activeOrder.orderMeta?.kartonDeliveryDate || activeOrder.logistics?.boxDeliveryDate ? (
-                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 flex-wrap justify-end">
                         <CheckIcon className="w-3.5 h-3.5 shrink-0" />
                         <span>{formatCustomerDate(activeOrder.orderMeta?.kartonDeliveryDate || activeOrder.logistics?.boxDeliveryDate, activeOrder.orderMeta?.kartonDeliveryTime || activeOrder.logistics?.boxDeliveryTime)}</span>
+                        <PencilSquareIcon className="w-3.5 h-3.5 text-slate-400 hover:text-primary shrink-0 ml-0.5 inline" title="Termin anpassen" />
                       </span>
                     ) : (
                       <span className="text-primary underline">+ Termin planen</span>
@@ -1448,10 +1468,16 @@ export function CustomerPremiumProfile({
                     className="font-bold text-right hover:text-primary transition-colors flex items-center gap-1 cursor-pointer"
                     title="Klicken zum Planen oder Ändern des Möbellifts"
                   >
-                    {activeOrder.orderMeta?.moebelliftDate ? (
-                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    {(activeOrder.orderMeta?.moebelliftDate || activeOrder.logistics?.moebelliftDate || activeOrder.orderMeta?.moebelliftDateA || activeOrder.orderMeta?.moebelliftDateB) ? (
+                      <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 flex-wrap justify-end">
                         <CheckIcon className="w-3.5 h-3.5 shrink-0" />
-                        <span>{formatCustomerDate(activeOrder.orderMeta.moebelliftDate, activeOrder.orderMeta.moebelliftTime)}</span>
+                        <span>
+                          {(activeOrder.orderMeta?.moebelliftLocation || activeOrder.logistics?.moebelliftLocation) === 'both' && (activeOrder.orderMeta?.moebelliftDateA || activeOrder.orderMeta?.moebelliftDateB)
+                            ? `A: ${formatCustomerDate(activeOrder.orderMeta?.moebelliftDateA || activeOrder.orderMeta?.moebelliftDate, activeOrder.orderMeta?.moebelliftTimeA || activeOrder.orderMeta?.moebelliftTime)} | B: ${formatCustomerDate(activeOrder.orderMeta?.moebelliftDateB || activeOrder.orderMeta?.moebelliftDate, activeOrder.orderMeta?.moebelliftTimeB || activeOrder.orderMeta?.moebelliftTime)}`
+                            : formatCustomerDate(activeOrder.orderMeta?.moebelliftDate || activeOrder.logistics?.moebelliftDate || activeOrder.orderMeta?.moebelliftDateA || activeOrder.orderMeta?.moebelliftDateB, activeOrder.orderMeta?.moebelliftTime || activeOrder.orderMeta?.moebelliftTimeA || activeOrder.orderMeta?.moebelliftTimeB)
+                          }
+                        </span>
+                        <PencilSquareIcon className="w-3.5 h-3.5 text-slate-400 hover:text-primary shrink-0 ml-0.5 inline" title="Termin anpassen" />
                       </span>
                     ) : (
                       <span className="text-primary underline">+ Termin planen</span>
@@ -2199,7 +2225,7 @@ export function CustomerPremiumProfile({
                       <option value="">-- Kein Teamleiter zugewiesen --</option>
                       {teamLeads.map((lead) => (
                         <option key={lead.uid} value={lead.uid}>
-                          🚚 {lead.displayName} ({lead.role === 'teamlead' ? 'Teamleiter' : 'Admin'})
+                          {lead.displayName} ({lead.role === 'teamlead' ? 'Teamleiter' : 'Admin'})
                         </option>
                       ))}
                     </select>
@@ -2217,17 +2243,49 @@ export function CustomerPremiumProfile({
                     <DocumentArrowDownIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
                     <span>Laufzettel (PDF)</span>
                   </button>
+
+                  {(hasA || hasB) && (
+                    <a
+                      href={hasA && hasB
+                        ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(aAddressFull)}&destination=${encodeURIComponent(bAddressFull)}`
+                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(aAddressFull || bAddressFull)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3.5 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-xs font-bold border border-blue-500/20 transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                      title="Umzugsroute A ➔ B in Google Maps öffnen"
+                    >
+                      <MapPinIcon className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                      <span>Route (Maps)</span>
+                    </a>
+                  )}
                 </>
               ) : (
-                <button
-                  type="button"
-                  onClick={() => onViewPdf(activeOrder, 'employee')}
-                  className="px-4 py-2 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
-                  title="Meinen Laufzettel für diesen Auftrag öffnen"
-                >
-                  <DocumentArrowDownIcon className="w-4 h-4 text-white shrink-0" />
-                  <span>Meinen Laufzettel öffnen (PDF)</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onViewPdf(activeOrder, 'employee')}
+                    className="px-4 py-2 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                    title="Meinen Laufzettel für diesen Auftrag öffnen"
+                  >
+                    <DocumentArrowDownIcon className="w-4 h-4 text-white shrink-0" />
+                    <span>Meinen Laufzettel öffnen (PDF)</span>
+                  </button>
+
+                  {(hasA || hasB) && (
+                    <a
+                      href={hasA && hasB
+                        ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(aAddressFull)}&destination=${encodeURIComponent(bAddressFull)}`
+                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(aAddressFull || bAddressFull)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3.5 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-xs font-bold border border-blue-500/20 transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                      title="Umzugsroute A ➔ B in Google Maps öffnen"
+                    >
+                      <MapPinIcon className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                      <span>Route (Maps)</span>
+                    </a>
+                  )}
+                </div>
               )}
             </div>
 
@@ -2346,10 +2404,22 @@ export function CustomerPremiumProfile({
                     Beladestelle (Auszug A)
                   </span>
                   {hasA ? (
-                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                      <CheckCircleIcon className="w-3.5 h-3.5" />
-                      Erfasst
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(aAddressFull)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2 py-0.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer border border-emerald-500/20"
+                        title="In Google Maps navigieren"
+                      >
+                        <MapPinIcon className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                        <span>Maps</span>
+                      </a>
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckCircleIcon className="w-3.5 h-3.5" />
+                        Erfasst
+                      </span>
+                    </div>
                   ) : (
                     <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
                       <ExclamationTriangleIcon className="w-3.5 h-3.5" />
@@ -2398,10 +2468,22 @@ export function CustomerPremiumProfile({
                     Entladestelle (Einzug B)
                   </span>
                   {hasB ? (
-                    <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                      <CheckCircleIcon className="w-3.5 h-3.5" />
-                      Erfasst
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <a
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(bAddressFull)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2 py-0.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold flex items-center gap-1 transition-colors cursor-pointer border border-emerald-500/20"
+                        title="In Google Maps navigieren"
+                      >
+                        <MapPinIcon className="w-3 h-3 text-emerald-600 dark:text-emerald-400" />
+                        <span>Maps</span>
+                      </a>
+                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckCircleIcon className="w-3.5 h-3.5" />
+                        Erfasst
+                      </span>
+                    </div>
                   ) : (
                     <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
                       <ExclamationTriangleIcon className="w-3.5 h-3.5" />

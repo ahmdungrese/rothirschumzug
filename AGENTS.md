@@ -30,7 +30,102 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.19.2 (Current) – Contextual Email & Phone Assistant, Arabic Char Shield & Strict Number Formatting
+### Version 2.22.0 (Current) – Smart Paired Services Consolidation, Mobile-First Preiskalkulation Tabs, Zero-Preset Boxes & Master Catalog Reset
+*   **Smart Paired Logistics Services Consolidation (`OrderEditor.tsx`, `serviceKeys.ts`)**:
+    *   **Intelligent Auto-Pairing (A + B ➔ Combined)**: When selecting corresponding services at Beladestelle (A) and Entladestelle (B), the engine merges them atomically into a unified consolidated position with `location: 'both'`:
+        *   `Abbau von Küche` (A) + `Aufbau von Küche` (B) ➔ `Abbau und Aufbau von Küche` (`kueche_komplett`).
+        *   `Möbelabbau` (A) + `Möbelaufbau` (B) ➔ `Demontage und Montage von Möbeln` (`moebel_komplett`).
+        *   `Deckenlampen demontieren` (A) + `Deckenlampen montieren` (B) ➔ `Deckenlampen demontieren und montieren` (`lampen_komplett`).
+        *   `Einpackservice` (A) + `Auspackservice` (B) ➔ `Ein- und Auspackservice (inkl. Pack- & Schutzmaterial)` (`packservice_komplett`).
+    *   **Graceful Auto-Splitting**: Deselecting either counterpart in Table A or B splits the combined position back into its solitary single-location component without data loss.
+    *   **Bidirectional Location Controls (`Ort: A | B | Beide`)**: Switching location of a paired service inside Preiskalkulation automatically updates its naming, scope, and checkmarks in Table A and Table B.
+*   **Preiskalkulation Mobile-First Tabs & Desktop Focus Mode (`OrderEditor.tsx`)**:
+    *   **Mobile Segmented Controls**: Squeezed 2-column layout on smartphones replaced with clean top tabs (`[ 1. Leistungen auswählen ]` and `[ 2. Kalkulation (X) ]`) with bottom jump button (`Weiter zur Preiskalkulation ➔`).
+    *   **Desktop Focus Mode**: Disponents can toggle between the 7/5 split view and a full-screen `Fokus-Kalkulation` table via 1-click header control.
+*   **Halteverbot & Möbellift Separate Flat-Rate Pricing (`OrderEditor.tsx`, `OrderPDF.tsx`, `financeHelpers.ts`)**:
+    *   Added `[✓] Preis separat im Angebot ausweisen` inline toggle for Halteverbotszone and Möbellift under Pauschalangebote.
+    *   When enabled, displays explicit amount (e.g. `250,00 € (Separat)`) in the Umfang column of the PDF instead of generic "Inklusiv", and automatically adds the fee to the net total calculation while preserving base flat-rate margin.
+*   **Zero-Preset Moving Box Configurator (`KartonConfigModal.tsx`)**:
+    *   Removed hardcoded default quantities (20x M, 10x Bücher). All carton inputs now start cleanly at `0` (with placeholder `0`), counting upwards from `1` upon clicking `+`.
+*   **Canonical Master Catalog & 1-Click Settings Reset (`settings/page.tsx`)**:
+    *   Added dedicated `Standard-Katalog laden` button in `Einstellungen > Leistungskatalog` to re-seed clean, categorized master services (`Allgemein`, `Beladestelle A`, `Entladestelle B`, `Küchenservice`, `Kartonservice`, `Möbelservice`, `Entsorgung & Räumung`).
+    *   Eliminated duplicate transport cards, establishing single basis service: `Transport inkl. Be- und Entladung (Personal & LKW)`.
+*   **Einlagerung Detail Guidance & Kitchen Workflow Clarification**:
+    *   Added contextual prompt in Preiskalkulation for `Einlagerung` to record $m^3$, duration, and warehouse terms in the note field.
+    *   Renamed kitchen combo service to `Küchenabbau und -aufbau` and relocated `Arbeitsplatte anpassen` under `Küchenservice`.
+
+### Version 2.21.1 – Universal 1-Page Guarantee for Invoices & Offers with up to 8 Services
+*   **Adaptive Invoice Layout & Single-Page Guarantee (`InvoicePDF.tsx`)**:
+    *   Optimized comfort mode spacing (`paddingBottom: 58`, `customerDateBoxComfort: marginBottom: 8`, `routeCardComfort: marginBottom: 8`, `totalsWrapperComfort: marginBottom: 6`) preventing 1–4 service invoices from awkwardly pushing statutory notices onto a 2nd page.
+    *   Streamlined compact mode margins (`paddingBottom: 58`, `table: marginBottom: 6`, `financeRow: marginBottom: 4`) ensuring invoices with up to 8 full services, detailed notes, and dual-column banking/totals fit strictly on **1 single page**.
+    *   Elevated `RECHNUNG` title typography (`fontSize: 18, marginTop: 4, marginBottom: 7, lineHeight: 1.25`) guaranteeing clean breathing room and zero collision with the customer salutation.
+*   **Next.js App Router Compliance**:
+    *   Removed illegal named export in `src/app/dashboard/settings/page.tsx` (`CANONICAL_MASTER_CATALOG`), achieving 100% clean TypeScript builds.
+
+### Version 2.21.0 – Strict Zero-Emoji App DNA, Mobile-Optimized Dual Scheduling, 1-Click Google Maps & Role-Aware Push Notifications
+*   **Strict Zero-Emoji Policy & App DNA Outline Vector Icon Standard**:
+    *   **Universal Rule for all AI Agents**: Absolutely no colored OS/platform emoji stickers (e.g., 🚚, 📦, 🏗️, ⚠️, ✏️) in HTML `<option>` dropdowns, headers, action buttons, badges, or toast alerts.
+    *   In the App DNA, icons must strictly be 2D monochrome outline vector SVGs (from Heroicons, e.g. `TruckIcon`, `MapPinIcon`, `ExclamationTriangleIcon`, `PencilSquareIcon`) styled dynamically using contextual Tailwind CSS classes (`text-primary`, `text-slate-400`, `text-blue-500`, etc.).
+    *   Purged all rogue emoji stickers from Teamleiter assignment dropdowns, toasts, headers, and modal alerts across the application.
+*   **Direct 1-Click Google Maps Navigation (`CustomerPremiumProfile.tsx`, `OrderDetailsDrawer.tsx`)**:
+    *   Added dedicated Google Maps navigation button directly adjacent to the customer address (`Kundenadresse`) in the identity card and order cockpit quick contact bar, matching existing direct-action triggers for Phone (`tel:`) and Email (`mailto:`).
+    *   Automatically formats and encodes full street, house number, zip code, and city into Google Maps search URLs (`https://www.google.com/maps/search/?api=1&query=...`).
+*   **Ultra-Compact Cockpit Action Badges (`OrderDetailsDrawer.tsx`, `CustomerPremiumProfile.tsx`)**:
+    *   Replaced bulky, visually disruptive `Termin anpassen` buttons with elegant, minimal micro-badges (`Anpassen` / `Planen`) featuring streamlined 2D vector icons (`PencilSquareIcon`, `CalendarDaysIcon`).
+    *   Responsive design hides labels on mobile screens while preserving immediate touch tap targets, preventing visual clutter ("تلوّث بصري").
+*   **Mobile-Optimized Dual-Location Scheduling & Streamlined Post-Save Screen (`TaskScheduleModal.tsx`)**:
+    *   **Segmented Dual-Location Tab Switcher**: When "Beide Orte (A & B)" is selected for Möbellift or Halteverbot, eliminates overwhelming vertical scrolling on smartphones by introducing seamless segmented tabs (`[ 1. Auszug (A) ]` and `[ 2. Einzug (B) ]`) with live time pills.
+    *   **Compact Dual-Location Overview Bar**: Displays a clean, compact single-line summary of both deployments (`A: [DateA/TimeA] • B: [DateB/TimeB]`).
+    *   **Proportional Mobile Post-Save Hub**: Streamlined the post-save confirmation screen from an oversized modal view down to an ultra-clean, mobile-proportional card with compact status icon, 1-line summary badge, and sleek `.ics` calendar and WhatsApp action buttons.
+*   **Role-Aware Login-Linked Notification Dispatcher (`NotificationBell.tsx`, `notificationService.ts`)**:
+    *   Directly connected notifications to the active authentication session (`useAuth()`, `profile.role`, and `profile.uid`), completely eliminating redundant server bloat.
+    *   **Teamleiter Scope**: Filtered with zero noise. Teamleiters strictly receive assignments where they are explicitly assigned (`assignedTeamLeadUid === profile.uid`). They receive "Umzug heute durchführen", "Umzug morgen vorbereiten", "Umzug zugewiesen", and "Abnahmeprotokoll ausstehend". All office/disposition alerts (invoices, offers, box deliveries, unassigned trucks) are 100% hidden.
+    *   **Office & Disponent Scope**: Surfaces operational prep tasks ("Kartons liefern", "Personal einteilen", "Fahrzeug reservieren", "Rechnung erstellen", "Besichtigung in Kürze").
+    *   **Admin Scope**: Comprehensive overview of all company operational tasks and assigned responsibilities.
+*   **Android PWA & Native Browser Push Integration (`sw.js`, `notificationService.ts`)**:
+    *   Added native Android push handlers (`push` and `notificationclick`) to `sw.js` allowing notifications to wake the phone, vibrate with double pulse, and display in the Android notification shade and lock screen.
+    *   Implemented `notificationService.ts` with local de-duplication (`rothirsch_notified_alarms`), preventing repeated buzzes on Firestore real-time snapshot re-renders.
+    *   Added 1-click device permission activation directly inside the `Dispo-Erinnerungen` dropdown and in `Einstellungen > E-Mail, Kalender & Benachrichtigungen`.
+
+### Version 2.20.0 – Dual-Location Möbellift & Halteverbot Scheduling Engine, Visual Status Badging & Distinct "Termin anpassen" Actions
+*   **Independent Dual-Location Scheduling Engine (`TaskScheduleModal.tsx`, `taskStateController.ts`)**:
+    *   Resolved the operational conflict where selecting "Beide Orte (A & B)" forced the exact same date, start time, and duration on both addresses regardless of driving distance or logistics sequence.
+    *   **Auszugsort (A)**: Independent date picker, start time (default `09:00`), duration selector (`1h` to `5h`), and live calculation badge (`timeA` – `endTimeA`, e.g. `09:00 – 11:00 Uhr (2 Std.)`).
+    *   **Einzugsort (B)**: Independent date picker, start time (default `13:00`), duration selector (`1h` to `5h`), and live calculation badge (`timeB` – `endTimeB`, e.g. `13:00 – 15:00 Uhr (2 Std.)`).
+    *   Implemented dual-location support for **Halteverbotszone (HVZ)** allowing distinct setup dates/times for Auszug (A) and Einzug (B).
+    *   Saved separate fields atomically in `orderMeta` and `logistics` (`moebelliftDateA`, `moebelliftTimeA`, `moebelliftDurationA`, `moebelliftDateB`, etc.) while maintaining 100% backward compatibility with single-date queries.
+*   **Dual-Event Calendar & Coordinated WhatsApp Dispatch (`calendarExport.ts`, `TaskScheduleModal.tsx`)**:
+    *   Updated `exportTaskToCalendar`: When `both` locations are booked, exports two discrete RFC 5545 calendar entries (one for loading at A, one for unloading at B) with exact addresses and hours directly to smartphones and Outlook.
+    *   Updated WhatsApp messenger generator: Produces an itemized customer notification detailing the separate appointments for Auszug (A) and Einzug (B).
+*   **Distinct "Termin anpassen" Action Buttons & Visual Badging (`OrderDetailsDrawer.tsx`, `CustomerPremiumProfile.tsx`)**:
+    *   Replaced the confusing static `Termin planen` button with an active, distinctly styled `Termin anpassen` badge button (`bg-blue-500/10` for Möbellift, `bg-amber-500/10` for HVZ, `bg-orange-500/10` for Kartons, `bg-purple-500/10` for Viewing) whenever an appointment is already booked.
+    *   In the order details cockpit and customer profile, clearly surfaces both scheduled locations side-by-side (`A: [DateA/TimeA] | B: [DateB/TimeB]`) instead of collapsing or hiding one of the addresses.
+*   **Multi-Day Logistics Calendar Dispatch (`calendar/page.tsx`, `DispoModal.tsx`)**:
+    *   Synchronized the operational calendar and daily disposition modal so if a move's Möbellift or Halteverbot spans two different dates, each day receives its respective logistics card and time slot.
+
+### Version 2.19.5 – Post-Save Appointment Workflow & Guarded Calendar/WhatsApp Actions
+*   **Sequential Logic & Anti-Phantom Export Guard (`TaskScheduleModal.tsx`)**:
+    *   Eliminated premature `In Kalender` and `WhatsApp` actions from the scheduling form footer prior to saving.
+    *   Enforced strict sequential workflow: Disponent selects date/time, clicks `Termin speichern` to commit to Firestore first.
+    *   Added dedicated Post-Save Action Hub: Upon successful database commit, modal transitions to a confirmation view presenting confirmed appointment metrics and clear next-step action cards (`In Smartphone-Kalender eintragen` and `Kunde per WhatsApp informieren`).
+    *   Implemented dirty-state detection for already-scheduled tasks: Modifying inputs flags unsaved changes and requires saving before export or messaging.
+
+### Version 2.19.4 – Adaptive Offer Spacing & Zero-Lonely-Pricing Page Protection
+*   **Adaptive Compact Spacing System for Offers (`OrderPDF.tsx`)**:
+    *   Resolved the issue where moving quotes with 6 services pushed the Totals Box (`Nettobetrag`, `MwSt`, `Gesamtbetrag`) onto an awkward separate page by itself.
+    *   Implemented intelligent dynamic spacing evaluation (`isCompact = services.length >= 5`):
+        *   Dynamically raises `Angebot` header, intro salutation, and `Umzugsdaten & Einsatzorte` card upward.
+        *   Streamlines vertical margins (`customerDateBox`, `routeCard`, `table`, `tableRow`, and `totalsContainer`).
+        *   Reduces `page` bottom padding buffer to `64pt`, comfortably clear of the fixed footer (`762pt`).
+    *   Enables standard 6 and 7-service quotes with full descriptive notes and location tags to fit seamlessly on Page 1 along with the complete totals box.
+    *   Preserves generous comfort spacing for quotes with 1–4 services without any aesthetic degradation.
+
+### Version 2.19.3 – Laufzettel Header & Subtitle Spacing Bugfix
+*   **Eliminated Title & Subtitle Overlap in Employee Sheet (`EmployeeSheetPDF.tsx`)**:
+    *   Fixed collision where `Auftrag / Angebot: AN-... | Teamleiter: ...` rendered directly over the baseline of `Laufzettel für Mitarbeiter`.
+    *   Added explicit line-height (`1.2` on title, `1.3` on subtitle), increased bottom margin to `5pt`, and introduced an `8pt` top buffer below the sender line for clean typography and breathing room.
+
+### Version 2.19.2 – Contextual Email & Phone Assistant, Arabic Char Shield & Strict Number Formatting
 *   **Contextual Email Validation Assistant (`OrderEditor.tsx`, `customers/[id]/page.tsx`, `QuickCreateCustomer.tsx`, `InvoiceEditor.tsx`)**:
     *   Added dedicated live field auditing with App DNA styling (`border-red-500/80`, `ExclamationTriangleIcon`, German warning hints) beneath Email fields.
     *   Instant detection and warning when users accidentally type Arabic letters, vowels, hamza, or shadda (`ARABIC_CHARS_REGEX`).

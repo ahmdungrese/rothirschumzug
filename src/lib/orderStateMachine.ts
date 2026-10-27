@@ -154,9 +154,9 @@ export async function changeOrderStatus(
 
     // 3. NUMBER GENERATION & WRITES
     if ((targetStatus === 'invoice_open' || targetStatus === 'invoice_paid') && !order.invoiceNumber) {
-      let nextInvoiceNumber = 1771;
+      let nextInvoiceNumber = 1;
       if (settingsDoc.exists() && settingsDoc.data().nextInvoiceNumber !== undefined) {
-        nextInvoiceNumber = Math.max(1771, Number(settingsDoc.data().nextInvoiceNumber) || 1771);
+        nextInvoiceNumber = Math.max(1, Number(settingsDoc.data().nextInvoiceNumber) || 1);
       }
       transaction.update(settingsRef, { nextInvoiceNumber: nextInvoiceNumber + 1 });
       updatePayload.invoiceNumber = `R-${nextInvoiceNumber}`;

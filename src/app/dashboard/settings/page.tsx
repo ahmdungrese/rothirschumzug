@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
-import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon, CalendarIcon, LinkIcon, EnvelopeIcon, ExclamationTriangleIcon, CreditCardIcon, ListBulletIcon, HashtagIcon, ClipboardDocumentListIcon, PlusIcon, TrashIcon, ArrowPathIcon, ShieldCheckIcon, StarIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import { Cog6ToothIcon, BuildingOfficeIcon, UsersIcon, CurrencyEuroIcon, DocumentTextIcon, CheckIcon, ServerStackIcon, TruckIcon, CalendarIcon, LinkIcon, EnvelopeIcon, ExclamationTriangleIcon, CreditCardIcon, ListBulletIcon, HashtagIcon, ClipboardDocumentListIcon, PlusIcon, TrashIcon, ArrowPathIcon, ShieldCheckIcon, StarIcon, EyeIcon, EyeSlashIcon, DevicePhoneMobileIcon, BellIcon } from '@heroicons/react/24/outline';
 import { TeamAccessManager } from '@/components/settings/TeamAccessManager';
 import { ActivityLogViewer } from '@/components/settings/ActivityLogViewer';
 import { toast } from 'react-hot-toast';
@@ -15,6 +15,7 @@ import { MASTER_PROTOCOL_CATEGORIES, MASTER_PROTOCOL_SNIPPETS } from '@/lib/prot
 import { MASTER_SYSTEM_TEXTS } from '@/lib/textDefaults';
 import { MASTER_PAYMENT_METHODS } from '@/lib/paymentDefaults';
 import { downloadCalendarEvent } from '@/lib/calendarExport';
+import { showDeviceNotification, requestNotificationPermission, getNotificationPermission, isNotificationSupported } from '@/lib/notificationService';
 
 const TABS = [
   { id: 'basisdaten', name: 'Basisdaten', icon: BuildingOfficeIcon },
@@ -29,7 +30,94 @@ const TABS = [
   { id: 'protokolle', name: 'Protokolle & Vorlagen', icon: DocumentTextIcon },
   { id: 'system', name: 'System & Steuern', icon: ServerStackIcon },
   { id: 'audit', name: 'Aktivitäts-Logbuch (Audit)', icon: ClipboardDocumentListIcon },
-  { id: 'integration', name: 'E-Mail (IONOS) & Kalender', icon: EnvelopeIcon },
+  { id: 'integration', name: 'E-Mail, Kalender & Benachrichtigungen', icon: EnvelopeIcon },
+];
+
+const CANONICAL_MASTER_CATALOG = [
+  {
+    category: 'Allgemein',
+    items: [
+      { name: 'Transport inkl. Be- und Entladung (Personal & LKW)', price: 0, unit: 'Pauschal', description: 'Bereitstellung von Fachpersonal, LKW und vollständige Be- und Entladung am Umzugstag.' },
+      { name: 'Ein- und Auspackservice (inkl. Pack- & Schutzmaterial)', price: 0, unit: 'Pauschal', description: 'Komplettservice: Fachgerechtes Einpacken des Hausrats vorab und Auspacken am Zielort.' },
+      { name: 'Kartons bereitstellen', price: 0, unit: 'Stk', description: 'Bereitstellung stabiler Umzugskartons vorab nach Bedarf.' },
+      { name: 'Küchenabbau und -aufbau', price: 0, unit: 'Pauschal', description: 'Fachgerechter Abbau am Auszugsort und Wiederaufbau der Küche am Einzugsort.' },
+      { name: 'Halteverbotszone (HVZ)', price: 250, unit: 'Pauschal', description: 'Einrichtung temporärer Halteverbotszonen inkl. behördlicher Genehmigung.' },
+      { name: 'Möbellift', price: 150, unit: 'Std', description: 'Einsatz eines Außenaufzugs für Etagenumzüge.' },
+      { name: 'Umzugspersonal (Fahrer + Umzugshelfer)', price: 0, unit: 'Std', description: 'Bereitstellung von erfahrenem Fachpersonal nach Aufwand.' },
+      { name: 'Fahrzeugkosten (Kraftstoff)', price: 0, unit: 'Pauschal', description: 'Kraftstoff- und Fahrzeugpauschale.' },
+      { name: 'Versicherung Basic', price: 0, unit: 'Pauschal', description: 'Gesetzliche Grundhaftung und Transportversicherung inklusive.' },
+      { name: 'Einlagerung', price: 0, unit: 'm³', description: 'Sichere, trockene und klimatisierte Möbeleinlagerung.' },
+      { name: 'Kellerräumung', price: 0, unit: 'Pauschal', description: 'Besenreine Räumung und Entrümpelung des Kellerabteils.' },
+      { name: 'Garagenräumung', price: 0, unit: 'Pauschal', description: 'Besenreine Räumung und Entrümpelung der Garage.' },
+      { name: 'Deckenlampen demontieren und montieren', price: 0, unit: 'Stk', description: 'Fachgerechte Demontage am Auszugsort und Montage am Einzugsort.' },
+      { name: 'Einpacken der Möbel mit Decken und Schutzfolien', price: 0, unit: 'Std', description: 'Umfassender Möbelschutz mit Umzugsdecken und Stretchfolien.' },
+      { name: 'Entsorgung (Sperrmüll & Altmöbel)', price: 0, unit: 'Pauschal', description: 'Fachgerechter Abtransport und Entsorgung auf dem Wertstoffhof.' }
+    ]
+  },
+  {
+    category: 'Beladestelle (A)',
+    items: [
+      { name: 'Kartonlieferung vorab', price: 65, unit: 'Pauschal', description: 'Anlieferung von Umzugskartons und Packmaterial vor dem Umzugstermin.' },
+      { name: 'Möbelabbau', price: 150, unit: 'Pauschal', description: 'Fachgerechter Abbau von Schränken, Betten und Regalen am Auszugsort.' },
+      { name: 'Abbau von Küche', price: 280, unit: 'Pauschal', description: 'Fachgerechter Abbau der Einbauküche inkl. Elektrogeräte und Spültrennung.' },
+      { name: 'Einpackservice', price: 190, unit: 'Pauschal', description: 'Einpacken des gesamten Hausrats in Kartons inkl. Polstermaterial.' },
+      { name: 'Halteverbot A', price: 125, unit: 'Zone', description: 'Halteverbotszone (ca. 15m) an der Beladestelle inkl. Genehmigung.' },
+      { name: 'Deckenlampen demontieren', price: 45, unit: 'Stk', description: 'Fachgerechte Demontage und Sicherung aller Deckenlampen.' },
+      { name: 'Endreinigung', price: 220, unit: 'Pauschal', description: 'Besenreine Endreinigung der Auszugsimmobilie.' }
+    ]
+  },
+  {
+    category: 'Entladestelle (B)',
+    items: [
+      { name: 'Möbelaufbau', price: 180, unit: 'Pauschal', description: 'Fachgerechter Aufbau aller Möbel in den Zielräumen.' },
+      { name: 'Aufbau von Küche', price: 320, unit: 'Pauschal', description: 'Aufbau der Küchenzeile, Hängeschränke und Montage der Arbeitsplatte.' },
+      { name: 'Auspackservice', price: 160, unit: 'Pauschal', description: 'Auspacken aller Kartons und Platzieren des Inhalts nach Kundenwunsch.' },
+      { name: 'Bohr- & Dübelarb.', price: 90, unit: 'Pauschal', description: 'Fachgerechte Montage von Spiegeln, Bildern und Gardinenstangen.' },
+      { name: 'Halteverbot B', price: 125, unit: 'Zone', description: 'Halteverbotszone (ca. 15m) an der Entladestelle inkl. Genehmigung.' },
+      { name: 'Deckenlampen montieren', price: 45, unit: 'Stk', description: 'Fachgerechte Montage und Befestigung von Deckenlampen.' },
+      { name: 'Müllentsorgung', price: 120, unit: 'Pauschal', description: 'Fachgerechte Entsorgung von Verpackungsmaterial und Restmüll.' }
+    ]
+  },
+  {
+    category: 'Küchenservice',
+    items: [
+      { name: 'Abbau und Aufbau von Küche', price: 0, unit: 'Pauschal', description: 'Komplettservice: Fachgerechter Abbau an der Beladestelle und Aufbau am Einzugsort.' },
+      { name: 'Abbau von Küche', price: 280, unit: 'Pauschal', description: 'Fachgerechter Abbau der Einbauküche inkl. Trennung der Anschlüsse.' },
+      { name: 'Aufbau von Küche', price: 320, unit: 'Pauschal', description: 'Aufbau der Küchenzeile, Hängeschränke und Montage der Geräte.' },
+      { name: 'Arbeitsplatte anpassen', price: 0, unit: 'Stk', description: 'Fachgerechter Zuschnitt und Ausschnitte für Spüle und Kochfeld.' },
+      { name: 'Wasser- und Elektrogeräteanschluss', price: 0, unit: 'Pauschal', description: 'Fachgerechter Anschluss von Spüle, Herd, Backofen und Geschirrspüler.' }
+    ]
+  },
+  {
+    category: 'Kartonservice',
+    items: [
+      { name: 'Kartonlieferung vorab', price: 65, unit: 'Pauschal', description: 'Anlieferung von Umzugskartons und Packmaterial vor dem Umzugstermin.' },
+      { name: 'Ein- und Auspackservice', price: 0, unit: 'Pauschal', description: 'Komplettes Einpacken vorab und Auspacken am Zielort.' },
+      { name: 'Einpackservice', price: 190, unit: 'Pauschal', description: 'Einpacken des gesamten Hausrats vorab.' },
+      { name: 'Auspackservice', price: 160, unit: 'Pauschal', description: 'Auspacken aller Kartons am Zielort.' }
+    ]
+  },
+  {
+    category: 'Möbelservice',
+    items: [
+      { name: 'Demontage und Montage von Möbeln', price: 0, unit: 'Pauschal', description: 'Komplettservice: Demontage am Auszugsort und Remontage am Einzugsort.' },
+      { name: 'Möbelabbau', price: 150, unit: 'Pauschal', description: 'Fachgerechter Abbau von Schränken, Betten und Regalen.' },
+      { name: 'Möbelaufbau', price: 180, unit: 'Pauschal', description: 'Fachgerechter Aufbau aller Möbel in den Zielräumen.' },
+      { name: 'Deckenlampen demontieren und montieren', price: 0, unit: 'Stk', description: 'Fachgerechte Demontage am Auszugsort und Montage am Einzugsort.' },
+      { name: 'Deckenlampen demontieren', price: 45, unit: 'Stk', description: 'Fachgerechte Demontage und Sicherung aller Deckenlampen.' },
+      { name: 'Deckenlampen montieren', price: 45, unit: 'Stk', description: 'Fachgerechte Montage und Befestigung von Deckenlampen.' },
+      { name: 'Bohr- & Dübelarbeiten', price: 90, unit: 'Pauschal', description: 'Fachgerechte Montage und Befestigung an Wänden und Decken.' }
+    ]
+  },
+  {
+    category: 'Entsorgung & Räumung',
+    items: [
+      { name: 'Entsorgung (Sperrmüll & Altmöbel)', price: 0, unit: 'Pauschal', description: 'Fachgerechter Abtransport und Entsorgung auf dem Wertstoffhof.' },
+      { name: 'Kellerräumung', price: 0, unit: 'Pauschal', description: 'Besenreine Räumung und Entrümpelung des Kellerabteils.' },
+      { name: 'Garagenräumung', price: 0, unit: 'Pauschal', description: 'Besenreine Räumung und Entrümpelung der Garage.' },
+      { name: 'Endreinigung', price: 220, unit: 'Pauschal', description: 'Besenreine Endreinigung der Auszugsimmobilie.' }
+    ]
+  }
 ];
 
 export default function SettingsPage() {
@@ -159,74 +247,7 @@ export default function SettingsPage() {
     paymentMethods: [
       ...MASTER_PAYMENT_METHODS
     ],
-    catalog: [
-      {
-        category: 'Allgemein',
-        items: [
-          { name: 'Transport inkl. Be- und Entladung, Umzugspersonal & Fahrzeugkosten', price: 0, unit: 'Pauschal' },
-          { name: 'Ein- und Auspackservice (inkl. Kartons & Schutzmaterial)', price: 0, unit: 'Pauschal' },
-          { name: 'Kartons bereitstellen', price: 0, unit: 'Stk' },
-          { name: 'Arbeitsplatte anpassen', price: 0, unit: 'Stk' },
-          { name: 'Küchenauf- und abbau (inkl. Anpassung der Arbeitsplatte)', price: 0, unit: 'Pauschal' },
-          { name: 'Transport inkl. Be- und Entladung', price: 0, unit: 'Pauschal' },
-          { name: 'Umzugspersonal (Fahrer + Umzugshelfer)', price: 0, unit: 'Std' },
-          { name: 'Fahrzeugkosten (Kraftstoff)', price: 0, unit: 'Pauschal' },
-          { name: 'Versicherung Basic', price: 0, unit: 'Pauschal' },
-          { name: 'Möbellift', price: 0, unit: 'Std' },
-          { name: 'Einlagerung', price: 0, unit: 'm³' },
-          { name: 'Kellerräumung', price: 0, unit: 'Pauschal' },
-          { name: 'Garagenräumung', price: 0, unit: 'Pauschal' },
-          { name: 'Deckenlampen montieren', price: 0, unit: 'Stk' },
-          { name: 'Einpacken der Möbel mit Decken und Schutzfolien', price: 0, unit: 'Std' }
-        ]
-      },
-      {
-        category: 'Beladestelle (A)',
-        items: [
-          { name: 'Kartonlieferung vorab', price: 65, unit: 'Pauschal' },
-          { name: 'Möbelabbau', price: 150, unit: 'Pauschal' },
-          { name: 'Abbau von Küche', price: 280, unit: 'Pauschal' },
-          { name: 'Einpackservice', price: 190, unit: 'Pauschal' },
-          { name: 'Halteverbot A', price: 95, unit: 'Zone' },
-          { name: 'Endreinigung', price: 220, unit: 'Pauschal' }
-        ]
-      },
-      {
-        category: 'Entladestelle (B)',
-        items: [
-          { name: 'Möbelaufbau', price: 180, unit: 'Pauschal' },
-          { name: 'Aufbau von Küche', price: 320, unit: 'Pauschal' },
-          { name: 'Auspackservice', price: 160, unit: 'Pauschal' },
-          { name: 'Bohr- & Dübelarb.', price: 90, unit: 'Pauschal' },
-          { name: 'Halteverbot B', price: 95, unit: 'Zone' },
-          { name: 'Müllentsorgung', price: 120, unit: 'Pauschal' }
-        ]
-      },
-      {
-        category: 'Küchenservice',
-        items: [
-          { name: 'Aufbauen Von Küche', price: 0, unit: 'Std' },
-          { name: 'Abbauen Von Küche', price: 0, unit: 'Std' }
-        ]
-      },
-      {
-        category: 'Kartonservice',
-        items: [
-          { name: 'Einpackservice', price: 0, unit: 'Stk' },
-          { name: 'Auspackservice', price: 0, unit: 'Stk' },
-          { name: 'Ein- und Auspacken', price: 0, unit: 'Stk' }
-        ]
-      },
-      {
-        category: 'Möbelservice',
-        items: [
-          { name: 'Montieren Von Möbel', price: 0, unit: 'Std' },
-          { name: 'Demontieren Von Möbel', price: 0, unit: 'Std' },
-          { name: 'Demontage und Montage von Möbel', price: 0, unit: 'Std' },
-          { name: 'Möbelmontage & -demontage (inkl. Schutzverpackung)', price: 0, unit: 'Std' }
-        ]
-      }
-    ],
+    catalog: CANONICAL_MASTER_CATALOG,
     protocolCategories: MASTER_PROTOCOL_CATEGORIES,
     protocolTemplates: MASTER_PROTOCOL_SNIPPETS.map(s => s.text),
     communicationTemplates: MASTER_COMMUNICATION_TEMPLATES,
@@ -280,8 +301,8 @@ export default function SettingsPage() {
       if (!data.customerSources) data.customerSources = ['Google Suche', 'Check24', 'Empfehlung', 'Eigene Website', 'Kleinanzeigen', 'Direkter Anruf'];
       if (!data.employees) data.employees = ['Ali', 'Thomas', 'Klaus', 'Mustafa'];
       if (!data.vehicles) data.vehicles = ['LKW 7,5t (Eigener)', 'Sixt Koffer 3,5t (A)', 'Sixt Koffer 3,5t (B)'];
-      if (data.nextQuoteNumber === undefined || data.nextQuoteNumber === null || data.nextQuoteNumber < 1771) data.nextQuoteNumber = 1771;
-      if (data.nextInvoiceNumber === undefined || data.nextInvoiceNumber === null || data.nextInvoiceNumber < 1771) data.nextInvoiceNumber = 1771;
+      if (data.nextQuoteNumber === undefined || data.nextQuoteNumber === null || Number(data.nextQuoteNumber) < 1) data.nextQuoteNumber = 1771;
+      if (data.nextInvoiceNumber === undefined || data.nextInvoiceNumber === null || Number(data.nextInvoiceNumber) < 1) data.nextInvoiceNumber = 1771;
       if (data.nextOrderNumber === undefined) data.nextOrderNumber = 1;
       if (!data.texts.orderIntro) {
         data.texts.orderIntro = 'Sehr geehrte Damen und Herren,\nvielen Dank für Ihre Unterschrift. Hiermit bestätigen wir Ihren Auftrag verbindlich.';
@@ -592,6 +613,22 @@ export default function SettingsPage() {
       }
     }));
     toast.success("Standard-Texte & AGB erfolgreich geladen! Bitte oben auf Speichern klicken.");
+  };
+
+  const loadDefaultCatalog = () => {
+    if (window.confirm('Möchten Sie den Leistungskatalog wirklich auf die offiziellen Standard-Kategorien (Allgemein, Beladestelle A, Entladestelle B, Küchenservice, Kartonservice, Möbelservice, Entsorgung) zurücksetzen?')) {
+      setSettings((prev: any) => ({
+        ...prev,
+        catalog: JSON.parse(JSON.stringify(CANONICAL_MASTER_CATALOG)),
+        fixedServices: {
+          ...(prev.fixedServices || {}),
+          transport: { ...(prev.fixedServices?.transport || {}), name: 'Transport inkl. Be- und Entladung (Personal & LKW)' },
+          hvz: { ...(prev.fixedServices?.hvz || {}), name: 'Halteverbotszone (HVZ)' },
+          moebellift: { ...(prev.fixedServices?.moebellift || {}), name: 'Möbellift' }
+        }
+      }));
+      toast.success('Offizieller Standard-Katalog geladen! Bitte oben auf "Einstellungen speichern" klicken.');
+    }
   };
 
   const loadSamplePaymentMethods = () => {
@@ -1643,12 +1680,12 @@ export default function SettingsPage() {
                     type="button"
                     onClick={() => {
                       downloadCalendarEvent({
-                        title: '🚚 Test-Umzug: Max Mustermann (#AU-TEST-001)',
+                        title: 'Test-Umzug: Max Mustermann (#AU-TEST-001)',
                         startDate: new Date().toISOString().split('T')[0],
                         startTime: '08:00',
                         durationHours: 6,
-                        location: 'A: Haydnstr. 16, 44805 Bochum ➔ B: Hauptstr. 10, 44787 Bochum',
-                        description: 'Test-Kalendereintrag aus der Rothirsch App.\nTelefon: +49 177 4652154\nVolumen: 35 m³\nDisposition: 3 Helfer • 1 LKW (3,5t)',
+                        location: 'A: Haydnstr. 16, 44805 Bochum -> B: Hauptstr. 10, 44787 Bochum',
+                        description: 'Test-Kalendereintrag aus der Rothirsch App.\nTelefon: +49 177 4652154\nVolumen: 35 m³\nDisposition: 3 Helfer - 1 LKW (3,5t)',
                         category: 'Umzug'
                       }, 'Test_Umzug_Rothirsch');
                     }}
@@ -1657,6 +1694,74 @@ export default function SettingsPage() {
                     <CalendarIcon className="w-4 h-4" />
                     <span>Test-Termin in Kalender eintragen</span>
                   </button>
+                </div>
+              </div>
+
+              {/* SECTION 3: GERÄTE-BENACHRICHTIGUNGEN (SMARTPHONE PWA & BROWSER) */}
+              <div className="pt-6 border-t border-structure">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-bg-dark border border-structure p-5 rounded-2xl">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                      <BellIcon className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-text-main">Geräte-Benachrichtigungen (Push)</h3>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                          App-DNA (2D)
+                        </span>
+                      </div>
+                      <p className="text-xs text-text-muted">
+                        Automatische Erinnerungen für Nächste Einsätze, Zuweisungen und Dispo-Aufgaben direkt in die Android-Statusleiste (ohne Emojis, rollenspezifisch).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const status = await requestNotificationPermission();
+                        if (status === 'granted') {
+                          toast.success('Geräte-Benachrichtigungen erfolgreich aktiviert');
+                        } else if (status === 'denied') {
+                          toast.error('Benachrichtigungen im Browser blockiert');
+                        }
+                      }}
+                      className="px-3.5 py-2 text-xs font-bold rounded-xl border border-structure hover:bg-structure/30 text-text-main transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                      <DevicePhoneMobileIcon className="w-4 h-4 text-primary" />
+                      <span>Berechtigung anfordern</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (getNotificationPermission() !== 'granted') {
+                          const res = await requestNotificationPermission();
+                          if (res !== 'granted') {
+                            toast.error('Bitte erlaube Benachrichtigungen im Browser, um den Test zu empfangen.');
+                            return;
+                          }
+                        }
+                        const sent = await showDeviceNotification({
+                          id: 'test-alarm-' + Date.now(),
+                          title: 'Rothirsch ERP: Test-Benachrichtigung',
+                          body: 'Geräte-Benachrichtigungen funktionieren einwandfrei auf diesem Gerät.',
+                          url: '/dashboard'
+                        });
+                        if (sent) {
+                          toast.success('Test-Benachrichtigung an Gerät gesendet');
+                        } else {
+                          toast('Benachrichtigung konnte nicht angezeigt werden (Prüfe System-Einstellungen)');
+                        }
+                      }}
+                      className="btn-primary flex items-center justify-center gap-2 py-2 px-4 text-xs font-bold rounded-xl shadow-md cursor-pointer"
+                    >
+                      <BellIcon className="w-4 h-4" />
+                      <span>Test-Benachrichtigung senden</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1888,9 +1993,20 @@ export default function SettingsPage() {
                   <h2 className="text-xl font-bold text-text-main">Leistungskatalog</h2>
                   <p className="text-sm text-text-muted">Verwalte Kategorien, Standard-Services und Preise für Angebote.</p>
                 </div>
-                <button onClick={addCategory} className="btn-secondary text-xs py-2 px-3 flex items-center gap-1">
-                  + Neue Kategorie
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={loadDefaultCatalog}
+                    className="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5 border-primary/30 text-primary hover:bg-primary/10 transition-colors"
+                    title="Setzt den Leistungskatalog auf die sauberen Standard-Kategorien zurück"
+                  >
+                    <span className="material-symbols-outlined text-base">restart_alt</span>
+                    <span>Standard-Katalog laden</span>
+                  </button>
+                  <button onClick={addCategory} className="btn-secondary text-xs py-2 px-3 flex items-center gap-1">
+                    + Neue Kategorie
+                  </button>
+                </div>
               </div>
 
               {/* Standardpreise für Umzugskartons & Packmaterial */}

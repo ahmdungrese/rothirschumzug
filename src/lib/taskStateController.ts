@@ -282,6 +282,14 @@ export interface TaskScheduleExtras {
   method?: 'selbst' | 'extern';
   notes?: string;
   viewingType?: string;
+  dateA?: string;
+  timeA?: string;
+  durationA?: string;
+  endTimeA?: string;
+  dateB?: string;
+  timeB?: string;
+  durationB?: string;
+  endTimeB?: string;
 }
 
 /**
@@ -322,11 +330,43 @@ export async function updateTaskSchedule(
         updates['logistics.hvzLocation'] = extras.location;
         if (extras.location === 'a') {
           updates['logistics.a_parking'] = true;
+          if (extras.dateA) {
+            updates['orderMeta.halteverbotDateA'] = extras.dateA;
+            updates['logistics.hvzDateA'] = extras.dateA;
+          }
+          if (extras.timeA) {
+            updates['orderMeta.halteverbotTimeA'] = extras.timeA;
+            updates['logistics.hvzTimeA'] = extras.timeA;
+          }
         } else if (extras.location === 'b') {
           updates['logistics.b_parking'] = true;
+          if (extras.dateB) {
+            updates['orderMeta.halteverbotDateB'] = extras.dateB;
+            updates['logistics.hvzDateB'] = extras.dateB;
+          }
+          if (extras.timeB) {
+            updates['orderMeta.halteverbotTimeB'] = extras.timeB;
+            updates['logistics.hvzTimeB'] = extras.timeB;
+          }
         } else if (extras.location === 'both') {
           updates['logistics.a_parking'] = true;
           updates['logistics.b_parking'] = true;
+          if (extras.dateA) {
+            updates['orderMeta.halteverbotDateA'] = extras.dateA;
+            updates['logistics.hvzDateA'] = extras.dateA;
+          }
+          if (extras.timeA) {
+            updates['orderMeta.halteverbotTimeA'] = extras.timeA;
+            updates['logistics.hvzTimeA'] = extras.timeA;
+          }
+          if (extras.dateB) {
+            updates['orderMeta.halteverbotDateB'] = extras.dateB;
+            updates['logistics.hvzDateB'] = extras.dateB;
+          }
+          if (extras.timeB) {
+            updates['orderMeta.halteverbotTimeB'] = extras.timeB;
+            updates['logistics.hvzTimeB'] = extras.timeB;
+          }
         }
       }
       if (extras?.method) {
@@ -350,8 +390,75 @@ export async function updateTaskSchedule(
         updates['logistics.moebelliftLocation'] = extras.location;
         if (extras.location === 'a') {
           updates['logistics.a_furnitureLift'] = true;
+          if (extras.dateA) {
+            updates['orderMeta.moebelliftDateA'] = extras.dateA;
+            updates['logistics.moebelliftDateA'] = extras.dateA;
+          }
+          if (extras.timeA) {
+            updates['orderMeta.moebelliftTimeA'] = extras.timeA;
+            updates['logistics.moebelliftTimeA'] = extras.timeA;
+          }
+          if (extras.durationA) {
+            updates['orderMeta.moebelliftDurationA'] = extras.durationA;
+            updates['logistics.moebelliftDurationA'] = extras.durationA;
+          }
+          if (extras.endTimeA) {
+            updates['orderMeta.moebelliftEndTimeA'] = extras.endTimeA;
+            updates['logistics.moebelliftEndTimeA'] = extras.endTimeA;
+          }
         } else if (extras.location === 'b') {
           updates['logistics.b_furnitureLift'] = true;
+          if (extras.dateB) {
+            updates['orderMeta.moebelliftDateB'] = extras.dateB;
+            updates['logistics.moebelliftDateB'] = extras.dateB;
+          }
+          if (extras.timeB) {
+            updates['orderMeta.moebelliftTimeB'] = extras.timeB;
+            updates['logistics.moebelliftTimeB'] = extras.timeB;
+          }
+          if (extras.durationB) {
+            updates['orderMeta.moebelliftDurationB'] = extras.durationB;
+            updates['logistics.moebelliftDurationB'] = extras.durationB;
+          }
+          if (extras.endTimeB) {
+            updates['orderMeta.moebelliftEndTimeB'] = extras.endTimeB;
+            updates['logistics.moebelliftEndTimeB'] = extras.endTimeB;
+          }
+        } else if (extras.location === 'both') {
+          updates['logistics.a_furnitureLift'] = true;
+          updates['logistics.b_furnitureLift'] = true;
+          if (extras.dateA) {
+            updates['orderMeta.moebelliftDateA'] = extras.dateA;
+            updates['logistics.moebelliftDateA'] = extras.dateA;
+          }
+          if (extras.timeA) {
+            updates['orderMeta.moebelliftTimeA'] = extras.timeA;
+            updates['logistics.moebelliftTimeA'] = extras.timeA;
+          }
+          if (extras.durationA) {
+            updates['orderMeta.moebelliftDurationA'] = extras.durationA;
+            updates['logistics.moebelliftDurationA'] = extras.durationA;
+          }
+          if (extras.endTimeA) {
+            updates['orderMeta.moebelliftEndTimeA'] = extras.endTimeA;
+            updates['logistics.moebelliftEndTimeA'] = extras.endTimeA;
+          }
+          if (extras.dateB) {
+            updates['orderMeta.moebelliftDateB'] = extras.dateB;
+            updates['logistics.moebelliftDateB'] = extras.dateB;
+          }
+          if (extras.timeB) {
+            updates['orderMeta.moebelliftTimeB'] = extras.timeB;
+            updates['logistics.moebelliftTimeB'] = extras.timeB;
+          }
+          if (extras.durationB) {
+            updates['orderMeta.moebelliftDurationB'] = extras.durationB;
+            updates['logistics.moebelliftDurationB'] = extras.durationB;
+          }
+          if (extras.endTimeB) {
+            updates['orderMeta.moebelliftEndTimeB'] = extras.endTimeB;
+            updates['logistics.moebelliftEndTimeB'] = extras.endTimeB;
+          }
         }
       }
       if (extras?.notes) updates['orderMeta.moebelliftNotes'] = extras.notes;

@@ -15,11 +15,11 @@ export const FIXED_SERVICES: Record<FixedServiceKey, {
   id: string; name: string; unit: string; icon: string; desc: string;
 }> = {
   transport: {
-    id: 'trans_be_ent',
-    name: 'Transport inkl. Be- und Entladung',
+    id: 'trans_basis',
+    name: 'Transport inkl. Be- und Entladung (Personal & LKW)',
     unit: 'Pauschal',
     icon: 'local_shipping',
-    desc: 'Transport inkl. Be- und Entladung am Umzugstag.',
+    desc: 'Bereitstellung von Fachpersonal, LKW und vollständige Be- und Entladung am Umzugstag.',
   },
   kartons: {
     id: 'kartonlieferung',
@@ -77,7 +77,7 @@ export function resolveFixedDefs(settings: any): Record<FixedServiceKey, FixedDe
 
 /** IDs, die zu einem festen Schlüssel gehören (inkl. alter IDs). */
 const IDS: Record<FixedServiceKey, string[]> = {
-  transport: ['trans_be_ent'],
+  transport: ['trans_basis', 'trans_be_ent', 'trans_all'],
   kartons: ['kartonlieferung', 'kartons_bereit'],
   moebellift: ['moebellift'],
   hvz: ['hvz', 'hvz_a', 'hvz_b'],
@@ -112,6 +112,153 @@ export function hasFixedService(services: ServiceLike[] | undefined | null, key:
 /** Nur Transport ist nicht löschbar. Namen sind frei änderbar. */
 export const isRemovalLocked = (service: ServiceLike) => getFixedKey(service) === 'transport';
 
+/** Paired Services Definitions (Intelligente Logistik-Paare zwischen Belade- und Entladestelle) */
+export interface PairedDefinition {
+  pairKey: 'kueche' | 'moebel' | 'lampen' | 'packen';
+  combinedName: string;
+  combinedId: string;
+  combinedDesc: string;
+  combinedUnit: string;
+  combinedPrice: number;
+  partAName: string;
+  partAId: string;
+  partADesc: string;
+  partAUnit: string;
+  partAPrice: number;
+  partBName: string;
+  partBId: string;
+  partBDesc: string;
+  partBUnit: string;
+  partBPrice: number;
+}
+
+export const PAIRED_DEFINITIONS: Record<string, PairedDefinition> = {
+  kueche: {
+    pairKey: 'kueche',
+    combinedName: 'Abbau und Aufbau von Küche',
+    combinedId: 'kueche_komplett',
+    combinedDesc: 'Fachgerechter Abbau an der Beladestelle und Wiederaufbau der Küche an der Entladestelle.',
+    combinedUnit: 'Pauschal',
+    combinedPrice: 600,
+    partAName: 'Abbau von Küche',
+    partAId: 'kueche_abbau',
+    partADesc: 'Abbau der Einbauküche inkl. Elektrogeräte und fachgerechte Trennung der Wasseranschlüsse.',
+    partAUnit: 'Pauschal',
+    partAPrice: 280,
+    partBName: 'Aufbau von Küche',
+    partBId: 'kueche_aufbau',
+    partBDesc: 'Aufbau der Küchenzeile, Hängeschränke und Montage der Arbeitsplatte.',
+    partBUnit: 'Pauschal',
+    partBPrice: 320,
+  },
+  moebel: {
+    pairKey: 'moebel',
+    combinedName: 'Demontage und Montage von Möbeln',
+    combinedId: 'moebel_komplett',
+    combinedDesc: 'Fachgerechte Demontage am Auszugsort und Remontage aller Möbel am Einzugsort.',
+    combinedUnit: 'Pauschal',
+    combinedPrice: 330,
+    partAName: 'Möbelabbau',
+    partAId: 'moebelabbau',
+    partADesc: 'Fachgerechter Abbau von Schränken, Betten und Regalen.',
+    partAUnit: 'Pauschal',
+    partAPrice: 150,
+    partBName: 'Möbelaufbau',
+    partBId: 'moebelaufbau',
+    partBDesc: 'Fachgerechter Aufbau aller Möbel in den Zielräumen.',
+    partBUnit: 'Pauschal',
+    partBPrice: 180,
+  },
+  lampen: {
+    pairKey: 'lampen',
+    combinedName: 'Deckenlampen demontieren und montieren',
+    combinedId: 'lampen_komplett',
+    combinedDesc: 'Fachgerechte Demontage der Deckenlampen am Auszugsort und fachgerechte Montage am Einzugsort.',
+    combinedUnit: 'Stk',
+    combinedPrice: 90,
+    partAName: 'Deckenlampen demontieren',
+    partAId: 'lampen_demontieren',
+    partADesc: 'Fachgerechte Demontage und Sicherung aller Deckenlampen.',
+    partAUnit: 'Stk',
+    partAPrice: 45,
+    partBName: 'Deckenlampen montieren',
+    partBId: 'lampen_montieren',
+    partBDesc: 'Fachgerechte Montage und Befestigung von Deckenlampen.',
+    partBUnit: 'Stk',
+    partBPrice: 45,
+  },
+  packen: {
+    pairKey: 'packen',
+    combinedName: 'Ein- und Auspackservice (inkl. Pack- & Schutzmaterial)',
+    combinedId: 'packservice_komplett',
+    combinedDesc: 'Komplettservice: Fachgerechtes Einpacken des Hausrats vorab und Auspacken am Zielort.',
+    combinedUnit: 'Pauschal',
+    combinedPrice: 350,
+    partAName: 'Einpackservice',
+    partAId: 'packservice_ein',
+    partADesc: 'Einpacken des gesamten Hausrats in bereitgestellte Kartons inkl. Polstermaterial.',
+    partAUnit: 'Pauschal',
+    partAPrice: 190,
+    partBName: 'Auspackservice',
+    partBId: 'packservice_aus',
+    partBDesc: 'Auspacken aller Kartons und Platzieren des Inhalts nach Kundenwunsch.',
+    partBUnit: 'Pauschal',
+    partBPrice: 160,
+  },
+};
+
+export function getPairedRole(service: ServiceLike): { pairKey: 'kueche' | 'moebel' | 'lampen' | 'packen'; role: 'a' | 'b' | 'combined' } | null {
+  if (!service) return null;
+  const id = (service.id || '').trim().toLowerCase();
+  const n = norm(service.name);
+
+  // Kueche
+  if (id === 'kueche_komplett' || n.includes('abbau und aufbau') || n.includes('küchenabbau und -aufbau') || n.includes('küchenauf- und abbau')) {
+    return { pairKey: 'kueche', role: 'combined' };
+  }
+  if (id === 'kueche_abbau' || (n.includes('küche') && (n.includes('abbau') || n.includes('demontage')))) {
+    return { pairKey: 'kueche', role: 'a' };
+  }
+  if (id === 'kueche_aufbau' || (n.includes('küche') && (n.includes('aufbau') || n.includes('montage')))) {
+    return { pairKey: 'kueche', role: 'b' };
+  }
+
+  // Moebel
+  if (id === 'moebel_komplett' || n.includes('demontage und montage') || (n.includes('möbel') && n.includes('abbau und aufbau'))) {
+    return { pairKey: 'moebel', role: 'combined' };
+  }
+  if (id === 'moebelabbau' || id === 'moebel_abbau' || (n.includes('möbel') && (n.includes('abbau') || n.includes('demontage')))) {
+    return { pairKey: 'moebel', role: 'a' };
+  }
+  if (id === 'moebelaufbau' || id === 'moebel_aufbau' || (n.includes('möbel') && (n.includes('aufbau') || n.includes('montage')))) {
+    return { pairKey: 'moebel', role: 'b' };
+  }
+
+  // Lampen
+  if (id === 'lampen_komplett' || (n.includes('lampen') && (n.includes('demontieren und montieren') || n.includes('abbau und aufbau')))) {
+    return { pairKey: 'lampen', role: 'combined' };
+  }
+  if (id === 'lampen_demontieren' || (n.includes('lampen') && (n.includes('demont') || n.includes('abbau')))) {
+    return { pairKey: 'lampen', role: 'a' };
+  }
+  if (id === 'lampen_montieren' || (n.includes('lampen') && (n.includes('mont') || n.includes('aufbau')))) {
+    return { pairKey: 'lampen', role: 'b' };
+  }
+
+  // Packen
+  if (id === 'packservice_komplett' || id === 'ein_auspack_all' || n.includes('ein- und auspack')) {
+    return { pairKey: 'packen', role: 'combined' };
+  }
+  if (id === 'packservice_ein' || (n.includes('einpack') && !n.includes('auspack'))) {
+    return { pairKey: 'packen', role: 'a' };
+  }
+  if (id === 'packservice_aus' || (n.includes('auspack') && !n.includes('einpack'))) {
+    return { pairKey: 'packen', role: 'b' };
+  }
+
+  return null;
+}
+
 /** HVZ-Preis (beide Adressen). */
 export function getHvzPrice(settings: any): number {
   return resolveFixedDefs(settings).hvz.price;
@@ -126,7 +273,7 @@ export function hvzAutoPrice(count: number, basePrice: number): number {
 
 export type EditorService = {
   id: string; key?: FixedServiceKey; name: string; quantity: number; unitPrice: number; unit: string;
-  note?: string; location?: 'a' | 'b' | 'both';
+  note?: string; location?: 'a' | 'b' | 'both'; showPriceInFlatRate?: boolean; isIncluded?: boolean;
 };
 
 /** Eine feste Leistung als Positionszeile. */

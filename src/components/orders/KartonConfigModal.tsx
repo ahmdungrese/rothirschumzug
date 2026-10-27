@@ -109,13 +109,7 @@ export function KartonConfigModal({
       },
     };
 
-    // If no quantities at all and new service, pre-fill a typical default (e.g. 20x M)
-    const hasAnyExisting = Object.values(initial).some(item => item.qty > 0);
-    if (!existingService && !hasAnyExisting) {
-      initial.m.qty = 20;
-      initial.buecher.qty = 10;
-    }
-
+    // Initialize with 0 for all items (clean start without hardcoded presets)
     setDetails(initial);
     if (existingService?.unit?.toLowerCase() === 'stk') {
       setBillingMode('stueck');

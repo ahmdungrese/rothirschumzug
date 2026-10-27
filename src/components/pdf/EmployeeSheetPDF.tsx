@@ -9,17 +9,20 @@ const styles = StyleSheet.create({
   ...pdfCommonStyles,
 
   titleRow: {
-    marginBottom: 12,
+    marginTop: 8,
+    marginBottom: 14,
   },
   title: {
     fontSize: 18,
     fontFamily: 'Helvetica-Bold',
     color: PDF_COLORS.primary,
+    marginBottom: 5,
+    lineHeight: 1.2,
   },
   subtitle: {
     fontSize: 9,
     color: PDF_COLORS.textMuted,
-    marginTop: 2,
+    lineHeight: 1.3,
   },
 
   customerCard: {

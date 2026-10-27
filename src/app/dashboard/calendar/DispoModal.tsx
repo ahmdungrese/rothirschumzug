@@ -80,25 +80,54 @@ export function DispoModal({
     
     // Halteverbot
     if ((o.logistics?.noParkingZone || o.logistics?.a_parking || o.logistics?.b_parking || hasFixedService(o.services, 'hvz')) && isConfirmed) {
-      const effectiveMovingDate = o.orderMeta?.movingDateFrom || o.movingDate || o.disposition?.movingDate;
-      if (effectiveMovingDate) {
-        let hvDateStr = o.orderMeta?.halteverbotDate || '';
-        if (!hvDateStr) {
-          let hvDate = new Date(effectiveMovingDate.split('T')[0]);
-          hvDate.setDate(hvDate.getDate() - 4);
-          if (hvDate < createdAtObj) hvDate = new Date(createdAtObj);
-          hvDateStr = `${hvDate.getFullYear()}-${String(hvDate.getMonth() + 1).padStart(2, '0')}-${String(hvDate.getDate()).padStart(2, '0')}`;
-        }
-        if (hvDateStr.split('T')[0] === dateStr) {
+      const isBoth = (o.orderMeta?.hvzLocation || o.logistics?.hvzLocation) === 'both';
+      const dateA = o.orderMeta?.halteverbotDateA;
+      const dateB = o.orderMeta?.halteverbotDateB;
+
+      if (isBoth && (dateA || dateB)) {
+        if (dateA && dateA.split('T')[0] === dateStr) {
           logisticsTasks.push({ 
-            id: o.id, 
+            id: o.id + '_hv_a', 
             type: 'halteverbot', 
             icon: 'block',
-            title: 'Halteverbot aufstellen', 
+            title: 'Halteverbot aufstellen (Auszug A)', 
             customer: o.customerName, 
             customerId: o.customerId,
             isDone: isTaskCompleted(o, 'halteverbot')
           });
+        }
+        if (dateB && dateB.split('T')[0] === dateStr) {
+          logisticsTasks.push({ 
+            id: o.id + '_hv_b', 
+            type: 'halteverbot', 
+            icon: 'block',
+            title: 'Halteverbot aufstellen (Einzug B)', 
+            customer: o.customerName, 
+            customerId: o.customerId,
+            isDone: isTaskCompleted(o, 'halteverbot')
+          });
+        }
+      } else {
+        const effectiveMovingDate = o.orderMeta?.movingDateFrom || o.movingDate || o.disposition?.movingDate;
+        if (effectiveMovingDate) {
+          let hvDateStr = o.orderMeta?.halteverbotDate || '';
+          if (!hvDateStr) {
+            let hvDate = new Date(effectiveMovingDate.split('T')[0]);
+            hvDate.setDate(hvDate.getDate() - 4);
+            if (hvDate < createdAtObj) hvDate = new Date(createdAtObj);
+            hvDateStr = `${hvDate.getFullYear()}-${String(hvDate.getMonth() + 1).padStart(2, '0')}-${String(hvDate.getDate()).padStart(2, '0')}`;
+          }
+          if (hvDateStr.split('T')[0] === dateStr) {
+            logisticsTasks.push({ 
+              id: o.id, 
+              type: 'halteverbot', 
+              icon: 'block',
+              title: 'Halteverbot aufstellen', 
+              customer: o.customerName, 
+              customerId: o.customerId,
+              isDone: isTaskCompleted(o, 'halteverbot')
+            });
+          }
         }
       }
     }
@@ -130,25 +159,54 @@ export function DispoModal({
 
     // Möbellift
     if ((o.logistics?.a_furnitureLift || o.logistics?.b_furnitureLift || hasFixedService(o.services, 'moebellift')) && isConfirmed) {
-      const effectiveMovingDate = o.orderMeta?.movingDateFrom || o.movingDate || o.disposition?.movingDate;
-      if (effectiveMovingDate) {
-        let liftDateStr = o.orderMeta?.moebelliftDate || '';
-        if (!liftDateStr) {
-          let liftDate = new Date(effectiveMovingDate.split('T')[0]);
-          liftDate.setDate(liftDate.getDate() - 3);
-          if (liftDate < createdAtObj) liftDate = new Date(createdAtObj);
-          liftDateStr = `${liftDate.getFullYear()}-${String(liftDate.getMonth() + 1).padStart(2, '0')}-${String(liftDate.getDate()).padStart(2, '0')}`;
-        }
-        if (liftDateStr.split('T')[0] === dateStr) {
+      const isBoth = (o.orderMeta?.moebelliftLocation || o.logistics?.moebelliftLocation) === 'both';
+      const dateA = o.orderMeta?.moebelliftDateA;
+      const dateB = o.orderMeta?.moebelliftDateB;
+
+      if (isBoth && (dateA || dateB)) {
+        if (dateA && dateA.split('T')[0] === dateStr) {
           logisticsTasks.push({
-            id: o.id,
+            id: o.id + '_lift_a',
             type: 'moebellift_buchen',
             icon: 'elevator',
-            title: 'Möbellift reservieren/buchen',
+            title: 'Möbellift reservieren (Auszug A)',
             customer: o.customerName,
             customerId: o.customerId,
             isDone: isTaskCompleted(o, 'moebellift_buchen')
           });
+        }
+        if (dateB && dateB.split('T')[0] === dateStr) {
+          logisticsTasks.push({
+            id: o.id + '_lift_b',
+            type: 'moebellift_buchen',
+            icon: 'elevator',
+            title: 'Möbellift reservieren (Einzug B)',
+            customer: o.customerName,
+            customerId: o.customerId,
+            isDone: isTaskCompleted(o, 'moebellift_buchen')
+          });
+        }
+      } else {
+        const effectiveMovingDate = o.orderMeta?.movingDateFrom || o.movingDate || o.disposition?.movingDate;
+        if (effectiveMovingDate) {
+          let liftDateStr = o.orderMeta?.moebelliftDate || '';
+          if (!liftDateStr) {
+            let liftDate = new Date(effectiveMovingDate.split('T')[0]);
+            liftDate.setDate(liftDate.getDate() - 3);
+            if (liftDate < createdAtObj) liftDate = new Date(createdAtObj);
+            liftDateStr = `${liftDate.getFullYear()}-${String(liftDate.getMonth() + 1).padStart(2, '0')}-${String(liftDate.getDate()).padStart(2, '0')}`;
+          }
+          if (liftDateStr.split('T')[0] === dateStr) {
+            logisticsTasks.push({
+              id: o.id,
+              type: 'moebellift_buchen',
+              icon: 'elevator',
+              title: 'Möbellift reservieren/buchen',
+              customer: o.customerName,
+              customerId: o.customerId,
+              isDone: isTaskCompleted(o, 'moebellift_buchen')
+            });
+          }
         }
       }
     }

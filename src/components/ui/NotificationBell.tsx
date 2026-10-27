@@ -10,10 +10,19 @@ import {
   UsersIcon,
   DocumentTextIcon,
   CheckCircleIcon,
-  XMarkIcon
+  XMarkIcon,
+  ClipboardDocumentCheckIcon,
+  DevicePhoneMobileIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { hasFixedService } from '@/lib/serviceKeys';
+import { useAuth } from '@/context/AuthContext';
+import { 
+  showDeviceNotification, 
+  requestNotificationPermission, 
+  getNotificationPermission,
+  NotificationPermissionStatus
+} from '@/lib/notificationService';
 
 function extractMovingDate(o: any): string | null {
   if (!o) return null;
@@ -57,10 +66,25 @@ function parseDateSafely(dateStr?: string | null): Date | null {
 }
 
 export function NotificationBell() {
+  const { profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+  const [permStatus, setPermStatus] = useState<NotificationPermissionStatus>('default');
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const userRole = profile?.role || 'admin';
+  const userUid = profile?.uid || '';
+
+  // Synchronize browser notification permission state
+  useEffect(() => {
+    setPermStatus(getNotificationPermission());
+  }, []);
+
+  const handleEnableDeviceNotifications = async () => {
+    const res = await requestNotificationPermission();
+    setPermStatus(res);
+  };
 
   // Load dismissed alerts from localStorage
   useEffect(() => {
@@ -82,7 +106,6 @@ export function NotificationBell() {
     }
   };
 
-  // When clicking on a notification, it opens the customer and immediately DISAPPEARS from the list!
   const handleNotificationClick = (id: string) => {
     dismissAlert(id);
     setIsOpen(false);
@@ -119,12 +142,84 @@ export function NotificationBell() {
         const customerName = o.customerName || (o.customerData?.firstName ? `${o.customerData.firstName} ${o.customerData.lastName}` : 'Kunde');
         const customerId = o.customerId || o.id;
         const moveDate = parseDateSafely(extractMovingDate(o));
+        const daysUntilMove = moveDate ? Math.ceil((moveDate.getTime() - today.getTime()) / (1000 * 3600 * 24)) : null;
+
+        // Is the current logged-in user specifically assigned as Teamleiter?
+        const isAssignedToThisLead = Boolean(
+          userUid && (
+            o.assignedTeamLeadUid === userUid || 
+            o.disposition?.assignedTeamLeadUid === userUid
+          )
+        );
 
         // --------------------------------------------------------------------
-        // 1. KARTON-ERINNERUNG (تسليم الكراتين قبل 3 أسابيع / 21 يوماً)
+        // ROLE BRANCH A: TEAMLEITER (Feld- und Einsatzleiter)
+        // Strictly personal assignments only - 0% invoice, 0% offer, 0% irrelevant noise
         // --------------------------------------------------------------------
-        if (moveDate) {
-          const daysUntilMove = Math.ceil((moveDate.getTime() - today.getTime()) / (1000 * 3600 * 24));
+        if (userRole === 'teamlead') {
+          // If not assigned to this specific Teamleiter, completely ignore!
+          if (!isAssignedToThisLead || !moveDate || daysUntilMove === null) {
+            return;
+          }
+
+          // A1: Umzug ist HEUTE (Einsatztag)
+          if (daysUntilMove === 0) {
+            newNotifications.push({
+              id: `${o.id}-tl-today`,
+              type: 'teamlead_active',
+              title: 'Umzug heute durchführen',
+              message: `Umzug ${customerName}: Dein Einsatz ist heute. Beladung: ${o.logistics?.a_city || 'Auszug'}.`,
+              link: `/dashboard/customers/${customerId}`,
+              urgency: 'high'
+            });
+          }
+
+          // A2: Umzug ist MORGEN (Vorbereitungstag)
+          else if (daysUntilMove === 1) {
+            newNotifications.push({
+              id: `${o.id}-tl-tomorrow`,
+              type: 'teamlead_prep',
+              title: 'Umzug morgen vorbereiten',
+              message: `Umzug ${customerName}: Einsatz morgen. Bitte Laufzettel und Team prüfen.`,
+              link: `/dashboard/customers/${customerId}`,
+              urgency: 'medium'
+            });
+          }
+
+          // A3: Zuweisung in den nächsten 14 Tagen
+          else if (daysUntilMove > 1 && daysUntilMove <= 14) {
+            newNotifications.push({
+              id: `${o.id}-tl-assigned`,
+              type: 'teamlead_assigned',
+              title: 'Umzug zugewiesen',
+              message: `Du bist als Teamleiter für ${customerName} am ${o.movingDate || o.orderMeta?.movingDateFrom || 'demnächst'} eingeteilt.`,
+              link: `/dashboard/customers/${customerId}`,
+              urgency: 'medium'
+            });
+          }
+
+          // A4: Abnahmeprotokoll ausstehend am/nach dem Umzugstag
+          const hasProtocol = Boolean(o.signatureProtocol || (o.protocols && o.protocols.length > 0));
+          if (daysUntilMove <= 0 && daysUntilMove >= -2 && !hasProtocol) {
+            newNotifications.push({
+              id: `${o.id}-tl-protocol`,
+              type: 'protocol',
+              title: 'Abnahmeprotokoll ausstehend',
+              message: `Umzug ${customerName}: Bitte Abnahmeprotokoll vor Ort vom Kunden digital gegenzeichnen lassen.`,
+              link: `/dashboard/customers/${customerId}`,
+              urgency: 'high'
+            });
+          }
+
+          // Teamleiter processing finished for this order
+          return;
+        }
+
+        // --------------------------------------------------------------------
+        // ROLE BRANCH B & C: ADMIN (sieht alles) & OFFICE / DISPONENT (Büro/Dispo)
+        // --------------------------------------------------------------------
+        if (moveDate && daysUntilMove !== null) {
+          // 1. KARTON-ERINNERUNG (تسليم الكراتين)
           const hasBoxService = 
             hasFixedService(o.services, 'kartons') ||
             o.materials?.some((m: any) => (m.name || '').toLowerCase().includes('karton')) ||
@@ -138,22 +233,20 @@ export function NotificationBell() {
           );
 
           if (hasBoxService && !boxesDelivered && daysUntilMove >= 0 && daysUntilMove <= 21) {
-            const timeText = daysUntilMove === 0 ? 'Heute!' : daysUntilMove === 1 ? 'Morgen' : `in ${daysUntilMove} Tagen`;
+            const timeText = daysUntilMove === 0 ? 'Heute' : daysUntilMove === 1 ? 'Morgen' : `in ${daysUntilMove} Tagen`;
             newNotifications.push({
               id: `${o.id}-boxes`,
               type: 'boxes',
               title: 'Kartons liefern',
-              message: `Umzug ${customerName} (${timeText}): Umzugskartons müssen ausgeliefert werden!`,
+              message: `Umzug ${customerName} (${timeText}): Umzugskartons müssen ausgeliefert werden.`,
               link: `/dashboard/customers/${customerId}`,
               urgency: daysUntilMove <= 7 ? 'high' : 'medium'
             });
           }
 
-          // --------------------------------------------------------------------
-          // 2. DISPO: MITARBEITER & FAHRZEUGE (قبل النقل بـ 3 إلى 5 أيام)
-          // --------------------------------------------------------------------
+          // 2. DISPO: MITARBEITER & FAHRZEUGE (قبل النقل بـ 5 أيام)
           if (o.status === 'confirmed' && daysUntilMove >= 0 && daysUntilMove <= 5) {
-            const timeText = daysUntilMove === 0 ? 'Heute!' : daysUntilMove === 1 ? 'Morgen' : `in ${daysUntilMove} Tagen`;
+            const timeText = daysUntilMove === 0 ? 'Heute' : daysUntilMove === 1 ? 'Morgen' : `in ${daysUntilMove} Tagen`;
             const helpers = Number(o.disposition?.helpers || o.helpers || 0);
             const koffer = Number(o.disposition?.koffer35t || 0);
             const lkw = Number(o.disposition?.lkw7t || 0);
@@ -165,7 +258,7 @@ export function NotificationBell() {
                 id: `${o.id}-staff`,
                 type: 'staff',
                 title: 'Personal einteilen',
-                message: `Umzug ${customerName} (${timeText}): Noch keine Umzugshelfer zugewiesen!`,
+                message: `Umzug ${customerName} (${timeText}): Noch keine Umzugshelfer zugewiesen.`,
                 link: `/dashboard/customers/${customerId}`,
                 urgency: 'high'
               });
@@ -176,32 +269,28 @@ export function NotificationBell() {
                 id: `${o.id}-vehicle`,
                 type: 'vehicle',
                 title: 'Fahrzeug reservieren',
-                message: `Umzug ${customerName} (${timeText}): Noch kein Fahrzeug eingeteilt!`,
+                message: `Umzug ${customerName} (${timeText}): Noch kein Fahrzeug eingeteilt.`,
                 link: `/dashboard/customers/${customerId}`,
                 urgency: 'high'
               });
             }
           }
 
-          // --------------------------------------------------------------------
-          // 3. RECHNUNG FEHLT (فاتورة ما بعد النقل بيوم)
-          // --------------------------------------------------------------------
+          // 3. RECHNUNG FEHLT (فاتورة ما بعد النقل)
           const daysSinceMove = Math.floor((today.getTime() - moveDate.getTime()) / (1000 * 3600 * 24));
           if (daysSinceMove >= 1 && daysSinceMove <= 30 && !o.invoiceNumber) {
             newNotifications.push({
               id: `${o.id}-invoice`,
               type: 'invoice',
               title: 'Rechnung erstellen',
-              message: `Umzug ${customerName} vor ${daysSinceMove === 1 ? '1 Tag' : daysSinceMove + ' Tagen'} abgeschlossen. Rechnung noch offen!`,
+              message: `Umzug ${customerName} vor ${daysSinceMove === 1 ? '1 Tag' : daysSinceMove + ' Tagen'} abgeschlossen. Rechnung noch offen.`,
               link: `/dashboard/customers/${customerId}`,
               urgency: 'high'
             });
           }
         }
 
-        // --------------------------------------------------------------------
-        // 4. BESICHTIGUNGSTERMINE (تنبيه المعاينة قبل بساعة)
-        // --------------------------------------------------------------------
+        // 4. BESICHTIGUNGSTERMINE (تنبيه المعاينة)
         const viewDateStr = o.orderMeta?.viewingDate || o.viewingDate;
         if (viewDateStr && !o.viewingDone && !o.checklist?.find((c: any) => c.text?.toLowerCase()?.includes('besichtigung'))?.done) {
           const timeStr = o.orderMeta?.viewingTime || o.viewingTime || (viewDateStr.includes('T') ? viewDateStr.split('T')[1].substring(0, 5) : '09:00');
@@ -241,13 +330,45 @@ export function NotificationBell() {
       });
 
       setNotifications(newNotifications);
+
+      // Trigger Native Device Notifications for new critical tasks if permission granted
+      if (typeof window !== 'undefined' && Notification.permission === 'granted') {
+        newNotifications.forEach(n => {
+          showDeviceNotification({
+            id: n.id,
+            title: `Rothirsch: ${n.title}`,
+            body: n.message,
+            url: n.link
+          });
+        });
+      }
     });
 
     return () => unsub();
-  }, []);
+  }, [userRole, userUid]);
 
   const getIconConfig = (type: string) => {
     switch (type) {
+      case 'teamlead_active':
+        return {
+          icon: <TruckIcon className="w-5 h-5 text-primary" />,
+          colorClass: 'bg-primary/10 border-primary/20 text-primary'
+        };
+      case 'teamlead_prep':
+        return {
+          icon: <CalendarDaysIcon className="w-5 h-5 text-indigo-400" />,
+          colorClass: 'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
+        };
+      case 'teamlead_assigned':
+        return {
+          icon: <UsersIcon className="w-5 h-5 text-emerald-400" />,
+          colorClass: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+        };
+      case 'protocol':
+        return {
+          icon: <ClipboardDocumentCheckIcon className="w-5 h-5 text-amber-400" />,
+          colorClass: 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+        };
       case 'boxes':
         return {
           icon: <CubeIcon className="w-5 h-5 text-sky-400" />,
@@ -322,20 +443,36 @@ export function NotificationBell() {
                 {visibleNotifications.length} {visibleNotifications.length === 1 ? 'Aufgabe' : 'Aufgaben'}
               </span>
             </div>
+
+            {/* Device Notification Status Banner (PWA / Android activation) */}
+            {permStatus === 'default' && (
+              <div className="px-3.5 py-2.5 bg-primary/5 border-b border-primary/20 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs text-text-main">
+                  <DevicePhoneMobileIcon className="w-4 h-4 text-primary shrink-0" />
+                  <span className="text-[11px] leading-tight">Benachrichtigungen auf diesem Gerät erhalten</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleEnableDeviceNotifications}
+                  className="px-2.5 py-1 bg-primary text-white text-[11px] font-bold rounded-lg hover:bg-primary/90 transition-colors shrink-0 cursor-pointer"
+                >
+                  Aktivieren
+                </button>
+              </div>
+            )}
             
             <div className="max-h-[70vh] sm:max-h-96 overflow-y-auto custom-scrollbar divide-y divide-structure/40">
               {visibleNotifications.length === 0 ? (
                 <div className="p-8 text-center text-text-muted flex flex-col items-center">
                   <CheckCircleIcon className="w-10 h-10 text-emerald-500/70 mb-2" />
-                  <p className="font-semibold text-text-main text-sm">Alles erledigt!</p>
-                  <p className="text-xs text-text-muted mt-1">Keine offenen Aufgaben.</p>
+                  <p className="font-semibold text-text-main text-sm">Alles erledigt</p>
+                  <p className="text-xs text-text-muted mt-1">Keine offenen Aufgaben für deine Rolle.</p>
                 </div>
               ) : (
                 visibleNotifications.map((notif) => {
                   const cfg = getIconConfig(notif.type);
                   return (
                     <div key={notif.id} className="relative group">
-                      {/* Clicking the link navigates to the customer AND instantly removes the notification */}
                       <Link 
                         href={notif.link}
                         onClick={() => handleNotificationClick(notif.id)}
@@ -356,7 +493,6 @@ export function NotificationBell() {
                         </div>
                       </Link>
 
-                      {/* Subtle Dismiss (X) button to dismiss without opening */}
                       <button
                         type="button"
                         onClick={(e) => handleDismissButton(e, notif.id)}
@@ -370,6 +506,14 @@ export function NotificationBell() {
                 })
               )}
             </div>
+
+            {/* Subtle Footer with Permission State Indicator */}
+            {permStatus === 'granted' && (
+              <div className="px-3 py-1.5 bg-structure/20 border-t border-structure/40 flex items-center justify-center gap-1.5 text-[10px] text-text-muted">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span>Geräte-Benachrichtigungen aktiv</span>
+              </div>
+            )}
           </div>
         </>
       )}

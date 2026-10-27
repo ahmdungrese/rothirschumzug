@@ -8,7 +8,7 @@ import { logActivity } from '@/lib/activityLogger';
 import { CheckCircleIcon as CheckCircleIconSolid } from '@heroicons/react/24/solid';
 import { toast } from 'react-hot-toast';
 import { db } from '@/lib/firebase';
-import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { calculateRoute } from '@/lib/routeCalculator';
 import { changeOrderStatus } from '@/lib/orderStateMachine';
@@ -20,7 +20,7 @@ import { FLOOR_OPTIONS } from '@/lib/constants';
 import { sanitizeText, sanitizePhoneNumber, validateCustomerEmail, validateCustomerPhone, ARABIC_CHARS_REGEX } from '@/lib/inputValidation';
 import { withDbTimeout, formatFriendlyError } from '@/lib/networkWatchdog';
 import { modalManager } from '@/lib/modalManager';
-import { FIXED_KEYS, getFixedKey, hasFixedService, isRemovalLocked, applyHvzToServices, applyLiftToServices, ensureTransportService, fixedLine, resolveFixedDefs, type FixedServiceKey } from '@/lib/serviceKeys';
+import { FIXED_KEYS, getFixedKey, hasFixedService, isRemovalLocked, applyHvzToServices, applyLiftToServices, ensureTransportService, fixedLine, resolveFixedDefs, type FixedServiceKey, PAIRED_DEFINITIONS, getPairedRole } from '@/lib/serviceKeys';
 import { ShowcaseServiceItem, DEFAULT_SHOWCASE_SERVICES, AVAILABLE_SHOWCASE_ICONS } from '@/lib/showcaseDefaults';
 
 const getPropertyIcon = (type: string) => {
@@ -44,10 +44,11 @@ const getCategoryIcon = (category: string) => {
 
 const STANDARD_SERVICES_A = [
   { id: 'kartonlieferung', name: 'Kartonlieferung vorab', price: 65, unit: 'pauschal', icon: 'inventory_2', defaultDesc: 'Anlieferung von Umzugskartons und Packmaterial vor dem Umzugstermin.' },
-  { id: 'moebelabbau', name: 'Möbelabbau', price: 150, unit: 'pauschal', icon: 'tools_ladder', defaultDesc: 'Fachgerechter Abbau von Schränken, Betten und Regalen.' },
+  { id: 'moebelabbau', name: 'Möbelabbau', price: 150, unit: 'pauschal', icon: 'tools_ladder', defaultDesc: 'Fachgerechter Abbau von Schränken, Betten und Regalen am Auszugsort.' },
   { id: 'kueche_abbau', name: 'Abbau von Küche', price: 280, unit: 'pauschal', icon: 'countertops', defaultDesc: 'Abbau der Einbauküche inkl. Elektrogeräte und fachgerechte Trennung der Wasseranschlüsse.' },
   { id: 'packservice_ein', name: 'Einpackservice', price: 190, unit: 'pauschal', icon: 'inventory_2', defaultDesc: 'Einpacken des gesamten Hausrats in bereitgestellte Kartons inkl. Polstermaterial.' },
-  { id: 'hvz_a', name: 'Halteverbot A', price: 95, unit: 'Zone', icon: 'signpost', defaultDesc: 'Einrichtung einer temporären Halteverbotszone (ca. 15m) an der Beladestelle inkl. behördlicher Genehmigung.' },
+  { id: 'lampen_demontieren', name: 'Deckenlampen demontieren', price: 45, unit: 'Stk', icon: 'lightbulb', defaultDesc: 'Fachgerechte Demontage und Sicherung aller Deckenlampen.' },
+  { id: 'hvz_a', name: 'Halteverbot A', price: 125, unit: 'Zone', icon: 'signpost', defaultDesc: 'Einrichtung einer temporären Halteverbotszone (ca. 15m) an der Beladestelle inkl. behördlicher Genehmigung.' },
   { id: 'endreinigung', name: 'Endreinigung', price: 220, unit: 'pauschal', icon: 'cleaning_services', defaultDesc: 'Besenreine Endreinigung der Auszugsimmobilie.' }
 ];
 
@@ -56,7 +57,8 @@ const STANDARD_SERVICES_B = [
   { id: 'kueche_aufbau', name: 'Aufbau von Küche', price: 320, unit: 'pauschal', icon: 'kitchen', defaultDesc: 'Aufbau der Küchenzeile, Hängeschränke und Montage der Arbeitsplatte.' },
   { id: 'packservice_aus', name: 'Auspackservice', price: 160, unit: 'pauschal', icon: 'unarchive', defaultDesc: 'Auspacken aller Kartons und Platzieren des Inhalts nach Kundenwunsch.' },
   { id: 'bohren', name: 'Bohr- & Dübelarb.', price: 90, unit: 'pauschal', icon: 'handyman', defaultDesc: 'Fachgerechte Montage und Befestigung von Lampen, Spiegeln und Gardinenstangen.' },
-  { id: 'hvz_b', name: 'Halteverbot B', price: 95, unit: 'Zone', icon: 'signpost', defaultDesc: 'Einrichtung einer temporären Halteverbotszone (ca. 15m) an der Entladestelle inkl. behördlicher Genehmigung.' },
+  { id: 'lampen_montieren', name: 'Deckenlampen montieren', price: 45, unit: 'Stk', icon: 'lightbulb', defaultDesc: 'Fachgerechte Montage und Befestigung von Deckenlampen.' },
+  { id: 'hvz_b', name: 'Halteverbot B', price: 125, unit: 'Zone', icon: 'signpost', defaultDesc: 'Einrichtung einer temporären Halteverbotszone (ca. 15m) an der Entladestelle inkl. behördlicher Genehmigung.' },
   { id: 'entsorgung', name: 'Müllentsorgung', price: 120, unit: 'pauschal', icon: 'delete', defaultDesc: 'Fachgerechte Entsorgung von Verpackungsmaterial und Restmüll.' }
 ];
 
@@ -85,21 +87,20 @@ export const getServiceIcon = (name: string, fallback = 'design_services'): stri
 };
 
 const DEFAULT_ALLGEMEIN_SERVICES = [
-  { id: 'trans_all', name: 'Transport inkl. Be- und Entladung, Umzugspersonal & Fahrzeugkosten', price: 0, unit: 'Pauschal', icon: 'local_shipping', defaultDesc: 'Bereitstellung von LKW, Fachpersonal und vollständige Be- und Entladung.' },
-  { id: 'ein_auspack_all', name: 'Ein- und Auspackservice (inkl. Kartons & Schutzmaterial)', price: 0, unit: 'Pauschal', icon: 'inventory_2', defaultDesc: 'Fachgerechtes Ein- und Auspacken des gesamten Umzugsguts inkl. Schutzmaterial.' },
-  { id: 'kartons_bereit', name: 'Kartons bereitstellen', price: 0, unit: 'Stk', icon: 'inventory_2', defaultDesc: 'Bereitstellung stabiler Umzugskartons vorab.' },
-  { id: 'arbeitsplatte', name: 'Arbeitsplatte anpassen', price: 0, unit: 'Stk', icon: 'carpenter', defaultDesc: 'Fachgerechter Zuschnitt und Anpassung der Küchenarbeitsplatte.' },
-  { id: 'kueche_komplett', name: 'Küchenauf- und abbau (inkl. Anpassung der Arbeitsplatte)', price: 0, unit: 'Pauschal', icon: 'countertops', defaultDesc: 'Fachgerechter Küchenauf- und abbau inklusive Anpassung der Arbeitsplatte.' },
-  { id: 'trans_be_ent', name: 'Transport inkl. Be- und Entladung', price: 0, unit: 'Pauschal', icon: 'local_shipping', defaultDesc: 'Reiner Transport inkl. Be- und Entladung am Umzugstag.' },
+  { id: 'trans_basis', name: 'Transport inkl. Be- und Entladung (Personal & LKW)', price: 0, unit: 'Pauschal', icon: 'local_shipping', defaultDesc: 'Bereitstellung von Fachpersonal, LKW und vollständige Be- und Entladung am Umzugstag.' },
+  { id: 'packservice_komplett', name: 'Ein- und Auspackservice (inkl. Pack- & Schutzmaterial)', price: 0, unit: 'Pauschal', icon: 'inventory_2', defaultDesc: 'Komplettservice: Fachgerechtes Einpacken des Hausrats vorab und Auspacken am Zielort.' },
+  { id: 'kartons_bereit', name: 'Kartons bereitstellen', price: 0, unit: 'Stk', icon: 'inventory_2', defaultDesc: 'Bereitstellung stabiler Umzugskartons vorab nach Bedarf.' },
+  { id: 'kueche_komplett', name: 'Küchenabbau und -aufbau', price: 0, unit: 'Pauschal', icon: 'countertops', defaultDesc: 'Fachgerechter Abbau am Auszugsort und Wiederaufbau der Küche am Einzugsort.' },
   { id: 'personal_std', name: 'Umzugspersonal (Fahrer + Umzugshelfer)', price: 0, unit: 'Std', icon: 'groups', defaultDesc: 'Bereitstellung von erfahrenem Fachpersonal nach Aufwand.' },
   { id: 'fahrzeug_kraftstoff', name: 'Fahrzeugkosten (Kraftstoff)', price: 0, unit: 'Pauschal', icon: 'local_gas_station', defaultDesc: 'Kraftstoff- und Fahrzeugpauschale.' },
   { id: 'versicherung_basic', name: 'Versicherung Basic', price: 0, unit: 'Pauschal', icon: 'shield', defaultDesc: 'Gesetzliche Grundhaftung und Transportversicherung inklusive.' },
   { id: 'moebellift', name: 'Möbellift', price: 0, unit: 'Std', icon: 'elevator', defaultDesc: 'Einsatz eines Außenaufzugs für Etagenumzüge.' },
-  { id: 'einlagerung', name: 'Einlagerung', price: 0, unit: 'm³', icon: 'warehouse', defaultDesc: 'Sichere und trockene Einlagerung des Umzugsguts.' },
+  { id: 'einlagerung', name: 'Einlagerung', price: 0, unit: 'm³', icon: 'warehouse', defaultDesc: 'Sichere, trockene und klimatisierte Möbeleinlagerung.' },
   { id: 'kellerraeumung', name: 'Kellerräumung', price: 0, unit: 'Pauschal', icon: 'delete_sweep', defaultDesc: 'Besenreine Räumung und Entrümpelung des Kellerabteils.' },
   { id: 'garagenraeumung', name: 'Garagenräumung', price: 0, unit: 'Pauschal', icon: 'garage', defaultDesc: 'Besenreine Räumung und Entrümpelung der Garage.' },
-  { id: 'lampen_montieren', name: 'Deckenlampen montieren', price: 0, unit: 'Stk', icon: 'lightbulb', defaultDesc: 'Fachgerechte Demontage und Montage von Deckenlampen.' },
-  { id: 'einpacken_decken', name: 'Einpacken der Möbel mit Decken und Schutzfolien', price: 0, unit: 'Std', icon: 'layers', defaultDesc: 'Umfassender Möbelschutz mit Umzugsdecken und Stretchfolien.' }
+  { id: 'lampen_komplett', name: 'Deckenlampen demontieren und montieren', price: 0, unit: 'Stk', icon: 'lightbulb', defaultDesc: 'Fachgerechte Demontage am Auszugsort und Montage am Einzugsort.' },
+  { id: 'einpacken_decken', name: 'Einpacken der Möbel mit Decken und Schutzfolien', price: 0, unit: 'Std', icon: 'layers', defaultDesc: 'Umfassender Möbelschutz mit Umzugsdecken und Stretchfolien.' },
+  { id: 'entsorgung', name: 'Entsorgung (Sperrmüll & Altmöbel)', price: 0, unit: 'Pauschal', icon: 'delete_sweep', defaultDesc: 'Fachgerechter Abtransport und Entsorgung auf dem Wertstoffhof.' }
 ];
 
 export interface CatalogItem {
@@ -608,15 +609,17 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   // 3. Leistungen
   const [isFlatRate, setIsFlatRate] = useState(true);
   const [flatRateNet, setFlatRateNet] = useState(0);
-  const [services, setServices] = useState<{ id: string, name: string, quantity: number, unitPrice: number, unit: string, note?: string, location?: 'a' | 'b' | 'both' }[]>(() => 
+  const [step3MobileTab, setStep3MobileTab] = useState<'selection' | 'pricing'>('selection');
+  const [isPricingExpanded, setIsPricingExpanded] = useState<boolean>(false);
+  const [services, setServices] = useState<{ id: string, name: string, quantity: number, unitPrice: number, unit: string, note?: string, location?: 'a' | 'b' | 'both', showPriceInFlatRate?: boolean, isIncluded?: boolean }[]>(() => 
     orderId ? [] : [
       {
-        id: 'transport_base',
-        name: 'Transport inkl. Be- & Entladen (Personal und Fahrzeug)',
+        id: 'trans_basis',
+        name: 'Transport inkl. Be- und Entladung (Personal & LKW)',
         quantity: 1,
         unitPrice: 0,
         unit: 'Pauschal',
-        note: 'Fachgerechtes Be- und Entladen sowie versicherter Transport mit Umzugsfahrzeug und geschultem Personal.',
+        note: 'Bereitstellung von Fachpersonal, LKW und vollständige Be- und Entladung am Umzugstag.',
         location: 'both'
       }
     ]
@@ -810,6 +813,48 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       setLogistics((l: any) => ({ ...l, a_furnitureLift: nextA, b_furnitureLift: nextB }));
       syncMoebelliftService(nextA, nextB);
       return;
+    }
+
+    // Smart Paired Services Location Change (Küche, Möbel, Lampen, Packen)
+    const paired = getPairedRole(svc);
+    if (paired) {
+      const def = PAIRED_DEFINITIONS[paired.pairKey];
+      if (newLoc === 'both') {
+        setServices(prev => prev.map((s, i) => i === idx ? {
+          ...s,
+          id: def.combinedId,
+          name: def.combinedName,
+          unitPrice: def.combinedPrice || s.unitPrice,
+          unit: def.combinedUnit || s.unit,
+          note: def.combinedDesc || s.note,
+          location: 'both'
+        } : s));
+        return;
+      }
+      if (newLoc === 'a') {
+        setServices(prev => prev.map((s, i) => i === idx ? {
+          ...s,
+          id: def.partAId,
+          name: def.partAName,
+          unitPrice: def.partAPrice || s.unitPrice,
+          unit: def.partAUnit || s.unit,
+          note: def.partADesc || s.note,
+          location: 'a'
+        } : s));
+        return;
+      }
+      if (newLoc === 'b') {
+        setServices(prev => prev.map((s, i) => i === idx ? {
+          ...s,
+          id: def.partBId,
+          name: def.partBName,
+          unitPrice: def.partBPrice || s.unitPrice,
+          unit: def.partBUnit || s.unit,
+          note: def.partBDesc || s.note,
+          location: 'b'
+        } : s));
+        return;
+      }
     }
 
     setServices(prev => prev.map((s, i) => i === idx ? { ...s, location: newLoc } : s));
@@ -1078,8 +1123,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const toggleStandardService = (srv: { id?: string; name: string; price?: number; defaultPrice?: number; unit?: string; defaultDesc?: string; description?: string }) => {
     const srvName = (srv.name || '').trim();
     const fixedKey = getFixedKey(srv);
-    if (fixedKey === 'transport') {
-      const existing = services.find(s => getFixedKey(s) === 'transport' || s.id === 'trans_be_ent' || (s.name || '').toLowerCase().includes('transport'));
+    if (fixedKey === 'transport' || srv.id === 'trans_basis' || srv.id === 'trans_be_ent') {
+      const existing = services.find(s => getFixedKey(s) === 'transport' || s.id === 'trans_basis' || s.id === 'trans_be_ent');
       if (existing) {
         toast('Transport ist als feste Basisleistung im Angebot hinterlegt', { icon: '🚛' });
         return;
@@ -1136,6 +1181,140 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       return;
     }
 
+    // Smart Paired Services Logic (Küche, Möbel, Lampen, Packen)
+    const paired = getPairedRole(srv);
+    if (paired) {
+      const def = PAIRED_DEFINITIONS[paired.pairKey];
+      const existingCombined = services.find(s => {
+        const r = getPairedRole(s);
+        return r?.pairKey === paired.pairKey && r.role === 'combined';
+      });
+      const existingPartA = services.find(s => {
+        const r = getPairedRole(s);
+        return r?.pairKey === paired.pairKey && r.role === 'a';
+      });
+      const existingPartB = services.find(s => {
+        const r = getPairedRole(s);
+        return r?.pairKey === paired.pairKey && r.role === 'b';
+      });
+
+      if (paired.role === 'combined') {
+        if (existingCombined) {
+          setServices(prev => prev.filter(s => s !== existingCombined));
+        } else {
+          setServices(prev => [
+            ...prev.filter(s => s !== existingPartA && s !== existingPartB),
+            {
+              id: def.combinedId,
+              name: def.combinedName,
+              quantity: 1,
+              unitPrice: srv.price ?? srv.defaultPrice ?? def.combinedPrice,
+              unit: srv.unit || def.combinedUnit,
+              note: srv.defaultDesc || srv.description || def.combinedDesc,
+              location: 'both'
+            }
+          ]);
+        }
+        return;
+      }
+
+      if (paired.role === 'a') {
+        if (existingCombined) {
+          // Split combined: remove A, keep B
+          setServices(prev => [
+            ...prev.filter(s => s !== existingCombined),
+            {
+              id: def.partBId,
+              name: def.partBName,
+              quantity: 1,
+              unitPrice: def.partBPrice,
+              unit: def.partBUnit,
+              note: def.partBDesc,
+              location: 'b'
+            }
+          ]);
+        } else if (existingPartA) {
+          setServices(prev => prev.filter(s => s !== existingPartA));
+        } else if (existingPartB) {
+          // Auto-merge with B!
+          setServices(prev => [
+            ...prev.filter(s => s !== existingPartB),
+            {
+              id: def.combinedId,
+              name: def.combinedName,
+              quantity: 1,
+              unitPrice: def.combinedPrice,
+              unit: def.combinedUnit,
+              note: def.combinedDesc,
+              location: 'both'
+            }
+          ]);
+        } else {
+          setServices(prev => [
+            ...prev,
+            {
+              id: def.partAId,
+              name: def.partAName,
+              quantity: 1,
+              unitPrice: srv.price ?? srv.defaultPrice ?? def.partAPrice,
+              unit: srv.unit || def.partAUnit,
+              note: srv.defaultDesc || srv.description || def.partADesc,
+              location: 'a'
+            }
+          ]);
+        }
+        return;
+      }
+
+      if (paired.role === 'b') {
+        if (existingCombined) {
+          // Split combined: remove B, keep A
+          setServices(prev => [
+            ...prev.filter(s => s !== existingCombined),
+            {
+              id: def.partAId,
+              name: def.partAName,
+              quantity: 1,
+              unitPrice: def.partAPrice,
+              unit: def.partAUnit,
+              note: def.partADesc,
+              location: 'a'
+            }
+          ]);
+        } else if (existingPartB) {
+          setServices(prev => prev.filter(s => s !== existingPartB));
+        } else if (existingPartA) {
+          // Auto-merge with A!
+          setServices(prev => [
+            ...prev.filter(s => s !== existingPartA),
+            {
+              id: def.combinedId,
+              name: def.combinedName,
+              quantity: 1,
+              unitPrice: def.combinedPrice,
+              unit: def.combinedUnit,
+              note: def.combinedDesc,
+              location: 'both'
+            }
+          ]);
+        } else {
+          setServices(prev => [
+            ...prev,
+            {
+              id: def.partBId,
+              name: def.partBName,
+              quantity: 1,
+              unitPrice: def.partBPrice,
+              unit: def.partBUnit,
+              note: def.partBDesc,
+              location: 'b'
+            }
+          ]);
+        }
+        return;
+      }
+    }
+
     const existing = services.find(s => (srv.id && s.id === srv.id) || (s.name || '').trim().toLowerCase() === srvName.toLowerCase());
     if (existing) {
       setServices(prev => prev.filter(s => s.id !== existing.id));
@@ -1155,8 +1334,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
   const isStandardServiceSelected = (srvId?: string, srvName?: string) => {
     const fixedKey = getFixedKey({ id: srvId, name: srvName });
-    if (fixedKey === 'transport') {
-      return services.some(s => getFixedKey(s) === 'transport' || s.id === 'trans_be_ent' || (s.name || '').toLowerCase().includes('transport'));
+    if (fixedKey === 'transport' || srvId === 'trans_basis' || srvId === 'trans_be_ent') {
+      return services.some(s => getFixedKey(s) === 'transport' || s.id === 'trans_basis' || s.id === 'trans_be_ent');
     }
     if (fixedKey === 'hvz') {
       const isB = srvId === 'hvz_b' || (srvName || '').toLowerCase().includes('halteverbot b');
@@ -1168,6 +1347,29 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     if (fixedKey === 'kartons') {
       return services.some(s => getFixedKey(s) === 'kartons');
     }
+
+    const paired = getPairedRole({ id: srvId, name: srvName });
+    if (paired) {
+      if (paired.role === 'combined') {
+        return services.some(s => {
+          const r = getPairedRole(s);
+          return r?.pairKey === paired.pairKey && (r.role === 'combined' || s.location === 'both');
+        });
+      }
+      if (paired.role === 'a') {
+        return services.some(s => {
+          const r = getPairedRole(s);
+          return r?.pairKey === paired.pairKey && (r.role === 'a' || r.role === 'combined' || s.location === 'both' || s.location === 'a');
+        });
+      }
+      if (paired.role === 'b') {
+        return services.some(s => {
+          const r = getPairedRole(s);
+          return r?.pairKey === paired.pairKey && (r.role === 'b' || r.role === 'combined' || s.location === 'both' || s.location === 'b');
+        });
+      }
+    }
+
     const targetName = (srvName || srvId || '').trim().toLowerCase();
     if (srvId === 'hvz_a' || targetName.includes('halteverbot a')) return Boolean(logistics.a_parking);
     if (srvId === 'hvz_b' || targetName.includes('halteverbot b')) return Boolean(logistics.b_parking);
@@ -1499,13 +1701,15 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const INVENTORY_CATALOG = ['Umzugskarton', 'Kleiderbox', 'Bücherkarton', 'Sofa 2er', 'Sofa 3er', 'Ecksofa', 'Sessel', 'Couchtisch', 'Esstisch', 'Stuhl', 'Bett (Einzel)', 'Bett (Doppel)', 'Nachttisch', 'Kleiderschrank (2-türig)', 'Kleiderschrank (3-türig)', 'Kommode', 'Sideboard', 'Regal', 'Schreibtisch', 'Waschmaschine', 'Trockner', 'Spülmaschine', 'Kühlschrank', 'Gefrierschrank', 'Fahrrad', 'Spiegel', 'Lampe', 'Teppich'];
 
   useEffect(() => {
-    // Lade globale Settings
-    getDoc(doc(db, 'system', 'settings')).then((docSnap) => {
+    let initialLoadDone = false;
+    // Lade globale Settings in Echtzeit (sofortige Synchronisation bei Änderungen durch Admins)
+    const unsub = onSnapshot(doc(db, 'system', 'settings'), (docSnap) => {
       if(docSnap.exists()) {
         const s = docSnap.data();
         setSettings(s);
         // Defaults aus Settings setzen, wenn neues Angebot
-        if (!orderId) {
+        if (!orderId && !initialLoadDone) {
+          initialLoadDone = true;
           const days = parseInt(s.quoteValidDays) || 14;
           const validDate = new Date();
           validDate.setDate(validDate.getDate() + days);
@@ -1534,7 +1738,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           catalog: []
         });
       }
-    }).catch((err) => {
+    }, (err) => {
       console.error("Fehler beim Laden der Einstellungen", err);
       setSettings({ catalog: [], paymentMethods: [] }); // Notfall-Fallback
     });
@@ -1735,6 +1939,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         }
       });
     }
+
+    return () => unsub();
   }, [orderId, urlCustomerId]);
 
   useEffect(() => {
@@ -2246,7 +2452,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   title="Voraussichtliche Rechnungsnummer laut aktuellem Zähler (reine Vorschau – wird erst beim Erstellen der Rechnung offiziell vergeben)"
                   className="px-3 py-1 rounded-xl text-xs font-semibold font-mono bg-structure/50 text-text-muted border border-dashed border-structure"
                 >
-                  Voraussichtlich: Nummer R-{settings?.nextInvoiceNumber || 1771}
+                  Voraussichtlich: Nummer R-{settings?.nextInvoiceNumber ?? 1}
                 </span>
               )
             ) : (
@@ -2262,7 +2468,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   title="Voraussichtliche Angebotsnummer laut aktuellem Zähler (reine Vorschau – wird erst bei Abschluss in Schritt 5 offiziell vergeben)"
                   className="px-3 py-1 rounded-xl text-xs font-semibold font-mono bg-structure/50 text-text-muted border border-dashed border-structure"
                 >
-                  Voraussichtlich: Nummer AN-{settings?.nextQuoteNumber || 1771}
+                  Voraussichtlich: Nummer AN-{settings?.nextQuoteNumber ?? 1}
                 </span>
               )
             )}
@@ -3467,21 +3673,63 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 Dienstleistungsauswahl nach Belade- und Entladestelle sowie Kostenkalkulation.
               </p>
             </div>
-            <label className={`flex items-center gap-2 bg-white/[0.03] px-3.5 py-2 rounded-xl border border-structure shadow-sm ${!canEditPrices ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-              <input 
-                type="checkbox" 
-                checked={isFlatRate} 
-                onChange={e => setIsFlatRate(e.target.checked)} 
-                disabled={!canEditPrices} 
-                className="accent-primary w-4 h-4 rounded" 
-              />
-              <span className="text-xs font-bold text-text-main">Pauschalangebot (Festpreis)</span>
-            </label>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsPricingExpanded(!isPricingExpanded)}
+                className="hidden lg:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-structure bg-white/[0.03] hover:bg-white/[0.07] text-xs font-bold text-text-main transition-all cursor-pointer shadow-sm"
+                title={isPricingExpanded ? 'Zurück zur geteilten Ansicht' : 'Preiskalkulation über volle Breite vergrößern'}
+              >
+                <span className="material-symbols-outlined text-base text-primary">
+                  {isPricingExpanded ? 'view_column' : 'open_in_full'}
+                </span>
+                <span>{isPricingExpanded ? 'Geteilte Ansicht' : 'Fokus-Kalkulation'}</span>
+              </button>
+
+              <label className={`flex items-center gap-2 bg-white/[0.03] px-3.5 py-2 rounded-xl border border-structure shadow-sm ${!canEditPrices ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
+                <input 
+                  type="checkbox" 
+                  checked={isFlatRate} 
+                  onChange={e => setIsFlatRate(e.target.checked)} 
+                  disabled={!canEditPrices} 
+                  className="accent-primary w-4 h-4 rounded" 
+                />
+                <span className="text-xs font-bold text-text-main">Pauschalangebot (Festpreis)</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Mobile Segmented Tab Controller (Smartphone Optimized) */}
+          <div className="flex lg:hidden bg-bg-dark/80 p-1 rounded-2xl border border-structure/80 shadow-inner">
+            <button
+              type="button"
+              onClick={() => setStep3MobileTab('selection')}
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                step3MobileTab === 'selection'
+                  ? 'bg-primary text-white shadow-md'
+                  : 'text-text-muted hover:text-text-main'
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">touch_app</span>
+              <span>1. Leistungen auswählen</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStep3MobileTab('pricing')}
+              className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                step3MobileTab === 'pricing'
+                  ? 'bg-primary text-white shadow-md'
+                  : 'text-text-muted hover:text-text-main'
+              }`}
+            >
+              <span className="material-symbols-outlined text-base">calculate</span>
+              <span>2. Kalkulation ({services.length})</span>
+            </button>
           </div>
 
           <div className="grid grid-cols-12 gap-8">
             {/* Left: Quick Service Selection A vs B */}
-            <div className="col-span-12 lg:col-span-7 flex flex-col gap-6">
+            <div className={`col-span-12 ${isPricingExpanded ? 'hidden' : 'lg:col-span-7'} ${step3MobileTab === 'pricing' ? 'hidden lg:flex' : 'flex'} flex-col gap-6`}>
               <div className="bg-bg-card rounded-2xl p-6 border border-structure shadow-md">
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-base font-headline font-bold flex items-center gap-2 text-text-main">
@@ -3793,20 +4041,58 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   </div>
                 </div>
               </div>
+
+              {/* Mobile Bottom Action: Proceed to Kalkulation */}
+              <div className="lg:hidden pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStep3MobileTab('pricing');
+                    window.scrollTo({ top: 100, behavior: 'smooth' });
+                  }}
+                  className="btn-primary w-full py-3 rounded-xl flex items-center justify-center gap-2 text-xs font-bold shadow-lg shadow-primary/20 cursor-pointer"
+                >
+                  <span>Weiter zur Preiskalkulation ({services.length} Positionen)</span>
+                  <span className="material-symbols-outlined text-base">arrow_forward</span>
+                </button>
+              </div>
             </div>
 
             {/* Right: Preiskalkulation & Total Summary Card */}
-            <div className="col-span-12 lg:col-span-5 flex flex-col gap-6">
+            <div className={`col-span-12 ${isPricingExpanded ? 'lg:col-span-12' : 'lg:col-span-5'} ${step3MobileTab === 'selection' ? 'hidden lg:flex' : 'flex'} flex-col gap-6`}>
               {/* Preiskalkulation Table */}
               <div className="bg-bg-card rounded-2xl border border-structure shadow-md overflow-hidden flex flex-col">
                 <div className="px-5 py-3.5 bg-white/[0.03] flex items-center justify-between border-b border-structure">
-                  <h3 className="text-sm font-headline font-bold flex items-center gap-2 text-text-main">
-                    <span className="material-symbols-outlined text-blue-400 text-lg">calculate</span>
-                    Preiskalkulation
-                  </h3>
-                  <span className="text-[11px] font-bold text-text-muted bg-structure/50 px-2 py-0.5 rounded-full">
-                    {services.length} Positionen
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setStep3MobileTab('selection')}
+                      className="lg:hidden p-1 -ml-1 text-text-muted hover:text-text-main rounded-lg cursor-pointer"
+                      title="Zurück zur Leistungsauswahl"
+                    >
+                      <span className="material-symbols-outlined text-lg">arrow_back</span>
+                    </button>
+                    <h3 className="text-sm font-headline font-bold flex items-center gap-2 text-text-main">
+                      <span className="material-symbols-outlined text-blue-400 text-lg">calculate</span>
+                      Preiskalkulation
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsPricingExpanded(!isPricingExpanded)}
+                      className="hidden lg:flex items-center gap-1 text-[11px] text-text-muted hover:text-primary transition-colors cursor-pointer px-2 py-0.5 rounded-lg bg-white/[0.04] border border-white/5"
+                      title={isPricingExpanded ? 'Geteilte Ansicht' : 'Volle Bildschirmbreite für Preiskalkulation'}
+                    >
+                      <span className="material-symbols-outlined text-base">
+                        {isPricingExpanded ? 'fullscreen_exit' : 'fullscreen'}
+                      </span>
+                      <span>{isPricingExpanded ? 'Geteilt' : 'Fokus'}</span>
+                    </button>
+                    <span className="text-[11px] font-bold text-text-muted bg-structure/50 px-2 py-0.5 rounded-full">
+                      {services.length} Positionen
+                    </span>
+                  </div>
                 </div>
 
                 <div className="max-h-96 overflow-y-auto overflow-x-auto custom-scrollbar divide-y divide-structure/40">
@@ -3941,13 +4227,68 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                                   </button>
                                 </div>
                               )}
+                              {(svc.id === 'einlagerung' || (svc.name || '').toLowerCase().includes('einlagerung')) && (
+                                <div className="pt-1 flex items-center gap-1 text-[10px] text-amber-400/90 font-medium">
+                                  <span className="material-symbols-outlined text-xs">warehouse</span>
+                                  <span>Tipp: m³-Volumen &amp; Lagerdauer im Notizfeld erfassen</span>
+                                </div>
+                              )}
+
+                              {/* Flat-Rate (Pauschal) Separate Price Toggle */}
+                              {isFlatRate && (
+                                <div className="pt-1.5 flex flex-wrap items-center gap-2">
+                                  <label className="inline-flex items-center gap-1.5 cursor-pointer bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 px-2 py-0.5 rounded text-[10px] text-text-muted hover:text-text-main transition-colors select-none">
+                                    <input
+                                      type="checkbox"
+                                      checked={!!(svc as any).showPriceInFlatRate}
+                                      onChange={e => {
+                                        const checked = e.target.checked;
+                                        let autoPrice = svc.unitPrice;
+                                        if (checked && (!autoPrice || autoPrice === 0)) {
+                                          const sKey = getFixedKey(svc);
+                                          if (sKey === 'hvz') autoPrice = svc.location === 'both' ? 250 : 125;
+                                          else if (sKey === 'moebellift') autoPrice = 150;
+                                        }
+                                        setServices(prev => prev.map((s, i) => i === idx ? { 
+                                          ...s, 
+                                          showPriceInFlatRate: checked,
+                                          unitPrice: autoPrice
+                                        } : s));
+                                      }}
+                                      className="accent-primary w-3.5 h-3.5 rounded"
+                                    />
+                                    <span className="font-semibold">
+                                      {(svc as any).showPriceInFlatRate
+                                        ? `Preis separat ausweisen`
+                                        : 'Als "Inklusiv" im Angebot'}
+                                    </span>
+                                  </label>
+                                  {(svc as any).showPriceInFlatRate && (
+                                    <div className="inline-flex items-center gap-1">
+                                      <input
+                                        type="number"
+                                        step="1"
+                                        value={svc.unitPrice === 0 ? '' : svc.unitPrice}
+                                        onChange={e => {
+                                          const val = parseFloat(e.target.value);
+                                          setServices(prev => prev.map((s, i) => i === idx ? { ...s, unitPrice: isNaN(val) ? 0 : val } : s));
+                                        }}
+                                        className="w-16 px-1.5 py-0.5 text-right font-mono text-[10px] bg-black/40 border border-primary/40 rounded text-text-main focus:outline-none focus:border-primary"
+                                        placeholder="Preis €"
+                                        title="Einzelpreis für diesen Posten"
+                                      />
+                                      <span className="text-[10px] text-text-muted font-bold">€</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </td>
                             <td className="p-2.5 text-center pt-3">
                               <div className="inline-flex items-center gap-1 bg-structure/40 rounded-lg px-1.5 py-0.5">
                                 <button 
                                   type="button"
                                   onClick={() => handleServiceQuantityChange(idx, Math.max(0, svc.quantity - 1))} 
-                                  className="w-5 h-5 flex items-center justify-center text-text-muted hover:text-white font-bold"
+                                  className="w-5 h-5 flex items-center justify-center text-text-muted hover:text-white font-bold cursor-pointer"
                                 >
                                   -
                                 </button>
@@ -3966,7 +4307,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                                 <button 
                                   type="button"
                                   onClick={() => handleServiceQuantityChange(idx, svc.quantity + 1)} 
-                                  className="w-5 h-5 flex items-center justify-center text-text-muted hover:text-white font-bold"
+                                  className="w-5 h-5 flex items-center justify-center text-text-muted hover:text-white font-bold cursor-pointer"
                                 >
                                   +
                                 </button>
@@ -3996,7 +4337,16 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                                     = {(svc.quantity * (svc.unitPrice || 0)).toFixed(2)} €
                                   </span>
                                 </div>
-                              ) : '—'}
+                              ) : (svc as any).showPriceInFlatRate && (svc.unitPrice || 0) > 0 ? (
+                                <div className="flex flex-col items-end gap-0.5">
+                                  <span className="text-[11px] font-mono text-primary font-bold">
+                                    {((svc.quantity || 1) * (svc.unitPrice || 0)).toFixed(2)} €
+                                  </span>
+                                  <span className="text-[9px] text-text-muted font-normal">(Separat)</span>
+                                </div>
+                              ) : (
+                                '—'
+                              )}
                             </td>
                             <td className="pr-2 text-right">
                               {!isRemovalLocked(svc) && (
@@ -4012,7 +4362,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                                       setLogistics((l: any) => ({ ...l, a_furnitureLift: false, b_furnitureLift: false }));
                                     }
                                   }}
-                                  className="text-text-muted hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="text-text-muted hover:text-red-400 p-1 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                                   title="Position entfernen"
                                 >
                                   <XMarkIcon className="w-4 h-4" />
@@ -4030,7 +4380,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   <button
                     type="button"
                     onClick={() => setServices([...services, { id: Date.now().toString(), name: 'Individuelle Leistung', quantity: 1, unitPrice: 0, unit: 'Pauschal' }])}
-                    className="w-full py-2 border border-dashed border-structure rounded-xl text-primary hover:bg-primary/5 transition-colors flex items-center justify-center gap-1.5 text-xs font-semibold"
+                    className="w-full py-2 border border-dashed border-structure rounded-xl text-primary hover:bg-primary/5 transition-colors flex items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer"
                   >
                     <PlusIcon className="w-4 h-4" /> Eigene Leistung hinzufügen
                   </button>
@@ -4042,9 +4392,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 <div className="absolute -right-12 -top-12 w-48 h-48 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
                 <div className="flex flex-col gap-4 relative z-10">
                   {isFlatRate && (
-                    <div className="mb-2">
+                    <div className="mb-2 space-y-1.5">
                       <label className="text-[10px] text-text-muted font-bold uppercase tracking-wider mb-1 block">
-                        Pauschalabrechnung (Netto)
+                        Basis-Pauschalabrechnung (Netto)
                       </label>
                       <div className="relative">
                         <input 
@@ -4061,6 +4411,18 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                         />
                         <span className="absolute right-3 top-1/2 -translate-y-1/2 font-bold text-text-muted text-sm">€</span>
                       </div>
+                      {(() => {
+                        const sepTotal = services.reduce((acc, s) => s.showPriceInFlatRate && !s.isIncluded ? acc + ((s.quantity || 1) * (s.unitPrice || 0)) : acc, 0);
+                        if (sepTotal > 0) {
+                          return (
+                            <div className="flex items-center justify-between text-[11px] bg-primary/10 border border-primary/20 px-2.5 py-1.5 rounded-lg text-primary font-bold">
+                              <span>+ Separate Positionen (z.B. HVZ / Möbellift):</span>
+                              <span>{sepTotal.toFixed(2)} €</span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   )}
 
