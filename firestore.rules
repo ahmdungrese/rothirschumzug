@@ -103,8 +103,8 @@ service cloud.firestore {
 
     // ─── users ──────────────────────────────────────────────────
     match /users/{userId} {
-      // Nutzer dürfen ihr eigenes Dokument lesen; Admins alle lesen & schreiben
-      allow read: if request.auth.uid == userId || isAdmin();
+      // Nutzer dürfen ihr eigenes Dokument lesen; Admins und Büro alle lesen
+      allow read: if request.auth.uid == userId || isOfficeOrAdmin();
       allow write: if isAdmin();
     }
   }

@@ -26,12 +26,17 @@ export default function ArchivePage() {
     const qCust = query(collection(db, 'customers'), where('isArchived', '==', true));
     const unsubCust = onSnapshot(qCust, (snapshot) => {
       setArchivedCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => {
+      console.warn("Archive customers notice:", err?.message);
     });
 
     // Fetch archived orders
     const qOrd = query(collection(db, 'orders'), where('status', '==', 'archived'));
     const unsubOrd = onSnapshot(qOrd, (snapshot) => {
       setArchivedOrders(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    }, (err) => {
+      console.warn("Archive orders notice:", err?.message);
       setLoading(false);
     });
 

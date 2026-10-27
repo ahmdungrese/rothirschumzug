@@ -22,6 +22,7 @@ import { PaymentManager } from '@/components/orders/PaymentManager';
 import { StornoModal } from '@/components/finances/StornoModal';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { calculateOrderTotals, calculateOpenAmount, calculateTotalPaid, isInvoiceCancelled } from '@/lib/financeHelpers';
+import { useAuth } from '@/context/AuthContext';
 
 interface FinanceActionsDropdownProps {
   invoice: any;
@@ -172,6 +173,7 @@ function FinanceActionsDropdown({
 }
 
 export default function FinancesPage() {
+  const { profile, loading: authLoading } = useAuth();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -181,6 +183,7 @@ export default function FinancesPage() {
   const healedOrderIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
+    if (authLoading || profile?.role === 'teamlead' || profile?.canViewPrices === false) return;
     let invoicesData: any[] = [];
     let ordersData: any[] = [];
 
@@ -334,18 +337,22 @@ export default function FinancesPage() {
     const unsubInvoices = onSnapshot(query(collection(db, 'invoices')), (snapshot) => {
       invoicesData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       mergeAndSet();
+    }, (err) => {
+      console.warn("Finances invoices listener warning:", err?.message);
     });
 
     const unsubOrders = onSnapshot(query(collection(db, 'orders')), (snapshot) => {
       ordersData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
       mergeAndSet();
+    }, (err) => {
+      console.warn("Finances orders listener warning:", err?.message);
     });
 
     return () => { 
       unsubInvoices(); 
       unsubOrders();
     };
-  }, []);
+  }, [authLoading, profile?.role, profile?.canViewPrices]);
 
   // Overdue calculation helper
   const isInvoiceOverdue = (inv: any) => {
@@ -438,6 +445,22 @@ export default function FinancesPage() {
       return true;
     });
   }, [invoices, activeTab, searchTerm]);
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (profile?.role === 'teamlead' || profile?.canViewPrices === false) {
+    return (
+      <div className="p-8 text-center text-text-muted">
+        Sie haben keine Berechtigung für diesen Bereich.
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-20 animate-in fade-in duration-500">

@@ -130,6 +130,9 @@ export default function LogisticsPage() {
     const unsubOrders = onSnapshot(qOrders, (snap) => {
       currentOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       processData();
+    }, (err) => {
+      console.warn("Logistics orders notice:", err?.message);
+      setLoading(false);
     });
 
     const unsubCustomers = onSnapshot(qCustomers, (snap) => {
@@ -139,6 +142,8 @@ export default function LogisticsPage() {
       });
       setCustomers({ ...currentCustomers });
       processData();
+    }, (err) => {
+      console.warn("Logistics customers notice:", err?.message);
     });
 
     return () => {

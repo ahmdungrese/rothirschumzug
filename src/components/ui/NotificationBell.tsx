@@ -342,6 +342,8 @@ export function NotificationBell() {
           });
         });
       }
+    }, (err) => {
+      console.warn("NotificationBell orders notice:", err?.message);
     });
 
     return () => unsub();

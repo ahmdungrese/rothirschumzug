@@ -20,8 +20,10 @@ import { toast } from 'react-hot-toast';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { SettleClaimModal } from '@/components/customers/SettleClaimModal';
 import { ClaimModal } from '@/components/customers/ClaimModal';
+import { useAuth } from '@/context/AuthContext';
 
 export default function ClaimsPage() {
+  const { profile, loading: authLoading } = useAuth();
   const [claims, setClaims] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -49,6 +51,7 @@ export default function ClaimsPage() {
   }, [loading]);
 
   useEffect(() => {
+    if (authLoading || profile?.role === 'teamlead') return;
     const q = query(collection(db, 'claims'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const fetched = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
@@ -56,12 +59,28 @@ export default function ClaimsPage() {
       setClaims(fetched);
       setLoading(false);
     }, (error) => {
-      console.error("Error fetching claims", error);
+      console.warn("Claims notice:", error?.message);
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [authLoading, profile?.role]);
+
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (profile?.role === 'teamlead') {
+    return (
+      <div className="p-8 text-center text-text-muted">
+        Sie haben keine Berechtigung für diesen Bereich.
+      </div>
+    );
+  }
 
   const updateStatus = async (id: string, newStatus: string) => {
     try {

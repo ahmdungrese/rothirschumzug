@@ -66,6 +66,8 @@ export default function CalendarPage() {
         map[doc.id] = { id: doc.id, ...doc.data() };
       });
       setCustomers(map);
+    }, (err) => {
+      console.warn("Notice: Calendar customers listener", err?.message);
     });
 
     getDoc(doc(db, 'system', 'settings')).then(docSnap => {

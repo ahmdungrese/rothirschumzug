@@ -55,16 +55,23 @@ export function KanbanDispositionBoard() {
         map[d.id] = { id: d.id, ...d.data() };
       });
       setCustomers(map);
+    }, (err) => {
+      console.warn("Customers listener warning:", err?.message);
     });
 
     const unsubClaims = onSnapshot(qClaims, (snap) => {
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setClaims(list);
+    }, (err) => {
+      console.warn("Claims listener warning (expected for non-admin/office):", err?.message);
     });
 
     const unsubOrders = onSnapshot(qOrders, (snap) => {
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       setOrders(list);
+      setLoading(false);
+    }, (err) => {
+      console.warn("Orders listener warning:", err?.message);
       setLoading(false);
     });
 

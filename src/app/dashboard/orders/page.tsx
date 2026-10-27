@@ -284,6 +284,8 @@ export default function OrdersPage() {
         map.set(doc.id, { id: doc.id, ...doc.data() });
       });
       setCustomersMap(map);
+    }, (error) => {
+      console.warn("Orders page customers notice:", error?.message);
     });
 
     return () => {

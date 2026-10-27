@@ -66,6 +66,9 @@ export default function CustomerProfilePage() {
         setEditFormData(data);
       }
       setLoading(false);
+    }, (err) => {
+      console.warn('Customer snapshot error:', err?.message);
+      setLoading(false);
     });
 
     const qOrders = query(collection(db, 'orders'), where('customerId', '==', customerId));
@@ -73,54 +76,63 @@ export default function CustomerProfilePage() {
       const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       list.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
       setOrders(list);
+    }, (err) => {
+      console.warn('Orders snapshot error:', err?.message);
     });
 
-    const qInvoices = query(collection(db, 'invoices'), where('customerId', '==', customerId));
-    const unsubInvoices = onSnapshot(qInvoices, (snap) => {
-      const rawList: any[] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const byId = new Map<string, any>();
-      const byNum = new Map<string, any>();
-      rawList.forEach(inv => {
-        byId.set(inv.id, inv);
-        if (inv.invoiceNumber && !inv.isStorno) {
-          byNum.set(inv.invoiceNumber, inv);
-        }
-      });
-
-      const seenStorno = new Set<string>();
-      const deduped = rawList
-        .filter(inv => {
-          if (inv.isStorno || String(inv.invoiceNumber || '').startsWith('ST-')) {
-            const key = inv.invoiceNumber || inv.id;
-            if (seenStorno.has(key)) return false;
-            seenStorno.add(key);
+    // Invoices are restricted to admin and office by Firestore security rules
+    let unsubInvoices = () => {};
+    const canReadInvoices = profile?.role !== 'teamlead' && profile?.canViewPrices !== false;
+    if (canReadInvoices) {
+      const qInvoices = query(collection(db, 'invoices'), where('customerId', '==', customerId));
+      unsubInvoices = onSnapshot(qInvoices, (snap) => {
+        const rawList: any[] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const byId = new Map<string, any>();
+        const byNum = new Map<string, any>();
+        rawList.forEach(inv => {
+          byId.set(inv.id, inv);
+          if (inv.invoiceNumber && !inv.isStorno) {
+            byNum.set(inv.invoiceNumber, inv);
           }
-          return true;
-        })
-        .map(inv => {
-          if (!inv.isStorno) return inv;
-          const orig = (inv.originalInvoiceId ? byId.get(inv.originalInvoiceId) : null) ||
-            (inv.cancelsInvoiceNumber ? byNum.get(inv.cancelsInvoiceNumber) : null);
-          if (!orig) return inv;
-          return {
-            ...inv,
-            sourceOrderId: inv.sourceOrderId || orig.sourceOrderId,
-            totals: inv.totals || orig.totals || orig.calcInput,
-            calcInput: inv.calcInput || orig.calcInput,
-            logistics: inv.logistics || orig.logistics,
-            customerData: inv.customerData || orig.customerData
-          };
         });
 
-      setFreeInvoices(deduped);
-    });
+        const seenStorno = new Set<string>();
+        const deduped = rawList
+          .filter(inv => {
+            if (inv.isStorno || String(inv.invoiceNumber || '').startsWith('ST-')) {
+              const key = inv.invoiceNumber || inv.id;
+              if (seenStorno.has(key)) return false;
+              seenStorno.add(key);
+            }
+            return true;
+          })
+          .map(inv => {
+            if (!inv.isStorno) return inv;
+            const orig = (inv.originalInvoiceId ? byId.get(inv.originalInvoiceId) : null) ||
+              (inv.cancelsInvoiceNumber ? byNum.get(inv.cancelsInvoiceNumber) : null);
+            if (!orig) return inv;
+            return {
+              ...inv,
+              sourceOrderId: inv.sourceOrderId || orig.sourceOrderId,
+              totals: inv.totals || orig.totals || orig.calcInput,
+              calcInput: inv.calcInput || orig.calcInput,
+              logistics: inv.logistics || orig.logistics,
+              customerData: inv.customerData || orig.customerData
+            };
+          });
+
+        setFreeInvoices(deduped);
+      }, (err) => {
+        console.warn('Invoices snapshot error (expected for teamlead):', err?.message);
+      });
+    }
 
     return () => {
       unsubCustomer();
       unsubOrders();
       unsubInvoices();
     };
-  }, [customerId]);
+  }, [customerId, profile?.role, profile?.canViewPrices]);
 
   useEffect(() => {
     if (action === 'view-protocol' && orders.length > 0) {
