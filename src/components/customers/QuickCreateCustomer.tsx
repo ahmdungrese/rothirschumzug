@@ -7,7 +7,8 @@ import { toast } from 'react-hot-toast';
 import { useAuth } from "@/context/AuthContext";
 import { logActivity } from "@/lib/activityLogger";
 import { useModalBackHandler } from "@/hooks/useModalBackHandler";
-import { sanitizeText } from "@/lib/inputValidation";
+import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { sanitizeText, sanitizePhoneNumber, validateCustomerEmail, validateCustomerPhone, ARABIC_CHARS_REGEX } from "@/lib/inputValidation";
 
 export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
   const [type, setType] = useState<"privat" | "firma">("privat");
@@ -21,6 +22,8 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [source, setSource] = useState("");
+  const [emailError, setEmailError] = useState<string>('');
+  const [phoneError, setPhoneError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
   const [showConfirmCancel, setShowConfirmCancel] = useState(false);
@@ -40,6 +43,15 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!lastName) return;
+
+    const emailErr = validateCustomerEmail(email);
+    const phoneErr = validateCustomerPhone(phone);
+    if (emailErr || phoneErr) {
+      setEmailError(emailErr || '');
+      setPhoneError(phoneErr || '');
+      toast.error(emailErr || phoneErr || 'Bitte korrigieren Sie die markierten Felder.');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -224,12 +236,25 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
           <label className="block text-sm font-medium text-text-muted mb-1">Telefon (Optional, für WhatsApp)</label>
           <input 
             type="text" 
-            maxLength={35}
+            maxLength={30}
             value={phone}
-            onChange={(e) => setPhone(sanitizeText(e.target.value, 35))}
-            className="input-field" 
+            onChange={(e) => {
+              const cleaned = sanitizePhoneNumber(e.target.value, 30);
+              setPhone(cleaned);
+              if (phoneError) setPhoneError(validateCustomerPhone(cleaned) || '');
+            }}
+            onBlur={() => setPhoneError(validateCustomerPhone(phone) || '')}
+            className={`input-field transition-all duration-200 ${
+              phoneError ? 'border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100' : ''
+            }`}
             placeholder="+49 177 4652154"
           />
+          {phoneError && (
+            <div className="flex items-center gap-1.5 mt-1.5 text-xs text-red-400 font-medium animate-in fade-in duration-200">
+              <ExclamationTriangleIcon className="w-4 h-4 shrink-0 text-red-400" />
+              <span>{phoneError}</span>
+            </div>
+          )}
         </div>
         <div>
           <label className="block text-sm font-medium text-text-muted mb-1">E-Mail (Optional)</label>
@@ -237,10 +262,25 @@ export function QuickCreateCustomer({ onClose }: { onClose: () => void }) {
             type="email" 
             maxLength={80}
             value={email}
-            onChange={(e) => setEmail(sanitizeText(e.target.value, 80).trim())}
-            className="input-field" 
+            onChange={(e) => {
+              const cleaned = sanitizeText(e.target.value, 80).trim();
+              setEmail(cleaned);
+              if (emailError || ARABIC_CHARS_REGEX.test(e.target.value)) {
+                setEmailError(validateCustomerEmail(cleaned) || '');
+              }
+            }}
+            onBlur={() => setEmailError(validateCustomerEmail(email) || '')}
+            className={`input-field transition-all duration-200 ${
+              emailError ? 'border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100' : ''
+            }`}
             placeholder="kunde@beispiel.de"
           />
+          {emailError && (
+            <div className="flex items-center gap-1.5 mt-1.5 text-xs text-red-400 font-medium animate-in fade-in duration-200">
+              <ExclamationTriangleIcon className="w-4 h-4 shrink-0 text-red-400" />
+              <span>{emailError}</span>
+            </div>
+          )}
         </div>
       </div>
 

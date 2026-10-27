@@ -17,7 +17,7 @@ import { InventoryWizardModal, ROOM_TYPES } from './InventoryWizardModal';
 import { KartonConfigModal } from './KartonConfigModal';
 import { PdfModal } from '@/components/ui/PdfModal';
 import { FLOOR_OPTIONS } from '@/lib/constants';
-import { sanitizeText } from '@/lib/inputValidation';
+import { sanitizeText, sanitizePhoneNumber, validateCustomerEmail, validateCustomerPhone, ARABIC_CHARS_REGEX } from '@/lib/inputValidation';
 import { withDbTimeout, formatFriendlyError } from '@/lib/networkWatchdog';
 import { modalManager } from '@/lib/modalManager';
 import { FIXED_KEYS, getFixedKey, hasFixedService, isRemovalLocked, applyHvzToServices, applyLiftToServices, ensureTransportService, fixedLine, resolveFixedDefs, type FixedServiceKey } from '@/lib/serviceKeys';
@@ -566,6 +566,9 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     zip: '',
     city: ''
   });
+
+  const [customerEmailError, setCustomerEmailError] = useState<string>('');
+  const [customerPhoneError, setCustomerPhoneError] = useState<string>('');
 
   const [orderMeta, setOrderMeta] = useState<any>({
     movingDateFrom: '',
@@ -2457,19 +2460,59 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               type="email"
               maxLength={80}
               value={customerData.email}
-              onChange={e => setCustomerData(prev => ({...prev, email: sanitizeText(e.target.value, 80).trim()}))}
-              className="input-field w-full"
+              onChange={e => {
+                const val = sanitizeText(e.target.value, 80).trim();
+                setCustomerData(prev => ({...prev, email: val}));
+                if (customerEmailError || ARABIC_CHARS_REGEX.test(e.target.value)) {
+                  setCustomerEmailError(validateCustomerEmail(val) || '');
+                }
+              }}
+              onBlur={() => {
+                setCustomerEmailError(validateCustomerEmail(customerData.email) || '');
+              }}
+              className={`input-field w-full transition-all duration-200 ${
+                customerEmailError
+                  ? 'border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100'
+                  : ''
+              }`}
+              placeholder="kunde@beispiel.de"
             />
+            {customerEmailError && (
+              <div className="flex items-center gap-1.5 mt-1.5 text-xs text-red-400 font-medium animate-in fade-in duration-200">
+                <ExclamationTriangleIcon className="w-4 h-4 shrink-0 text-red-400" />
+                <span>{customerEmailError}</span>
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-xs text-text-muted mb-1">Telefonnummer</label>
             <input
               type="text"
-              maxLength={35}
+              maxLength={30}
               value={customerData.phone}
-              onChange={e => setCustomerData(prev => ({...prev, phone: sanitizeText(e.target.value, 35)}))}
-              className="input-field w-full"
+              onChange={e => {
+                const cleaned = sanitizePhoneNumber(e.target.value, 30);
+                setCustomerData(prev => ({...prev, phone: cleaned}));
+                if (customerPhoneError) {
+                  setCustomerPhoneError(validateCustomerPhone(cleaned) || '');
+                }
+              }}
+              onBlur={() => {
+                setCustomerPhoneError(validateCustomerPhone(customerData.phone) || '');
+              }}
+              className={`input-field w-full transition-all duration-200 ${
+                customerPhoneError
+                  ? 'border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100'
+                  : ''
+              }`}
+              placeholder="+49 176 12345678"
             />
+            {customerPhoneError && (
+              <div className="flex items-center gap-1.5 mt-1.5 text-xs text-red-400 font-medium animate-in fade-in duration-200">
+                <ExclamationTriangleIcon className="w-4 h-4 shrink-0 text-red-400" />
+                <span>{customerPhoneError}</span>
+              </div>
+            )}
           </div>
           <div>
             <label className="block text-xs text-text-muted mb-1">Kundenquelle</label>

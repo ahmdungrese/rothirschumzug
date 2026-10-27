@@ -12,6 +12,7 @@ import { MessageSenderModal } from '@/components/customers/MessageSenderModal';
 import { SignatureModal } from '@/components/orders/SignatureModal';
 import { PdfModal } from '@/components/ui/PdfModal';
 import { ClaimModal } from '@/components/customers/ClaimModal';
+import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
@@ -19,7 +20,7 @@ import { SmartBackButton } from '@/components/ui/SmartBackButton';
 import { useAuth } from '@/context/AuthContext';
 import { logActivity } from '@/lib/activityLogger';
 import { triggerHaptic } from '@/lib/haptics';
-import { sanitizeText } from '@/lib/inputValidation';
+import { sanitizeText, sanitizePhoneNumber, validateCustomerEmail, validateCustomerPhone, ARABIC_CHARS_REGEX } from '@/lib/inputValidation';
 
 export default function CustomerProfilePage() {
   const { profile } = useAuth();
@@ -49,6 +50,8 @@ export default function CustomerProfilePage() {
   const [showClaimModal, setShowClaimModal] = useState(false);
   const [claimOrder, setClaimOrder] = useState<any>(null);
   const [isSavingCustomer, setIsSavingCustomer] = useState(false);
+  const [emailError, setEmailError] = useState<string>('');
+  const [phoneError, setPhoneError] = useState<string>('');
 
   // Close editing modal on mobile back button
   useModalBackHandler(isEditingCustomer, () => setIsEditingCustomer(false), 'edit-customer-modal');
@@ -143,6 +146,15 @@ export default function CustomerProfilePage() {
 
   const handleSaveCustomer = async (e: React.FormEvent) => {
     e.preventDefault();
+    const emailErr = validateCustomerEmail(editFormData.email || '');
+    const phoneErr = validateCustomerPhone(editFormData.phone || '');
+    if (emailErr || phoneErr) {
+      setEmailError(emailErr || '');
+      setPhoneError(phoneErr || '');
+      toast.error(emailErr || phoneErr || 'Bitte korrigieren Sie die markierten Felder.');
+      return;
+    }
+
     setIsSavingCustomer(true);
     try {
       await updateDoc(doc(db, 'customers', customerId), {
@@ -318,11 +330,27 @@ export default function CustomerProfilePage() {
                   <label className="font-bold text-slate-500 uppercase block mb-1">Telefon</label>
                   <input
                     type="text"
-                    maxLength={35}
+                    maxLength={30}
                     value={editFormData.phone || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, phone: sanitizeText(e.target.value, 35) })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-none font-medium"
+                    onChange={(e) => {
+                      const cleaned = sanitizePhoneNumber(e.target.value, 30);
+                      setEditFormData({ ...editFormData, phone: cleaned });
+                      if (phoneError) setPhoneError(validateCustomerPhone(cleaned) || '');
+                    }}
+                    onBlur={() => setPhoneError(validateCustomerPhone(editFormData.phone || '') || '')}
+                    className={`w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-medium transition-all duration-200 ${
+                      phoneError
+                        ? 'border border-red-500/80 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100'
+                        : 'border-none'
+                    }`}
+                    placeholder="+49 176 12345678"
                   />
+                  {phoneError && (
+                    <div className="flex items-center gap-1.5 mt-1.5 text-xs text-red-400 font-medium animate-in fade-in duration-200">
+                      <ExclamationTriangleIcon className="w-4 h-4 shrink-0 text-red-400" />
+                      <span>{phoneError}</span>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="font-bold text-slate-500 uppercase block mb-1">E-Mail</label>
@@ -330,9 +358,27 @@ export default function CustomerProfilePage() {
                     type="email"
                     maxLength={80}
                     value={editFormData.email || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, email: sanitizeText(e.target.value, 80).trim() })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 border-none font-medium"
+                    onChange={(e) => {
+                      const cleaned = sanitizeText(e.target.value, 80).trim();
+                      setEditFormData({ ...editFormData, email: cleaned });
+                      if (emailError || ARABIC_CHARS_REGEX.test(e.target.value)) {
+                        setEmailError(validateCustomerEmail(cleaned) || '');
+                      }
+                    }}
+                    onBlur={() => setEmailError(validateCustomerEmail(editFormData.email || '') || '')}
+                    className={`w-full px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-medium transition-all duration-200 ${
+                      emailError
+                        ? 'border border-red-500/80 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100'
+                        : 'border-none'
+                    }`}
+                    placeholder="kunde@beispiel.de"
                   />
+                  {emailError && (
+                    <div className="flex items-center gap-1.5 mt-1.5 text-xs text-red-400 font-medium animate-in fade-in duration-200">
+                      <ExclamationTriangleIcon className="w-4 h-4 shrink-0 text-red-400" />
+                      <span>{emailError}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 

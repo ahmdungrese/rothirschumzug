@@ -30,7 +30,16 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.19.1 (Current) – Synchronous Role Guard, Zero-Flash Route Protection & Teamleiter Access Shield
+### Version 2.19.2 (Current) – Contextual Email & Phone Assistant, Arabic Char Shield & Strict Number Formatting
+*   **Contextual Email Validation Assistant (`OrderEditor.tsx`, `customers/[id]/page.tsx`, `QuickCreateCustomer.tsx`, `InvoiceEditor.tsx`)**:
+    *   Added dedicated live field auditing with App DNA styling (`border-red-500/80`, `ExclamationTriangleIcon`, German warning hints) beneath Email fields.
+    *   Instant detection and warning when users accidentally type Arabic letters, vowels, hamza, or shadda (`ARABIC_CHARS_REGEX`).
+    *   Specific contextual feedback for missing `@`, multiple `@`, spaces, missing domain extension, or invalid characters.
+*   **Strict Phone Sanitization & Formatting Guard (`inputValidation.ts`, `OrderEditor.tsx`, `customers/[id]/page.tsx`, `QuickCreateCustomer.tsx`)**:
+    *   Implemented `sanitizePhoneNumber`: automatically strips all Latin and Arabic alphabetical letters upon typing, strictly permitting only `+` (at the start) and digits/clean separators.
+    *   Real-time and `onBlur` phone auditing warning if less than 6 digits are provided or if invalid inputs are entered.
+
+### Version 2.19.1 – Synchronous Role Guard, Zero-Flash Route Protection & Teamleiter Access Shield
 *   **Zero-Flash Synchronous Role Guard (`dashboard/layout.tsx`, `dashboard/page.tsx`)**:
     *   Eliminated the "Flash of Unauthorized Content" (وميض المحتوى غير المصرح به) where accessing `/dashboard` as a Teamleiter rendered the Kanban board for a fraction of a second prior to redirecting.
     *   Replaced post-mount `useEffect` redirection with synchronous permission evaluation before rendering `children`.

@@ -18,7 +18,7 @@ import {
 import { StornoModal } from '@/components/finances/StornoModal';
 import { getServiceIcon } from './OrderEditor';
 import { autoCompletePreMoveTasks } from '@/lib/taskStateController';
-import { sanitizeText } from '@/lib/inputValidation';
+import { sanitizeText, validateCustomerEmail, ARABIC_CHARS_REGEX } from '@/lib/inputValidation';
 
 const STANDARD_SERVICES_A = [
   { id: 'kartonlieferung', name: 'Kartonlieferung vorab', price: 65, unit: 'pauschal', icon: 'inventory_2', defaultDesc: 'Anlieferung von Umzugskartons und Packmaterial vor dem Umzugstermin.' },
@@ -169,6 +169,7 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
     zip: '',
     city: ''
   });
+  const [customerEmailError, setCustomerEmailError] = useState<string>('');
 
   const [orderMeta, setOrderMeta] = useState({
     invoiceDate: new Date().toISOString().split('T')[0],
@@ -1107,7 +1108,30 @@ export function InvoiceEditor({ orderId, sourceOrderId }: { orderId?: string, so
             
             <div>
               <label className="block text-xs text-text-muted mb-1">E-Mail Adresse</label>
-              <input disabled={isLocked} type="email" maxLength={80} value={customerData.email} onChange={e => setCustomerData({...customerData, email: sanitizeText(e.target.value, 80).trim()})} className="input-field w-full disabled:opacity-60 disabled:cursor-not-allowed" />
+              <input 
+                disabled={isLocked} 
+                type="email" 
+                maxLength={80} 
+                value={customerData.email} 
+                onChange={e => {
+                  const cleaned = sanitizeText(e.target.value, 80).trim();
+                  setCustomerData({...customerData, email: cleaned});
+                  if (customerEmailError || ARABIC_CHARS_REGEX.test(e.target.value)) {
+                    setCustomerEmailError(validateCustomerEmail(cleaned) || '');
+                  }
+                }} 
+                onBlur={() => setCustomerEmailError(validateCustomerEmail(customerData.email) || '')}
+                className={`input-field w-full disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 ${
+                  customerEmailError ? 'border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100' : ''
+                }`} 
+                placeholder="kunde@beispiel.de"
+              />
+              {customerEmailError && (
+                <div className="flex items-center gap-1.5 mt-1.5 text-xs text-red-400 font-medium animate-in fade-in duration-200">
+                  <ExclamationTriangleIcon className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>{customerEmailError}</span>
+                </div>
+              )}
             </div>
 
             <div className="col-span-1 md:col-span-2 lg:col-span-4 mt-2 border-t border-structure pt-4">

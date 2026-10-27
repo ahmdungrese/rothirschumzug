@@ -9,8 +9,97 @@ export const EMAIL_REGEX = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-z
 // Human name regex: letters (including German Umlauts & Arabic), spaces, hyphens, dots, apostrophes
 export const HUMAN_NAME_REGEX = /^[a-zA-ZÀ-ÿ\u0600-\u06FF\s\-'.]+$/;
 
+// Arabic characters detection (letters, vowels, hamza, shadda, etc.)
+export const ARABIC_CHARS_REGEX = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+
 // Allowed characters in phone numbers
 export const PHONE_CHARS_REGEX = /^[+0-9\s\-./()]+$/;
+
+// Strictly sanitize phone numbers: allows only '+' (at start), digits, and clean spaces/hyphens
+export function sanitizePhoneNumber(val: string, maxLength: number = 30): string {
+  if (typeof val !== 'string') return '';
+  // Remove all Arabic letters, Latin letters, and non-phone symbols
+  let cleaned = val.replace(/[^0-9+\s\-/()]/g, '');
+  // Keep '+' only if it is at the very beginning
+  const startsWithPlus = cleaned.trimStart().startsWith('+');
+  cleaned = cleaned.replace(/\+/g, '');
+  if (startsWithPlus) {
+    cleaned = '+' + cleaned;
+  }
+  return cleaned.slice(0, maxLength);
+}
+
+// Dedicated Customer Email Validator with helpful App DNA German messages
+export function validateCustomerEmail(email: string, required: boolean = false): string | null {
+  const trimmed = email.trim();
+  if (!trimmed) {
+    if (required) return 'Bitte geben Sie eine E-Mail-Adresse ein.';
+    return null;
+  }
+  if (containsMaliciousCode(email)) {
+    return 'Ungültige Eingabe: HTML- oder Script-Code ist nicht erlaubt.';
+  }
+  if (ARABIC_CHARS_REGEX.test(email)) {
+    return 'Arabische Schriftzeichen sind in E-Mail-Adressen nicht zulässig (bitte lateinische Buchstaben nutzen).';
+  }
+  if (/\s/.test(email)) {
+    return 'E-Mail-Adressen dürfen keine Leerzeichen enthalten.';
+  }
+  if (!email.includes('@')) {
+    return "Ungültiges Format: Es fehlt das '@'-Zeichen (z.B. name@beispiel.de).";
+  }
+  const parts = email.split('@');
+  if (parts.length > 2) {
+    return "Ungültiges Format: Nur ein '@'-Zeichen erlaubt.";
+  }
+  const [localPart, domainPart] = parts;
+  if (!localPart) {
+    return 'Vor dem @-Zeichen muss ein Benutzername stehen.';
+  }
+  if (!domainPart) {
+    return 'Nach dem @-Zeichen muss eine Domain folgen (z.B. gmx.de).';
+  }
+  if (/[äöüßÄÖÜ]/.test(domainPart)) {
+    return 'Umlaute (ä, ö, ü) sind in E-Mail-Domains meist ungültig (z.B. ae statt ä nutzen).';
+  }
+  if (!domainPart.includes('.')) {
+    return 'Die Domain benötigt eine Endung (z.B. .de, .com).';
+  }
+  const tld = domainPart.split('.').pop();
+  if (!tld || tld.length < 2) {
+    return 'Ungültige Domain-Endung (z.B. .de oder .com erforderlich).';
+  }
+  if (!EMAIL_REGEX.test(trimmed)) {
+    return 'Bitte geben Sie eine gültige E-Mail-Adresse ein (z.B. name@beispiel.de).';
+  }
+  return null;
+}
+
+// Dedicated Customer Phone Validator
+export function validateCustomerPhone(phone: string, required: boolean = false): string | null {
+  const trimmed = phone.trim();
+  if (!trimmed) {
+    if (required) return 'Bitte geben Sie eine Telefonnummer ein.';
+    return null;
+  }
+  if (containsMaliciousCode(phone)) {
+    return 'Ungültige Eingabe: HTML- oder Script-Code ist nicht erlaubt.';
+  }
+  if (ARABIC_CHARS_REGEX.test(phone)) {
+    return 'Arabische Schriftzeichen sind in Telefonnummern nicht erlaubt.';
+  }
+  if (/[a-zA-Z]/.test(phone)) {
+    return 'Buchstaben sind in Telefonnummern nicht erlaubt (nur Ziffern und optional +).';
+  }
+  const digitsOnly = trimmed.replace(/[^0-9]/g, '');
+  if (digitsOnly.length < 6) {
+    return 'Die Telefonnummer ist zu kurz (mindestens 6 Ziffern erforderlich).';
+  }
+  if (digitsOnly.length > 20) {
+    return 'Die Telefonnummer ist zu lang (maximal 20 Ziffern).';
+  }
+  return null;
+}
 
 // Detects dangerous script tags, HTML tags, or javascript pseudo-protocols
 export function containsMaliciousCode(val: string): boolean {
