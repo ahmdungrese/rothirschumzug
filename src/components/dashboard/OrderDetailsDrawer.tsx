@@ -24,7 +24,8 @@ import {
   HomeIcon,
   ArrowPathIcon,
   EyeIcon,
-  UserIcon
+  UserIcon,
+  UserGroupIcon
 } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/navigation';
 import { evaluateOrderLogistics } from '@/lib/orderValidation';
@@ -37,7 +38,7 @@ import { ProtocolModal } from '@/components/customers/ProtocolModal';
 import { MessageSenderModal } from '@/components/customers/MessageSenderModal';
 import { PdfModal } from '@/components/ui/PdfModal';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, onSnapshot, collection, query, serverTimestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 import { modalManager } from '@/lib/modalManager';
@@ -117,12 +118,31 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
   const [isUpdatingTask, setIsUpdatingTask] = useState(false);
   const [internalCustomer, setInternalCustomer] = useState<any>(customer || null);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
-  const [pdfModalType, setPdfModalType] = useState<'order' | 'invoice' | 'protocol'>('order');
+  const [pdfModalType, setPdfModalType] = useState<'order' | 'invoice' | 'protocol' | 'employee'>('order');
   const [earlyInvoiceWarningOpen, setEarlyInvoiceWarningOpen] = useState(false);
   const [scanPreviewOpen, setScanPreviewOpen] = useState(false);
   const [isUploadingScan, setIsUploadingScan] = useState(false);
   const [editingDispoInline, setEditingDispoInline] = useState(false);
+  const [drawerTeamLeads, setDrawerTeamLeads] = useState<Array<{ uid: string; displayName: string; role: string }>>([]);
   const scanInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const q = query(collection(db, 'users'));
+    const unsub = onSnapshot(q, (snap) => {
+      const leads = snap.docs
+        .map(d => ({ uid: d.id, ...d.data() } as any))
+        .filter(u => u.role === 'teamlead' || u.role === 'admin')
+        .map(u => ({
+          uid: u.uid || u.id,
+          displayName: u.displayName || u.name || u.email || 'Teamleiter',
+          role: u.role
+        }));
+      setDrawerTeamLeads(leads);
+    }, (err) => {
+      console.warn('Could not load team leads in drawer:', err);
+    });
+    return () => unsub();
+  }, []);
 
   useEffect(() => {
     if (customer) {
@@ -447,6 +467,42 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
     } catch (e) {
       console.error('Fehler beim Aktualisieren der Disposition:', e);
       toast.error('Fehler beim Aktualisieren der Disposition');
+    }
+  };
+
+  // Direct Teamleiter assignment update
+  const handleAssignTeamLeadInline = async (leadUid: string) => {
+    if (!order?.id) return;
+    try {
+      const selectedLead = drawerTeamLeads.find(l => l.uid === leadUid);
+      const leadName = selectedLead ? selectedLead.displayName : '';
+      const prevDispo = order.disposition || {};
+      const nextDispo = {
+        ...prevDispo,
+        assignedTeamLeadUid: leadUid || null,
+        assignedTeamLeadName: leadName || null,
+      };
+
+      await updateDoc(doc(db, 'orders', order.id), {
+        disposition: nextDispo,
+        'disposition.assignedTeamLeadUid': leadUid || null,
+        'disposition.assignedTeamLeadName': leadName || null,
+        assignedTeamLeadUid: leadUid || null,
+        assignedTeamLeadName: leadName || null,
+      });
+
+      setOrder((prev: any) => ({
+        ...prev,
+        disposition: nextDispo,
+        assignedTeamLeadUid: leadUid || null,
+        assignedTeamLeadName: leadName || null,
+      }));
+
+      toast.success(leadUid ? `Teamleiter „${leadName}“ zugewiesen ✓` : 'Teamleiter-Zuweisung entfernt');
+      if (onRefresh) onRefresh();
+    } catch (e) {
+      console.error('Fehler beim Zuweisen des Teamleiters:', e);
+      toast.error('Fehler beim Zuweisen des Teamleiters');
     }
   };
 
@@ -1641,6 +1697,12 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                                 <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                                   {hasResourceData ? (
                                     <>
+                                      {(order.disposition?.assignedTeamLeadName || order.assignedTeamLeadName) && (
+                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 flex items-center gap-1 border border-amber-500/20">
+                                          <UserGroupIcon className="w-3 h-3" />
+                                          <span>Leiter: {order.disposition?.assignedTeamLeadName || order.assignedTeamLeadName}</span>
+                                        </span>
+                                      )}
                                       {helperCount > 0 && (
                                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary flex items-center gap-1">
                                           <UserIcon className="w-3 h-3" />
@@ -1743,6 +1805,25 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                                 </div>
                               </div>
 
+                              {/* Zuständiger Teamleiter Auswahl */}
+                              <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                                <label className="text-[10px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                                  Zuständiger Teamleiter (Laufzettel &amp; Kalender):
+                                </label>
+                                <select
+                                  value={order.disposition?.assignedTeamLeadUid || order.assignedTeamLeadUid || ''}
+                                  onChange={(e) => handleAssignTeamLeadInline(e.target.value)}
+                                  className="w-full text-xs font-bold p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 cursor-pointer"
+                                >
+                                  <option value="">-- Kein Teamleiter zugewiesen --</option>
+                                  {drawerTeamLeads.map((lead) => (
+                                    <option key={lead.uid} value={lead.uid}>
+                                      🚚 {lead.displayName} ({lead.role === 'teamlead' ? 'Teamleiter' : 'Admin'})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
                               <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-800">
                                 <span className="text-[10px] text-slate-400">
                                   Wird direkt gespeichert &amp; als disponiert markiert
@@ -1758,7 +1839,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                             </div>
                           )}
 
-                          <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-slate-700">
+                          <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-slate-700 flex-wrap gap-2">
                             <span>
                               {order.orderMeta?.movingDateFrom ? (
                                 <>
@@ -1769,6 +1850,18 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                                 'Kein Umzugstermin im Angebot angegeben'
                               )}
                             </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPdfModalType('employee');
+                                setPdfModalOpen(true);
+                              }}
+                              className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-bold border border-amber-500/30 transition-all flex items-center gap-1 cursor-pointer"
+                              title="Operativen Mitarbeiter-Laufzettel (PDF ohne Preise) öffnen"
+                            >
+                              <TruckIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                              <span>Laufzettel PDF</span>
+                            </button>
                           </div>
                         </div>
                       );

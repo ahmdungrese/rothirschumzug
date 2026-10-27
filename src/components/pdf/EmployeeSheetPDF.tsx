@@ -171,6 +171,27 @@ const styles = StyleSheet.create({
   },
 });
 
+const calculateInventoryCbm = (inventory: any[]) => {
+  if (!Array.isArray(inventory)) return 0;
+  return inventory.reduce((sum, item) => sum + (Number(item.cbm) || 0) * (Number(item.quantity) || 1), 0).toFixed(1);
+};
+
+const getCartonsCount = (order: any) => {
+  let count = 0;
+  if (Array.isArray(order?.inventory)) {
+    order.inventory.forEach((item: any) => {
+      const lower = (item.name || '').toLowerCase();
+      if (lower.includes('karton') || lower.includes('box')) {
+        count += Number(item.quantity) || 0;
+      }
+    });
+  }
+  if (count === 0 && order?.orderMeta?.kartonCount) {
+    count = Number(order.orderMeta.kartonCount) || 0;
+  }
+  return count;
+};
+
 export const EmployeeSheetPDF = ({
   order,
   customer,
@@ -183,6 +204,9 @@ export const EmployeeSheetPDF = ({
   settings?: any;
 }) => {
   const docTitle = `Laufzettel - ${customer?.lastName || 'Kunde'}`;
+  const totalCbm = order?.estimatedCbm || order?.orderMeta?.estimatedCbm || calculateInventoryCbm(order?.inventory) || 0;
+  const cartons = getCartonsCount(order);
+  const assignedTeamLead = order?.disposition?.assignedTeamLeadName || '';
 
   return (
     <Document title={docTitle}>
@@ -195,7 +219,7 @@ export const EmployeeSheetPDF = ({
           <Text style={styles.title}>Laufzettel für Mitarbeiter</Text>
           <Text style={styles.subtitle}>
             Auftrag / Angebot: {order?.contractNumber || order?.orderNumber || 'Entwurf'}
-            {employeeName ? ` | Disponent / Sachbearbeiter: ${employeeName}` : ''}
+            {assignedTeamLead ? ` | Teamleiter: ${assignedTeamLead}` : employeeName ? ` | Disponent: ${employeeName}` : ''}
           </Text>
         </View>
 
@@ -250,7 +274,15 @@ export const EmployeeSheetPDF = ({
 
         {/* Logistics Parameters & Disposition */}
         <View style={styles.paramsCard}>
-          <Text style={styles.paramHeader}>Logistische Parameter & Disposition:</Text>
+          <Text style={styles.paramHeader}>Logistische Parameter &amp; Disposition:</Text>
+          {assignedTeamLead ? (
+            <Text style={{ ...styles.paramText, fontFamily: 'Helvetica-Bold', color: PDF_COLORS.primary }}>
+              Zuständiger Teamleiter: {assignedTeamLead}
+            </Text>
+          ) : null}
+          <Text style={styles.paramText}>
+            Umzugsvolumen: ca. {totalCbm} m³ {cartons > 0 ? `| Umzugskartons: ca. ${cartons} Stück` : ''}
+          </Text>
           <Text style={styles.paramText}>
             Möbellift benötigt: {order?.logistics?.a_furnitureLift || order?.logistics?.b_furnitureLift ? 'Ja (wird gestellt)' : 'Nein'}
           </Text>
@@ -282,6 +314,69 @@ export const EmployeeSheetPDF = ({
             </View>
           ))}
         </View>
+
+        {/* Inventarliste / Umzugsgut (falls vorhanden) */}
+        {order?.inventory && order.inventory.length > 0 && (
+          <View style={{ marginBottom: 12 }}>
+            <Text style={{ ...styles.paramHeader, marginTop: 4, marginBottom: 4 }}>
+              Umzugsgut &amp; Inventarliste ({order.inventory.length} Positionen):
+            </Text>
+            <View style={styles.table}>
+              <View style={styles.tableHeader} fixed>
+                <Text style={{ width: '45%' }}>Möbelstück / Gegenstand</Text>
+                <Text style={{ width: '40%' }}>Montage / Besonderheiten</Text>
+                <Text style={{ width: '15%', textAlign: 'center' }}>Menge</Text>
+              </View>
+              {Object.entries(
+                order.inventory.reduce((acc: any, item: any) => {
+                  const room = item.room || 'Allgemein';
+                  if (!acc[room]) acc[room] = [];
+                  acc[room].push(item);
+                  return acc;
+                }, {})
+              ).map(([room, items]: [string, any], rIdx: number) => (
+                <React.Fragment key={rIdx}>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      backgroundColor: '#f8fafc',
+                      padding: '3px 6px',
+                      borderBottomWidth: 1,
+                      borderBottomColor: PDF_COLORS.border,
+                      borderLeftWidth: 2,
+                      borderLeftColor: PDF_COLORS.primary,
+                    }}
+                    wrap={false}
+                  >
+                    <Text style={{ fontSize: 8, fontFamily: 'Helvetica-Bold', color: PDF_COLORS.primary }}>
+                      {room.toUpperCase()}
+                    </Text>
+                  </View>
+                  {items.map((item: any, i: number) => {
+                    const services = [
+                      item.disassembly ? `${item.disassembly}x Abbau` : null,
+                      item.assembly ? `${item.assembly}x Aufbau` : null,
+                      item.disconnection ? `${item.disconnection}x Abklemmen` : null,
+                      item.connection ? `${item.connection}x Anschluss` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' | ');
+
+                    return (
+                      <View key={i} style={styles.tableRow} wrap={false}>
+                        <Text style={{ width: '45%', fontSize: 8, fontFamily: 'Helvetica' }}>{item.name}</Text>
+                        <Text style={{ width: '40%', fontSize: 7.5, color: PDF_COLORS.textMuted }}>{services || '—'}</Text>
+                        <Text style={{ width: '15%', textAlign: 'center', fontSize: 8, fontFamily: 'Helvetica-Bold' }}>
+                          {item.quantity || 1}x
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </React.Fragment>
+              ))}
+            </View>
+          </View>
+        )}
 
         {/* Checklist */}
         <View wrap={false}>

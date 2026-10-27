@@ -14,7 +14,7 @@ import { evaluateOrderLogistics } from '@/lib/orderValidation';
 import { hasFixedService } from '@/lib/serviceKeys';
 import { toggleTaskCompletion, updateTaskSchedule, isTaskCompleted, autoCompletePreMoveTasks } from '@/lib/taskStateController';
 import { ensureOrderNumber } from '@/lib/orderStateMachine';
-import { updateDoc, doc, getDoc } from 'firebase/firestore';
+import { updateDoc, doc, getDoc, collection, query, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
@@ -26,6 +26,7 @@ import { exportOrderMoveToCalendar, exportOrderViewingToCalendar } from '@/lib/c
 import { 
   DocumentTextIcon, 
   DocumentCheckIcon, 
+  DocumentArrowDownIcon,
   MapPinIcon, 
   TruckIcon, 
   ClockIcon, 
@@ -54,7 +55,8 @@ import {
   UserGroupIcon,
   ArrowTopRightOnSquareIcon,
   AdjustmentsHorizontalIcon,
-  EllipsisHorizontalIcon
+  EllipsisHorizontalIcon,
+  ChevronDownIcon
 } from '@heroicons/react/24/outline';
 import { StornoModal } from '@/components/finances/StornoModal';
 import { OrderDetailsDrawer } from '@/components/dashboard/OrderDetailsDrawer';
@@ -200,6 +202,63 @@ export function CustomerPremiumProfile({
 
   const activeProtocols = activeOrder?.protocols || [];
   const hasActiveProtocols = activeProtocols.length > 0;
+
+  // Role permissions
+  const isTeamLead = profile?.role === 'teamlead' || profile?.canViewPrices === false;
+
+  // Available Teamleiters for moving assignment
+  const [teamLeads, setTeamLeads] = useState<Array<{ uid: string; displayName: string; role: string; email?: string }>>([]);
+  const [isAssigningTeamLead, setIsAssigningTeamLead] = useState(false);
+
+  useEffect(() => {
+    const q = query(collection(db, 'users'));
+    const unsub = onSnapshot(q, (snap) => {
+      const leads = snap.docs
+        .map(d => ({ uid: d.id, ...d.data() } as any))
+        .filter(u => u.role === 'teamlead' || u.role === 'admin')
+        .map(u => ({
+          uid: u.uid || u.id,
+          displayName: u.displayName || u.name || u.email || 'Teamleiter',
+          role: u.role,
+          email: u.email
+        }));
+      setTeamLeads(leads);
+    }, (err) => {
+      console.warn('Could not load team leads:', err);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleAssignTeamLead = async (leadUid: string) => {
+    if (!activeOrder?.id) return;
+    setIsAssigningTeamLead(true);
+    try {
+      const selectedLead = teamLeads.find(l => l.uid === leadUid);
+      const leadName = selectedLead ? selectedLead.displayName : '';
+      const prevDispo = activeOrder.disposition || {};
+      const nextDispo = {
+        ...prevDispo,
+        assignedTeamLeadUid: leadUid || null,
+        assignedTeamLeadName: leadName || null,
+      };
+
+      await updateDoc(doc(db, 'orders', activeOrder.id), {
+        disposition: nextDispo,
+        'disposition.assignedTeamLeadUid': leadUid || null,
+        'disposition.assignedTeamLeadName': leadName || null,
+        assignedTeamLeadUid: leadUid || null,
+        assignedTeamLeadName: leadName || null,
+      });
+
+      toast.success(leadUid ? `Teamleiter „${leadName}“ erfolgreich zugewiesen! 🚚` : 'Teamleiter-Zuweisung aufgehoben');
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      console.error('Fehler bei Teamleiter-Zuweisung:', err);
+      toast.error('Fehler beim Zuweisen des Teamleiters');
+    } finally {
+      setIsAssigningTeamLead(false);
+    }
+  };
 
   // Invoice detection for active order (from parent order or linked invoice document)
   const linkedInvoice = findActiveLinkedInvoice(activeOrder, invoices);
@@ -1405,43 +1464,73 @@ export function CustomerPremiumProfile({
           );
         })()}
 
-        {/* 3. Financial Health Card with Visual Progress */}
+        {/* 3. For Disponent: Finanzen & Zahlung / For Teamleiter: Umzugsteam & Fuhrpark (Zero Prices) */}
         {activeOrder && (
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-headline">
-                Finanzen & Zahlung
-              </span>
-              <CurrencyEuroIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            </div>
-            
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-extrabold text-slate-900 dark:text-white font-headline">
-                €{totals.gross.toLocaleString('de-DE')}
-              </span>
-              <span className="text-xs font-semibold text-slate-400">Brutto</span>
-            </div>
-
-            {/* Payment Progress Bar */}
-            <div className="space-y-1.5 pt-1">
-              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                <div 
-                  className="bg-emerald-500 h-2 rounded-full transition-all duration-500" 
-                  style={{ width: `${paidPercentage}%` }}
-                ></div>
+          !isTeamLead ? (
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-headline">
+                  Finanzen &amp; Zahlung
+                </span>
+                <CurrencyEuroIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
               </div>
-              <div className="flex justify-between text-[11px] font-medium text-slate-500">
-                <span>Bezahlt: €{totalPaid.toLocaleString('de-DE')} ({paidPercentage}%)</span>
-                <span className={!hasInvoice ? 'text-slate-400 font-semibold' : openAmount > 0 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-emerald-600 font-bold'}>
-                  {!hasInvoice 
-                    ? latestCancelledInvoiceNum ? `Storniert (${latestCancelledInvoiceNum}) – Korrektur offen` : 'Rechnung noch offen' 
-                    : openAmount > 0 
-                      ? `Offen: €${openAmount.toLocaleString('de-DE')}` 
-                      : 'Ausgeglichen'}
+              
+              <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-extrabold text-slate-900 dark:text-white font-headline">
+                  €{totals.gross.toLocaleString('de-DE')}
+                </span>
+                <span className="text-xs font-semibold text-slate-400">Brutto</span>
+              </div>
+
+              {/* Payment Progress Bar */}
+              <div className="space-y-1.5 pt-1">
+                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
+                  <div 
+                    className="bg-emerald-500 h-2 rounded-full transition-all duration-500" 
+                    style={{ width: `${paidPercentage}%` }}
+                  ></div>
+                </div>
+                <div className="flex justify-between text-[11px] font-medium text-slate-500">
+                  <span>Bezahlt: €{totalPaid.toLocaleString('de-DE')} ({paidPercentage}%)</span>
+                  <span className={!hasInvoice ? 'text-slate-400 font-semibold' : openAmount > 0 ? 'text-amber-600 dark:text-amber-400 font-bold' : 'text-emerald-600 font-bold'}>
+                    {!hasInvoice 
+                      ? latestCancelledInvoiceNum ? `Storniert (${latestCancelledInvoiceNum}) – Korrektur offen` : 'Rechnung noch offen' 
+                      : openAmount > 0 
+                        ? `Offen: €${openAmount.toLocaleString('de-DE')}` 
+                        : 'Ausgeglichen'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400 font-headline">
+                  Umzugsteam &amp; Fuhrpark
+                </span>
+                <TruckIcon className="w-5 h-5 text-[#6E8F64]" />
+              </div>
+              
+              <div className="flex items-baseline gap-2">
+                <span className="text-xl font-extrabold text-slate-900 dark:text-white font-headline">
+                  {activeOrder.disposition?.helpers || 0} Helfer • {(Number(activeOrder.disposition?.koffer35t) || 0) + (Number(activeOrder.disposition?.lkw7t) || 0)} LKW
                 </span>
               </div>
+
+              <div className="pt-1 text-xs text-slate-500 dark:text-slate-400 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span>Volumen:</span>
+                  <strong className="text-slate-700 dark:text-slate-300">ca. {activeOrder.estimatedCbm || activeOrder.orderMeta?.estimatedCbm || '–'} m³</strong>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Teamleiter:</span>
+                  <strong className="text-emerald-600 dark:text-emerald-400">
+                    {activeOrder.disposition?.assignedTeamLeadName || activeOrder.assignedTeamLeadName || 'Kein Teamleiter'}
+                  </strong>
+                </div>
+              </div>
             </div>
-          </div>
+          )
         )}
 
       </div>
@@ -1810,7 +1899,17 @@ export function CustomerPremiumProfile({
         let primaryActions: React.ReactNode[] = [];
         let menuActions: (React.ReactNode | null)[] = [];
 
-        if (currentPhaseInfo.phase <= 2 && !isSigned) {
+        if (isTeamLead) {
+          // Teamleiter: Ausschlielich operative Aktionen (Laufzettel, Protokoll, Kalender, Reklamation)
+          primaryActions = [
+            renderLaufzettelBtn(false),
+            renderProtokollBtn(false),
+            renderKalenderBtn(false),
+          ];
+          menuActions = [
+            renderReklamationBtn(true),
+          ];
+        } else if (currentPhaseInfo.phase <= 2 && !isSigned) {
           // Phase 1 & 2: Negotiation / Offer
           primaryActions = [
             renderAngebotPdfBtn(false),
@@ -2047,6 +2146,92 @@ export function CustomerPremiumProfile({
             </button>
           </div>
 
+        </div>
+      )}
+
+      {/* Teamleiter-Zuweisung & Operativer Laufzettel (Elegantes Zuweisungs-Panel) */}
+      {activeOrder && activeOrder.status !== 'archived' && (
+        <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            
+            {/* Left: Icon & Description */}
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-11 h-11 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                <UserGroupIcon className="w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-headline font-bold text-sm sm:text-base text-slate-900 dark:text-white">
+                    Zuständiger Teamleiter &amp; Laufzettel
+                  </h3>
+                  {(activeOrder.disposition?.assignedTeamLeadName || activeOrder.assignedTeamLeadName) ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                      <CheckCircleIcon className="w-3.5 h-3.5" />
+                      <span>{activeOrder.disposition?.assignedTeamLeadName || activeOrder.assignedTeamLeadName}</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
+                      <span>Noch nicht zugewiesen</span>
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-xl">
+                  {isTeamLead 
+                    ? "Hier können Sie den vollständigen operativen Laufzettel mit Umzugsgut, Belade- & Entladestelle und Checkliste einsehen."
+                    : "Wählen Sie den verantwortlichen Teamleiter. Nur der eingeteilte Teamleiter sieht diesen Umzug in seinem Kalender und erhält den operativen Laufzettel."
+                  }
+                </p>
+              </div>
+            </div>
+
+            {/* Right: Interactive Dropdown & Actions */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+              {!isTeamLead ? (
+                <>
+                  <div className="relative min-w-[210px]">
+                    <select
+                      value={activeOrder.disposition?.assignedTeamLeadUid || activeOrder.assignedTeamLeadUid || ''}
+                      onChange={(e) => handleAssignTeamLead(e.target.value)}
+                      disabled={isAssigningTeamLead}
+                      className="w-full appearance-none pl-3.5 pr-9 py-2 rounded-xl text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-[#6E8F64]/40 cursor-pointer disabled:opacity-50"
+                      title="Teamleiter für diesen Umzug auswählen"
+                    >
+                      <option value="">-- Kein Teamleiter zugewiesen --</option>
+                      {teamLeads.map((lead) => (
+                        <option key={lead.uid} value={lead.uid}>
+                          🚚 {lead.displayName} ({lead.role === 'teamlead' ? 'Teamleiter' : 'Admin'})
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                      <ChevronDownIcon className="w-4 h-4" />
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => onViewPdf(activeOrder, 'employee')}
+                    className="px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-bold border border-amber-500/30 transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+                    title="Mitarbeiter-Laufzettel (PDF ohne Preise) ansehen / ausdrucken"
+                  >
+                    <DocumentArrowDownIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                    <span>Laufzettel (PDF)</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onViewPdf(activeOrder, 'employee')}
+                  className="px-4 py-2 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
+                  title="Meinen Laufzettel für diesen Auftrag öffnen"
+                >
+                  <DocumentArrowDownIcon className="w-4 h-4 text-white shrink-0" />
+                  <span>Meinen Laufzettel öffnen (PDF)</span>
+                </button>
+              )}
+            </div>
+
+          </div>
         </div>
       )}
 
@@ -2519,9 +2704,11 @@ export function CustomerPremiumProfile({
                         {ordNumber}
                       </span>
                       {getStatusBadge(ord.status)}
-                      <span className="text-xs font-bold text-primary">
-                        €{ordTotals.gross.toLocaleString('de-DE')}
-                      </span>
+                      {!isTeamLead && (
+                        <span className="text-xs font-bold text-primary">
+                          €{ordTotals.gross.toLocaleString('de-DE')}
+                        </span>
+                      )}
                       {isThisActive ? (
                         <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 font-headline">
                           <CheckCircleIcon className="w-3 h-3 text-primary" />
@@ -2555,14 +2742,16 @@ export function CustomerPremiumProfile({
                   </div>
 
                   <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
-                    {/* 1. Angebot / Entwurf bearbeiten Button */}
-                    <Link
-                      href={`/dashboard/customers/${customer.id}/edit-order/${ord.id}`}
-                      className="px-3.5 py-2 rounded-xl text-xs font-bold bg-[#D91E2A] text-white hover:bg-[#b51822] transition-all flex items-center gap-1.5 shadow-xs"
-                    >
-                      <PencilSquareIcon className="w-3.5 h-3.5" />
-                      <span>{ord.status === 'draft' ? 'Entwurf bearbeiten' : 'Bearbeiten'}</span>
-                    </Link>
+                    {/* 1. Angebot / Entwurf bearbeiten Button (nur für Disponenten / Büro) */}
+                    {!isTeamLead && (
+                      <Link
+                        href={`/dashboard/customers/${customer.id}/edit-order/${ord.id}`}
+                        className="px-3.5 py-2 rounded-xl text-xs font-bold bg-[#D91E2A] text-white hover:bg-[#b51822] transition-all flex items-center gap-1.5 shadow-xs"
+                      >
+                        <PencilSquareIcon className="w-3.5 h-3.5" />
+                        <span>{ord.status === 'draft' ? 'Entwurf bearbeiten' : 'Bearbeiten'}</span>
+                      </Link>
+                    )}
 
                     {/* 2. Auftrags-Cockpit & Prüfung (Drawer) */}
                     <button
@@ -2575,8 +2764,18 @@ export function CustomerPremiumProfile({
                       <span>Prüfen</span>
                     </button>
 
-                    {/* 3. PDF Vorschau */}
-                    {(() => {
+                    {/* 3. Laufzettel (für Teamleiter) oder PDF Vorschau (für Büro) */}
+                    {isTeamLead ? (
+                      <button
+                        type="button"
+                        onClick={() => onViewPdf(ord, 'employee')}
+                        className="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+                        title="Mitarbeiter-Laufzettel (PDF ohne Preise) ansehen"
+                      >
+                        <TruckIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                        <span>Laufzettel</span>
+                      </button>
+                    ) : (() => {
                       const hasContent = isOrderPricedAndServiced(ord);
                       return (
                         <button

@@ -142,6 +142,14 @@ export default function CalendarPage() {
         
         // 1. Umzugstag (Light Olive-Sage Green instead of Red!)
         if (map[movingDateStr] && isConfirmed) {
+          // Teamleiter: Sieht AUSSCHLIESSLICH die ihm persönlich zugewiesenen Umzüge
+          if (isTeamLead) {
+            const assignedLeadUid = o.disposition?.assignedTeamLeadUid || o.assignedTeamLeadUid;
+            if (!assignedLeadUid || assignedLeadUid !== profile?.uid) {
+              return; // Nicht diesem Teamleiter zugewiesen
+            }
+          }
+
           totalMoves++;
           const isDone = ['completed', 'invoice_open', 'invoice_paid'].includes(o.status);
           map[movingDateStr].push({

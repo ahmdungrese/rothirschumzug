@@ -55,7 +55,14 @@ export function DispoModal({
   const dayOrders = orders.filter(o => {
     const isConfirmed = !['draft', 'quote'].includes(o.status);
     const effectiveMovingDate = o.orderMeta?.movingDateFrom || o.movingDate || o.disposition?.movingDate;
-    return effectiveMovingDate?.split('T')[0] === dateStr && isConfirmed;
+    const isDateMatch = effectiveMovingDate?.split('T')[0] === dateStr && isConfirmed;
+    if (!isDateMatch) return false;
+    // Teamleiter: Nur ihm persönlich zugewiesene Umzüge anzeigen
+    if (isTeamLead) {
+      const leadUid = o.disposition?.assignedTeamLeadUid || o.assignedTeamLeadUid;
+      return leadUid === profile?.uid;
+    }
+    return true;
   });
 
   // Calculate separate tasks for this day (nur für Admin & Büro)
@@ -357,7 +364,7 @@ export function DispoModal({
                         <div className="flex flex-col md:flex-row justify-between items-start gap-4">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              {!isTeamLead && order.customerId ? (
+                              {order.customerId ? (
                                 <Link 
                                   href={`/dashboard/customers/${order.customerId}`}
                                   className="text-base sm:text-lg font-bold text-text-main hover:text-[#6E8F64] transition-colors font-headline flex items-center gap-1"

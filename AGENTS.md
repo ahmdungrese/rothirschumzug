@@ -30,7 +30,24 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.18.2 (Current) – Safe Draft Exit Guard, Expected Offer Number Badge & Protected Nummernkreise
+### Version 2.19.0 (Current) – Teamleiter Moving Assignment, Personalized Calendar Dispatch & Zero-Price Laufzettel Engine
+*   **Teamleiter Order Assignment Hub (`CustomerPremiumProfile.tsx`, `OrderDetailsDrawer.tsx`)**:
+    *   Added dedicated, elegant Teamleiter assignment card on the customer profile page and inside the logistics cockpit drawer.
+    *   Disponents can assign any active move to a specific registered `Teamleiter` (or Admin) from a clean dropdown selector.
+    *   Stores `assignedTeamLeadUid` and `assignedTeamLeadName` bidirectionally in `order.disposition` and root document for maximum query resilience.
+*   **Personalized Teamleiter Operational Calendar (`calendar/page.tsx`, `DispoModal.tsx`)**:
+    *   Filtered the operational calendar so employees with role `teamlead` strictly and exclusively see moves that are personally assigned to them (`assignedTeamLeadUid === profile.uid`).
+    *   Suppressed other logistics tasks (e.g. viewings, materials, unassigned moves) from the Teamleiter's calendar to maintain focus on execution.
+    *   Enabled Teamleiters to click through from calendar day cards directly to the customer profile for navigation and field operations.
+*   **Zero-Price Operational Laufzettel Engine (`EmployeeSheetPDF.tsx`)**:
+    *   Comprehensive internal employee job sheet displaying customer contact, A & B addresses (floor, elevator, distance), logistics, truck/helper disposition, and full room-by-room inventory with disassembly/assembly tags.
+    *   Strict zero-price guarantee: Completely omits all hourly rates, service prices, totals, and financial figures from employee views.
+    *   Prominently features the assigned Teamleiter's name in document header and logistics parameters.
+*   **Teamleiter Role Experience & Financial Shielding (`CustomerPremiumProfile.tsx`)**:
+    *   Tailored customer profile view when logged in as `teamlead`: hides financial health card and prices, replacing them with team/truck metrics and volume.
+    *   Streamlined action bar for Teamleiters: directly surfaces `Laufzettel (PDF)`, `+ Protokoll erfassen`, and `In Kalender eintragen`, while hiding invoice, offer pricing, payment, and storno controls.
+
+### Version 2.18.2 – Safe Draft Exit Guard, Expected Offer Number Badge & Protected Nummernkreise
 *   **Draft Auto-Save & Direct Exit to Customer Profile (`OrderEditor.tsx`)**:
     *   Updated `Entwurf speichern & Beenden` in the bottom action bar and summary card to immediately save customer and order drafts in Firestore and cleanly redirect disponents to the customer profile cockpit (`/dashboard/customers/[id]`).
     *   Enhanced the cancel/exit modal with a prominent `[Als Entwurf speichern & Verlassen / حفظ كمسودة وخروج]` button, preventing accidental data loss when closing the wizard.
