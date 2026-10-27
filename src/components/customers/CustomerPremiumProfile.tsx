@@ -52,6 +52,7 @@ import {
   SparklesIcon,
   MagnifyingGlassIcon,
   PlusIcon,
+  UserIcon,
   UserGroupIcon,
   ArrowTopRightOnSquareIcon,
   AdjustmentsHorizontalIcon,
@@ -2130,8 +2131,37 @@ export function CustomerPremiumProfile({
             </div>
           </div>
 
-          {/* Right: Direct Cockpit Drawer Access Button */}
-          <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
+          {/* Right: Teamleiter-Zuweisung & Direct Cockpit Drawer Access Button */}
+          <div className="flex items-center gap-2 shrink-0 self-end md:self-auto flex-wrap">
+            {!isTeamLead && (
+              <div className="relative">
+                <select
+                  value={activeOrder.disposition?.assignedTeamLeadUid || activeOrder.assignedTeamLeadUid || ''}
+                  onChange={(e) => handleAssignTeamLead(e.target.value)}
+                  disabled={isAssigningTeamLead}
+                  className={`appearance-none pl-8 pr-7 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border focus:outline-none focus:ring-2 focus:ring-[#6E8F64]/40 ${
+                    (activeOrder.disposition?.assignedTeamLeadUid || activeOrder.assignedTeamLeadUid)
+                      ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:border-emerald-400'
+                      : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                  }`}
+                  title="Zuständigen Teamleiter für diesen Auftrag auswählen"
+                >
+                  <option value="">+ Teamleiter zuweisen</option>
+                  {teamLeads.map((lead) => (
+                    <option key={lead.uid} value={lead.uid}>
+                      Leiter: {lead.displayName}
+                    </option>
+                  ))}
+                </select>
+                <UserIcon className={`w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${
+                  (activeOrder.disposition?.assignedTeamLeadUid || activeOrder.assignedTeamLeadUid)
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-slate-400'
+                }`} />
+                <ChevronDownIcon className="w-3 h-3 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            )}
+
             <button
               type="button"
               onClick={() => {
@@ -2147,124 +2177,6 @@ export function CustomerPremiumProfile({
             </button>
           </div>
 
-        </div>
-      )}
-
-      {/* Teamleiter-Zuweisung & Operativer Laufzettel (Elegantes Zuweisungs-Panel) */}
-      {activeOrder && activeOrder.status !== 'archived' && (
-        <div className="bg-white dark:bg-slate-900 p-4 sm:p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm transition-all">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            
-            {/* Left: Icon & Description */}
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-11 h-11 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                <UserGroupIcon className="w-6 h-6" />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-headline font-bold text-sm sm:text-base text-slate-900 dark:text-white">
-                    Zuständiger Teamleiter &amp; Laufzettel
-                  </h3>
-                  {(activeOrder.disposition?.assignedTeamLeadName || activeOrder.assignedTeamLeadName) ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
-                      <CheckCircleIcon className="w-3.5 h-3.5" />
-                      <span>{activeOrder.disposition?.assignedTeamLeadName || activeOrder.assignedTeamLeadName}</span>
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
-                      <span>Noch nicht zugewiesen</span>
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 max-w-xl">
-                  {isTeamLead 
-                    ? "Hier können Sie den vollständigen operativen Laufzettel mit Umzugsgut, Belade- & Entladestelle und Checkliste einsehen."
-                    : "Wählen Sie den verantwortlichen Teamleiter. Nur der eingeteilte Teamleiter sieht diesen Umzug in seinem Kalender und erhält den operativen Laufzettel."
-                  }
-                </p>
-              </div>
-            </div>
-
-            {/* Right: Interactive Dropdown & Actions */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
-              {!isTeamLead ? (
-                <>
-                  <div className="relative min-w-[210px]">
-                    <select
-                      value={activeOrder.disposition?.assignedTeamLeadUid || activeOrder.assignedTeamLeadUid || ''}
-                      onChange={(e) => handleAssignTeamLead(e.target.value)}
-                      disabled={isAssigningTeamLead}
-                      className="w-full appearance-none pl-3.5 pr-9 py-2 rounded-xl text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 hover:border-slate-300 dark:hover:border-slate-600 focus:outline-none focus:ring-2 focus:ring-[#6E8F64]/40 cursor-pointer disabled:opacity-50"
-                      title="Teamleiter für diesen Umzug auswählen"
-                    >
-                      <option value="">-- Kein Teamleiter zugewiesen --</option>
-                      {teamLeads.map((lead) => (
-                        <option key={lead.uid} value={lead.uid}>
-                          {lead.displayName} ({lead.role === 'teamlead' ? 'Teamleiter' : 'Admin'})
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
-                      <ChevronDownIcon className="w-4 h-4" />
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => onViewPdf(activeOrder, 'employee')}
-                    className="px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-bold border border-amber-500/30 transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                    title="Mitarbeiter-Laufzettel (PDF ohne Preise) ansehen / ausdrucken"
-                  >
-                    <DocumentArrowDownIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-                    <span>Laufzettel (PDF)</span>
-                  </button>
-
-                  {(hasA || hasB) && (
-                    <a
-                      href={hasA && hasB
-                        ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(aAddressFull)}&destination=${encodeURIComponent(bAddressFull)}`
-                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(aAddressFull || bAddressFull)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3.5 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-xs font-bold border border-blue-500/20 transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                      title="Umzugsroute A ➔ B in Google Maps öffnen"
-                    >
-                      <MapPinIcon className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                      <span>Route (Maps)</span>
-                    </a>
-                  )}
-                </>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onViewPdf(activeOrder, 'employee')}
-                    className="px-4 py-2 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-xs cursor-pointer"
-                    title="Meinen Laufzettel für diesen Auftrag öffnen"
-                  >
-                    <DocumentArrowDownIcon className="w-4 h-4 text-white shrink-0" />
-                    <span>Meinen Laufzettel öffnen (PDF)</span>
-                  </button>
-
-                  {(hasA || hasB) && (
-                    <a
-                      href={hasA && hasB
-                        ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(aAddressFull)}&destination=${encodeURIComponent(bAddressFull)}`
-                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(aAddressFull || bAddressFull)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-3.5 py-2 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-xs font-bold border border-blue-500/20 transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
-                      title="Umzugsroute A ➔ B in Google Maps öffnen"
-                    >
-                      <MapPinIcon className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
-                      <span>Route (Maps)</span>
-                    </a>
-                  )}
-                </div>
-              )}
-            </div>
-
-          </div>
         </div>
       )}
 

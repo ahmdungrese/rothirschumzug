@@ -3048,7 +3048,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               <select
                 value={orderMeta.manager}
                 onChange={e => setOrderMeta({ ...orderMeta, manager: e.target.value })}
-                className="bg-transparent text-text-main font-bold text-xs outline-none cursor-pointer hover:text-primary transition-colors pr-1"
+                className="bg-transparent text-text-main font-bold text-xs outline-none cursor-pointer hover:text-primary transition-colors pr-1 max-w-[130px] sm:max-w-none truncate"
                 title="Zuständigen Kundenberater anpassen"
               >
                 <option value="" className="bg-bg-panel text-text-main">Berater wählen...</option>
@@ -3064,7 +3064,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 type="date"
                 value={orderMeta.validUntil}
                 onChange={e => setOrderMeta({ ...orderMeta, validUntil: e.target.value })}
-                className="bg-transparent text-text-main font-bold text-xs outline-none cursor-pointer hover:text-primary transition-colors"
+                className="bg-transparent text-text-main font-bold text-xs outline-none cursor-pointer hover:text-primary transition-colors max-w-[125px] sm:max-w-none"
                 title="Gültigkeitsdatum des Angebots anpassen"
               />
             </div>
@@ -3144,7 +3144,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       }));
                     }
                   }}
-                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
                     (orderMeta.viewingType === 'vor_ort' || (!orderMeta.viewingType && orderMeta.viewingDate && orderMeta.viewingDate !== 'erledigt_fotos'))
                       ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-xs'
                       : 'text-text-muted hover:text-text-main'
@@ -3167,7 +3167,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       }));
                     }
                   }}
-                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
                     orderMeta.viewingType === 'online'
                       ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30 shadow-xs'
                       : 'text-text-muted hover:text-text-main'
@@ -3191,7 +3191,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       }));
                     }
                   }}
-                  className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
                     (orderMeta.viewingType === 'fotos' || orderMeta.viewingDate === 'erledigt_fotos')
                       ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-xs'
                       : 'text-text-muted hover:text-text-main'
@@ -3213,7 +3213,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                         viewingTime: ''
                       }));
                     }}
-                    className="px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 text-xs font-bold animate-in fade-in zoom-in-95 duration-150"
+                    className="px-2 sm:px-2.5 py-1.5 rounded-lg transition-all flex items-center gap-1 cursor-pointer text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/25 text-xs font-bold animate-in fade-in zoom-in-95 duration-150"
                     title="Besichtigung zurücksetzen / Keine"
                   >
                     <XMarkIcon className="w-3.5 h-3.5 text-red-400" />
@@ -3309,12 +3309,12 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
 
         {/* Core Financial Row: Zahlungsmethode (Ergonomic Pill Cards) */}
         <div className="bg-white/[0.02] border border-structure/60 p-4 rounded-2xl space-y-2.5">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
             <label className="text-xs font-bold text-text-main flex items-center gap-1.5">
               <CreditCardIcon className="w-4 h-4 text-primary" />
               <span>Zahlungsmethode *</span>
             </label>
-            <span className="text-[11px] text-text-muted">Wird direkt in die Angebots- und Rechnungsbedingungen übernommen</span>
+            <span className="text-[11px] text-text-muted hidden sm:inline">Wird direkt in die Angebots- und Rechnungsbedingungen übernommen</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 pt-1">
@@ -3330,7 +3330,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       setTexts(t => ({ ...t, paymentTerms: pm.textQuote }));
                     }
                   }}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold font-headline transition-all flex items-center gap-2 cursor-pointer border active:scale-95 ${
+                  className={`px-3 sm:px-3.5 py-2 rounded-xl text-xs font-bold font-headline transition-all flex items-center gap-2 cursor-pointer border active:scale-95 ${
                     isSelected
                       ? 'bg-primary/20 text-primary border-primary/50 shadow-xs ring-1 ring-primary/40'
                       : 'bg-white/[0.03] hover:bg-white/[0.06] text-text-muted hover:text-text-main border-structure'
