@@ -1086,6 +1086,204 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+
+      {/* Mobile Event Details Drawer (Bottom Sheet) */}
+      {selectedPlannerEvent && (
+        <div 
+          className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-xs flex flex-col justify-end animate-in fade-in duration-200"
+          onClick={() => setSelectedPlannerEvent(null)}
+        >
+          <div 
+            className="bg-bg-panel border-t border-structure rounded-t-3xl p-5 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto w-full max-w-lg mx-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Drag indicator pill */}
+            <div className="w-10 h-1 bg-structure rounded-full mx-auto -mt-1 mb-2" />
+
+            {/* Header */}
+            <div className="flex items-start justify-between">
+              <div className="min-w-0 pr-2">
+                <div className="flex items-center gap-2">
+                  <span className={`w-2.5 h-2.5 rounded-full ${
+                    selectedPlannerEvent.type === 'move' ? 'bg-[#6E8F64]' : selectedPlannerEvent.type === 'viewing' ? 'bg-purple-500' : 'bg-amber-500'
+                  }`} />
+                  <h3 className="text-base font-bold text-text-main truncate font-headline">
+                    {selectedPlannerEvent.customerName || selectedPlannerEvent.title}
+                  </h3>
+                </div>
+                <p className="text-xs text-text-muted mt-0.5">
+                  {selectedPlannerEvent.type === 'move' ? 'Umzugstermin' : selectedPlannerEvent.type === 'viewing' ? 'Besichtigungstermin' : selectedPlannerEvent.shortLabel}
+                  {selectedPlannerEvent.timeStr ? ` • ${selectedPlannerEvent.timeStr} Uhr` : ''}
+                </p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setSelectedPlannerEvent(null)}
+                className="p-1.5 rounded-full text-text-muted hover:text-text-main hover:bg-structure transition-colors shrink-0 cursor-pointer"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Move Addresses */}
+            {selectedPlannerEvent.type === 'move' && (
+              <>
+                <div className="bg-bg-card rounded-2xl p-3 border border-structure space-y-2.5 text-xs">
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-6 h-6 rounded-lg bg-[#6E8F64]/15 flex items-center justify-center shrink-0 mt-0.5">
+                      <MapPinIcon className="w-3.5 h-3.5 text-[#6E8F64]" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-bold text-text-muted uppercase">Beladestelle (A)</p>
+                      <p className="font-semibold text-text-main">{selectedPlannerEvent.fromAddress || selectedPlannerEvent.address || 'Keine Adresse hinterlegt'}</p>
+                      {selectedPlannerEvent.a_floor && (
+                        <p className="text-[11px] text-text-muted">{selectedPlannerEvent.a_floor} {selectedPlannerEvent.a_elevator ? `• ${selectedPlannerEvent.a_elevator}` : ''}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-structure/60" />
+
+                  <div className="flex items-start gap-2.5">
+                    <div className="w-6 h-6 rounded-lg bg-purple-500/15 flex items-center justify-center shrink-0 mt-0.5">
+                      <MapPinIcon className="w-3.5 h-3.5 text-purple-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-bold text-text-muted uppercase">Entladestelle (B)</p>
+                      <p className="font-semibold text-text-main">{selectedPlannerEvent.toAddress || selectedPlannerEvent.address || 'Keine Adresse hinterlegt'}</p>
+                      {selectedPlannerEvent.b_floor && (
+                        <p className="text-[11px] text-text-muted">{selectedPlannerEvent.b_floor} {selectedPlannerEvent.b_elevator ? `• ${selectedPlannerEvent.b_elevator}` : ''}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Team & Logistics Summary */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-bg-card rounded-xl p-2.5 border border-structure">
+                    <span className="text-[10px] text-text-muted block font-medium">Team & LKW</span>
+                    <span className="font-bold text-text-main text-xs">
+                      {selectedPlannerEvent.helpers ? `${selectedPlannerEvent.helpers} Helfer` : 'Dispo offen'}
+                      {selectedPlannerEvent.vehicles ? ` • ${selectedPlannerEvent.vehicles} LKW` : ''}
+                    </span>
+                  </div>
+                  <div className="bg-bg-card rounded-xl p-2.5 border border-structure">
+                    <span className="text-[10px] text-text-muted block font-medium">Status</span>
+                    <span className="font-bold text-[#6E8F64] text-xs">
+                      {selectedPlannerEvent.isDone ? 'Abgeschlossen' : 'Bestätigt'}
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Viewing Details */}
+            {selectedPlannerEvent.type === 'viewing' && (
+              <div className="bg-bg-card rounded-2xl p-3 border border-structure text-xs space-y-2">
+                <div>
+                  <p className="text-[10px] font-bold text-text-muted uppercase mb-0.5">Besichtigungsart</p>
+                  <p className="font-semibold text-text-main">
+                    {selectedPlannerEvent.isVideo ? 'Online via WhatsApp / FaceTime' : 'Vor-Ort-Besichtigung'}
+                  </p>
+                </div>
+                {selectedPlannerEvent.fullAddress && (
+                  <div className="border-t border-structure/60 pt-2">
+                    <p className="text-[10px] font-bold text-text-muted uppercase mb-0.5">Adresse</p>
+                    <p className="font-semibold text-text-main">{selectedPlannerEvent.fullAddress}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Logistics Details */}
+            {selectedPlannerEvent.category === 'logistics' && (
+              <div className="bg-bg-card rounded-2xl p-3 border border-structure text-xs space-y-2">
+                <p className="text-[10px] font-bold text-text-muted uppercase mb-0.5">Aufgabe</p>
+                <p className="font-semibold text-text-main">{selectedPlannerEvent.title}</p>
+                <p className="text-text-muted">{selectedPlannerEvent.address}</p>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="pt-1 space-y-2">
+              {selectedPlannerEvent.type === 'move' && selectedPlannerEvent.customerId && (
+                <Link
+                  href={`/dashboard/customers/${selectedPlannerEvent.customerId}`}
+                  className="w-full py-2.5 bg-[#6E8F64] hover:bg-[#5C7A53] text-white rounded-xl font-bold text-xs shadow-md shadow-[#6E8F64]/20 transition-colors flex items-center justify-center gap-2"
+                >
+                  <span>Auftrag & Kundenakte öffnen</span>
+                  <ChevronRightIcon className="w-4 h-4" />
+                </Link>
+              )}
+
+              {selectedPlannerEvent.type === 'viewing' && selectedPlannerEvent.customerId && (
+                <Link
+                  href={`/dashboard/customers/${selectedPlannerEvent.customerId}/edit-order/${selectedPlannerEvent.orderId}?step=4`}
+                  className="w-full py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-xs shadow-md shadow-purple-900/20 transition-colors flex items-center justify-center gap-2"
+                >
+                  <span>Besichtigung starten (Möbelliste)</span>
+                  <ChevronRightIcon className="w-4 h-4" />
+                </Link>
+              )}
+
+              {selectedPlannerEvent.category === 'logistics' && selectedPlannerEvent.ticketId && selectedPlannerEvent.rawOrder && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (selectedPlannerEvent.rawOrder && selectedPlannerEvent.ticketId) {
+                      await toggleTaskCompletion(selectedPlannerEvent.rawOrder, selectedPlannerEvent.ticketId);
+                      setSelectedPlannerEvent(null);
+                    }
+                  }}
+                  className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold text-xs shadow-md shadow-amber-900/20 transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <CheckIcon className="w-4 h-4" />
+                  <span>{selectedPlannerEvent.isDone ? 'Als offen markieren' : 'Als erledigt markieren'}</span>
+                </button>
+              )}
+
+              {/* Secondary Quick Actions: Route (Maps) & Phone */}
+              <div className="grid grid-cols-2 gap-2">
+                {(selectedPlannerEvent.fromAddress || selectedPlannerEvent.toAddress || selectedPlannerEvent.fullAddress || selectedPlannerEvent.address) ? (
+                  <a
+                    href={
+                      selectedPlannerEvent.fromAddress && selectedPlannerEvent.toAddress
+                        ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(selectedPlannerEvent.fromAddress)}&destination=${encodeURIComponent(selectedPlannerEvent.toAddress)}`
+                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedPlannerEvent.fullAddress || selectedPlannerEvent.toAddress || selectedPlannerEvent.fromAddress || selectedPlannerEvent.address)}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="py-2.5 bg-bg-card hover:bg-structure text-text-main border border-structure rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <MapPinIcon className="w-4 h-4 text-[#6E8F64]" />
+                    <span>Route (Maps)</span>
+                  </a>
+                ) : (
+                  <div />
+                )}
+
+                {selectedPlannerEvent.phone ? (
+                  <a
+                    href={`tel:${selectedPlannerEvent.phone}`}
+                    className="py-2.5 bg-bg-card hover:bg-structure text-text-main border border-structure rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <PhoneIcon className="w-4 h-4 text-[#6E8F64]" />
+                    <span>Anrufen</span>
+                  </a>
+                ) : (
+                  <button
+                    disabled
+                    className="py-2.5 bg-bg-card opacity-50 text-text-muted border border-structure rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5"
+                  >
+                    <PhoneIcon className="w-4 h-4" />
+                    <span>Keine Tel.</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

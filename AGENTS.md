@@ -30,7 +30,18 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.25.2 (Current) – Android Status Bar Monochrome Badge Mask & Test Notification Hub
+### Version 2.26.0 (Current) – Trello-Inspired Minimalist Mobile Calendar Planner & Event Drawer
+*   **Mobile Minimalist Planner View (`dashboard/calendar/page.tsx`)**:
+    *   **Trello-Inspired Daily Timeline**: Replaced the squeezed 7-column grid on smartphone viewports (`block md:hidden`) with an ergonomic vertical daily planner. Left column features clear weekday identifiers and large day numbers, with the current day (`Heute`) highlighted by a circular sage-green pill badge.
+    *   **Zero-Horizontal Scroll & Clean Text**: Guaranteed 100% responsive fit within smartphone boundaries without horizontal scrolling. Eliminated chunky tinted background boxes in favor of minimalist colored indicator dots (🟢 Umzug, 🟣 Besichtigung, 🟠 Logistik) with crisp typography.
+    *   **Multi-Task Dashed Hairlines**: Multiple events on the same day are cleanly partitioned with subtle dashed hairline borders instead of stacked cards.
+    *   **Subtle White Scroll Indicator**: Filter pill bar in the calendar header features a custom ultra-thin white scroll indicator bar (`[&::-webkit-scrollbar]:h-0.5`).
+*   **Interactive Mobile Bottom Sheet Event Drawer (`dashboard/calendar/page.tsx`)**:
+    *   **Thumb-Accessible Quick-Actions**: Tapping any appointment on mobile smoothly reveals a sleek Bottom Sheet drawer displaying complete loading/delivery addresses (with floor and elevator info), crew/truck summary, and single-click action buttons (`Auftrag & Kundenakte öffnen`, `Route (Maps)`, `Anrufen`).
+    *   **100% Rothirsch SVG Heroicons DNA**: Standardized with corporate monochrome SVG icons (`MapPinIcon`, `PhoneIcon`, `ChevronRightIcon`, `CheckIcon`), completely devoid of cartoon emojis.
+    *   **Android Hardware Back Handler**: Fully bound to `useModalBackHandler` for seamless swipe-to-dismiss and physical back button closure.
+
+### Version 2.25.2 – Android Status Bar Monochrome Badge Mask & Test Notification Hub
 *   **Android Status Bar Alpha Mask Engine (`public/badge-icon.png`, `sw.js`, `notificationService.ts`)**:
     *   **Monochrome Silhouette Badge**: Generated high-precision, supersampled monochrome Rothirsch stag head emblem with 100% transparent alpha channel (`badge-icon.png`), replacing the fully opaque rectangular `icon-192.png`.
     *   **Zero-White-Box Android Fix**: Conforms to Android status bar guidelines (Alpha Mask), eliminating the solid white square (`■`) in favor of the crisp, elegant stag emblem directly in the Android status bar adjacent to the clock.
