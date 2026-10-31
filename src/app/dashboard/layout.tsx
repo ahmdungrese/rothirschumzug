@@ -180,12 +180,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const isMainDashboard = pathname === '/dashboard';
 
   return (
-    <div className="flex h-screen overflow-hidden bg-bg-dark">
+    <div className="flex h-screen overflow-hidden bg-bg-dark w-full max-w-[100vw]">
       <Tutorial />
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 max-w-full overflow-hidden">
         <Header onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-5 lg:p-8 pb-6 md:pb-8 flex flex-col">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-5 lg:p-8 pb-6 md:pb-8 flex flex-col w-full max-w-full min-w-0">
           {isForbidden ? (
             <div className="flex-1 flex items-center justify-center p-4">
               <div className="max-w-md w-full mx-auto p-6 md:p-8 rounded-3xl bg-bg-card border border-structure shadow-lg text-center space-y-4 animate-in fade-in">
@@ -217,7 +217,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             </div>
           ) : (
-            <div className={`w-full min-w-0 ${isMainDashboard ? "" : "max-w-7xl mx-auto"}`}>
+            <div className={`w-full max-w-full min-w-0 ${isMainDashboard ? "" : "max-w-7xl mx-auto"}`}>
               {children}
             </div>
           )}

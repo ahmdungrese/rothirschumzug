@@ -839,8 +839,8 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-4 md:space-y-6 pb-20 animate-in fade-in duration-500">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-bg-panel border border-structure p-4 rounded-xl shadow-lg">
+    <div className="w-full max-w-full min-w-0 space-y-4 md:space-y-6 pb-20 animate-in fade-in duration-500">
+      <div className="w-full max-w-full min-w-0 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-bg-panel border border-structure p-4 rounded-xl shadow-lg">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-text-main flex items-center gap-2">
             <Cog6ToothIcon className="w-6 h-6 md:w-7 md:h-7 text-primary" /> Einstellungen
@@ -856,9 +856,9 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4 md:gap-6">
+      <div className="w-full max-w-full min-w-0 flex flex-col md:flex-row gap-4 md:gap-6">
         {/* Sidebar Tabs */}
-        <div className="w-full md:w-64 shrink-0 flex flex-row md:flex-col overflow-x-auto md:overflow-visible gap-2 md:gap-0 md:space-y-1 pb-2 md:pb-0 custom-scrollbar">
+        <div className="w-full max-w-full min-w-0 md:w-64 md:shrink-0 flex flex-row md:flex-col overflow-x-auto md:overflow-visible gap-2 md:gap-0 md:space-y-1 pb-2 md:pb-0 touch-pan-x custom-scrollbar">
           {visibleTabs.map(tab => (
             <button
               key={tab.id}
@@ -872,7 +872,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Content Area */}
-        <div className="flex-1 panel min-h-[600px]">
+        <div className="flex-1 min-w-0 max-w-full panel min-h-[600px] overflow-hidden">
           
           {/* TAB: Basisdaten */}
           {activeTab === 'basisdaten' && (
@@ -2629,7 +2629,7 @@ export default function SettingsPage() {
                 {(settings.paymentMethods || []).map((pm: any, idx: number) => (
                   <div key={idx} className="bg-bg-dark border border-structure p-4 md:p-6 rounded-xl space-y-4 shadow-2xs">
                     <div className="flex items-center justify-between border-b border-structure/60 pb-3 gap-3 flex-wrap">
-                      <div className="font-bold text-text-main text-lg flex items-center gap-2 flex-1 min-w-[240px]">
+                      <div className="font-bold text-text-main text-lg flex items-center gap-2 flex-1 min-w-0">
                         <CreditCardIcon className="w-5 h-5 text-primary shrink-0" />
                         <input
                           type="text"

@@ -30,7 +30,17 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.26.0 (Current) – Trello-Inspired Minimalist Mobile Calendar Planner & Event Drawer
+### Version 2.26.1 (Current) – Global Viewport Root & Settings Overflow Elimination Shield
+*   **Global Layout & CSS Overflow Hardening (`globals.css`, `dashboard/layout.tsx`)**:
+    *   Enforced bulletproof `html, body { max-width: 100vw; overflow-x: hidden; position: relative; width: 100%; }` and `*, *::before, *::after { box-sizing: border-box; }` preventing any unconstrained inner elements from expanding screen width.
+    *   Added `w-full max-w-[100vw]` and `w-full max-w-full min-w-0` to `<main>` and container wrappers in `dashboard/layout.tsx`.
+*   **Settings Mobile Overflow Elimination (`settings/page.tsx`)**:
+    *   Added `w-full max-w-full min-w-0 touch-pan-x` to Settings sidebar tabs and child panel containers, resolving the Flexbox `min-width: auto` content stretching that pushed the right edge off-screen.
+    *   Removed rigid `min-w-[240px]` from payment method input fields to ensure fluid scaling on narrow mobile screens down to 320px.
+*   **Service Worker Cache Bump (`sw.js`)**:
+    *   Updated cache name to `rothirsch-erp-v2.26.1` to force clients and installed PWAs to discard stale cached bundles upon reconnecting.
+
+### Version 2.26.0 – Trello-Inspired Minimalist Mobile Calendar Planner & Event Drawer
 *   **Mobile Minimalist Planner View (`dashboard/calendar/page.tsx`)**:
     *   **Trello-Inspired Daily Timeline**: Replaced the squeezed 7-column grid on smartphone viewports (`block md:hidden`) with an ergonomic vertical daily planner. Left column features clear weekday identifiers and large day numbers, with the current day (`Heute`) highlighted by a circular sage-green pill badge.
     *   **Zero-Horizontal Scroll & Clean Text**: Guaranteed 100% responsive fit within smartphone boundaries without horizontal scrolling. Eliminated chunky tinted background boxes in favor of minimalist colored indicator dots (🟢 Umzug, 🟣 Besichtigung, 🟠 Logistik) with crisp typography.
