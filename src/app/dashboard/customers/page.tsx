@@ -187,8 +187,8 @@ export default function CustomersPage() {
 
       {/* Filter Tabs & Search & Sort Bar */}
       <div className="bg-white dark:bg-slate-900/80 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3">
-        {/* Row 1: Filter Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        {/* Row 1: Filter Tabs (Touch-pan-x for smooth mobile scrolling) */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none sm:scrollbar-auto touch-pan-x w-full max-w-full min-w-0">
           {[
             { id: 'all', label: 'Alle Kunden', count: counts.all, dot: 'bg-slate-400' },
             { id: 'confirmed', label: 'Bestätigt (Aktiv)', count: counts.confirmed, dot: 'bg-[#6E8F64]' },

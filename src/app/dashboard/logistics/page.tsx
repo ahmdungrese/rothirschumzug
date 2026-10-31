@@ -632,8 +632,8 @@ export default function LogisticsPage() {
           </button>
         </div>
 
-        {/* Category Filter Pills with Symbols */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none -mx-1 px-1">
+        {/* Category Filter Pills with Symbols (Touch-pan-x for smooth mobile scrolling) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-none sm:scrollbar-auto touch-pan-x w-full max-w-full min-w-0">
           {[
             { id: 'all', label: 'Alle', count: categoryCounts.all, dot: 'bg-[#6E8F64]' },
             { id: 'kartons', label: 'Kartons', count: categoryCounts.kartons, dot: 'bg-orange-500' },

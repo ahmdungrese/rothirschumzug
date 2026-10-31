@@ -86,6 +86,15 @@ export function NotificationBell() {
     setPermStatus(res);
   };
 
+  const handleSendTestNotification = async () => {
+    await showDeviceNotification({
+      id: `test-${Date.now()}`,
+      title: 'Rothirsch ERP',
+      body: 'Test-Benachrichtigung: Das Wappen-Symbol ist jetzt aktiv!',
+      url: '/dashboard'
+    });
+  };
+
   // Load dismissed alerts from localStorage
   useEffect(() => {
     try {
@@ -511,9 +520,18 @@ export function NotificationBell() {
 
             {/* Subtle Footer with Permission State Indicator */}
             {permStatus === 'granted' && (
-              <div className="px-3 py-1.5 bg-structure/20 border-t border-structure/40 flex items-center justify-center gap-1.5 text-[10px] text-text-muted">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                <span>Geräte-Benachrichtigungen aktiv</span>
+              <div className="px-3.5 py-1.5 bg-structure/20 border-t border-structure/40 flex items-center justify-between text-[10px] text-text-muted">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Geräte-Benachrichtigungen aktiv</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSendTestNotification}
+                  className="text-primary hover:underline font-semibold cursor-pointer py-0.5 px-1.5 rounded hover:bg-primary/10 transition-colors"
+                >
+                  Test senden
+                </button>
               </div>
             )}
           </div>

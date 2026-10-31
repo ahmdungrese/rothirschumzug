@@ -74,7 +74,7 @@ export async function showDeviceNotification(payload: DeviceNotificationPayload)
   const notificationOptions = {
     body: payload.body,
     icon: payload.icon || '/icon-192.png',
-    badge: '/icon-192.png',
+    badge: '/badge-icon.png',
     tag: payload.tag || payload.id,
     silent: payload.silent ?? false,
     vibrate: [150, 80, 150],

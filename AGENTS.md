@@ -30,7 +30,15 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.25.1 (Current) – Universal Mobile Screen Adaptation & Zero-Overflow Engine
+### Version 2.25.2 (Current) – Android Status Bar Monochrome Badge Mask & Test Notification Hub
+*   **Android Status Bar Alpha Mask Engine (`public/badge-icon.png`, `sw.js`, `notificationService.ts`)**:
+    *   **Monochrome Silhouette Badge**: Generated high-precision, supersampled monochrome Rothirsch stag head emblem with 100% transparent alpha channel (`badge-icon.png`), replacing the fully opaque rectangular `icon-192.png`.
+    *   **Zero-White-Box Android Fix**: Conforms to Android status bar guidelines (Alpha Mask), eliminating the solid white square (`■`) in favor of the crisp, elegant stag emblem directly in the Android status bar adjacent to the clock.
+    *   **Service Worker Cache Bump (`sw.js`)**: Updated cache name to `rothirsch-erp-v2.25.2` to ensure client devices immediately activate the updated notification payload configurations.
+*   **1-Click Device Notification Test Hub (`NotificationBell.tsx`)**:
+    *   Added dedicated `[ Test senden ]` micro-action in the notifications dropdown footer when device notifications are active, allowing users to trigger an immediate native test notification on their mobile device.
+
+### Version 2.25.1 – Universal Mobile Screen Adaptation & Zero-Overflow Engine
 *   **Next.js Responsive Viewport Standard (`layout.tsx`)**:
     *   Added authoritative `export const viewport: Viewport` with `width: 'device-width'`, `initialScale: 1`, `maximumScale: 1`, `userScalable: false`, and `viewportFit: 'cover'`.
     *   Prevents mobile browsers from rendering at virtual 980px or scaling layouts beyond phone boundaries.

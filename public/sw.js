@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rothirsch-erp-v2.21.0';
+const CACHE_NAME = 'rothirsch-erp-v2.25.2';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
@@ -73,7 +73,7 @@ self.addEventListener('push', (event) => {
   const options = {
     body: data.body || '',
     icon: '/icon-192.png',
-    badge: '/icon-192.png',
+    badge: '/badge-icon.png',
     tag: data.tag || 'rothirsch-general',
     data: {
       url: data.url || '/dashboard'
