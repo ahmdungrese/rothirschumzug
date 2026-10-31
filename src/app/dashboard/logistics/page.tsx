@@ -706,7 +706,7 @@ export default function LogisticsPage() {
               >
                 {/* Customer Header Row */}
                 <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-800">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <Link
                         href={parentOrder?.customerId ? `/dashboard/customers/${parentOrder.customerId}` : `/dashboard/orders`}
@@ -719,7 +719,7 @@ export default function LogisticsPage() {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      <span className="truncate">{route}</span>
+                      <span className="truncate max-w-[150px] sm:max-w-none">{route}</span>
                       <span>•</span>
                       <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0">Umzug: {moveDate}</span>
                     </div>
@@ -808,7 +808,7 @@ export default function LogisticsPage() {
                         </div>
 
                         {/* Dedicated Responsive Action Toolbar: Micro-icons on left, Primary status button on right */}
-                        <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-slate-200/50 dark:border-slate-700/40 w-full min-w-0">
+                        <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 pt-2 border-t border-slate-200/50 dark:border-slate-700/40 w-full min-w-0">
                           {/* Left: Quick micro-buttons */}
                           <div className="flex items-center gap-1 shrink-0">
                             {/* Termin planen/andern */}
@@ -1052,8 +1052,8 @@ export default function LogisticsPage() {
                   </div>
 
                   {/* Customer & Quick Symbol Bar */}
-                  <div className="flex items-center justify-between gap-2 pt-1">
-                    <div className="min-w-0">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 w-full min-w-0">
+                    <div className="min-w-0 flex-1">
                       <Link
                         href={todo.customerId ? `/dashboard/customers/${todo.customerId}` : `/dashboard/orders`}
                         className="font-headline font-bold text-sm sm:text-base text-slate-900 dark:text-white hover:text-[#6E8F64] transition-colors block truncate"
@@ -1071,7 +1071,7 @@ export default function LogisticsPage() {
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1 shrink-0 self-start sm:self-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800 w-full sm:w-auto justify-end">
                       {isLogisticsSchedulable && (
                         <button
                           type="button"

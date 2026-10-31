@@ -436,13 +436,13 @@ export default function CalendarPage() {
   }, [daysArray, currentDate, monthDaysData, activeFilter, searchQuery]);
 
   return (
-    <div className="space-y-4 pb-20">
+    <div className="space-y-4 pb-20 w-full max-w-full overflow-hidden min-w-0">
       {/* Ultra-Compact Hybrid Top Bar (Light Olive-Sage Green #6E8F64 — Zero Red) */}
-      <div className="bg-bg-panel border border-structure p-3 sm:px-4 sm:py-3 rounded-2xl shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+      <div className="bg-bg-panel border border-structure p-3 sm:px-4 sm:py-3 rounded-2xl shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-3 w-full max-w-full min-w-0">
         
         {/* Left: Month Stepper + Today + View Switcher (Hybrid Grid vs Agenda) */}
-        <div className="flex items-center justify-between sm:justify-start gap-1.5 sm:gap-2 flex-wrap">
-          <div className="flex items-center bg-bg-card border border-structure rounded-xl p-0.5 sm:p-1 shadow-inner">
+        <div className="flex items-center justify-between sm:justify-start gap-1.5 sm:gap-2 flex-wrap w-full sm:w-auto">
+          <div className="flex items-center bg-bg-card border border-structure rounded-xl p-0.5 sm:p-1 shadow-inner shrink-0">
             <button 
               onClick={prevMonth} 
               className="p-1 sm:p-1.5 hover:bg-structure/60 rounded-lg transition-colors text-text-main cursor-pointer"
@@ -450,7 +450,7 @@ export default function CalendarPage() {
             >
               <ChevronLeftIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
-            <span className="text-xs sm:text-sm font-bold text-text-main px-2 sm:px-3 min-w-[105px] sm:min-w-[125px] text-center font-headline">
+            <span className="text-xs sm:text-sm font-bold text-text-main px-1.5 sm:px-3 min-w-[95px] sm:min-w-[125px] text-center font-headline">
               {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
             </span>
             <button 
@@ -502,7 +502,7 @@ export default function CalendarPage() {
 
         {/* Center: Compact Filter Pills (Light Olive-Sage Green #6E8F64 instead of Red) */}
         {!isTeamLead ? (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 sm:pb-0 scrollbar-none w-full xl:w-auto -mx-1 px-1 sm:mx-0 sm:px-0">
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none w-full xl:w-auto">
             <button
               onClick={() => setActiveFilter('all')}
               className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 font-headline shrink-0 cursor-pointer ${
@@ -667,10 +667,11 @@ export default function CalendarPage() {
         /* ========================================================================= */
         /* VIEW 1 (DEFAULT): HYBRID SYMBOL CALENDAR GRID (De-cluttered & Zero Red)   */
         /* ========================================================================= */
-        <div className="bg-bg-panel border border-structure rounded-3xl overflow-hidden shadow-sm">
-          <div className="w-full">
-            {/* Weekday Header */}
-            <div className="grid grid-cols-7 border-b border-structure bg-bg-card/50">
+        <div className="bg-bg-panel border border-structure rounded-2xl sm:rounded-3xl shadow-sm w-full max-w-full overflow-hidden">
+          <div className="w-full overflow-x-auto scrollbar-none sm:scrollbar-auto">
+            <div className="min-w-[340px] sm:min-w-0 w-full">
+              {/* Weekday Header */}
+              <div className="grid grid-cols-7 border-b border-structure bg-bg-card/50">
               {['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(day => (
                 <div 
                   key={day} 
@@ -705,7 +706,7 @@ export default function CalendarPage() {
                   <div 
                     key={`day-${day}`} 
                     onClick={() => setSelectedDateStr(dateStr)}
-                    className={`min-h-[58px] sm:min-h-[96px] md:min-h-[118px] p-1 sm:p-2 border-b border-r border-structure/70 relative group transition-colors cursor-pointer flex flex-col justify-between ${
+                    className={`min-h-[58px] sm:min-h-[96px] md:min-h-[118px] p-0.5 sm:p-2 border-b border-r border-structure/70 relative group transition-colors cursor-pointer flex flex-col justify-between ${
                       isToday 
                         ? 'bg-[#6E8F64]/8 ring-1 ring-[#6E8F64]/50 ring-inset' 
                         : 'hover:bg-structure/20 bg-bg-panel'
@@ -851,6 +852,7 @@ export default function CalendarPage() {
             </div>
           </div>
         </div>
+      </div>
       )}
 
       {/* Dispositions-Modal (Tages-Detailansicht) */}
