@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Anybody } from "next/font/google";
 import "./globals.css";
 
@@ -18,6 +18,14 @@ import { Toaster } from 'react-hot-toast';
 import { Providers } from "@/components/Providers";
 import { PwaRegister } from "@/components/pwa/PwaRegister";
 import { NetworkMonitor } from "@/components/NetworkMonitor";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: "Rothirsch Umzüge",

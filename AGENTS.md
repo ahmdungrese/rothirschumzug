@@ -30,7 +30,22 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.25.0 (Current) – Strict Teamleiter Security Lockdown & Zero-Leak Isolation
+### Version 2.25.1 (Current) – Universal Mobile Screen Adaptation & Zero-Overflow Engine
+*   **Next.js Responsive Viewport Standard (`layout.tsx`)**:
+    *   Added authoritative `export const viewport: Viewport` with `width: 'device-width'`, `initialScale: 1`, `maximumScale: 1`, `userScalable: false`, and `viewportFit: 'cover'`.
+    *   Prevents mobile browsers from rendering at virtual 980px or scaling layouts beyond phone boundaries.
+*   **Customer Cards Overflow Elimination & 3-Dots Action Menu (`SmartCustomerCard.tsx`, `customers/page.tsx`)**:
+    *   **Single-Row Guaranteed Actions**: Replaced the overflowing 2-row layout with a unified single-row action bar: primary dynamic phase button (`flex-1 min-w-0`), direct `[ Akte ]` link (`shrink-0`), and a sleek 3-dots `...` dropdown menu (`EllipsisVerticalIcon`).
+    *   **Contextual 3-Dots Popup**: Consolidates secondary repeated actions (`PDF Vorschau`, `Übergabeprotokoll`, `Anrufen`, `WhatsApp`) into a clean, floating modal card with outside-click detection.
+    *   **Responsive Bounds**: Padded cards down to `p-4 sm:p-5` with `w-full max-w-full overflow-hidden min-w-0`, preventing horizontal protrusion.
+*   **Logistics Mobile Portrait Task Redesign (`logistics/page.tsx`)**:
+    *   **Zero-Cutoff 2-Tier Architecture**: Restructured customer tasks into a 2-tier card: Tier 1 displays icon, title, phase badges, and address breakdown with full width; Tier 2 provides a dedicated bottom action strip with quick tools (`📅 Termin`, `📍 Maps`, `💬 WhatsApp`, `⌄ Details`) on the left and primary status actions (`[ Besichtigung ]`, `[ Erledigt ]`, `[ Zahlung erfassen ]`) on the right.
+    *   Guaranteed 100% button visibility and thumb accessibility in portrait mode on all smartphone screens.
+*   **Customer Profile Responsive Harmonization (`CustomerPremiumProfile.tsx`, `layout.tsx`)**:
+    *   Optimized card padding from rigid `p-6 md:p-8` down to adaptive `p-4 sm:p-6 md:p-8`, with `w-full max-w-full overflow-hidden min-w-0` across identity, dates, finance, and order cards.
+    *   Ensured `<main>` in `layout.tsx` wraps children with `w-full min-w-0` so intrinsic flex sizing never triggers horizontal scroll or cutoff.
+
+### Version 2.25.0 – Strict Teamleiter Security Lockdown & Zero-Leak Isolation
 *   **Total Cockpit & Orders Blocking (`OrderDetailsDrawer.tsx`, `orders/page.tsx`)**:
     *   **Cockpit Shield (`OrderDetailsDrawer.tsx`)**: Completely blocked `OrderDetailsDrawer` from rendering for `teamlead` (and users with `canViewPrices === false`), automatically triggering `onClose()` and returning `null`.
     *   **Orders Page Shield (`orders/page.tsx`)**: Blocked access to `/dashboard/orders` for Teamleiter, immediately redirecting to `/dashboard/calendar` to prevent viewing order lists, financial statuses, or prices.

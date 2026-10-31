@@ -217,7 +217,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             </div>
           ) : (
-            <div className={isMainDashboard ? "w-full" : "max-w-7xl mx-auto"}>
+            <div className={`w-full min-w-0 ${isMainDashboard ? "" : "max-w-7xl mx-auto"}`}>
               {children}
             </div>
           )}

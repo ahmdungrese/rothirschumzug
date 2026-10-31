@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { 
   UserCircleIcon, 
@@ -17,7 +17,8 @@ import {
   BanknotesIcon,
   TruckIcon,
   ClipboardDocumentCheckIcon,
-  ChatBubbleLeftRightIcon
+  ChatBubbleLeftRightIcon,
+  EllipsisVerticalIcon
 } from '@heroicons/react/24/outline';
 import { getSourceBadgeStyle } from './SmartCustomerTable';
 
@@ -96,6 +97,25 @@ export function SmartCustomerCard({ customer, latestOrder }: { customer: any, la
     }
   }
 
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [menuOpen]);
+
   // Display Name
   const displayName = customer.type === 'firma' 
     ? (customer.lastName || customer.company || "Unbekannte Firma") 
@@ -105,7 +125,7 @@ export function SmartCustomerCard({ customer, latestOrder }: { customer: any, la
   const intlPhone = cleanPhone.startsWith('0') ? '49' + cleanPhone.substring(1) : cleanPhone;
 
   return (
-    <div className="bg-white dark:bg-slate-900/90 p-5 rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md transition-all flex flex-col justify-between gap-4">
+    <div className="bg-white dark:bg-slate-900/90 p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md transition-all flex flex-col justify-between gap-3.5 w-full max-w-full overflow-hidden min-w-0">
       
       {/* Top Section: Direct Link to Customer Profile */}
       <Link 
@@ -237,51 +257,114 @@ export function SmartCustomerCard({ customer, latestOrder }: { customer: any, la
         )}
       </div>
 
-      {/* Action Buttons: 1. Akte öffnen + 2. Phase Action */}
-      <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2">
-        <div className="flex items-center gap-2">
-          {/* Button 1: Kundenakte Öffnen */}
-          <Link
-            href={`/dashboard/customers/${customer.id}`}
-            className="flex-1 py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700 transition-all shadow-xs cursor-pointer"
-            title="Kundenakte & Details öffnen"
-          >
-            <FolderOpenIcon className="w-4 h-4 text-primary" />
-            <span>Kundenakte</span>
-          </Link>
+      {/* Action Buttons: Unified Responsive Row with 3-Dots Dropdown */}
+      <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2">
+        {/* Button 1: Dynamische Phase-Aktion (Primary prominent button) */}
+        <Link
+          href={dynBtnHref}
+          className={`flex-1 min-w-0 py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer ${dynBtnStyle}`}
+          title={dynBtnText}
+        >
+          <span className="shrink-0">{dynBtnIcon}</span>
+          <span className="truncate">{dynBtnText}</span>
+        </Link>
 
-          {/* Button 2: Dynamische Phase-Aktion */}
-          <Link
-            href={dynBtnHref}
-            className={`flex-1 py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer ${dynBtnStyle}`}
-            title={dynBtnText}
+        {/* Button 2: Direkter Link zur Kundenakte */}
+        <Link
+          href={`/dashboard/customers/${customer.id}`}
+          className="py-2.5 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700 transition-all shadow-xs cursor-pointer shrink-0"
+          title="Kundenakte & Details öffnen"
+        >
+          <FolderOpenIcon className="w-4 h-4 text-primary shrink-0" />
+          <span className="hidden xs:inline">Akte</span>
+        </Link>
+
+        {/* Button 3: 3-Punkte-Menü (...) für sekundäre Aktionen ohne Überlauf */}
+        <div className="relative shrink-0" ref={menuRef}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setMenuOpen(!menuOpen);
+            }}
+            className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center justify-center border border-slate-200 dark:border-slate-700 transition-all shadow-xs cursor-pointer"
+            title="Weitere Aktionen"
           >
-            {dynBtnIcon}
-            <span className="truncate">{dynBtnText}</span>
-          </Link>
+            <EllipsisVerticalIcon className="w-4 h-4" />
+          </button>
+
+          {menuOpen && (
+            <div 
+              className="absolute right-0 bottom-full mb-2 w-56 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Optionen
+              </div>
+
+              {/* 1. Kundenakte */}
+              <Link
+                href={`/dashboard/customers/${customer.id}`}
+                onClick={() => setMenuOpen(false)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+              >
+                <FolderOpenIcon className="w-4 h-4 text-primary shrink-0" />
+                <span>Kundenakte öffnen</span>
+              </Link>
+
+              {/* 2. PDF Vorschau */}
+              {latestOrder && (
+                <Link
+                  href={`/dashboard/customers/${customer.id}?action=view-pdf&orderId=${latestOrder.id}`}
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                >
+                  <DocumentTextIcon className="w-4 h-4 text-blue-500 shrink-0" />
+                  <span>PDF Vorschau</span>
+                </Link>
+              )}
+
+              {/* 3. Protokoll */}
+              {latestOrder && (
+                <Link
+                  href={`/dashboard/customers/${customer.id}?action=view-protocol&orderId=${latestOrder.id}`}
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                >
+                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#6E8F64] shrink-0" />
+                  <span>Übergabeprotokoll</span>
+                </Link>
+              )}
+
+              {/* 4. Anrufen */}
+              {customer.phone && (
+                <a
+                  href={`tel:${customer.phone}`}
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                >
+                  <PhoneIcon className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <span>Anrufen</span>
+                </a>
+              )}
+
+              {/* 5. WhatsApp */}
+              {intlPhone && (
+                <a
+                  href={`https://wa.me/${intlPhone}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-xl transition-colors"
+                >
+                  <ChatBubbleLeftRightIcon className="w-4 h-4 shrink-0" />
+                  <span>In WhatsApp chatten</span>
+                </a>
+              )}
+            </div>
+          )}
         </div>
-
-        {/* Quick Tools: PDF & Protokoll */}
-        {latestOrder && (
-          <div className="flex items-center gap-2">
-            <Link 
-              href={`/dashboard/customers/${customer.id}?action=view-pdf&orderId=${latestOrder.id}`} 
-              className="flex-1 py-1.5 px-2 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-colors border border-slate-200/60 dark:border-slate-700/60"
-              title="PDF anzeigen"
-            >
-              <DocumentTextIcon className="w-3.5 h-3.5" />
-              <span>PDF Vorschau</span>
-            </Link>
-            <Link 
-              href={`/dashboard/customers/${customer.id}?action=view-protocol&orderId=${latestOrder.id}`} 
-              className="flex-1 py-1.5 px-2 bg-slate-50 dark:bg-slate-800/50 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1 transition-colors border border-slate-200/60 dark:border-slate-700/60"
-              title="Übergabeprotokoll"
-            >
-              <ClipboardDocumentCheckIcon className="w-3.5 h-3.5" />
-              <span>Protokoll</span>
-            </Link>
-          </div>
-        )}
       </div>
 
     </div>

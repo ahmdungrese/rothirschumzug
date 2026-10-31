@@ -159,26 +159,26 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 max-w-[1600px] mx-auto relative pb-20">
+    <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500 max-w-[1600px] mx-auto relative pb-20 w-full min-w-0">
       {/* Background Graphic */}
       <div className="fixed inset-0 pointer-events-none opacity-[0.03] flex items-center justify-center z-[-1] overflow-hidden">
         <img src="/login-logo.png" alt="" className="w-full max-w-[800px] object-contain blur-[2px]" />
       </div>
 
       {/* Header & Controls */}
-      <div className="glass-panel p-6 rounded-2xl flex flex-col md:flex-row gap-4 justify-between items-center z-10 relative">
+      <div className="glass-panel p-4 sm:p-6 rounded-2xl flex flex-col md:flex-row gap-3 sm:gap-4 justify-between items-start md:items-center z-10 relative">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-text-main flex items-center gap-3">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight text-text-main flex items-center gap-2.5">
             Kunden Control Center
           </h1>
-          <p className="text-text-muted mt-1 text-sm">Übersicht aller Kunden, strukturierte Status-Filter & smarte Aktivitäts-Sortierung.</p>
+          <p className="text-text-muted mt-1 text-xs sm:text-sm">Übersicht aller Kunden, strukturierte Status-Filter & smarte Aktivitäts-Sortierung.</p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+        <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 w-full md:w-auto">
           {/* Create Button */}
           <Link 
             href="/dashboard/orders/new"
-            className="btn-primary py-2 px-4 shadow-lg shrink-0 whitespace-nowrap flex items-center"
+            className="btn-primary py-2 px-4 shadow-lg shrink-0 whitespace-nowrap flex items-center justify-center"
           >
             <PlusIcon className="w-5 h-5 mr-1" /> Neuer Kunde (via Angebot)
           </Link>

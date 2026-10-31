@@ -528,7 +528,7 @@ export default function LogisticsPage() {
   }
 
   return (
-    <div className="w-full max-w-full px-2 sm:px-4 md:px-6 space-y-4 animate-in fade-in duration-300 pb-16 min-h-screen">
+    <div className="w-full max-w-full space-y-4 animate-in fade-in duration-300 pb-20 min-w-0">
       {/* Clean Header & Search Bar (Light Olive-Sage Green #6E8F64 — Zero Red) */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900/80 px-3 sm:px-4 py-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="flex items-center justify-between sm:justify-start gap-3">
@@ -702,7 +702,7 @@ export default function LogisticsPage() {
             return (
               <div
                 key={key}
-                className="bg-white dark:bg-slate-900/90 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-4 shadow-xs hover:shadow-md transition-all space-y-3"
+                className="bg-white dark:bg-slate-900/90 rounded-2xl border border-slate-200/90 dark:border-slate-800 p-3.5 sm:p-4 shadow-xs hover:shadow-md transition-all space-y-3 w-full max-w-full overflow-hidden min-w-0"
               >
                 {/* Customer Header Row */}
                 <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-800">
@@ -760,7 +760,7 @@ export default function LogisticsPage() {
                   </div>
                 </div>
 
-                {/* Rich Symbol Rows for each Task of this Customer (Zero Lost Info!) */}
+                {/* Rich Symbol Rows for each Task of this Customer (Zero Lost Info & Zero Mobile Overflow!) */}
                 <div className="space-y-2">
                   {tasks.map(todo => {
                     const rowKey = `grp_${todo.id}_${todo.orderId}`;
@@ -773,43 +773,44 @@ export default function LogisticsPage() {
                     return (
                       <div
                         key={todo.id}
-                        className="p-2.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50 space-y-2"
+                        className="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/50 space-y-2.5 w-full max-w-full overflow-hidden min-w-0"
                       >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          {/* Left: Symbol + Category + Inline Detail Summary */}
-                          <div className="flex items-center gap-2 min-w-0">
-                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${catMeta.iconBg}`}>
-                              <span className="material-symbols-outlined text-[15px] leading-none select-none">{catMeta.symbol}</span>
-                            </div>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="text-xs font-bold text-slate-900 dark:text-white">
-                                  {catMeta.label}
-                                </span>
-                                <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold border ${catMeta.color}`}>
-                                  {catMeta.shortInfo}
-                                </span>
-                                {scheduled && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => openScheduleModal(todo, parentOrder, e)}
-                                    className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-bold bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] border border-[#6E8F64]/30 hover:bg-[#6E8F64]/25 cursor-pointer"
-                                    title="Termin ändern"
-                                  >
-                                    <CalendarDaysIcon className="w-3 h-3" />
-                                    <span>{scheduled.date}{scheduled.time ? ` • ${scheduled.time}` : ''}</span>
-                                  </button>
-                                )}
-                              </div>
-                              {/* Subtitle showing exact breakdown/address so NO content is ever lost */}
-                              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                                {catMeta.detailSubtext}
-                              </p>
-                            </div>
+                        {/* Top: Icon + Title + Badges + Subtitle */}
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${catMeta.iconBg}`}>
+                            <span className="material-symbols-outlined text-[15px] leading-none select-none">{catMeta.symbol}</span>
                           </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-bold text-slate-900 dark:text-white">
+                                {catMeta.label}
+                              </span>
+                              <span className={`px-2 py-0.2 rounded-full text-[10px] font-bold border ${catMeta.color}`}>
+                                {catMeta.shortInfo}
+                              </span>
+                              {scheduled && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => openScheduleModal(todo, parentOrder, e)}
+                                  className="inline-flex items-center gap-1 px-2 py-0.2 rounded-full text-[10px] font-bold bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] border border-[#6E8F64]/30 hover:bg-[#6E8F64]/25 cursor-pointer"
+                                  title="Termin ändern"
+                                >
+                                  <CalendarDaysIcon className="w-3 h-3" />
+                                  <span>{scheduled.date}{scheduled.time ? ` • ${scheduled.time}` : ''}</span>
+                                </button>
+                              )}
+                            </div>
+                            {/* Subtitle showing exact breakdown/address so NO content is ever lost */}
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                              {catMeta.detailSubtext}
+                            </p>
+                          </div>
+                        </div>
 
-                          {/* Right: Symbol Action Buttons + Light Olive-Sage Green Primary Action */}
-                          <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
+                        {/* Dedicated Responsive Action Toolbar: Micro-icons on left, Primary status button on right */}
+                        <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-slate-200/50 dark:border-slate-700/40 w-full min-w-0">
+                          {/* Left: Quick micro-buttons */}
+                          <div className="flex items-center gap-1 shrink-0">
                             {/* Termin planen/andern */}
                             {isLogisticsSchedulable && (
                               <button
@@ -861,16 +862,19 @@ export default function LogisticsPage() {
                             >
                               {isRowExpanded ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />}
                             </button>
+                          </div>
 
+                          {/* Right: Primary action buttons */}
+                          <div className="flex items-center gap-1.5 shrink-0 ml-auto">
                             {/* Besichtigung starten */}
                             {isViewing && parentOrder?.customerId && !todo.done && (
                               <Link
                                 href={`/dashboard/customers/${parentOrder.customerId}/edit-order/${parentOrder.id}?step=4`}
-                                className="h-7 px-2 rounded-lg bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-[11px] font-bold flex items-center gap-1 shadow-xs transition-all shrink-0"
+                                className="h-7 px-2.5 rounded-lg bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-[11px] font-bold flex items-center gap-1 shadow-xs transition-all shrink-0"
                                 title="Direkt zu Schritt 4 (Umzugsliste & Möbel) springen"
                               >
                                 <span className="material-symbols-outlined text-[13px] leading-none select-none">chair</span>
-                                <span className="hidden sm:inline">Besichtigung starten</span>
+                                <span>Besichtigung</span>
                               </Link>
                             )}
 
@@ -928,7 +932,7 @@ export default function LogisticsPage() {
                                   title="Rechnung erstellen"
                                 >
                                   <DocumentTextIcon className="w-3.5 h-3.5" />
-                                  <span>Rechnung erstellen</span>
+                                  <span>Rechnung</span>
                                 </Link>
                               );
                             })() : (
@@ -1007,7 +1011,7 @@ export default function LogisticsPage() {
             return (
               <div
                 key={cardKey}
-                className={`bg-white dark:bg-slate-900/90 rounded-2xl border transition-all duration-200 p-4 flex flex-col justify-between shadow-xs hover:shadow-md ${
+                className={`bg-white dark:bg-slate-900/90 rounded-2xl border transition-all duration-200 p-4 flex flex-col justify-between shadow-xs hover:shadow-md w-full max-w-full overflow-hidden min-w-0 ${
                   todo.done
                     ? 'border-slate-200 dark:border-slate-800 opacity-75 hover:opacity-100'
                     : todo.dueDateStatus === 'overdue'
