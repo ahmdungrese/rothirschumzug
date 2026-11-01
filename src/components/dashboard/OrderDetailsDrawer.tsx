@@ -32,7 +32,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { evaluateOrderLogistics } from '@/lib/orderValidation';
 import { hasFixedService } from '@/lib/serviceKeys';
-import { getActiveInvoiceNumber, isInvoiceCancelled, getLatestCancelledInvoiceNumber } from '@/lib/financeHelpers';
+import { getActiveInvoiceNumber, isInvoiceCancelled, getLatestCancelledInvoiceNumber, calculateOrderTotals } from '@/lib/financeHelpers';
 import { toggleTaskCompletion, isTaskCompleted } from '@/lib/taskStateController';
 import { TaskScheduleModal } from '@/components/logistics/TaskScheduleModal';
 import { SignatureModal } from '@/components/orders/SignatureModal';
@@ -99,9 +99,11 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
   const isOrderPricedAndServiced = (ord: any): boolean => {
     if (!ord) return false;
+    const calc = calculateOrderTotals(ord);
+    if (calc && calc.gross > 0) return true;
     if (ord.isFlatRate && Number(ord.flatRateNet) > 0) return true;
     if (Array.isArray(ord.services) && ord.services.length > 0) {
-      const hasAnyPrice = ord.services.some((s: any) => (Number(s.quantity) || 0) * (Number(s.unitPrice) || 0) > 0);
+      const hasAnyPrice = ord.services.some((s: any) => (Number(s.quantity) || 0) * (Number(s.unitPrice || s.price || s.total) || 0) > 0);
       if (hasAnyPrice) return true;
       if (ord.services.some((s: any) => s.name?.trim())) return true;
     }
@@ -668,14 +670,14 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                       setPdfModalType('order');
                       setPdfModalOpen(true);
                     }}
-                    className={`px-2.5 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0 ${
+                    className={`px-2.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0 ${
                       !hasContent
-                        ? 'bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border-slate-300/70 dark:border-slate-700/60 hover:border-amber-500/50'
-                        : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700'
+                        ? 'bg-slate-100/70 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-slate-400'
+                        : 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shadow-xs'
                     }`}
                     title={!hasContent ? "Angebot enthält noch keine Leistungen oder Preise (0,00 €)" : "Angebot / Auftrag als PDF anzeigen & herunterladen"}
                   >
-                    <DocumentTextIcon className={`w-3.5 h-3.5 ${!hasContent ? 'text-slate-400' : 'text-primary'}`} />
+                    <DocumentTextIcon className={`w-3.5 h-3.5 ${!hasContent ? 'text-slate-400 dark:text-slate-500' : 'text-[#6E8F64] dark:text-[#88B87D]'}`} />
                     <span>PDF</span>
                     {!hasContent && (
                       <span className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1 py-0.2 rounded font-normal border border-amber-500/30">

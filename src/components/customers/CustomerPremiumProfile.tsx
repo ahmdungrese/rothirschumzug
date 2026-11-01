@@ -319,11 +319,13 @@ export function CustomerPremiumProfile({
 
   const isOrderPricedAndServiced = (ord: any): boolean => {
     if (!ord) return false;
+    const calc = calculateOrderTotals(ord);
+    if (calc && calc.gross > 0) return true;
     // Flat rate with amount > 0
     if (ord.isFlatRate && Number(ord.flatRateNet) > 0) return true;
     // Services with quantity & price or non-empty names
     if (Array.isArray(ord.services) && ord.services.length > 0) {
-      const hasAnyPrice = ord.services.some((s: any) => (Number(s.quantity) || 0) * (Number(s.unitPrice) || 0) > 0);
+      const hasAnyPrice = ord.services.some((s: any) => (Number(s.quantity) || 0) * (Number(s.unitPrice || s.price || s.total) || 0) > 0);
       if (hasAnyPrice) return true;
       if (ord.services.some((s: any) => s.name?.trim())) return true;
     }
@@ -1136,27 +1138,34 @@ export function CustomerPremiumProfile({
                 <span>Kundendaten</span>
               </button>
 
-              {activeOrder && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleOrderPdfClick(activeOrder)}
-                    className="px-3 py-1.5 rounded-xl font-bold text-xs bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-all flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 cursor-pointer shadow-2xs"
-                    title="Angebot als PDF anzeigen"
-                  >
-                    <DocumentTextIcon className="w-3.5 h-3.5 text-primary" />
-                    <span>PDF</span>
-                  </button>
+              {activeOrder && (() => {
+                const hasOfferContent = isOrderPricedAndServiced(activeOrder);
+                return (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleOrderPdfClick(activeOrder)}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                        !hasOfferContent
+                          ? 'bg-slate-100/70 dark:bg-slate-800/40 text-slate-400 dark:text-slate-500 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-slate-400'
+                          : 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 border border-slate-300 dark:border-slate-600 hover:border-[#6E8F64]'
+                      }`}
+                      title={!hasOfferContent ? 'Angebot enthält noch keine Leistungen oder Preise (0,00 €)' : 'Angebot als PDF anzeigen'}
+                    >
+                      <DocumentTextIcon className={`w-3.5 h-3.5 ${!hasOfferContent ? 'text-slate-400 dark:text-slate-500' : 'text-[#6E8F64] dark:text-[#88B87D]'}`} />
+                      <span>PDF</span>
+                    </button>
 
-                  <Link
-                    href={`/dashboard/customers/${customer.id}/edit-order/${activeOrder.id}`}
-                    className="px-3.5 py-1.5 rounded-xl font-bold text-xs bg-[#6E8F64] hover:bg-[#5C7A53] text-white shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <DocumentTextIcon className="w-3.5 h-3.5" />
-                    <span>Angebot bearbeiten</span>
-                  </Link>
-                </>
-              )}
+                    <Link
+                      href={`/dashboard/customers/${customer.id}/edit-order/${activeOrder.id}`}
+                      className="px-3.5 py-1.5 rounded-xl font-bold text-xs bg-[#6E8F64] hover:bg-[#5C7A53] text-white shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <DocumentTextIcon className="w-3.5 h-3.5" />
+                      <span>Angebot bearbeiten</span>
+                    </Link>
+                  </>
+                );
+              })()}
 
               <Link
                 href={`/dashboard/customers/${customer.id}/new-order`}
@@ -1606,7 +1615,7 @@ export function CustomerPremiumProfile({
                 ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center justify-between gap-2.5 transition-colors cursor-pointer" 
                 : `px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
                   !hasContent
-                    ? 'bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border border-slate-300/70 dark:border-slate-700/60 hover:border-amber-500/50'
+                    ? 'bg-slate-100/70 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-slate-400'
                     : 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-primary/50'
                 }`
               }
@@ -2794,8 +2803,8 @@ export function CustomerPremiumProfile({
                           onClick={() => handleOrderPdfClick(ord)}
                           className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
                             !hasContent
-                              ? 'bg-slate-100 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500 border border-slate-300/70 dark:border-slate-700/60 hover:border-amber-500/50'
-                              : 'bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200'
+                              ? 'bg-slate-100/70 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-slate-400'
+                              : 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shadow-2xs'
                           }`}
                           title={!hasContent ? "Angebot enthält noch keine Leistungen oder Preise (0,00 €)" : "PDF Vorschau"}
                         >

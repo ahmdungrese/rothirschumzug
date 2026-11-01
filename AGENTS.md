@@ -30,7 +30,28 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.27.0 (Current) – Enterprise Credential Security Hub & Dual Password Reset Engine
+### Version 2.27.2 (Current) – High-Contrast Offer PDF Affordance & Financial Sync
+*   **100% Financial Total Synchronized State (`CustomerPremiumProfile.tsx`, `OrderDetailsDrawer.tsx`)**:
+    *   **Direct Calculation Integration**: Upgraded `isOrderPricedAndServiced` to consult `calculateOrderTotals(ord)` directly, ensuring 100% synchronization with the gross totals displayed in `FINANZEN & ZAHLUNG` (€74,97).
+*   **High-Contrast Visual States**:
+    *   **Incomplete Offer (Entwurf / 0 €)**: Clear 2px dashed border (`border-2 border-dashed border-slate-300 dark:border-slate-600`), muted background (`bg-slate-100/70`), and muted gray icon (`text-slate-400`).
+    *   **Complete Offer (Priced & Serviced)**: Crisp white card button (`bg-white dark:bg-slate-800`), solid border with green hover, deep dark text (`text-slate-800`), and vivid corporate green icon (`text-[#6E8F64]`).
+*   **Service Worker Cache Bump (`sw.js`)**:
+    *   Updated cache name to `rothirsch-erp-v2.27.2` to immediately invalidate stale browser cache on client screens.
+
+### Version 2.27.1 – Smart Incomplete Offer Visual Affordance & Dotted Gray PDF Borders
+*   **Universal Incomplete Offer Dotted Gray Framing (`CustomerPremiumProfile.tsx`, `OrderDetailsDrawer.tsx`)**:
+    *   **Visual Affordance for Incomplete Offers**: When an offer lacks pricing, services, or is in draft/unpriced state (`!isOrderPricedAndServiced`), all offer PDF buttons dynamically render with an elegant, muted dashed gray border (`border-dashed border-slate-300 dark:border-slate-700`), subtle muted background (`bg-slate-100/70 dark:bg-slate-800/50`), and muted gray icon (`text-slate-400 dark:text-slate-500`).
+    *   **Unified Visual Feedback**: Synchronized across all 4 offer PDF access points:
+        1. Top Header Quick PDF Button (`[ PDF ]`) in Customer Profile.
+        2. Customer Profile Action Bar (`[ Angebot PDF ]`).
+        3. Customer Order History Table (`[ PDF ]`).
+        4. Cockpit Drawer Header PDF Button (`[ PDF ]`).
+    *   **Preserved Labels & Non-Disruptive Safety**: Maintained exact original button text labels without modifications while retaining the existing intelligent warning modal / toast feedback on click.
+*   **Service Worker Cache Bump (`sw.js`)**:
+    *   Updated cache name to `rothirsch-erp-v2.27.1`.
+
+### Version 2.27.0 – Enterprise Credential Security Hub & Dual Password Reset Engine
 *   **Official Google Firebase Password Reset Engine (`src/app/page.tsx`)**:
     *   **Sleek "Passwort vergessen?" Modal**: Integrated a dedicated modal allowing users to request a cryptographically signed, 1-hour expiration password reset link directly from Google Firebase to their verified personal email.
     *   **Enumeration Defense Shield**: Conforms to OWASP enterprise standards; displays identical friendly confirmations regardless of whether an email exists in the database, preventing reconnaissance/email harvesting.
