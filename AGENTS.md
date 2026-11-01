@@ -30,7 +30,17 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.26.2 (Current) – Calendar Event Rendering Shield & Viewing Date Crash Guard
+### Version 2.26.3 (Current) – Login Visibility Shield & Password Whitespace Auto-Recovery
+*   **Login Password Eye Visibility Toggle (`src/app/page.tsx`)**:
+    *   Integrated toggleable `EyeIcon` / `EyeSlashIcon` button directly inside the login password input field, allowing users to uncover masked dots and verify what was typed or autofilled by browser password managers.
+*   **Whitespace Auto-Recovery Engine (`src/app/page.tsx`)**:
+    *   Added defensive dual-attempt login: if `password` fails with `auth/invalid-credential` or `auth/wrong-password` and contains accidental leading/trailing spaces from copy-paste, the system automatically attempts with `trimmedPassword`.
+*   **Calendar Import Hardening (`dashboard/calendar/page.tsx`)**:
+    *   Imported missing `toggleTaskCompletion` controller in `dashboard/calendar/page.tsx`.
+*   **Service Worker Cache Bump (`sw.js`)**:
+    *   Updated cache name to `rothirsch-erp-v2.26.3`.
+
+### Version 2.26.2 – Calendar Event Rendering Shield & Viewing Date Crash Guard
 *   **Calendar Runtime Crash Elimination (`dashboard/calendar/page.tsx`, `DispoModal.tsx`)**:
     *   **Direct React & Fragment Import**: Explicitly imported `React` and `{ Fragment }` in `dashboard/calendar/page.tsx`, resolving the unhandled `ReferenceError: React is not defined` that triggered the Error Boundary when rendering appointments.
     *   **Viewing Date Robustness Shield**: Hardened `effectiveViewingDate` parser to gracefully accommodate Firestore timestamps, ISO strings, and edge-case status strings (`erledigt_fotos`, `requested`), preventing unhandled `.split()` calls.

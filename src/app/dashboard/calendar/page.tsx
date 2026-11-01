@@ -20,7 +20,7 @@ import {
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
 import { DispoModal } from './DispoModal';
-import { isTaskCompleted } from '@/lib/taskStateController';
+import { isTaskCompleted, toggleTaskCompletion } from '@/lib/taskStateController';
 import { hasFixedService } from '@/lib/serviceKeys';
 import { useAuth } from '@/context/AuthContext';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';

@@ -5,7 +5,7 @@ import { useState, useEffect } from "react";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
-import { LockClosedIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline";
+import { LockClosedIcon, ExclamationTriangleIcon, EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_SECONDS = 10 * 60; // 10 Minuten
@@ -73,6 +73,7 @@ export default function Home() {
   const { user, profile, loading } = useAuth();
   const [loginId, setLoginId] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -242,7 +243,19 @@ export default function Home() {
         sessionStorage.removeItem("hasLoggedLogin");
       }
 
-      await signInWithEmailAndPassword(auth, finalEmail, password);
+      try {
+        await signInWithEmailAndPassword(auth, finalEmail, password);
+      } catch (firstErr: any) {
+        // Fallback: Wenn trailing/leading Whitespaces im Passwort waren, mit getrimmtem Passwort versuchen
+        if (
+          trimmedPassword !== password &&
+          (firstErr?.code === "auth/invalid-credential" || firstErr?.code === "auth/wrong-password")
+        ) {
+          await signInWithEmailAndPassword(auth, finalEmail, trimmedPassword);
+        } else {
+          throw firstErr;
+        }
+      }
 
       // Reset counters upon successful login
       clearAllSecurityState();
@@ -388,28 +401,43 @@ export default function Home() {
             <label className="block text-xs font-bold uppercase tracking-wider text-text-muted mb-2">
               Passwort
             </label>
-            <input
-              type="password"
-              value={password}
-              maxLength={50}
-              onChange={(e) => {
-                const cleaned = e.target.value.replace(/[\r\n]+/g, '').slice(0, 50);
-                setPassword(cleaned);
-                if (passwordError) setPasswordError("");
-                if (error) setError("");
-              }}
-              onInvalid={(e) => e.preventDefault()}
-              className={`input-field disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ${
-                passwordError
-                  ? "border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100"
-                  : ""
-              }`}
-              placeholder="••••••••"
-              disabled={isLocked || isSubmitting}
-              autoComplete="off"
-              data-lpignore="true"
-              spellCheck={false}
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                maxLength={50}
+                onChange={(e) => {
+                  const cleaned = e.target.value.replace(/[\r\n]+/g, '').slice(0, 50);
+                  setPassword(cleaned);
+                  if (passwordError) setPasswordError("");
+                  if (error) setError("");
+                }}
+                onInvalid={(e) => e.preventDefault()}
+                className={`input-field pr-11 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 ${
+                  passwordError
+                    ? "border-red-500/80 focus:border-red-500 focus:ring-2 focus:ring-red-500/20 bg-red-500/5 text-red-100"
+                    : ""
+                }`}
+                placeholder="••••••••"
+                disabled={isLocked || isSubmitting}
+                autoComplete="off"
+                data-lpignore="true"
+                spellCheck={false}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                tabIndex={-1}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 transition-colors p-1"
+                aria-label={showPassword ? "Passwort verbergen" : "Passwort anzeigen"}
+              >
+                {showPassword ? (
+                  <EyeSlashIcon className="w-5 h-5" />
+                ) : (
+                  <EyeIcon className="w-5 h-5" />
+                )}
+              </button>
+            </div>
             {passwordError && (
               <div className="flex items-center gap-1.5 mt-2 text-xs text-red-400 font-medium animate-in fade-in duration-200">
                 <ExclamationTriangleIcon className="w-4 h-4 shrink-0 text-red-400" />
