@@ -212,8 +212,12 @@ export function DispoModal({
     }
 
     // Besichtigungen
-    const effectiveViewingDate = o.orderMeta?.viewingDate || o.viewingDate;
-    if (effectiveViewingDate && effectiveViewingDate.split('T')[0] === dateStr) {
+    const rawViewingDate = o.orderMeta?.viewingDate || o.viewingDate;
+    const effectiveViewingDate = typeof rawViewingDate === 'string'
+      ? rawViewingDate
+      : (rawViewingDate?.seconds ? new Date(rawViewingDate.seconds * 1000).toISOString() : '');
+
+    if (effectiveViewingDate && effectiveViewingDate !== 'erledigt_fotos' && effectiveViewingDate !== 'requested' && effectiveViewingDate.split('T')[0] === dateStr) {
       const isVideo = (o.orderMeta?.viewingType || '').toLowerCase().includes('video');
       viewingTasks.push({ 
         id: o.id, 

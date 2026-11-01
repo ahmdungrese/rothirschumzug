@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, Fragment } from 'react';
 import { db } from '@/lib/firebase';
 import { collection, query, onSnapshot, where, getDoc, doc } from 'firebase/firestore';
 import { 
@@ -386,12 +386,21 @@ export default function CalendarPage() {
       }
 
       // 5. Besichtigungstermine (Phase 2)
-      const effectiveViewingDate = o.orderMeta?.viewingDate || o.viewingDate;
-      if (effectiveViewingDate) {
+      const rawViewingDate = o.orderMeta?.viewingDate || o.viewingDate;
+      const effectiveViewingDate = typeof rawViewingDate === 'string' 
+        ? rawViewingDate 
+        : (rawViewingDate?.seconds ? new Date(rawViewingDate.seconds * 1000).toISOString() : '');
+
+      if (effectiveViewingDate && effectiveViewingDate !== 'erledigt_fotos' && effectiveViewingDate !== 'requested') {
         const cleanViewDate = effectiveViewingDate.split('T')[0];
         if (map[cleanViewDate]) {
           totalViewings++;
           const isVideo = (o.orderMeta?.viewingType || '').toLowerCase().includes('video');
+          const viewingAddressStr = typeof o.orderMeta?.viewingAddress === 'string' ? o.orderMeta.viewingAddress : '';
+          const addressA = (o.logistics?.a_city || o.logistics?.a_street) 
+            ? `${o.logistics.a_street || ''} ${o.logistics.a_houseNr || ''}, ${o.logistics.a_zip || ''} ${o.logistics.a_city || ''}`.trim()
+            : viewingAddressStr;
+
           map[cleanViewDate].push({
             id: o.id + '_view',
             ticketId: 'viewing_requested',
@@ -400,18 +409,16 @@ export default function CalendarPage() {
             symbol: isVideo ? 'videocam' : 'chair',
             shortLabel: isVideo ? 'Video' : 'Besichtigung',
             isVideo,
-            customerName: custShortName,
-            title: custShortName,
+            customerName: String(custShortName || 'Kunde'),
+            title: String(custShortName || 'Kunde'),
             address: o.logistics?.a_city || (isVideo ? 'Video-Call' : 'Vor Ort'),
-            fullAddress: (o.logistics?.a_city || o.logistics?.a_street) 
-              ? `${o.logistics.a_street || ''} ${o.logistics.a_houseNr || ''}, ${o.logistics.a_zip || ''} ${o.logistics.a_city || ''}`.trim()
-              : (o.orderMeta?.viewingAddress || ''),
+            fullAddress: addressA,
             phone: cust?.phone || o.customerPhone || o.phone || '',
             rawOrder: o,
             orderId: o.id,
             customerId: o.customerId,
             isDone: isTaskCompleted(o, 'viewing_requested'),
-            timeStr: effectiveViewingDate.split('T')[1] ? effectiveViewingDate.split('T')[1].substring(0, 5) : (o.orderMeta?.viewingTime || ''),
+            timeStr: effectiveViewingDate.includes('T') ? effectiveViewingDate.split('T')[1].substring(0, 5) : (o.orderMeta?.viewingTime || ''),
             colorClass: 'bg-purple-500/12 text-purple-800 border-purple-500/25 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/50'
           });
         }
@@ -436,12 +443,11 @@ export default function CalendarPage() {
       if (activeFilter !== 'all' && e.category !== activeFilter) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
-        return (
-          e.title.toLowerCase().includes(q) ||
-          e.customerName.toLowerCase().includes(q) ||
-          e.address.toLowerCase().includes(q) ||
-          (e.fullAddress && e.fullAddress.toLowerCase().includes(q))
-        );
+        const titleMatch = typeof e.title === 'string' && e.title.toLowerCase().includes(q);
+        const nameMatch = typeof e.customerName === 'string' && e.customerName.toLowerCase().includes(q);
+        const addrMatch = typeof e.address === 'string' && e.address.toLowerCase().includes(q);
+        const fullAddrMatch = typeof e.fullAddress === 'string' && e.fullAddress.toLowerCase().includes(q);
+        return titleMatch || nameMatch || addrMatch || fullAddrMatch;
       }
       return true;
     });
@@ -673,7 +679,7 @@ export default function CalendarPage() {
                             const hoverColor = isMove ? 'group-hover:text-[#6E8F64]' : isViewing ? 'group-hover:text-purple-400' : 'group-hover:text-amber-400';
 
                             return (
-                              <React.Fragment key={ev.id}>
+                              <Fragment key={ev.id}>
                                 {evIdx > 0 && <div className="border-t border-dashed border-structure/70 my-1" />}
                                 <div 
                                   onClick={() => setSelectedPlannerEvent(ev)}
@@ -709,7 +715,7 @@ export default function CalendarPage() {
                                     </span>
                                   </div>
                                 </div>
-                              </React.Fragment>
+                              </Fragment>
                             );
                           })}
                         </div>

@@ -30,7 +30,20 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.26.1 (Current) – Global Viewport Root & Settings Overflow Elimination Shield
+### Version 2.26.2 (Current) – Calendar Event Rendering Shield & Viewing Date Crash Guard
+*   **Calendar Runtime Crash Elimination (`dashboard/calendar/page.tsx`, `DispoModal.tsx`)**:
+    *   **Direct React & Fragment Import**: Explicitly imported `React` and `{ Fragment }` in `dashboard/calendar/page.tsx`, resolving the unhandled `ReferenceError: React is not defined` that triggered the Error Boundary when rendering appointments.
+    *   **Viewing Date Robustness Shield**: Hardened `effectiveViewingDate` parser to gracefully accommodate Firestore timestamps, ISO strings, and edge-case status strings (`erledigt_fotos`, `requested`), preventing unhandled `.split()` calls.
+    *   **Defensive Type Guards**: Guarded event titles, addresses, and customer names with explicit `typeof === 'string'` checks in search and display routines.
+*   **Service Worker Cache Bump (`sw.js`)**:
+    *   Updated cache name to `rothirsch-erp-v2.26.2` to purge stale cached chunks on mobile clients and PWAs.
+
+### Version 2.26.1 – Trello Mobile Hub & Global Viewport Shield
+*   **Trello Mobile Hub Disposition Architecture (`KanbanDispositionBoard.tsx`)**:
+    *   **Vertical Stacked Phase Hub**: Replaced horizontal pill tab scrolling on mobile with a clean, ergonomic vertical hub featuring 4 prominent cards: `1. Neu`, `2. In Verhandlung`, `3. Bestätigt`, and `4. Erledigt`, each with designated status indicator dot, descriptive subtitle, and counter badge.
+    *   **Dedicated Focus View Navigation**: Tapping any phase card seamlessly opens a dedicated view containing that phase's orders with full width and zero horizontal squeeze.
+    *   **Hardware Back & Return Header**: Features top `[ ‹ Alle Phasen ]` return button and full integration with `useModalBackHandler` for native Android swipe-to-back gesture support.
+    *   **Search Interactivity**: Displays real-time matching count banner with 1-click `[ Zurücksetzen ]` button when filtering from the top search bar.
 *   **Global Layout & CSS Overflow Hardening (`globals.css`, `dashboard/layout.tsx`)**:
     *   Enforced bulletproof `html, body { max-width: 100vw; overflow-x: hidden; position: relative; width: 100%; }` and `*, *::before, *::after { box-sizing: border-box; }` preventing any unconstrained inner elements from expanding screen width.
     *   Added `w-full max-w-[100vw]` and `w-full max-w-full min-w-0` to `<main>` and container wrappers in `dashboard/layout.tsx`.
