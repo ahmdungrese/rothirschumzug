@@ -2,10 +2,11 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useState, useEffect } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
-import { LockClosedIcon, ExclamationTriangleIcon, EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
+import { LockClosedIcon, ExclamationTriangleIcon, EyeIcon, EyeSlashIcon, XMarkIcon, CheckCircleIcon, KeyIcon } from "@heroicons/react/24/outline";
+import { useModalBackHandler } from "@/hooks/useModalBackHandler";
 
 const MAX_LOGIN_ATTEMPTS = 5;
 const LOCKOUT_DURATION_SECONDS = 10 * 60; // 10 Minuten
@@ -81,6 +82,64 @@ export default function Home() {
   const [lockoutRemaining, setLockoutRemaining] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+
+  // Passwort vergessen Modal State (Sicherheitsstandard via Firebase)
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotInput, setForgotInput] = useState("");
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
+  const [forgotStatus, setForgotStatus] = useState<"success" | "error" | "info" | null>(null);
+  const [forgotMsg, setForgotMsg] = useState("");
+
+  useModalBackHandler(showForgotModal, () => {
+    if (!forgotSubmitting) setShowForgotModal(false);
+  });
+
+  const handleRequestPasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (forgotSubmitting) return;
+
+    const trimmed = forgotInput.trim();
+    if (!trimmed) {
+      setForgotStatus("error");
+      setForgotMsg("Bitte geben Sie Ihre E-Mail-Adresse ein.");
+      return;
+    }
+
+    // Wenn es sich um eine Telefonnummer handelt
+    if (!trimmed.includes("@")) {
+      setForgotStatus("info");
+      setForgotMsg("Mitarbeiter-Konten mit Telefonnummer wenden sich bitte an den Administrator (Inhaber). Dieser kann Ihr Passwort in den Einstellungen direkt neu vergeben.");
+      return;
+    }
+
+    if (!EMAIL_REGEX.test(trimmed)) {
+      setForgotStatus("error");
+      setForgotMsg("Bitte geben Sie eine gültige E-Mail-Adresse ein.");
+      return;
+    }
+
+    setForgotSubmitting(true);
+    setForgotStatus(null);
+    setForgotMsg("");
+
+    try {
+      await sendPasswordResetEmail(auth, trimmed.toLowerCase());
+      setForgotStatus("success");
+      setForgotMsg(`Falls die Adresse "${trimmed}" im System registriert ist, wurde ein Link zum Zurücksetzen gesendet. Bitte prüfen Sie Ihren Posteingang und Spam-Ordner.`);
+    } catch (err: any) {
+      console.warn("sendPasswordResetEmail response:", err);
+      if (err?.code === 'auth/too-many-requests') {
+        setForgotStatus("error");
+        setForgotMsg("Zu viele Anfragen. Bitte warten Sie einen Moment, bevor Sie es erneut versuchen.");
+      } else {
+        // Enumeration Shield: Gleiche Antwort für höchste Sicherheit
+        setForgotStatus("success");
+        setForgotMsg(`Falls die Adresse "${trimmed}" im System registriert ist, wurde ein Link zum Zurücksetzen gesendet. Bitte prüfen Sie Ihren Posteingang und Spam-Ordner.`);
+      }
+    } finally {
+      setForgotSubmitting(false);
+    }
+  };
 
   // Check existing lockout or failed attempts on mount across localStorage, sessionStorage & cookie
   useEffect(() => {
@@ -444,12 +503,26 @@ export default function Home() {
                 <span>{passwordError}</span>
               </div>
             )}
+            <div className="flex justify-end mt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setForgotInput(loginId.trim());
+                  setShowForgotModal(true);
+                  setForgotStatus(null);
+                  setForgotMsg("");
+                }}
+                className="text-xs text-text-muted hover:text-[#6E8F64] transition-colors cursor-pointer"
+              >
+                Passwort vergessen?
+              </button>
+            </div>
           </div>
           
           <button 
             type="submit" 
             disabled={isLocked || isSubmitting}
-            className={`btn-primary w-full mt-8 py-3.5 flex items-center justify-center gap-2 font-bold ${
+            className={`btn-primary w-full mt-6 py-3.5 flex items-center justify-center gap-2 font-bold ${
               isLocked || isSubmitting ? 'opacity-50 cursor-not-allowed bg-slate-600' : ''
             }`}
           >
@@ -466,6 +539,109 @@ export default function Home() {
           </button>
         </form>
       </div>
+
+      {/* Modal: Passwort vergessen (Firebase Security Standard) */}
+      {showForgotModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={() => !forgotSubmitting && setShowForgotModal(false)}
+        >
+          <div 
+            className="bg-bg-panel border border-structure rounded-2xl p-6 md:p-7 w-full max-w-md shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-structure pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-[#6E8F64]/10 text-[#6E8F64] flex items-center justify-center border border-[#6E8F64]/20 shrink-0">
+                  <KeyIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-text-main">Passwort zurücksetzen</h3>
+                  <p className="text-xs text-text-muted">Sicherer Reset via Google Firebase</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={forgotSubmitting}
+                onClick={() => setShowForgotModal(false)}
+                className="p-1 text-text-muted hover:text-text-main rounded-lg cursor-pointer"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-text-muted leading-relaxed">
+              Geben Sie die E-Mail-Adresse Ihres Kontos ein. Sie erhalten einen sicheren, zeitlich begrenzten Link zum Festlegen eines neuen Passworts.
+            </p>
+
+            <form onSubmit={handleRequestPasswordReset} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-text-muted mb-1.5">
+                  E-Mail-Adresse
+                </label>
+                <input
+                  type="text"
+                  value={forgotInput}
+                  onChange={(e) => {
+                    setForgotInput(e.target.value);
+                    if (forgotStatus) setForgotStatus(null);
+                  }}
+                  placeholder="name@rothirsch-umzug.de"
+                  className="input-field text-sm py-2.5"
+                  autoFocus
+                  disabled={forgotSubmitting}
+                />
+              </div>
+
+              {forgotStatus === "success" && (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium flex items-start gap-2.5 animate-in fade-in duration-200">
+                  <CheckCircleIcon className="w-5 h-5 shrink-0 text-emerald-400 mt-0.5" />
+                  <span className="leading-relaxed">{forgotMsg}</span>
+                </div>
+              )}
+
+              {forgotStatus === "info" && (
+                <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-300 text-xs font-medium flex items-start gap-2.5 animate-in fade-in duration-200">
+                  <LockClosedIcon className="w-5 h-5 shrink-0 text-blue-400 mt-0.5" />
+                  <span className="leading-relaxed">{forgotMsg}</span>
+                </div>
+              )}
+
+              {forgotStatus === "error" && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium flex items-start gap-2.5 animate-in fade-in duration-200">
+                  <ExclamationTriangleIcon className="w-5 h-5 shrink-0 text-red-400 mt-0.5" />
+                  <span className="leading-relaxed">{forgotMsg}</span>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  disabled={forgotSubmitting}
+                  onClick={() => setShowForgotModal(false)}
+                  className="btn-secondary flex-1 py-2.5 text-xs font-bold"
+                >
+                  Schließen
+                </button>
+                <button
+                  type="submit"
+                  disabled={forgotSubmitting || forgotStatus === "success"}
+                  className="btn-primary flex-1 py-2.5 text-xs font-bold bg-[#6E8F64] hover:bg-[#5b7852] text-white flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-[#6E8F64]/20"
+                >
+                  {forgotSubmitting ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Sendet...</span>
+                    </>
+                  ) : (
+                    <span>Link anfordern</span>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

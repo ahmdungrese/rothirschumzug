@@ -1,4 +1,4 @@
-export const APP_VERSION = '2.26.3';
+export const APP_VERSION = '2.27.0';
 
 export const COMPANY_DETAILS = {
   name: "Rothirsch Umzug",

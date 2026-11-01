@@ -5,7 +5,7 @@ import { collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc, serve
 import { initializeApp, getApps } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword } from "firebase/auth";
 import { toast } from "react-hot-toast";
-import { CheckIcon, XMarkIcon, LockClosedIcon, ExclamationTriangleIcon, TrashIcon } from "@heroicons/react/24/outline";
+import { CheckIcon, XMarkIcon, LockClosedIcon, ExclamationTriangleIcon, TrashIcon, KeyIcon, EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
 import { 
   validateHumanName, 
   validateLoginIdentifier, 
@@ -54,6 +54,14 @@ export function TeamAccessManager() {
   // Mitarbeiter löschen Modal State
   const [memberToDelete, setMemberToDelete] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Passwort zurücksetzen Modal State
+  const [memberToResetPassword, setMemberToResetPassword] = useState<any | null>(null);
+  const [newEmployeePassword, setNewEmployeePassword] = useState("");
+  const [resetPin, setResetPin] = useState("");
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [resetError, setResetError] = useState("");
 
   useEffect(() => {
     const q = query(collection(db, 'users'));
@@ -243,6 +251,61 @@ export function TeamAccessManager() {
       toast.error(err.message || "Fehler beim Löschen des Mitarbeiters.");
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleConfirmResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!memberToResetPassword || isResettingPassword) return;
+
+    const trimmedPass = newEmployeePassword.trim();
+    if (!trimmedPass || trimmedPass.length < 6) {
+      setResetError("Das neue Passwort muss mindestens 6 Zeichen lang sein.");
+      return;
+    }
+
+    if (!resetPin.trim()) {
+      setResetError("Bitte geben Sie den Inhaber-PIN (0777) ein.");
+      return;
+    }
+
+    setIsResettingPassword(true);
+    setResetError("");
+
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const res = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({
+          uid: memberToResetPassword.uid,
+          password: trimmedPass,
+          pin: resetPin.trim()
+        })
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        const msg = data.error || "Fehler beim Zurücksetzen des Passworts.";
+        setResetError(msg);
+        toast.error(msg);
+        return;
+      }
+
+      toast.success(data.message || `Passwort für ${memberToResetPassword.displayName || 'Mitarbeiter'} erfolgreich aktualisiert!`);
+      setMemberToResetPassword(null);
+      setNewEmployeePassword("");
+      setResetPin("");
+      setResetError("");
+    } catch (err: any) {
+      console.error("Reset password error:", err);
+      setResetError(err.message || "Netzwerkfehler beim Zurücksetzen.");
+      toast.error(err.message || "Fehler beim Zurücksetzen.");
+    } finally {
+      setIsResettingPassword(false);
     }
   };
 
@@ -517,6 +580,22 @@ export function TeamAccessManager() {
                         Bearbeiten
                       </button>
 
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setMemberToResetPassword(member);
+                          setNewEmployeePassword('');
+                          setResetPin('');
+                          setResetError('');
+                          setShowNewPassword(false);
+                        }} 
+                        className="text-xs px-2.5 py-1 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 dark:text-amber-400 border border-amber-500/20 rounded-lg transition-colors flex items-center gap-1 cursor-pointer"
+                        title={`Passwort für ${member.displayName || 'Mitarbeiter'} ändern`}
+                      >
+                        <KeyIcon className="w-3.5 h-3.5" />
+                        <span>Passwort</span>
+                      </button>
+
                       {member.uid !== auth.currentUser?.uid && (
                         <button
                           type="button"
@@ -589,6 +668,129 @@ export function TeamAccessManager() {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Passwort für Mitarbeiter zurücksetzen */}
+      {memberToResetPassword && (
+        <div 
+          className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200"
+          onClick={() => !isResettingPassword && setMemberToResetPassword(null)}
+        >
+          <div 
+            className="bg-bg-dark border border-amber-500/40 rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-structure pb-3 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20 shrink-0">
+                  <KeyIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-text-main">Passwort ändern</h3>
+                  <p className="text-xs text-text-muted">Neues Passwort für Mitarbeiter vergeben</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={isResettingPassword}
+                onClick={() => setMemberToResetPassword(null)}
+                className="p-1 text-text-muted hover:text-text-main rounded-lg cursor-pointer"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="bg-bg-panel p-3 rounded-xl border border-structure/60 mb-4 text-xs text-text-muted space-y-1">
+              <div>Mitarbeiter: <strong className="text-text-main">{memberToResetPassword.displayName || 'Unbenannt'}</strong></div>
+              <div>Login-ID: <span className="font-mono text-text-main">{memberToResetPassword.loginId || memberToResetPassword.email}</span></div>
+            </div>
+
+            <form onSubmit={handleConfirmResetPassword} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-text-muted mb-1.5">
+                  Neues Passwort
+                </label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    value={newEmployeePassword}
+                    onChange={(e) => {
+                      setNewEmployeePassword(e.target.value.replace(/[\r\n]+/g, '').slice(0, 50));
+                      if (resetError) setResetError("");
+                    }}
+                    placeholder="Mind. 6 Zeichen..."
+                    className="input-field pr-10 text-sm py-2"
+                    autoFocus
+                    required
+                    disabled={isResettingPassword}
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowNewPassword(prev => !prev)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200 p-1"
+                  >
+                    {showNewPassword ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-text-muted mb-1.5">
+                  Inhaber-PIN (0777)
+                </label>
+                <input
+                  type="password"
+                  value={resetPin}
+                  onChange={(e) => {
+                    setResetPin(e.target.value);
+                    if (resetError) setResetError("");
+                  }}
+                  placeholder="••••"
+                  maxLength={8}
+                  className="input-field text-center font-mono tracking-widest text-base py-2"
+                  required
+                  disabled={isResettingPassword}
+                />
+              </div>
+
+              {resetError && (
+                <div className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs font-medium flex items-center gap-2">
+                  <ExclamationTriangleIcon className="w-4 h-4 shrink-0 text-red-400" />
+                  <span>{resetError}</span>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isResettingPassword}
+                  onClick={() => setMemberToResetPassword(null)}
+                  className="btn-secondary flex-1 py-2 text-xs font-bold"
+                >
+                  Abbrechen
+                </button>
+                <button
+                  type="submit"
+                  disabled={isResettingPassword}
+                  className="btn-primary flex-1 py-2 text-xs font-bold bg-[#6E8F64] hover:bg-[#5b7852] text-white flex items-center justify-center gap-1.5 cursor-pointer shadow-md shadow-[#6E8F64]/20"
+                >
+                  {isResettingPassword ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Speichert...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckIcon className="w-4 h-4" />
+                      <span>Passwort speichern</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

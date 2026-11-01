@@ -30,7 +30,19 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.26.3 (Current) – Login Visibility Shield & Password Whitespace Auto-Recovery
+### Version 2.27.0 (Current) – Enterprise Credential Security Hub & Dual Password Reset Engine
+*   **Official Google Firebase Password Reset Engine (`src/app/page.tsx`)**:
+    *   **Sleek "Passwort vergessen?" Modal**: Integrated a dedicated modal allowing users to request a cryptographically signed, 1-hour expiration password reset link directly from Google Firebase to their verified personal email.
+    *   **Enumeration Defense Shield**: Conforms to OWASP enterprise standards; displays identical friendly confirmations regardless of whether an email exists in the database, preventing reconnaissance/email harvesting.
+    *   **Phone Login Direction**: If a user enters a mobile number login, the system cleanly guides them to their company administrator for secure in-system reset.
+*   **Admin-Initiated Employee Password Reset Hub (`TeamAccessManager.tsx`, `/api/admin/reset-password`)**:
+    *   **Direct Key Action in Team Table**: Added a dedicated `[ 🔑 Passwort ]` button next to each employee in `Einstellungen > Team & Zugänge`.
+    *   **Dual-Layer Security Gate**: Password updates require authenticated administrator credentials AND owner PIN (`0777` / `7770`) verification to prevent session-hijacking on unattended devices.
+    *   **Server-Side Admin SDK Execution**: Powered by `adminAuth.updateUser` with audit logging in `activity_logs` (`RESET_PASSWORD`), instantly restoring employee access without waiting for email delivery.
+*   **Service Worker Cache Bump (`sw.js`)**:
+    *   Updated cache name to `rothirsch-erp-v2.27.0`.
+
+### Version 2.26.3 – Login Visibility Shield & Password Whitespace Auto-Recovery
 *   **Login Password Eye Visibility Toggle (`src/app/page.tsx`)**:
     *   Integrated toggleable `EyeIcon` / `EyeSlashIcon` button directly inside the login password input field, allowing users to uncover masked dots and verify what was typed or autofilled by browser password managers.
 *   **Whitespace Auto-Recovery Engine (`src/app/page.tsx`)**:
