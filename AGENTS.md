@@ -30,7 +30,30 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.27.2 (Current) – High-Contrast Offer PDF Affordance & Financial Sync
+### Version 2.28.0 (Current) – Smart In-Move Protocol Hub, Mobile Swipeable Alerts & Cockpit Cleanliness
+*   **Smart In-Move Protocol Authorization & Dynamic Contextual Textbausteine (`ProtocolModal.tsx`, `protocolDefaults.ts`, `OrderDetailsDrawer.tsx`, `CustomerPremiumProfile.tsx`)**:
+    *   **In-Move Non-Blocking Protocol Authorization**: Team leads and dispatchers can now capture, sign, and document legal agreements at any point before or during the move (Phase 2, Phase 3, or Phase 4) without being forced to complete or close the contract.
+    *   **Non-Blocking Move Completion Choice**: The system never prohibits protocol creation. For "Abnahme ohne Mängel (Abschluss) / Keine Schäden", it presents a friendly non-blocking query: `Status des Umzugs: Ist der Umzug bereits vollständig beendet?` with dual explicit choices (`[ Ja, Umzug abschließen (Phase 4) ]` vs `[ Nein, nur Protokoll (Umzug läuft) ]`).
+    *   **Context-Aware Dynamic Snippets**: Rapid text insert pills dynamically adapt to the active protocol category:
+        *   `Gefahrenübergang & Kundenrisiko`: Shelf/cabinet mounting on customer risk (`Montage auf Kundenrisiko`), refrigerator/appliance elevator transport (`Aufzugtransport auf Kundenrisiko`), narrow stairwells (`Treppenhaus-Engstelle`), and self-packed cartons.
+        *   `Vorbestehende Schäden`: Pre-existing scratches, prior damage, and initial photo documentation before loading.
+        *   `Abnahme ohne Mängel`: Clean handover, undamaged furniture, and zero customer claims.
+        *   `Mängel- & Schadensfeststellung`: On-site transport damage and insurance claim routing.
+        *   `Zählerstände & Schlüssel`: Complete meter readings and key handover.
+    *   **Phase 3 Cockpit Integration & URL Direct Action**: Added dedicated `[ 📋 Protokoll & Haftung vor/während Umzug ]` card inside Phase 3 of `OrderDetailsDrawer.tsx`, and enabled instant protocol modal/PDF opening from customer card quick actions (`?action=view-protocol`).
+*   **Mobile Swipeable Notification Hub & 3-Day Snooze Alerts (`NotificationBell.tsx`, `ticketEngine.ts`, `orderValidation.ts`)**:
+    *   **Native Touch-Swipe Interactions**: Notifications feature smooth iOS/Android horizontal swipe gesture revealing quick actions: `[ ⏰ 3 Tage ]` to temporarily snooze reminders and `[ 🗑️ Löschen ]` to dismiss.
+    *   **Snooze Counter & 1-Click Restoration**: Displays active paused reminder counter badge (`X pausiert`) with a 1-click restore action in the notification popover header.
+*   **Cockpit De-Cluttering, Address Integrity Guard & Calm Team Disposition (`OrderDetailsDrawer.tsx`, `logistics/page.tsx`, `taskStateController.ts`)**:
+    *   **Auto-Resolved Viewing Tasks**: When an order is confirmed or signed (`status === 'confirmed'` or digital/scanned signature exists), `viewing_requested` automatically marks as complete (`done: true`), permanently purging the `Besichtigung starten` button from open tasks.
+    *   **Compact Confirmed Inspection Panel**: In Phase 2, the bulky inspection scheduling panel cleanly converts to a sleek 1-line panel (`✓ Besichtigung nicht erforderlich – Der Auftrag wurde bereits verbindlich bestätigt. Erledigt ✓`), completely removing scheduling prompts and "+ Planen" buttons.
+    *   **Purged Post-Confirmation Shortcuts**: Hidden the "Im Angebot ergänzen (Schritt 3)" shortcut links in Phase 3 once an offer is confirmed, preserving data integrity and eliminating visual clutter.
+    *   **Strict Einzugsadresse (B) Verification**: Phase 1 stepper tab strictly requires BOTH Auszugsadresse (A) AND Einzugsadresse (B) to earn the green checkmark (`CheckCircleIcon`). Incomplete addresses render with a calm, harmonious indicator dot (`w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600`).
+    *   **1-Line Compact Collapsed Summary**: When team & vehicles are dispatched (`isTeamDone`), the card collapses into a single ergonomic row: `Fahrzeug & Team disponiert ✓ (Leiter: ... • Helfer • LKW)` with a sleek `[ Details ▾ ]` toggle.
+*   **Service Worker Cache Bump (`sw.js`)**:
+    *   Updated cache name to `rothirsch-erp-v2.28.0`.
+
+### Version 2.27.2 – High-Contrast Offer PDF Affordance & Financial Sync
 *   **100% Financial Total Synchronized State (`CustomerPremiumProfile.tsx`, `OrderDetailsDrawer.tsx`)**:
     *   **Direct Calculation Integration**: Upgraded `isOrderPricedAndServiced` to consult `calculateOrderTotals(ord)` directly, ensuring 100% synchronization with the gross totals displayed in `FINANZEN & ZAHLUNG` (€74,97).
 *   **High-Contrast Visual States**:

@@ -20,7 +20,7 @@ import { toast } from 'react-hot-toast';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
 import { autoCompletePreMoveTasks } from '@/lib/taskStateController';
 import { triggerHaptic } from '@/lib/haptics';
-import { MASTER_PROTOCOL_CATEGORIES, MASTER_PROTOCOL_SNIPPETS } from '@/lib/protocolDefaults';
+import { MASTER_PROTOCOL_CATEGORIES, MASTER_PROTOCOL_SNIPPETS, getSnippetsForCategory } from '@/lib/protocolDefaults';
 
 interface ProtocolModalProps {
   order: any;
@@ -38,8 +38,10 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
   const [activeTab, setActiveTab] = useState<'create' | 'list'>('create');
   const [type, setType] = useState('Abnahme ohne Mängel (Abschluss)');
   const [text, setText] = useState(PRESET_CATEGORIES[0]?.text || '');
-  const [markAsCompleted, setMarkAsCompleted] = useState(true);
+  const isOrderAlreadyCompleted = order?.status === 'completed';
+  const [markAsCompleted, setMarkAsCompleted] = useState(false);
   const [signerRole, setSignerRole] = useState<'kunde' | 'teamleiter'>('kunde');
+  const [showAllSnippets, setShowAllSnippets] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [settings, setSettings] = useState<any>(null);
@@ -54,11 +56,20 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
           const firstCat = data.protocolCategories[0];
           setType(firstCat.name);
           if (firstCat.text) setText(firstCat.text);
-          setMarkAsCompleted(firstCat.name.toLowerCase().includes('abschluss') || firstCat.name.toLowerCase().includes('ohne mängel'));
+          const isAbschluss = firstCat.name.toLowerCase().includes('abschluss') || firstCat.name.toLowerCase().includes('ohne mängel');
+          setMarkAsCompleted(isAbschluss && isOrderAlreadyCompleted);
         }
       }
     });
-  }, []);
+  }, [isOrderAlreadyCompleted]);
+
+  const isAbschlussCategory = useMemo(() => {
+    const lower = (type || '').toLowerCase();
+    return lower.includes('abschluss') || 
+           lower.includes('ohne mängel') || 
+           lower.includes('keine schäden') || 
+           lower.includes('mängelfrei');
+  }, [type]);
 
   const availableCategories = useMemo(() => {
     const rawCategories = (settings?.protocolCategories && settings.protocolCategories.length > 0)
@@ -71,22 +82,27 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
       let isCompletion = Boolean(c.isCompletion);
       let subtitle = c.subtitle || 'Individuelle Vereinbarung';
 
-      if (lower.includes('abschluss') || lower.includes('keine schäden') || lower.includes('ohne mängel')) {
+      if (lower.includes('abschluss') || lower.includes('keine schäden') || lower.includes('ohne mängel') || lower.includes('mängelfrei')) {
         icon = ShieldCheckIcon;
         isCompletion = true;
-        subtitle = 'Vollständig & mängelfrei (Phase 4)';
-      } else if (lower.includes('gefahr') || lower.includes('haftung')) {
+        subtitle = c.subtitle || 'Vollständig & mängelfrei (Phase 4)';
+      } else if (lower.includes('gefahr') || lower.includes('haftung') || lower.includes('risiko')) {
         icon = ExclamationTriangleIcon;
-        subtitle = 'Treppenhaus / Kundenrisiko';
+        subtitle = c.subtitle || 'Regale, Aufzug, Engstellen & Kundenrisiko';
+      } else if (lower.includes('vorbestehend') || lower.includes('vorschäden') || lower.includes('vor verladung')) {
+        icon = ClipboardDocumentCheckIcon;
+        subtitle = c.subtitle || 'Bereits vor Beginn vorhandene Mängel';
       } else if (lower.includes('schaden') || lower.includes('mängel')) {
         icon = ExclamationTriangleIcon;
-        subtitle = 'Schäden vor Ort dokumentieren';
+        subtitle = c.subtitle || 'Schäden vor Ort dokumentieren';
       } else if (lower.includes('zähler') || lower.includes('schlüssel')) {
         icon = KeyIcon;
-        subtitle = 'Strom, Wasser, Gas & Schlüssel';
+        subtitle = c.subtitle || 'Strom, Wasser, Gas & Schlüssel';
       } else if (lower.includes('besichtigung')) {
         icon = DocumentTextIcon;
-        subtitle = 'Aufnahme vor Auftragserteilung';
+        subtitle = c.subtitle || 'Aufnahme vor Auftragserteilung';
+      } else {
+        subtitle = c.subtitle || 'Individuelle Vereinbarungen vor Ort';
       }
 
       return {
@@ -115,10 +131,16 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
     return list;
   }, [settings]);
 
+  const contextualSnippets = useMemo(() => {
+    return getSnippetsForCategory(type, allSnippets);
+  }, [type, allSnippets]);
+
+  const displayedSnippets = showAllSnippets ? allSnippets : contextualSnippets;
+
   const handleSelectPreset = (cat: any) => {
     setType(cat.name);
     setText(cat.defaultText);
-    setMarkAsCompleted(cat.isCompletion);
+    setMarkAsCompleted(Boolean(cat.isCompletion));
   };
 
   const handleCustomTypeChange = (newType: string) => {
@@ -212,6 +234,7 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
       const updates: Record<string, any> = {
         protocols: arrayUnion(newProtocol),
         'ticketStates.abnahmeprotokoll': true,
+        'ticketStates.protocol': true,
         updatedAt: serverTimestamp(),
       };
 
@@ -272,9 +295,9 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
       if (isDamageOrClaim) {
         toast.success('Mängelprotokoll erfasst & automatisch Reklamations-Ticket angelegt! 🛡️');
       } else if (markAsCompleted) {
-        toast.success('Protokoll gespeichert & Umzug als abgeschlossen markiert!');
+        toast.success('Protokoll gespeichert & Umzug als abgeschlossen markiert! 🎉');
       } else {
-        toast.success('Protokoll erfolgreich gespeichert!');
+        toast.success('Protokoll erfolgreich gespeichert! (Auftrag bleibt aktiv) 📋');
       }
       triggerHaptic('success');
 
@@ -559,18 +582,27 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
                   required
                 />
 
-                {/* Quick Snippet Insert Pills */}
-                <div className="mt-2 space-y-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                    Häufige Textbausteine anfügen:
-                  </span>
+                {/* Dynamic & Contextual Snippet Insert Pills */}
+                <div className="mt-2.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-headline">
+                      <span>Passende Textbausteine für „{type.length > 28 ? type.slice(0, 26) + '...' : type}“:</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowAllSnippets(!showAllSnippets)}
+                      className="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    >
+                      {showAllSnippets ? 'Nur passende anzeigen' : 'Alle Vorlagen anzeigen'}
+                    </button>
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
-                    {allSnippets.map((snip, idx) => (
+                    {displayedSnippets.map((snip, idx) => (
                       <button
                         key={idx}
                         type="button"
                         onClick={() => appendSnippet(snip.text)}
-                        className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 border border-slate-200/80 dark:border-slate-700 transition-colors cursor-pointer"
+                        className="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 border border-slate-200/80 dark:border-slate-700 transition-colors cursor-pointer text-left"
                         title={snip.text}
                       >
                         + {snip.label}
@@ -580,23 +612,66 @@ export function ProtocolModal({ order, onClose, onSuccess, onViewPdf }: Protocol
                 </div>
               </div>
 
-              {/* Completion Toggle */}
-              <label className="flex items-start gap-3 p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 cursor-pointer select-none hover:border-blue-500/40 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={markAsCompleted}
-                  onChange={(e) => setMarkAsCompleted(e.target.checked)}
-                  className="w-5 h-5 rounded-md text-blue-600 focus:ring-blue-500 accent-blue-600 cursor-pointer shrink-0 mt-0.5"
-                />
-                <div>
-                  <span className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white block">
-                    Umzug als erfolgreich durchgeführt abschließen (Phase 4)
-                  </span>
-                  <span className="text-[11px] text-slate-400 block mt-0.5 leading-relaxed">
-                    Versetzt den Auftrag in Phase 4 und schaltet die finale Rechnungserstellung sowie Bewertungsanfragen frei.
+              {/* Move Status / Completion Guidance: Non-Blocking & Intuitive */}
+              {isAbschlussCategory ? (
+                <div className={`p-4 rounded-2xl border transition-all ${
+                  markAsCompleted 
+                    ? 'bg-emerald-500/10 border-emerald-500/30 dark:bg-emerald-950/20 dark:border-emerald-700/50' 
+                    : 'bg-amber-500/10 border-amber-500/30 dark:bg-amber-950/20 dark:border-amber-700/50'
+                }`}>
+                  <div className="flex items-start gap-2.5">
+                    {markAsCompleted ? (
+                      <CheckCircleIcon className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                    ) : (
+                      <ExclamationTriangleIcon className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">
+                        Status des Umzugs: Ist der Umzug bereits vollständig beendet?
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                        {markAsCompleted 
+                          ? 'Ja – Auftrag wird offiziell als beendet markiert (Phase 4 Abschluss) und Rechnungsfreigabe erteilt.'
+                          : 'Nein (oder Zwischenabnahme) – Es wird NUR das Protokoll digital gespeichert. Der Umzug läuft regulär weiter.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setMarkAsCompleted(true)}
+                      className={`py-2 px-3 rounded-xl border text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        markAsCompleted
+                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                          : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <CheckCircleIcon className="w-4 h-4" />
+                      <span>Ja, Umzug abschließen (Phase 4)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setMarkAsCompleted(false)}
+                      className={`py-2 px-3 rounded-xl border text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        !markAsCompleted
+                          ? 'bg-amber-600 text-white border-amber-600 shadow-xs'
+                          : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>Nein, nur Protokoll (Umzug läuft)</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2.5 p-3.5 rounded-2xl bg-blue-50/50 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-900/40 text-blue-900 dark:text-blue-200 text-xs">
+                  <ShieldCheckIcon className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                  <span>
+                    Dieses Protokoll dient der rechtlichen Dokumentation vor & während des Umzugs. Der laufende Auftragsstatus bleibt unverändert aktiv.
                   </span>
                 </div>
-              </label>
+              )}
 
               {/* Digital Signature Canvas */}
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 space-y-3">

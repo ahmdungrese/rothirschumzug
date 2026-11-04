@@ -27,7 +27,11 @@ import {
   UserIcon,
   UserGroupIcon,
   VideoCameraIcon,
-  PhotoIcon
+  PhotoIcon,
+  ClipboardDocumentCheckIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  EllipsisVerticalIcon
 } from '@heroicons/react/24/outline';
 import { useRouter } from 'next/navigation';
 import { evaluateOrderLogistics } from '@/lib/orderValidation';
@@ -146,8 +150,27 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
   const [scanPreviewOpen, setScanPreviewOpen] = useState(false);
   const [isUploadingScan, setIsUploadingScan] = useState(false);
   const [editingDispoInline, setEditingDispoInline] = useState(false);
+  const [teamCardExpanded, setTeamCardExpanded] = useState(false);
   const [drawerTeamLeads, setDrawerTeamLeads] = useState<Array<{ uid: string; displayName: string; role: string }>>([]);
+  const [contractMenuOpen, setContractMenuOpen] = useState(false);
+  const contractMenuRef = React.useRef<HTMLDivElement | null>(null);
   const scanInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent | TouchEvent) => {
+      if (contractMenuRef.current && !contractMenuRef.current.contains(e.target as Node)) {
+        setContractMenuOpen(false);
+      }
+    };
+    if (contractMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [contractMenuOpen]);
 
   useEffect(() => {
     const q = query(collection(db, 'users'));
@@ -766,9 +789,11 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
               const isCurrent = currentOrderPhase === tab.phase;
               const hasContact = Boolean(custPhone?.trim() || custEmail?.trim());
               const isPastPhase = tab.phase < currentOrderPhase;
-              const isPhase1Incomplete = tab.phase === 1 && !hasContact;
-              const isCompletedPhase = isPastPhase && !isPhase1Incomplete;
-              const showWarning = isPastPhase && isPhase1Incomplete;
+              
+              // Phase 1 ist NUR dann wirklich vollständig abgeschlossen, wenn BEIDE Adressen (Auszug A und Einzug B) erfasst sind.
+              const isPhase1FullyComplete = hasContact && Boolean(addressA?.trim()) && Boolean(addressB?.trim());
+              const isCompletedPhase = isPastPhase && (tab.phase === 1 ? isPhase1FullyComplete : true);
+              const isPhaseIncomplete = isPastPhase && !isCompletedPhase;
 
               return (
                 <button
@@ -777,20 +802,23 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                   className={`text-xs font-bold font-headline whitespace-nowrap border-b-2 transition-all flex flex-col items-center relative py-2 px-3 sm:py-2.5 sm:px-4 cursor-pointer ${
                     isActive 
                       ? 'border-primary text-primary' 
-                      : showWarning
-                        ? 'border-transparent text-amber-600 dark:text-amber-400 hover:text-amber-700'
-                        : isCompletedPhase
-                          ? 'border-transparent text-emerald-600 dark:text-emerald-400 hover:text-emerald-700'
+                      : isCompletedPhase
+                        ? 'border-transparent text-emerald-600 dark:text-emerald-400 hover:text-emerald-700'
+                        : isPhaseIncomplete
+                          ? 'border-transparent text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
                           : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
                 >
                   <div className="flex items-center gap-1.5">
                     <span>{tab.label}</span>
-                    {showWarning && (
-                      <ExclamationTriangleIcon className="w-3.5 h-3.5 text-amber-500 shrink-0" title="Phase unvollständig: Telefon oder E-Mail fehlt" />
-                    )}
                     {isCompletedPhase && (
-                      <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-500 shrink-0" title="Phase abgeschlossen" />
+                      <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-500 shrink-0" title="Phase vollständig abgeschlossen" />
+                    )}
+                    {isPhaseIncomplete && (
+                      <span 
+                        className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-600 border border-slate-400/60 shrink-0" 
+                        title={tab.phase === 1 ? (!addressB ? 'Einzugsadresse (B) fehlt noch' : 'Angaben unvollständig') : 'Phase noch nicht vollständig'} 
+                      />
                     )}
                     {isCurrent && (
                       <span className="w-1.5 h-1.5 rounded-full bg-primary" title="Aktuelle Phase des Auftrags" />
@@ -810,8 +838,8 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
           {/* ========================================================================= */}
           {activePhaseTab === 1 && (
             <div className="space-y-3.5 sm:space-y-4">
-              {/* Ultra-Slim single-line alert pill - only when critical contact data is missing */}
-              {(!custPhone && !custEmail) && (
+              {/* Ultra-Slim single-line alert pill - only when critical contact data is missing and NOT yet confirmed */}
+              {(!custPhone && !custEmail && !isContractSigned && currentOrderPhase < 3) && (
                 <div className="py-1.5 px-3 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-between gap-2 text-[11px] text-amber-800 dark:text-amber-300 leading-none">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <ExclamationTriangleIcon className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
@@ -957,10 +985,15 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                             </span>
                           );
                         })()
+                      ) : (isContractSigned || currentOrderPhase >= 3) ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                          <CheckIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                          <span>Nicht erforderlich (Bestätigt)</span>
+                        </span>
                       ) : (
                         <span className="text-slate-400 italic">Noch nicht geplant</span>
                       )}
-                      {(() => {
+                      {!(isContractSigned || currentOrderPhase >= 3) && (() => {
                         const hasViewingAppointment = Boolean(order.orderMeta?.viewingDate);
                         return hasViewingAppointment ? (
                           <button
@@ -1103,31 +1136,76 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                           <button
                             type="button"
                             onClick={() => setScanPreviewOpen(true)}
-                            className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center gap-1 cursor-pointer"
+                            className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors flex items-center gap-1 cursor-pointer shadow-xs"
                             title="Unterschrift oder Scan ansehen"
                           >
                             <EyeIcon className="w-3.5 h-3.5" />
                             <span>Nachweis</span>
                           </button>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => scanInputRef.current?.click()}
-                          disabled={isUploadingScan}
-                          className="px-2 py-1 text-xs font-bold rounded-lg border border-emerald-500/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 transition-colors flex items-center gap-1 cursor-pointer"
-                          title="Foto oder Scan anhängen / ändern"
-                        >
-                          <span className="material-symbols-outlined text-sm">add_a_photo</span>
-                          <span>{hasUploadedScan ? 'Ändern' : 'Scan'}</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSignatureModalOpen(true)}
-                          className="px-2 py-1 text-xs font-bold rounded-lg border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
-                          title="Signatur-Pad öffnen"
-                        >
-                          Pad
-                        </button>
+
+                        {/* Options Dropdown Menu (...) */}
+                        <div className="relative shrink-0" ref={contractMenuRef}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setContractMenuOpen(!contractMenuOpen);
+                            }}
+                            className="w-7 h-7 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 flex items-center justify-center transition-all cursor-pointer"
+                            title="Optionen (Foto/Scan, Pad, Bestätigung)"
+                          >
+                            <EllipsisVerticalIcon className="w-4 h-4" />
+                          </button>
+
+                          {contractMenuOpen && (
+                            <div 
+                              className="absolute right-0 top-full mt-1.5 w-56 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-1"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                Optionen
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setContractMenuOpen(false);
+                                  scanInputRef.current?.click();
+                                }}
+                                disabled={isUploadingScan}
+                                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer text-left"
+                              >
+                                <span className="material-symbols-outlined text-sm text-blue-500">add_a_photo</span>
+                                <span>{hasUploadedScan ? 'Foto / Scan ersetzen' : 'Foto / Scan hinzufügen'}</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setContractMenuOpen(false);
+                                  setSignatureModalOpen(true);
+                                }}
+                                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer text-left"
+                              >
+                                <PencilSquareIcon className="w-4 h-4 text-amber-500 shrink-0" />
+                                <span>Digital neu signieren</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setContractMenuOpen(false);
+                                  handleToggleTask('signature', 'Vertragsbestätigung');
+                                }}
+                                disabled={isUpdatingTask}
+                                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors cursor-pointer text-left"
+                              >
+                                <ArrowPathIcon className="w-4 h-4 text-rose-500 shrink-0" />
+                                <span>Bestätigung zurücksetzen</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -1184,136 +1262,159 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
               })()}
 
               {/* Besichtigungstermin Card */}
-              <div className="panel p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 font-headline">
-                    Besichtigungstermin
-                  </h4>
-                  <button
-                    onClick={() => handleOpenSchedule({ id: 'viewing_requested', name: 'Besichtigung' })}
-                    className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
-                  >
-                    <CalendarDaysIcon className="w-3.5 h-3.5" />
-                    <span>Termin planen / ändern</span>
-                  </button>
-                </div>
-
-                {order.orderMeta?.viewingDate && order.orderMeta?.viewingDate !== 'requested' ? (
-                  <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-500/60 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs font-bold flex items-center gap-1.5">
-                          {(() => {
-                            const vType = (order.orderMeta?.viewingType || order.logistics?.viewingType || '').toLowerCase();
-                            const isOnline = vType.includes('online') || vType.includes('video');
-                            const isFotos = order.orderMeta?.viewingDate === 'erledigt_fotos' || vType === 'fotos';
-                            if (isFotos) {
-                              return (
-                                <>
-                                  <PhotoIcon className="w-4 h-4 text-emerald-600 shrink-0" />
-                                  <span className="text-emerald-900 dark:text-emerald-200">Per Fotos & Liste erledigt</span>
-                                </>
-                              );
-                            }
-                            if (isOnline) {
-                              return (
-                                <>
-                                  <VideoCameraIcon className="w-4 h-4 text-purple-600 shrink-0" />
-                                  <span className="text-purple-900 dark:text-purple-200">Video-Besichtigung (Online-Call)</span>
-                                </>
-                              );
-                            }
-                            return (
-                              <>
-                                <MapPinIcon className="w-4 h-4 text-blue-600 shrink-0" />
-                                <span className="text-blue-900 dark:text-blue-200">Vor-Ort-Besichtigung</span>
-                              </>
-                            );
-                          })()}
-                        </p>
-                        <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 mt-0.5">
-                          {formatScheduleDate(order.orderMeta?.viewingDate, order.orderMeta?.viewingTime)}
-                        </p>
-                      </div>
-                      <span className="material-symbols-outlined text-emerald-600 text-xl">calendar_today</span>
+              {(isContractSigned || currentOrderPhase >= 3) && (!order.orderMeta?.viewingDate || order.orderMeta?.viewingDate === 'requested') ? (
+                <div className="panel p-3.5 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 rounded-2xl flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                      <CheckCircleIcon className="w-4 h-4" />
                     </div>
+                    <div>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                        Besichtigung nicht erforderlich
+                      </span>
+                      <span className="text-[11px] text-slate-500 block">
+                        Der Auftrag wurde bereits verbindlich bestätigt.
+                      </span>
+                    </div>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
+                    Erledigt ✓
+                  </span>
+                </div>
+              ) : (
+                <div className="panel p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 font-headline">
+                      Besichtigungstermin
+                    </h4>
+                    {!(isContractSigned || currentOrderPhase >= 3) && (
+                      <button
+                        onClick={() => handleOpenSchedule({ id: 'viewing_requested', name: 'Besichtigung' })}
+                        className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                      >
+                        <CalendarDaysIcon className="w-3.5 h-3.5" />
+                        <span>Termin planen / ändern</span>
+                      </button>
+                    )}
+                  </div>
 
-                    {/* Address only shown if Vor-Ort */}
-                    {addressA && !(order.orderMeta?.viewingType || '').toLowerCase().includes('online') && !(order.orderMeta?.viewingType || '').toLowerCase().includes('video') && order.orderMeta?.viewingDate !== 'erledigt_fotos' && (
-                      <div className="text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-emerald-200/60 dark:border-emerald-900/40 flex items-center justify-between gap-2">
-                        <span className="truncate flex items-center gap-1">
-                          <MapPinIcon className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                          <span className="truncate">{addressA}</span>
-                        </span>
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressA)}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-2.5 py-1 rounded-lg bg-emerald-200/70 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-200 font-bold hover:brightness-110 flex items-center gap-1 shrink-0"
-                          title="In Google Maps öffnen"
+                  {order.orderMeta?.viewingDate && order.orderMeta?.viewingDate !== 'requested' ? (
+                    <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border-2 border-emerald-500/60 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-xs font-bold flex items-center gap-1.5">
+                            {(() => {
+                              const vType = (order.orderMeta?.viewingType || order.logistics?.viewingType || '').toLowerCase();
+                              const isOnline = vType.includes('online') || vType.includes('video');
+                              const isFotos = order.orderMeta?.viewingDate === 'erledigt_fotos' || vType === 'fotos';
+                              if (isFotos) {
+                                return (
+                                  <>
+                                    <PhotoIcon className="w-4 h-4 text-emerald-600 shrink-0" />
+                                    <span className="text-emerald-900 dark:text-emerald-200">Per Fotos & Liste erledigt</span>
+                                  </>
+                                );
+                              }
+                              if (isOnline) {
+                                return (
+                                  <>
+                                    <VideoCameraIcon className="w-4 h-4 text-purple-600 shrink-0" />
+                                    <span className="text-purple-900 dark:text-purple-200">Video-Besichtigung (Online-Call)</span>
+                                  </>
+                                );
+                              }
+                              return (
+                                <>
+                                  <MapPinIcon className="w-4 h-4 text-blue-600 shrink-0" />
+                                  <span className="text-blue-900 dark:text-blue-200">Vor-Ort-Besichtigung</span>
+                                </>
+                              );
+                            })()}
+                          </p>
+                          <p className="text-xs font-extrabold text-slate-800 dark:text-slate-100 mt-0.5">
+                            {formatScheduleDate(order.orderMeta?.viewingDate, order.orderMeta?.viewingTime)}
+                          </p>
+                        </div>
+                        <span className="material-symbols-outlined text-emerald-600 text-xl">calendar_today</span>
+                      </div>
+
+                      {/* Address only shown if Vor-Ort */}
+                      {addressA && !(order.orderMeta?.viewingType || '').toLowerCase().includes('online') && !(order.orderMeta?.viewingType || '').toLowerCase().includes('video') && order.orderMeta?.viewingDate !== 'erledigt_fotos' && (
+                        <div className="text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-emerald-200/60 dark:border-emerald-900/40 flex items-center justify-between gap-2">
+                          <span className="truncate flex items-center gap-1">
+                            <MapPinIcon className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                            <span className="truncate">{addressA}</span>
+                          </span>
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressA)}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2.5 py-1 rounded-lg bg-emerald-200/70 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-200 font-bold hover:brightness-110 flex items-center gap-1 shrink-0"
+                            title="In Google Maps öffnen"
+                          >
+                            <MapPinIcon className="w-3.5 h-3.5" />
+                            <span>Navigation</span>
+                          </a>
+                        </div>
+                      )}
+
+                      {((order.orderMeta?.viewingType || '').toLowerCase().includes('online') || (order.orderMeta?.viewingType || '').toLowerCase().includes('video')) && (
+                        <div className="text-[11px] text-purple-700 dark:text-purple-300 pt-2 border-t border-purple-200/60 dark:border-purple-900/40 flex items-center gap-1.5 font-medium">
+                          <VideoCameraIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                          <span>Online-Termin via WhatsApp Video / FaceTime</span>
+                        </div>
+                      )}
+
+                      <div className="pt-2 border-t border-[#6E8F64]/25 flex items-center gap-2">
+                        <Link
+                          href={`${editOrderUrl}${editOrderUrl.includes('?') ? '&' : '?'}step=4`}
+                          className="flex-1 py-2 px-3 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors"
                         >
-                          <MapPinIcon className="w-3.5 h-3.5" />
-                          <span>Navigation</span>
-                        </a>
+                          <span className="material-symbols-outlined text-sm">chair</span>
+                          <span>Inventar erfassen (m³)</span>
+                        </Link>
+                        {custPhone && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const tpl = getCommunicationTemplate(settings, 'dispo_unterwegs', 'dispo_besichtigung');
+                              const body = tpl?.body || 'Hallo {{Kunde_Name}},\n\nich bin pünktlich auf dem Weg zu Ihnen für unseren Besichtigungstermin{{Termin_Details}}.\n\nBis gleich!\nViele Grüße,\n{{Sachbearbeiter}}\nRothirsch Umzüge';
+                              const text = formatCommunicationMessage(body, {
+                                customer,
+                                order,
+                                userProfile: profile,
+                                taskType: 'unterwegs',
+                                scheduleDetails: {
+                                  time: order.orderMeta?.viewingTime || ''
+                                }
+                              });
+                              handleDirectWhatsApp(text);
+                            }}
+                            className="px-3 py-2 rounded-xl bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] hover:bg-[#6E8F64] hover:text-white border border-[#6E8F64]/35 text-xs font-bold flex items-center gap-1 transition-colors"
+                            title="Ich bin unterwegs senden (aus Vorlagen)"
+                          >
+                            <ChatBubbleLeftRightIcon className="w-4 h-4" />
+                            <span>Unterwegs</span>
+                          </button>
+                        )}
                       </div>
-                    )}
-
-                    {((order.orderMeta?.viewingType || '').toLowerCase().includes('online') || (order.orderMeta?.viewingType || '').toLowerCase().includes('video')) && (
-                      <div className="text-[11px] text-purple-700 dark:text-purple-300 pt-2 border-t border-purple-200/60 dark:border-purple-900/40 flex items-center gap-1.5 font-medium">
-                        <VideoCameraIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                        <span>Online-Termin via WhatsApp Video / FaceTime</span>
-                      </div>
-                    )}
-
-                    <div className="pt-2 border-t border-[#6E8F64]/25 flex items-center gap-2">
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs text-slate-500 italic">
+                        Noch kein Besichtigungstermin vereinbart.
+                      </p>
                       <Link
                         href={`${editOrderUrl}${editOrderUrl.includes('?') ? '&' : '?'}step=4`}
-                        className="flex-1 py-2 px-3 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                        className="w-full py-2 px-3 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs"
                       >
                         <span className="material-symbols-outlined text-sm">chair</span>
                         <span>Inventar erfassen (m³)</span>
                       </Link>
-                      {custPhone && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const tpl = getCommunicationTemplate(settings, 'dispo_unterwegs', 'dispo_besichtigung');
-                            const body = tpl?.body || 'Hallo {{Kunde_Name}},\n\nich bin pünktlich auf dem Weg zu Ihnen für unseren Besichtigungstermin{{Termin_Details}}.\n\nBis gleich!\nViele Grüße,\n{{Sachbearbeiter}}\nRothirsch Umzüge';
-                            const text = formatCommunicationMessage(body, {
-                              customer,
-                              order,
-                              userProfile: profile,
-                              taskType: 'unterwegs',
-                              scheduleDetails: {
-                                time: order.orderMeta?.viewingTime || ''
-                              }
-                            });
-                            handleDirectWhatsApp(text);
-                          }}
-                          className="px-3 py-2 rounded-xl bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] hover:bg-[#6E8F64] hover:text-white border border-[#6E8F64]/35 text-xs font-bold flex items-center gap-1 transition-colors"
-                          title="Ich bin unterwegs senden (aus Vorlagen)"
-                        >
-                          <ChatBubbleLeftRightIcon className="w-4 h-4" />
-                          <span>Unterwegs</span>
-                        </button>
-                      )}
                     </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-xs text-slate-500 italic">
-                      Noch kein Besichtigungstermin vereinbart.
-                    </p>
-                    <Link
-                      href={`${editOrderUrl}${editOrderUrl.includes('?') ? '&' : '?'}step=4`}
-                      className="w-full py-2 px-3 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-xs"
-                    >
-                      <span className="material-symbols-outlined text-sm">chair</span>
-                      <span>Inventar erfassen (m³)</span>
-                    </Link>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
 
               {/* Vorlagen Quick Actions for Phase 2 */}
               <div className="panel p-4 space-y-3">
@@ -1783,217 +1884,255 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                       const hasAssignedStaff = Array.isArray(order.assignedEmployees) && order.assignedEmployees.length > 0;
                       const hasResourceData = helperCount > 0 || kofferCount > 0 || lkwCount > 0 || hasAssignedStaff;
 
+                      const summaryParts: string[] = [];
+                      if (order.disposition?.assignedTeamLeadName || order.assignedTeamLeadName) {
+                        summaryParts.push(`Leiter: ${order.disposition?.assignedTeamLeadName || order.assignedTeamLeadName}`);
+                      }
+                      if (helperCount > 0) summaryParts.push(`${helperCount} Helfer`);
+                      if (kofferCount > 0) summaryParts.push(`${kofferCount}x 3,5t LKW`);
+                      if (lkwCount > 0) summaryParts.push(`${lkwCount}x 7,5t LKW`);
+                      if (hasAssignedStaff && helperCount === 0) summaryParts.push(`${order.assignedEmployees.length} Mitarbeiter`);
+
+                      const isCollapsed = isTeamDone && !teamCardExpanded && !editingDispoInline;
+
                       return (
-                        <div className={`p-3.5 rounded-xl border-2 transition-all flex flex-col gap-2.5 ${
+                        <div className={`p-3 sm:p-3.5 rounded-xl border transition-all flex flex-col gap-2.5 ${
                           isTeamDone
-                            ? 'bg-emerald-500/10 dark:bg-emerald-950/40 border-emerald-500 shadow-xs'
+                            ? 'bg-slate-50/70 dark:bg-slate-800/40 border-slate-200/80 dark:border-slate-800'
                             : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800'
                         }`}>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0">
                               <input
                                 type="checkbox"
                                 checked={isTeamDone}
                                 onChange={() => handleToggleTask('team', 'Fahrzeug & Team')}
                                 disabled={isUpdatingTask}
-                                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0"
                               />
-                              <div>
-                                <span className={`text-xs font-bold block ${isTeamDone ? 'text-emerald-800 dark:text-emerald-300' : 'text-slate-900 dark:text-white'}`}>
+                              <div className="min-w-0">
+                                <span className={`text-xs font-bold block truncate ${isTeamDone ? 'text-slate-800 dark:text-slate-200' : 'text-slate-900 dark:text-white'}`}>
                                   Fahrzeug &amp; Team disponieren {isTeamDone && '✓'}
                                 </span>
-                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                                  {hasResourceData ? (
-                                    <>
-                                      {(order.disposition?.assignedTeamLeadName || order.assignedTeamLeadName) && (
-                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 flex items-center gap-1 border border-amber-500/20">
-                                          <UserGroupIcon className="w-3 h-3" />
-                                          <span>Leiter: {order.disposition?.assignedTeamLeadName || order.assignedTeamLeadName}</span>
-                                        </span>
-                                      )}
-                                      {helperCount > 0 && (
-                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary flex items-center gap-1">
-                                          <UserIcon className="w-3 h-3" />
-                                          <span>{helperCount} Helfer</span>
-                                        </span>
-                                      )}
-                                      {kofferCount > 0 && (
-                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                                          <TruckIcon className="w-3 h-3 text-primary" />
-                                          <span>{kofferCount}x 3,5t LKW</span>
-                                        </span>
-                                      )}
-                                      {lkwCount > 0 && (
-                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1">
-                                          <TruckIcon className="w-3 h-3 text-amber-500" />
-                                          <span>{lkwCount}x 7,5t LKW</span>
-                                        </span>
-                                      )}
-                                      {hasAssignedStaff && (
-                                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                                          <span>{order.assignedEmployees.length} Mitarbeiter</span>
-                                        </span>
-                                      )}
-                                    </>
-                                  ) : (
-                                    <span className="text-[10px] text-slate-400">
-                                      Noch kein Fahrzeug oder Personal festgelegt
-                                    </span>
-                                  )}
-                                </div>
+                                {isCollapsed ? (
+                                  <span className="text-[11px] text-slate-500 truncate block">
+                                    {summaryParts.length > 0 ? summaryParts.join(' • ') : 'Bereits disponiert'}
+                                  </span>
+                                ) : (
+                                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                    {hasResourceData ? (
+                                      <>
+                                        {(order.disposition?.assignedTeamLeadName || order.assignedTeamLeadName) && (
+                                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1 border border-slate-200/60 dark:border-slate-600">
+                                            <UserGroupIcon className="w-3 h-3 text-slate-500" />
+                                            <span>Leiter: {order.disposition?.assignedTeamLeadName || order.assignedTeamLeadName}</span>
+                                          </span>
+                                        )}
+                                        {helperCount > 0 && (
+                                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1 border border-slate-200/60 dark:border-slate-600">
+                                            <UserIcon className="w-3 h-3 text-slate-500" />
+                                            <span>{helperCount} Helfer</span>
+                                          </span>
+                                        )}
+                                        {kofferCount > 0 && (
+                                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1 border border-slate-200/60 dark:border-slate-600">
+                                            <TruckIcon className="w-3 h-3 text-slate-500" />
+                                            <span>{kofferCount}x 3,5t LKW</span>
+                                          </span>
+                                        )}
+                                        {lkwCount > 0 && (
+                                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1 border border-slate-200/60 dark:border-slate-600">
+                                            <TruckIcon className="w-3 h-3 text-slate-500" />
+                                            <span>{lkwCount}x 7,5t LKW</span>
+                                          </span>
+                                        )}
+                                        {hasAssignedStaff && (
+                                          <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 flex items-center gap-1 border border-slate-200/60 dark:border-slate-600">
+                                            <span>{order.assignedEmployees.length} Mitarbeiter</span>
+                                          </span>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-400">
+                                        Noch kein Fahrzeug oder Personal festgelegt
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() => setEditingDispoInline(prev => !prev)}
-                              className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
-                            >
-                              <PencilSquareIcon className="w-3.5 h-3.5" />
-                              <span>{editingDispoInline ? 'Schließen' : 'Einteilen'}</span>
-                            </button>
-                          </div>
-
-                          {/* Inline Resource Editor */}
-                          {editingDispoInline && (
-                            <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-3">
-                              <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                                Personal &amp; Fahrzeuge für diesen Umzug festlegen:
-                              </p>
-                              <div className="grid grid-cols-3 gap-2">
-                                <div className="flex flex-col gap-1 bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
-                                  <label className="text-[10px] font-medium text-slate-500">Helfer / Träger</label>
-                                  <div className="flex items-center justify-between">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleUpdateInlineDispo('helpers', Math.max(0, helperCount - 1))}
-                                      className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
-                                    >-</button>
-                                    <span className="text-xs font-bold text-slate-900 dark:text-white">{helperCount}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleUpdateInlineDispo('helpers', helperCount + 1)}
-                                      className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
-                                    >+</button>
-                                  </div>
-                                </div>
-
-                                <div className="flex flex-col gap-1 bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
-                                  <label className="text-[10px] font-medium text-slate-500">3,5t LKW</label>
-                                  <div className="flex items-center justify-between">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleUpdateInlineDispo('koffer35t', Math.max(0, kofferCount - 1))}
-                                      className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
-                                    >-</button>
-                                    <span className="text-xs font-bold text-slate-900 dark:text-white">{kofferCount}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleUpdateInlineDispo('koffer35t', kofferCount + 1)}
-                                      className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
-                                    >+</button>
-                                  </div>
-                                </div>
-
-                                <div className="flex flex-col gap-1 bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
-                                  <label className="text-[10px] font-medium text-slate-500">7,5t LKW</label>
-                                  <div className="flex items-center justify-between">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleUpdateInlineDispo('lkw7t', Math.max(0, lkwCount - 1))}
-                                      className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
-                                    >-</button>
-                                    <span className="text-xs font-bold text-slate-900 dark:text-white">{lkwCount}</span>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleUpdateInlineDispo('lkw7t', lkwCount + 1)}
-                                      className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
-                                    >+</button>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Zuständiger Teamleiter Auswahl */}
-                              <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
-                                <label className="text-[10px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
-                                  Zuständiger Teamleiter (Laufzettel &amp; Kalender):
-                                </label>
-                                <select
-                                  value={order.disposition?.assignedTeamLeadUid || order.assignedTeamLeadUid || ''}
-                                  onChange={(e) => handleAssignTeamLeadInline(e.target.value)}
-                                  className="w-full text-xs font-bold p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 cursor-pointer"
-                                >
-                                  <option value="">-- Kein Teamleiter zugewiesen --</option>
-                                  {drawerTeamLeads.map((lead) => (
-                                    <option key={lead.uid} value={lead.uid}>
-                                      {lead.displayName} ({lead.role === 'teamlead' ? 'Teamleiter' : 'Admin'})
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-
-                              <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-800">
-                                <span className="text-[10px] text-slate-400">
-                                  Wird direkt gespeichert &amp; als disponiert markiert
-                                </span>
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {isTeamDone && (
                                 <button
                                   type="button"
-                                  onClick={() => setEditingDispoInline(false)}
-                                  className="px-2.5 py-1 rounded-lg bg-[#6E8F64] text-white text-[10px] font-bold hover:bg-[#5C7A53] transition-colors cursor-pointer"
+                                  onClick={() => setTeamCardExpanded(prev => !prev)}
+                                  className="px-2 py-1 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-800 text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                  title={teamCardExpanded ? 'Ansicht einklappen' : 'Details & Aufteilung anzeigen'}
                                 >
-                                  Fertig ✓
+                                  <span>{teamCardExpanded ? 'Weniger' : 'Details'}</span>
+                                  <ChevronDownIcon className={`w-3.5 h-3.5 transition-transform duration-200 ${teamCardExpanded ? 'rotate-180' : ''}`} />
                                 </button>
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-slate-700 flex-wrap gap-2">
-                            <span>
-                              {order.orderMeta?.movingDateFrom ? (
-                                <>
-                                  Umzugstermin: <strong className="text-slate-900 dark:text-white">{formatScheduleDate(order.orderMeta.movingDateFrom)}</strong>
-                                  {order.orderMeta?.movingTimeFrom && ` • ab ${order.orderMeta.movingTimeFrom} Uhr`}
-                                </>
-                              ) : (
-                                'Kein Umzugstermin im Angebot angegeben'
-                              )}
-                            </span>
-                            <div className="flex items-center gap-2">
-                              {(addressA || addressB) && (
-                                <a
-                                  href={addressA && addressB
-                                    ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(addressA)}&destination=${encodeURIComponent(addressB)}`
-                                    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressA || addressB)}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-xs font-bold border border-blue-500/30 transition-all flex items-center gap-1 cursor-pointer"
-                                  title="Umzugsroute A ➔ B in Google Maps öffnen"
-                                >
-                                  <MapPinIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                                  <span>Route (Maps)</span>
-                                </a>
                               )}
                               <button
                                 type="button"
                                 onClick={() => {
-                                  setPdfModalType('employee');
-                                  setPdfModalOpen(true);
+                                  if (!teamCardExpanded) setTeamCardExpanded(true);
+                                  setEditingDispoInline(prev => !prev);
                                 }}
-                                className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-bold border border-amber-500/30 transition-all flex items-center gap-1 cursor-pointer"
-                                title="Operativen Mitarbeiter-Laufzettel (PDF ohne Preise) öffnen"
+                                className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer px-1 py-1"
                               >
-                                <TruckIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                                <span>Laufzettel PDF</span>
+                                <PencilSquareIcon className="w-3.5 h-3.5" />
+                                <span>{editingDispoInline ? 'Schließen' : 'Einteilen'}</span>
                               </button>
                             </div>
                           </div>
+
+                          {/* Expanded Content: Inline Resource Editor & Quick Map/Laufzettel Buttons */}
+                          {(!isCollapsed || editingDispoInline) && (
+                            <>
+                              {/* Inline Resource Editor */}
+                              {editingDispoInline && (
+                                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-3">
+                                  <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                                    Personal &amp; Fahrzeuge für diesen Umzug festlegen:
+                                  </p>
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <div className="flex flex-col gap-1 bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
+                                      <label className="text-[10px] font-medium text-slate-500">Helfer / Träger</label>
+                                      <div className="flex items-center justify-between">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleUpdateInlineDispo('helpers', Math.max(0, helperCount - 1))}
+                                          className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
+                                        >-</button>
+                                        <span className="text-xs font-bold text-slate-900 dark:text-white">{helperCount}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleUpdateInlineDispo('helpers', helperCount + 1)}
+                                          className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
+                                        >+</button>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex flex-col gap-1 bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
+                                      <label className="text-[10px] font-medium text-slate-500">3,5t LKW</label>
+                                      <div className="flex items-center justify-between">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleUpdateInlineDispo('koffer35t', Math.max(0, kofferCount - 1))}
+                                          className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
+                                        >-</button>
+                                        <span className="text-xs font-bold text-slate-900 dark:text-white">{kofferCount}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleUpdateInlineDispo('koffer35t', kofferCount + 1)}
+                                          className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
+                                        >+</button>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex flex-col gap-1 bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
+                                      <label className="text-[10px] font-medium text-slate-500">7,5t LKW</label>
+                                      <div className="flex items-center justify-between">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleUpdateInlineDispo('lkw7t', Math.max(0, lkwCount - 1))}
+                                          className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
+                                        >-</button>
+                                        <span className="text-xs font-bold text-slate-900 dark:text-white">{lkwCount}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleUpdateInlineDispo('lkw7t', lkwCount + 1)}
+                                          className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-700 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-600 flex items-center justify-center cursor-pointer"
+                                        >+</button>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Zuständiger Teamleiter Auswahl */}
+                                  <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                                    <label className="text-[10px] font-bold text-slate-600 dark:text-slate-300 block mb-1">
+                                      Zuständiger Teamleiter (Laufzettel &amp; Kalender):
+                                    </label>
+                                    <select
+                                      value={order.disposition?.assignedTeamLeadUid || order.assignedTeamLeadUid || ''}
+                                      onChange={(e) => handleAssignTeamLeadInline(e.target.value)}
+                                      className="w-full text-xs font-bold p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 cursor-pointer"
+                                    >
+                                      <option value="">-- Kein Teamleiter zugewiesen --</option>
+                                      {drawerTeamLeads.map((lead) => (
+                                        <option key={lead.uid} value={lead.uid}>
+                                          {lead.displayName} ({lead.role === 'teamlead' ? 'Teamleiter' : 'Admin'})
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+
+                                  <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-800">
+                                    <span className="text-[10px] text-slate-400">
+                                      Wird direkt gespeichert &amp; als disponiert markiert
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingDispoInline(false)}
+                                      className="px-2.5 py-1 rounded-lg bg-[#6E8F64] text-white text-[10px] font-bold hover:bg-[#5C7A53] transition-colors cursor-pointer"
+                                    >
+                                      Fertig ✓
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300 pt-2 border-t border-slate-100 dark:border-slate-700 flex-wrap gap-2">
+                                <span>
+                                  {order.orderMeta?.movingDateFrom ? (
+                                    <>
+                                      Umzugstermin: <strong className="text-slate-900 dark:text-white">{formatScheduleDate(order.orderMeta.movingDateFrom)}</strong>
+                                      {order.orderMeta?.movingTimeFrom && ` • ab ${order.orderMeta.movingTimeFrom} Uhr`}
+                                    </>
+                                  ) : (
+                                    'Kein Umzugstermin im Angebot angegeben'
+                                  )}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  {(addressA || addressB) && (
+                                    <a
+                                      href={addressA && addressB
+                                        ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(addressA)}&destination=${encodeURIComponent(addressB)}`
+                                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressA || addressB)}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-2.5 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-xs font-bold border border-blue-500/30 transition-all flex items-center gap-1 cursor-pointer"
+                                      title="Umzugsroute A ➔ B in Google Maps öffnen"
+                                    >
+                                      <MapPinIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                                      <span>Route (Maps)</span>
+                                    </a>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPdfModalType('employee');
+                                      setPdfModalOpen(true);
+                                    }}
+                                    className="px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-bold border border-amber-500/30 transition-all flex items-center gap-1 cursor-pointer"
+                                    title="Operativen Mitarbeiter-Laufzettel (PDF ohne Preise) öffnen"
+                                  >
+                                    <TruckIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                                    <span>Laufzettel PDF</span>
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          )}
                         </div>
                       );
                     })()}
                   </div>
 
-                {/* Direct jump to Offer Editor Step 3 (Leistungen) to add unbooked services into the Angebot */}
-                {(!showKartons || !showHvz || !showLift) && (
+                {/* Direct jump to Offer Editor Step 3 (Leistungen) to add unbooked services into the Angebot - nur vor Auftragsbestätigung */}
+                {(!showKartons || !showHvz || !showLift) && !isContractSigned && currentOrderPhase < 3 && (
                   <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-2">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">
                       Im Angebot ergänzen (Schritt 3):
@@ -2027,6 +2166,38 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                     )}
                   </div>
                 )}
+              </div>
+
+              {/* Protocol Quick Action during Phase 3 (before & during move) */}
+              <div className="panel p-4 space-y-3 bg-gradient-to-r from-blue-50/50 via-white to-slate-50/50 dark:from-slate-800/60 dark:to-slate-800/30 border border-blue-200/60 dark:border-blue-900/40 rounded-2xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ClipboardDocumentCheckIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 font-headline">
+                      Protokoll & Haftung vor/während Umzug
+                    </span>
+                  </div>
+                  {order.protocols && order.protocols.length > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
+                      {order.protocols.length} hinterlegt
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  Halten Sie Vereinbarungen, Haftungsausschlüsse (z.B. Montage auf Kundenrisiko, Aufzugnutzung, Treppenhaus) oder Vorschäden digital mit Unterschrift fest.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setProtocolModalOpen(true)}
+                  className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+                >
+                  <ClipboardDocumentCheckIcon className="w-4 h-4" />
+                  <span>
+                    {order.protocols && order.protocols.length > 0
+                      ? `Weiteres Protokoll erfassen (${order.protocols.length} vorhanden)`
+                      : 'Protokoll erfassen & digital unterschreiben'}
+                  </span>
+                </button>
               </div>
 
               {/* Vorlagen Quick Actions for Phase 3 */}

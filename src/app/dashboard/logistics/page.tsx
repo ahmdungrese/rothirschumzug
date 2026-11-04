@@ -87,8 +87,12 @@ export default function LogisticsPage() {
         const customerData = currentCustomers[o.customerId] || null;
         if (customerData?.isArchived === true) return;
 
+        const isOrderConfirmed = o.status === 'confirmed' || o.status === 'completed' || o.status?.startsWith('invoice_') || Boolean(o.signatureOrder || o.signature || o.isManuallySigned || o.contractSigned || o.orderMeta?.signedContractScan);
         const systemTickets = generateTickets(o, customerData);
         systemTickets.forEach(t => {
+          if (t.id === 'viewing_requested' && isOrderConfirmed) {
+            t.done = true;
+          }
           if (t.id === 'payment_check') {
             const openAmt = calculateOpenAmount(o);
             const isPaid = o.status === 'invoice_paid' || (o.invoiceNumber && openAmt <= 0.01);
@@ -866,8 +870,8 @@ export default function LogisticsPage() {
 
                           {/* Right: Primary action buttons */}
                           <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-                            {/* Besichtigung starten */}
-                            {isViewing && parentOrder?.customerId && !todo.done && (
+                            {/* Besichtigung starten - nur wenn nicht bereits erledigt und Auftrag noch nicht bestätigt ist */}
+                            {isViewing && parentOrder?.customerId && !todo.done && !(parentOrder?.status === 'confirmed' || parentOrder?.status === 'completed' || parentOrder?.status?.startsWith('invoice_') || Boolean(parentOrder?.signatureOrder || parentOrder?.signature || parentOrder?.isManuallySigned || parentOrder?.contractSigned || parentOrder?.orderMeta?.signedContractScan)) && (
                               <Link
                                 href={`/dashboard/customers/${parentOrder.customerId}/edit-order/${parentOrder.id}?step=4`}
                                 className="h-7 px-2.5 rounded-lg bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-[11px] font-bold flex items-center gap-1 shadow-xs transition-all shrink-0"
@@ -1198,9 +1202,9 @@ export default function LogisticsPage() {
                         <span>Rechnung erstellen</span>
                       </Link>
                     );
-                  })() : !todo.done ? (
+                  })() : (!todo.done && !(isViewing && (parentOrder?.status === 'confirmed' || parentOrder?.status === 'completed' || parentOrder?.status?.startsWith('invoice_') || Boolean(parentOrder?.signatureOrder || parentOrder?.signature || parentOrder?.isManuallySigned || parentOrder?.contractSigned || parentOrder?.orderMeta?.signedContractScan)))) ? (
                     <>
-                      {isViewing && parentOrder?.customerId && (
+                      {isViewing && parentOrder?.customerId && !(parentOrder?.status === 'confirmed' || parentOrder?.status === 'completed' || parentOrder?.status?.startsWith('invoice_') || Boolean(parentOrder?.signatureOrder || parentOrder?.signature || parentOrder?.isManuallySigned || parentOrder?.contractSigned || parentOrder?.orderMeta?.signedContractScan)) && (
                         <Link
                           href={`/dashboard/customers/${parentOrder.customerId}/edit-order/${parentOrder.id}?step=4`}
                           className="flex-1 py-2 px-3 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs shadow-[#6E8F64]/20 transition-all"
@@ -1228,7 +1232,7 @@ export default function LogisticsPage() {
                     <div className="w-full flex items-center justify-between">
                       <span className="inline-flex items-center gap-1.5 text-xs font-bold text-[#6E8F64]">
                         <CheckIcon className="w-4 h-4" />
-                        <span>Erledigt</span>
+                        <span>{isViewing ? 'Besichtigung nicht erforderlich (Bestätigt)' : 'Erledigt'}</span>
                       </span>
                       <button
                         type="button"

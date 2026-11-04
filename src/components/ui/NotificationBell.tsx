@@ -12,9 +12,13 @@ import {
   CheckCircleIcon,
   XMarkIcon,
   ClipboardDocumentCheckIcon,
-  DevicePhoneMobileIcon
+  DevicePhoneMobileIcon,
+  ClockIcon,
+  TrashIcon
 } from '@heroicons/react/24/outline';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import { hasFixedService } from '@/lib/serviceKeys';
 import { useAuth } from '@/context/AuthContext';
 import { 
@@ -65,11 +69,178 @@ function parseDateSafely(dateStr?: string | null): Date | null {
   return null;
 }
 
+interface SwipeableNotificationItemProps {
+  notif: any;
+  cfg: { icon: React.ReactNode; colorClass: string };
+  onNavigate: (id: string, link: string) => void;
+  onSnooze: (e: React.MouseEvent, id: string, days?: number) => void;
+  onDismiss: (e: React.MouseEvent, id: string) => void;
+}
+
+function SwipeableNotificationItem({
+  notif,
+  cfg,
+  onNavigate,
+  onSnooze,
+  onDismiss
+}: SwipeableNotificationItemProps) {
+  const [translateX, setTranslateX] = useState(0);
+  const [isRevealed, setIsRevealed] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
+  const isSwipingHoriz = useRef<boolean | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    isSwipingHoriz.current = null;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartX.current === null || touchStartY.current === null) return;
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const diffX = currentX - touchStartX.current;
+    const diffY = currentY - touchStartY.current;
+
+    if (isSwipingHoriz.current === null) {
+      if (Math.abs(diffX) > 8 || Math.abs(diffY) > 8) {
+        isSwipingHoriz.current = Math.abs(diffX) > Math.abs(diffY);
+      }
+    }
+
+    if (isSwipingHoriz.current) {
+      if (isRevealed) {
+        const nextX = Math.min(0, Math.max(-130, -130 + diffX));
+        setTranslateX(nextX);
+      } else if (diffX < 0) {
+        // Dragging to left reveals right-docked actions
+        const nextX = Math.max(-130, diffX);
+        setTranslateX(nextX);
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    touchStartX.current = null;
+    touchStartY.current = null;
+    isSwipingHoriz.current = null;
+
+    if (translateX < -45) {
+      setTranslateX(-130);
+      setIsRevealed(true);
+    } else {
+      setTranslateX(0);
+      setIsRevealed(false);
+    }
+  };
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (isRevealed) {
+      e.preventDefault();
+      e.stopPropagation();
+      setTranslateX(0);
+      setIsRevealed(false);
+      return;
+    }
+    onNavigate(notif.id, notif.link);
+  };
+
+  return (
+    <div className="relative overflow-hidden group select-none border-b border-structure/40 last:border-b-0">
+      {/* Background Actions Revealed on Swipe */}
+      <div className="absolute inset-y-0 right-0 w-[130px] flex items-stretch z-0 bg-structure/20 border-l border-structure/40">
+        {/* Snooze (3 Tage) Button */}
+        <button
+          type="button"
+          onClick={(e) => {
+            setTranslateX(0);
+            setIsRevealed(false);
+            onSnooze(e, notif.id, 3);
+          }}
+          className="w-1/2 flex flex-col items-center justify-center gap-1 bg-amber-500/10 hover:bg-amber-500/20 active:bg-amber-500/30 text-amber-500 font-semibold text-[10px] transition-colors cursor-pointer border-r border-structure/40"
+          title="In 3 Tagen wieder erinnern"
+        >
+          <ClockIcon className="w-4 h-4 text-amber-500" />
+          <span>3 Tage</span>
+        </button>
+
+        {/* Delete / Dismiss Button */}
+        <button
+          type="button"
+          onClick={(e) => {
+            setTranslateX(0);
+            setIsRevealed(false);
+            onDismiss(e, notif.id);
+          }}
+          className="w-1/2 flex flex-col items-center justify-center gap-1 bg-rose-500/10 hover:bg-rose-500/20 active:bg-rose-500/30 text-rose-500 font-semibold text-[10px] transition-colors cursor-pointer"
+          title="Diese Erinnerung ausblenden"
+        >
+          <TrashIcon className="w-4 h-4 text-rose-500" />
+          <span>Löschen</span>
+        </button>
+      </div>
+
+      {/* Foreground Notification Card */}
+      <div
+        style={{
+          transform: `translateX(${translateX}px)`,
+          transition: touchStartX.current !== null ? 'none' : 'transform 200ms cubic-bezier(0.16, 1, 0.3, 1)'
+        }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onClick={handleCardClick}
+        className="relative z-10 bg-bg-panel hover:bg-structure/30 transition-colors cursor-pointer p-3.5 sm:p-4 pr-12 block"
+      >
+        <div className="flex gap-3 items-start">
+          <div className={`mt-0.5 shrink-0 p-2 rounded-xl border ${cfg.colorClass}`}>
+            {cfg.icon}
+          </div>
+          <div className="min-w-0 flex-1">
+            <h4 className="text-xs sm:text-sm font-bold font-headline text-text-main">
+              {notif.title}
+            </h4>
+            <p className="text-xs text-text-muted mt-1 leading-snug break-words group-hover:text-text-main transition-colors">
+              {notif.message}
+            </p>
+          </div>
+        </div>
+
+        {/* Desktop / Mouse Hover Quick Buttons */}
+        <div 
+          className="absolute top-3 right-3 hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={(e) => onSnooze(e, notif.id, 3)}
+            className="p-1 rounded-lg text-text-muted/60 hover:text-amber-500 hover:bg-amber-500/10 transition-all cursor-pointer"
+            title="In 3 Tagen wieder erinnern"
+          >
+            <ClockIcon className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => onDismiss(e, notif.id)}
+            className="p-1 rounded-lg text-text-muted/60 hover:text-rose-500 hover:bg-rose-500/10 transition-all cursor-pointer"
+            title="Diese Erinnerung ausblenden"
+          >
+            <TrashIcon className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function NotificationBell() {
+  const router = useRouter();
   const { profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+  const [snoozedAlerts, setSnoozedAlerts] = useState<Record<string, number>>({});
   const [permStatus, setPermStatus] = useState<NotificationPermissionStatus>('default');
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -95,35 +266,73 @@ export function NotificationBell() {
     });
   };
 
-  // Load dismissed alerts from localStorage
+  // Load dismissed and snoozed alerts from localStorage
   useEffect(() => {
     try {
       const saved = localStorage.getItem('dismissed_alarms');
       if (saved) {
         setDismissedIds(JSON.parse(saved));
       }
+
+      const savedSnoozes = localStorage.getItem('snoozed_alarms');
+      if (savedSnoozes) {
+        const parsed: Record<string, number> = JSON.parse(savedSnoozes);
+        const now = Date.now();
+        const valid: Record<string, number> = {};
+        let cleaned = false;
+        for (const [id, expiresAt] of Object.entries(parsed)) {
+          if (typeof expiresAt === 'number' && expiresAt > now) {
+            valid[id] = expiresAt;
+          } else {
+            cleaned = true;
+          }
+        }
+        setSnoozedAlerts(valid);
+        if (cleaned) {
+          localStorage.setItem('snoozed_alarms', JSON.stringify(valid));
+        }
+      }
     } catch {}
   }, []);
 
-  const dismissAlert = (id: string) => {
+  const snoozeAlert = (e: React.MouseEvent, id: string, days = 3) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const expiresAt = Date.now() + days * 24 * 60 * 60 * 1000;
+    const next = { ...snoozedAlerts, [id]: expiresAt };
+    setSnoozedAlerts(next);
+    try {
+      localStorage.setItem('snoozed_alarms', JSON.stringify(next));
+    } catch {}
+    toast.success(`Erinnerung für ${days} Tage pausiert`);
+  };
+
+  const dismissAlert = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!dismissedIds.includes(id)) {
       const next = [...dismissedIds, id];
       setDismissedIds(next);
       try {
         localStorage.setItem('dismissed_alarms', JSON.stringify(next));
       } catch {}
+      toast.success('Erinnerung ausgeblendet');
     }
   };
 
-  const handleNotificationClick = (id: string) => {
-    dismissAlert(id);
-    setIsOpen(false);
+  const handleResetSnoozes = () => {
+    setSnoozedAlerts({});
+    try {
+      localStorage.removeItem('snoozed_alarms');
+    } catch {}
+    toast.success('Pausierte Erinnerungen wieder aktiviert');
   };
 
-  const handleDismissButton = (e: React.MouseEvent, id: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dismissAlert(id);
+  const handleNotificationNavigate = (id: string, link: string) => {
+    setIsOpen(false);
+    if (link) {
+      router.push(link);
+    }
   };
 
   useEffect(() => {
@@ -342,7 +551,17 @@ export function NotificationBell() {
 
       // Trigger Native Device Notifications for new critical tasks if permission granted
       if (typeof window !== 'undefined' && Notification.permission === 'granted') {
+        let activeSnoozes: Record<string, number> = {};
+        try {
+          const raw = localStorage.getItem('snoozed_alarms');
+          if (raw) activeSnoozes = JSON.parse(raw);
+        } catch {}
+        const curTime = Date.now();
+
         newNotifications.forEach(n => {
+          if (dismissedIds.includes(n.id)) return;
+          if (activeSnoozes[n.id] && activeSnoozes[n.id] > curTime) return;
+
           showDeviceNotification({
             id: n.id,
             title: `Rothirsch: ${n.title}`,
@@ -413,7 +632,11 @@ export function NotificationBell() {
     }
   };
 
-  const visibleNotifications = notifications.filter(n => !dismissedIds.includes(n.id));
+  const now = Date.now();
+  const visibleNotifications = notifications.filter(
+    n => !dismissedIds.includes(n.id) && (!snoozedAlerts[n.id] || snoozedAlerts[n.id] <= now)
+  );
+  const snoozedCount = Object.values(snoozedAlerts).filter(exp => exp > now).length;
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -446,13 +669,26 @@ export function NotificationBell() {
                 <BellIcon className="w-4 h-4 text-primary" />
                 <h3 className="font-bold text-xs sm:text-sm font-headline text-text-main">Dispo-Erinnerungen</h3>
               </div>
-              <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border font-headline ${
-                visibleNotifications.length > 0 
-                  ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' 
-                  : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-              }`}>
-                {visibleNotifications.length} {visibleNotifications.length === 1 ? 'Aufgabe' : 'Aufgaben'}
-              </span>
+              <div className="flex items-center gap-1.5">
+                {snoozedCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleResetSnoozes}
+                    className="text-[10px] text-amber-500 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2 py-0.5 rounded-full font-medium transition-colors cursor-pointer flex items-center gap-1"
+                    title="Klicken, um alle pausierten Erinnerungen wieder anzuzeigen"
+                  >
+                    <ClockIcon className="w-3 h-3 text-amber-500" />
+                    <span>{snoozedCount} pausiert</span>
+                  </button>
+                )}
+                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border font-headline ${
+                  visibleNotifications.length > 0 
+                    ? 'bg-amber-500/10 text-amber-500 border-amber-500/20' 
+                    : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                }`}>
+                  {visibleNotifications.length} {visibleNotifications.length === 1 ? 'Aufgabe' : 'Aufgaben'}
+                </span>
+              </div>
             </div>
 
             {/* Device Notification Status Banner (PWA / Android activation) */}
@@ -477,42 +713,33 @@ export function NotificationBell() {
                 <div className="p-8 text-center text-text-muted flex flex-col items-center">
                   <CheckCircleIcon className="w-10 h-10 text-emerald-500/70 mb-2" />
                   <p className="font-semibold text-text-main text-sm">Alles erledigt</p>
-                  <p className="text-xs text-text-muted mt-1">Keine offenen Aufgaben für deine Rolle.</p>
+                  <p className="text-xs text-text-muted mt-1">
+                    {snoozedCount > 0 
+                      ? `${snoozedCount} Erinnerung(en) pausiert. Keine offenen Aufgaben.` 
+                      : 'Keine offenen Aufgaben für deine Rolle.'}
+                  </p>
+                  {snoozedCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleResetSnoozes}
+                      className="mt-3 text-xs text-amber-500 hover:underline font-medium cursor-pointer"
+                    >
+                      Pausierte Erinnerungen einblenden
+                    </button>
+                  )}
                 </div>
               ) : (
                 visibleNotifications.map((notif) => {
                   const cfg = getIconConfig(notif.type);
                   return (
-                    <div key={notif.id} className="relative group">
-                      <Link 
-                        href={notif.link}
-                        onClick={() => handleNotificationClick(notif.id)}
-                        className="block p-3.5 sm:p-4 hover:bg-structure/30 transition-colors cursor-pointer pr-10"
-                      >
-                        <div className="flex gap-3 items-start">
-                          <div className={`mt-0.5 shrink-0 p-2 rounded-xl border ${cfg.colorClass}`}>
-                            {cfg.icon}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <h4 className="text-xs sm:text-sm font-bold font-headline text-text-main">
-                              {notif.title}
-                            </h4>
-                            <p className="text-xs text-text-muted mt-1 leading-snug break-words group-hover:text-text-main transition-colors">
-                              {notif.message}
-                            </p>
-                          </div>
-                        </div>
-                      </Link>
-
-                      <button
-                        type="button"
-                        onClick={(e) => handleDismissButton(e, notif.id)}
-                        className="absolute top-3.5 right-3 p-1 rounded-lg text-text-muted/40 hover:text-text-main hover:bg-structure/60 transition-all opacity-0 group-hover:opacity-100 cursor-pointer"
-                        title="Diese Erinnerung ausblenden"
-                      >
-                        <XMarkIcon className="w-4 h-4" />
-                      </button>
-                    </div>
+                    <SwipeableNotificationItem
+                      key={notif.id}
+                      notif={notif}
+                      cfg={cfg}
+                      onNavigate={handleNotificationNavigate}
+                      onSnooze={snoozeAlert}
+                      onDismiss={dismissAlert}
+                    />
                   );
                 })
               )}

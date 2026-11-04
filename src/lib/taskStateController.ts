@@ -71,11 +71,29 @@ export function isTaskCompleted(order: any, taskId: string): boolean {
         order.status === 'completed' ||
         order.status?.startsWith('invoice_') ||
         order.status === 'archived' ||
+        order.signatureOrder ||
+        order.signatureAGB ||
+        order.signature ||
+        order.isManuallySigned ||
+        order.contractSigned ||
+        order.orderMeta?.signedContractScan ||
         order.checklistDone?.dataVerified
       );
 
     case 'data_verified':
-      return Boolean(checklistDone.dataVerified || ticketStates.data_verified);
+      return Boolean(
+        checklistDone.dataVerified || 
+        ticketStates.data_verified ||
+        order.status === 'confirmed' ||
+        order.status === 'completed' ||
+        order.status?.startsWith('invoice_') ||
+        order.status === 'archived' ||
+        order.signatureOrder ||
+        order.signature ||
+        order.isManuallySigned ||
+        order.contractSigned ||
+        order.orderMeta?.signedContractScan
+      );
 
     case 'signature':
     case 'angebot_confirmed':

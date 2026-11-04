@@ -133,14 +133,18 @@ export function generateTickets(order: any, customer: any): SystemTicket[] {
     addTicket('missing_b_floor', 'Etage für Entladeadresse (B) fehlt', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}?step=2&highlight=floorB`, bFloorDueStatus, hasBFloor);
 
 
+    const isOrderConfirmedOrSigned = status === 'confirmed' || status === 'completed' || status?.startsWith('invoice_') || status === 'archived' || isTaskCompleted(order, 'signature');
+
     const hasPhone = !!(order.billingAddress?.phone || customer?.phone);
     const phoneDueStatus = isPhase1Overdue && !hasPhone ? { status: 'overdue' as const, text: 'ÜBERFÄLLIG' } : undefined;
-    addTicket('missing_phone', 'Telefonnummer des Kunden fehlt', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}?highlight=phone`, phoneDueStatus, hasPhone);
+    if (!isOrderConfirmedOrSigned) {
+      addTicket('missing_phone', 'Telefonnummer des Kunden fehlt', 1, 'warning', 'general', `/dashboard/customers/${order.customerId}?highlight=phone`, phoneDueStatus, hasPhone);
+    }
 
     const viewingDateStr = order.orderMeta?.viewingDate || order.viewingDate;
     if (viewingDateStr && !order.orderMeta?.viewingCanceled) {
        const isPhotos = viewingDateStr === 'erledigt_fotos';
-       const isViewingDone = isPhotos || isTaskCompleted(order, 'viewing_requested') || status === 'confirmed' || status === 'completed' || status?.startsWith('invoice_') || status === 'archived';
+       const isViewingDone = isPhotos || isTaskCompleted(order, 'viewing_requested') || isOrderConfirmedOrSigned;
        const customViewingStatus = isPhotos || isViewingDone ? undefined : calculateTargetDateStatus(viewingDateStr === 'requested' ? null : viewingDateStr);
        const title = isPhotos ? 'Besichtigung (durch Fotos erledigt)' : 'Besichtigungstermin durchführen';
        addTicket('viewing_requested', title, 1, 'action', 'general', `/dashboard/customers/${order.customerId}/edit-order/${order.id}?highlight=viewingDate`, customViewingStatus || undefined, isViewingDone);

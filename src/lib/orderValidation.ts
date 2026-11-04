@@ -169,10 +169,12 @@ export function evaluateOrderLogistics(order: any, customer?: any): OrderLogisti
     });
 
     // 3. Besichtigungstermin
-    const hasViewing = isTaskCompleted(order, 'viewing_date') || Boolean(meta?.viewingDate || order?.viewingDate);
+    const hasViewing = isConfirmed || isSigned || isTaskCompleted(order, 'viewing_date') || Boolean(meta?.viewingDate || order?.viewingDate);
     checklist.push({
       id: 'viewing_date',
-      label: hasViewing ? 'Besichtigungstermin erledigt/geplant' : 'Besichtigung vereinbaren (Optional)',
+      label: hasViewing 
+        ? ((isConfirmed || isSigned) && !meta?.viewingDate && !order?.viewingDate ? 'Besichtigung nicht erforderlich (Bestätigt)' : 'Besichtigungstermin erledigt/geplant')
+        : 'Besichtigung vereinbaren (Optional)',
       done: hasViewing,
       type: 'signature',
       isAutomated: false,

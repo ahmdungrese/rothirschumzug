@@ -117,6 +117,8 @@ export function CustomerPremiumProfile({
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlOrderId = searchParams?.get('orderId');
+  const urlAction = searchParams?.get('action');
+  const urlActionTriggeredRef = React.useRef(false);
   const { profile } = useAuth();
 
   // Settings & WhatsApp Templates State
@@ -380,6 +382,20 @@ export function CustomerPremiumProfile({
       if (updated) setDrawerOrder(updated);
     }
   }, [orders]);
+
+  // Handle direct protocol trigger from customer list card action query param (?action=view-protocol)
+  useEffect(() => {
+    if (!urlActionTriggeredRef.current && activeOrder?.id && urlAction) {
+      if (urlAction === 'view-protocol' || urlAction === 'protocol') {
+        urlActionTriggeredRef.current = true;
+        if (activeOrder.protocols && activeOrder.protocols.length > 0) {
+          onViewPdf(activeOrder, 'protocol');
+        } else {
+          onOpenProtocolModal(activeOrder);
+        }
+      }
+    }
+  }, [urlAction, activeOrder, onViewPdf, onOpenProtocolModal]);
 
   // Self-heal: ensure confirmed or quote orders automatically receive an authoritative AN-XXX orderNumber
   useEffect(() => {
@@ -1394,6 +1410,11 @@ export function CustomerPremiumProfile({
                         </span>
                       );
                     })()
+                  ) : (currentPhaseInfo.phase >= 3 || activeOrder.status === 'confirmed' || activeOrder.status === 'completed' || isTaskCompleted(activeOrder, 'signature')) ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                      <CheckIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <span>Nicht erforderlich (Bestätigt)</span>
+                    </span>
                   ) : (
                     <span className="text-primary underline">+ Termin planen</span>
                   )}
