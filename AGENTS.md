@@ -30,7 +30,18 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.28.0 (Current) – Smart In-Move Protocol Hub, Mobile Swipeable Alerts & Cockpit Cleanliness
+### Version 2.28.1 (Current) – Mobile Stepper Label Decoupling & Phase 3 Teamleiter-Cockpit Side-by-Side Layout
+*   **Mobile Stepper Decoupling & Zero-Text-Collision (`OrderEditor.tsx`)**:
+    *   **Isolated Step Labels on Small Viewports**: Replaced the 5 crowded horizontal text labels under the circular progress icons (`1. KUNDE2. LOGISTIK...`) with a clean single active step badge beneath the stepper (`Schritt X von 5: [Label]`) on smartphone viewports (`hidden sm:block` for per-circle text, `sm:hidden` for unified label).
+    *   **Bottom Action Dock Collision Shield**: Eliminated the redundant `Als Entwurf gesichert` status pill on mobile from the bottom dock (`hidden sm:inline-flex`), as the draft save state is already clearly presented in the screen header.
+    *   **Responsive Primary Button Labels**: Shortened step 5's action button on mobile (`Auftrag bestätigen` / `Abschließen` on mobile vs full verbose text on desktop), preventing right-edge truncation and button collision.
+*   **Customer Profile Phase 3 Side-by-Side Ergonomics (`CustomerPremiumProfile.tsx`)**:
+    *   **50/50 Split Grid on Mobile**: Structured the Teamleiter assignment selector and Operatives Cockpit launcher with `grid grid-cols-2 gap-2 w-full md:w-auto md:flex md:items-center`, placing both controls side by side on mobile instead of stacking them into two full-width rows.
+    *   **Sleek Mobile Typography & Truncation**: Optimized button text to `Cockpit` with `truncate` on mobile screens and full `Operatives Cockpit` on desktop, eliminating wasted whitespace and vertical screen clutter.
+*   **Service Worker Cache Bump (`sw.js`)**:
+    *   Updated cache name to `rothirsch-erp-v2.28.1`.
+
+### Version 2.28.0 – Smart In-Move Protocol Hub, Mobile Swipeable Alerts & Cockpit Cleanliness
 *   **Smart In-Move Protocol Authorization & Dynamic Contextual Textbausteine (`ProtocolModal.tsx`, `protocolDefaults.ts`, `OrderDetailsDrawer.tsx`, `CustomerPremiumProfile.tsx`)**:
     *   **In-Move Non-Blocking Protocol Authorization**: Team leads and dispatchers can now capture, sign, and document legal agreements at any point before or during the move (Phase 2, Phase 3, or Phase 4) without being forced to complete or close the contract.
     *   **Non-Blocking Move Completion Choice**: The system never prohibits protocol creation. For "Abnahme ohne Mängel (Abschluss) / Keine Schäden", it presents a friendly non-blocking query: `Status des Umzugs: Ist der Umzug bereits vollständig beendet?` with dual explicit choices (`[ Ja, Umzug abschließen (Phase 4) ]` vs `[ Nein, nur Protokoll (Umzug läuft) ]`).

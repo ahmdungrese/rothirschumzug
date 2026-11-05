@@ -2810,7 +2810,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                       {iconName}
                     </span>
                   </div>
-                  <span className={`mt-2 text-xs font-display uppercase tracking-tight transition-colors ${labelClass}`}>
+                  <span className={`mt-2 text-xs font-display uppercase tracking-tight transition-colors hidden sm:block ${labelClass}`}>
                     {s.label}
                   </span>
                 </div>
@@ -2820,6 +2820,11 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               </React.Fragment>
             );
           })}
+        </div>
+
+        {/* Mobile active step indicator */}
+        <div className="text-center text-xs font-bold uppercase tracking-wider text-text-main mt-3 sm:hidden">
+          Schritt {currentStep} von 5: {[ '1. Kunde', '2. Logistik', '3. Leistungen', '4. Inventar', '5. Abschluss' ][currentStep - 1]}
         </div>
       </div>
 
@@ -5847,13 +5852,13 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             </div>
 
             {/* CENTER: Step Indicator & Quick Save */}
-            <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex items-center gap-2 sm:gap-4 shrink-0">
               <span className="text-[11px] font-bold font-headline uppercase tracking-wider text-text-muted px-2.5 py-1 rounded-full bg-structure/40 border border-structure hidden xs:inline-block">
                 Schritt {currentStep}/5
               </span>
 
               {currentStep === 5 && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                   <span className="material-symbols-outlined text-xs">cloud_done</span>
                   <span>Als Entwurf gesichert</span>
                 </span>
@@ -5864,7 +5869,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   type="button"
                   onClick={() => saveOrder(isInvoice ? 'invoice_open' : 'draft', false, true, false)}
                   disabled={isSaving}
-                  className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline bg-structure/40 hover:bg-structure text-text-main transition-all flex items-center gap-1.5 border border-structure cursor-pointer active:scale-95"
+                  className="px-2.5 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline bg-structure/40 hover:bg-structure text-text-main transition-all flex items-center gap-1 sm:gap-1.5 border border-structure cursor-pointer active:scale-95 shrink-0"
                   title="Als Entwurf speichern & Beenden"
                 >
                   {isSaving ? (
@@ -5873,7 +5878,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                     <span className="material-symbols-outlined text-sm text-primary">save</span>
                   )}
                   <span className="hidden sm:inline">{isSaving ? 'Speichert...' : 'Entwurf speichern & Beenden'}</span>
-                  <span className="sm:hidden">{isSaving ? '...' : 'Speichern & Beenden'}</span>
+                  <span className="sm:hidden">{isSaving ? '...' : 'Speichern'}</span>
                 </button>
               )}
             </div>
@@ -5895,14 +5900,15 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                   type="button"
                   onClick={() => handleQuoteActionWithCheck(() => saveOrder(isInvoice ? 'invoice_open' : (isManuallySigned ? 'confirmed' : 'quote'), true, true))}
                   disabled={isSaving}
-                  className="bg-primary hover:brightness-110 text-white px-5 sm:px-7 py-2.5 rounded-xl font-headline font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-2 shadow-xl shadow-primary/40 active:scale-95 transition-all cursor-pointer"
+                  className="bg-primary hover:brightness-110 text-white px-3.5 sm:px-7 py-2.5 rounded-xl font-headline font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5 sm:gap-2 shadow-xl shadow-primary/40 active:scale-95 transition-all cursor-pointer shrink-0"
                 >
                   {isSaving ? (
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
                     <span className="material-symbols-outlined text-base">check_circle</span>
                   )}
-                  <span>{isInvoice ? 'Rechnung abschließen' : isManuallySigned ? 'Auftrag bestätigt speichern' : 'Angebot abschließen'}</span>
+                  <span className="sm:hidden">{isInvoice ? 'Abschließen' : isManuallySigned ? 'Bestätigen' : 'Abschließen'}</span>
+                  <span className="hidden sm:inline">{isInvoice ? 'Rechnung abschließen' : isManuallySigned ? 'Auftrag bestätigt speichern' : 'Angebot abschließen'}</span>
                 </button>
               )}
             </div>

@@ -1262,17 +1262,30 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
               })()}
 
               {/* Besichtigungstermin Card */}
-              {(isContractSigned || currentOrderPhase >= 3) && (!order.orderMeta?.viewingDate || order.orderMeta?.viewingDate === 'requested') ? (
+              {(isContractSigned || currentOrderPhase >= 3) ? (
                 <div className="panel p-3.5 bg-slate-50/70 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 rounded-2xl flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
                     <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
                       <CheckCircleIcon className="w-4 h-4" />
                     </div>
-                    <div>
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
-                        Besichtigung nicht erforderlich
+                    <div className="min-w-0">
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block truncate">
+                        {(() => {
+                          const vDate = order.orderMeta?.viewingDate;
+                          if (!vDate || vDate === 'requested') {
+                            return 'Besichtigung nicht erforderlich';
+                          }
+                          const vType = (order.orderMeta?.viewingType || order.logistics?.viewingType || '').toLowerCase();
+                          if (vDate === 'erledigt_fotos' || vType === 'fotos') {
+                            return 'Besichtigung per Fotos & Liste erledigt';
+                          }
+                          if (vType.includes('online') || vType.includes('video')) {
+                            return `Video-Besichtigung erledigt (${formatScheduleDate(vDate, order.orderMeta?.viewingTime)})`;
+                          }
+                          return `Besichtigung erledigt (${formatScheduleDate(vDate, order.orderMeta?.viewingTime)})`;
+                        })()}
                       </span>
-                      <span className="text-[11px] text-slate-500 block">
+                      <span className="text-[11px] text-slate-500 block truncate">
                         Der Auftrag wurde bereits verbindlich bestätigt.
                       </span>
                     </div>
