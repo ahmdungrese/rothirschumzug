@@ -21,6 +21,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { PDFDownloadButton } from '@/components/pdf/PDFDownloadButton';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
+import { ArchiveCustomerModal } from '@/components/customers/ArchiveCustomerModal';
 import { db } from '@/lib/firebase';
 import { doc, updateDoc, serverTimestamp, collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { toast } from 'react-hot-toast';
@@ -204,176 +205,45 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
   const [archiveTarget, setArchiveTarget] = useState<{
     customer: any;
     orders: any[];
-    activeInvoices: Array<{
-      id: string | null;
-      invoiceNumber: string;
-      invoiceDate?: string;
-      total?: number;
-      sourceOrderId?: string | null;
-    }>;
+    invoices: any[];
+    claims: any[];
   } | null>(null);
-  const [isCheckingInvoices, setIsCheckingInvoices] = useState(false);
-  const [isProcessingArchive, setIsProcessingArchive] = useState(false);
+  const [isCheckingArchive, setIsCheckingArchive] = useState(false);
 
   const handleInitiateArchive = async (customer: any) => {
-    setIsCheckingInvoices(true);
+    setIsCheckingArchive(true);
     try {
-      // 1. Fetch all customer orders directly from Firestore
+      // 1. Fetch customer orders
       const qOrders = query(collection(db, 'orders'), where('customerId', '==', customer.id));
       const orderDocs = await getDocs(qOrders);
       const ordersList = orderDocs.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // 2. Fetch all customer invoices from Firestore
+      // 2. Fetch customer invoices
       const qInvoices = query(collection(db, 'invoices'), where('customerId', '==', customer.id));
       const invDocs = await getDocs(qInvoices);
       const invoicesList = invDocs.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // 3. Collect active (non-cancelled, non-storno) invoices
-      const activeMap = new Map<string, any>();
-
-      invoicesList.forEach((inv: any) => {
-        const isCancelled = Boolean(inv.isStorno || inv.isCanceled || inv.status === 'invoice_cancelled' || inv.status === 'canceled');
-        const num = inv.invoiceNumber || inv.activeInvoiceNumber;
-        if (!isCancelled && num) {
-          activeMap.set(num, {
-            id: inv.id,
-            invoiceNumber: num,
-            invoiceDate: inv.invoiceDate || (inv.createdAt?.toDate ? inv.createdAt.toDate().toISOString() : ''),
-            total: inv.totals?.gross || inv.calcInput?.gross || 0,
-            sourceOrderId: inv.sourceOrderId || inv.orderId || null
-          });
-        }
-      });
-
-      ordersList.forEach((ord: any) => {
-        const isCancelled = Boolean(ord.isStorno || ord.invoiceCancelled || ord.status === 'invoice_cancelled' || ord.status === 'canceled');
-        const num = ord.invoiceNumber || ord.activeInvoiceNumber;
-        if (!isCancelled && num && !activeMap.has(num)) {
-          activeMap.set(num, {
-            id: null,
-            invoiceNumber: num,
-            invoiceDate: ord.invoiceDate || (ord.createdAt?.toDate ? ord.createdAt.toDate().toISOString() : ''),
-            total: ord.totals?.gross || ord.calcInput?.gross || ord.flatRateNet || 0,
-            sourceOrderId: ord.id
-          });
-        }
-      });
-
-      const activeInvs = Array.from(activeMap.values());
+      // 3. Fetch customer claims
+      const qClaims = query(collection(db, 'claims'), where('customerId', '==', customer.id));
+      const claimDocs = await getDocs(qClaims);
+      const claimsList = claimDocs.docs.map(d => ({ id: d.id, ...d.data() }));
 
       setArchiveTarget({
         customer,
         orders: ordersList,
-        activeInvoices: activeInvs
+        invoices: invoicesList,
+        claims: claimsList
       });
     } catch (err) {
-      console.error("Fehler beim Prüfen von Kundenrechnungen:", err);
+      console.error("Fehler beim Vorbereiten der Archivierung:", err);
       setArchiveTarget({
         customer,
         orders: customer.allOrders || [],
-        activeInvoices: []
+        invoices: [],
+        claims: []
       });
     } finally {
-      setIsCheckingInvoices(false);
-    }
-  };
-
-  const handleExecuteArchive = async (withStorno: boolean) => {
-    if (!archiveTarget) return;
-    setIsProcessingArchive(true);
-    const { customer, orders, activeInvoices } = archiveTarget;
-    const custName = customer.type === 'firma'
-      ? (customer.company || customer.lastName || 'Firma')
-      : `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Kunde';
-
-    try {
-      const batch = writeBatch(db);
-
-      // 1. If withStorno: generate GoBD Storno documents for each active invoice
-      if (withStorno && activeInvoices.length > 0) {
-        for (const inv of activeInvoices) {
-          const invNum = inv.invoiceNumber;
-          const stornoNumber = `ST-${invNum.replace(/^(RE-|R-|ST-)/i, '')}`;
-
-          // Create new Storno document in 'invoices'
-          const stornoDocRef = doc(collection(db, 'invoices'));
-          batch.set(stornoDocRef, {
-            type: 'invoice',
-            isStorno: true,
-            stornoFor: invNum,
-            invoiceNumber: stornoNumber,
-            invoiceDate: new Date().toISOString(),
-            customerId: customer.id,
-            customerName: custName,
-            sourceOrderId: inv.sourceOrderId || null,
-            status: 'invoice_cancelled',
-            isCanceled: true,
-            stornoReason: 'Kunde im Kundencenter archiviert',
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          });
-
-          // Mark original invoice doc if exists
-          if (inv.id) {
-            const origInvRef = doc(db, 'invoices', inv.id);
-            batch.update(origInvRef, {
-              status: 'invoice_cancelled',
-              isCanceled: true,
-              stornoReason: 'Kunde im Kundencenter archiviert',
-              stornoDocumentNumber: stornoNumber,
-              updatedAt: serverTimestamp()
-            });
-          }
-        }
-      }
-
-      // 2. Cascade archive to all customer orders
-      for (const ord of orders) {
-        const ordRef = doc(db, 'orders', ord.id);
-        const updatePayload: any = {
-          status: 'archived',
-          isArchived: true,
-          archivedAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        };
-        if (withStorno) {
-          updatePayload.invoiceCancelled = true;
-        }
-        batch.update(ordRef, updatePayload);
-      }
-
-      // 3. Mark customer as archived
-      const custRef = doc(db, 'customers', customer.id);
-      batch.update(custRef, {
-        isArchived: true,
-        archivedAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-
-      // Commit atomic write
-      await batch.commit();
-
-      // Log Activity
-      logActivity(
-        profile?.uid || 'system',
-        profile?.displayName || profile?.email || 'Mitarbeiter',
-        withStorno ? 'CANCEL_INVOICE' : 'ARCHIVE_CUSTOMER',
-        withStorno 
-          ? `Kunde "${custName}" archiviert. ${activeInvoices.length} Rechnung(en) storniert, ${orders.length} Auftrag/Aufträge archiviert.`
-          : `Kunde "${custName}" und ${orders.length} Auftrag/Aufträge archiviert.`
-      );
-
-      if (withStorno && activeInvoices.length > 0) {
-        toast.success(`Kunde "${custName}" archiviert. ${activeInvoices.length} Rechnung(en) wurden ordnungsgemäß storniert.`);
-      } else {
-        toast.success(`Kunde "${custName}" und ${orders.length} Auftrag/Aufträge erfolgreich archiviert.`);
-      }
-    } catch (err) {
-      console.error("Fehler beim Archivieren:", err);
-      toast.error("Fehler beim Archivieren des Kunden.");
-    } finally {
-      setIsProcessingArchive(false);
-      setArchiveTarget(null);
+      setIsCheckingArchive(false);
     }
   };
 
@@ -487,7 +357,7 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
               return (
                 <tr 
                   key={customer.id} 
-                  className="hover:bg-white/[0.04] transition-colors group"
+                  className={`hover:bg-white/[0.04] transition-colors group ${customer.activeClaim ? 'border-l-4 border-l-rose-500 bg-rose-500/[0.02]' : ''}`}
                 >
                   <td className="px-4 lg:px-6 py-4">
                     <div className="flex items-start gap-3">
@@ -511,7 +381,18 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
                           href={`/dashboard/customers/${customer.id}`}
                           className="block cursor-pointer hover:opacity-80 transition-opacity"
                         >
-                          <div className="font-bold text-base text-text-main hover:text-primary transition-colors">{displayName}</div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-base text-text-main hover:text-primary transition-colors">{displayName}</span>
+                            {customer.activeClaim && (
+                              <span 
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25 shrink-0" 
+                                title={`Aktive Reklamation: ${customer.activeClaim.status}${customer.activeClaim.description ? ` - ${customer.activeClaim.description}` : ''}`}
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                                <span>Reklamation</span>
+                              </span>
+                            )}
+                          </div>
                           {isCompany && customer.firstName && (
                             <div className="text-sm text-text-muted mb-1">{customer.firstName}</div>
                           )}
@@ -628,7 +509,7 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
       </div>
 
       {/* Checking invoices loading state */}
-      {isCheckingInvoices && (
+      {isCheckingArchive && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="bg-bg-panel border border-structure p-5 rounded-2xl flex items-center gap-3 shadow-2xl">
             <span className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -637,109 +518,19 @@ export function SmartCustomerTable({ customers }: { customers: any[] }) {
         </div>
       )}
 
-      {/* 1. GoBD Invoice Warning Modal (When active invoices exist) */}
-      {archiveTarget && archiveTarget.activeInvoices.length > 0 && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-bg-panel border-2 border-amber-500/50 rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-            {/* Header */}
-            <div className="p-6 bg-gradient-to-r from-amber-500/15 via-red-500/10 to-transparent border-b border-amber-500/30">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0 border border-amber-500/30 shadow-inner">
-                  <ShieldExclamationIcon className="w-7 h-7" />
-                </div>
-                <div>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-500 text-[10px] font-extrabold uppercase tracking-wider mb-1">
-                    <span>GoBD-Schutz aktiv</span>
-                  </div>
-                  <h3 className="text-lg font-bold text-text-main font-headline">
-                    Aktive Rechnung(en) vorhanden
-                  </h3>
-                </div>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 space-y-4">
-              <p className="text-sm text-text-muted leading-relaxed">
-                Der Kunde <strong className="text-text-main">
-                  {archiveTarget.customer.type === 'firma'
-                    ? (archiveTarget.customer.company || archiveTarget.customer.lastName || 'Firma')
-                    : `${archiveTarget.customer.firstName || ''} ${archiveTarget.customer.lastName || ''}`.trim() || 'Kunde'}
-                </strong> besitzt ausgestellte Rechnungen. Nach deutschem Steuerrecht (<span className="text-amber-400 font-medium">GoBD / § 14b UStG</span>) dürfen Kunden mit aktiven Rechnungen nicht ohne Stornierung gelöscht oder archiviert werden.
-              </p>
-
-              {/* Invoices List */}
-              <div className="rounded-2xl border border-structure bg-bg-dark/80 p-3 space-y-2 max-h-48 overflow-y-auto">
-                <span className="text-[11px] font-bold text-text-muted uppercase tracking-wider block">
-                  Betroffene Rechnungen ({archiveTarget.activeInvoices.length}):
-                </span>
-                {archiveTarget.activeInvoices.map((inv, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-amber-400">{inv.invoiceNumber}</span>
-                      {inv.invoiceDate && (
-                        <span className="text-text-muted text-[11px]">
-                          ({new Date(inv.invoiceDate).toLocaleDateString('de-DE')})
-                        </span>
-                      )}
-                    </div>
-                    {inv.total !== undefined && inv.total > 0 && (
-                      <span className="font-bold text-text-main">
-                        {inv.total.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
-                      </span>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200/90 leading-relaxed">
-                ⚠️ <strong>Hinweis zur Archivierung:</strong> Beim Bestätigen wird für jede Rechnung automatisch ein offizieller <strong>Storno-Beleg (ST-XXXX)</strong> generiert, alle Aufträge werden storniert und der Kunde wird archiviert. Aus Logistik und Kalender wird der Kunde mitsamt aller Aufgaben vollständig entfernt.
-              </div>
-            </div>
-
-            {/* Actions */}
-            <div className="p-4 bg-bg-dark border-t border-structure flex flex-col sm:flex-row items-center justify-end gap-2.5">
-              <button
-                type="button"
-                disabled={isProcessingArchive}
-                onClick={() => setArchiveTarget(null)}
-                className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-structure text-xs font-bold text-text-muted hover:text-text-main hover:bg-white/5 transition-all cursor-pointer"
-              >
-                Abbrechen
-              </button>
-              <button
-                type="button"
-                disabled={isProcessingArchive}
-                onClick={() => handleExecuteArchive(true)}
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-lg shadow-red-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {isProcessingArchive ? (
-                  <>
-                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Wird storniert & archiviert...</span>
-                  </>
-                ) : (
-                  <span>Rechnungen stornieren & alles archivieren</span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 2. Standard Confirm Archive Modal (When NO active invoices exist) */}
-      {archiveTarget && archiveTarget.activeInvoices.length === 0 && (
-        <ConfirmModal
-          isOpen={Boolean(archiveTarget)}
-          title="Kunde & Aufträge archivieren"
-          message={`Möchten Sie den Kunden "${archiveTarget.customer.type === 'firma' ? (archiveTarget.customer.company || archiveTarget.customer.lastName || 'Firma') : `${archiveTarget.customer.firstName || ''} ${archiveTarget.customer.lastName || ''}`.trim() || 'Kunde'}" und alle zugehörigen Aufträge wirklich archivieren? Der Kunde und alle Aufträge werden aus den aktiven Ansichten (Dispo, Logistik & Kalender) entfernt.`}
-          confirmText={isProcessingArchive ? "Wird archiviert..." : "Archivieren"}
-          cancelText="Abbrechen"
-          isDestructive={true}
-          onConfirm={() => handleExecuteArchive(false)}
-          onCancel={() => setArchiveTarget(null)}
-        />
-      )}
+      {/* Intelligent Archive Customer Modal */}
+      <ArchiveCustomerModal
+        isOpen={Boolean(archiveTarget)}
+        onClose={() => setArchiveTarget(null)}
+        customer={archiveTarget?.customer}
+        orders={archiveTarget?.orders}
+        invoices={archiveTarget?.invoices}
+        claims={archiveTarget?.claims}
+        onSuccess={() => {
+          setArchiveTarget(null);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

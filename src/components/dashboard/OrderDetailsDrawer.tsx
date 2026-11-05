@@ -398,7 +398,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
       if (y && m && d) formattedDate = `${d}.${m}.${y}`;
     } catch {}
     const displayTime = timeRaw || embeddedTime;
-    return displayTime ? `${formattedDate} (${displayTime}${displayTime.includes('Uhr') || displayTime === 'Ganztägig' ? '' : ' Uhr'})` : formattedDate;
+    return displayTime ? `${formattedDate} • ${displayTime}${displayTime.includes('Uhr') || displayTime === 'Ganztägig' ? '' : ' Uhr'}` : formattedDate;
   };
 
   // Compute materials summary (boxes count)
@@ -591,9 +591,9 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
         <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
           {/* Mobile Handle Bar */}
           <div className="w-12 h-1.5 bg-slate-300 dark:bg-slate-600 rounded-full mx-auto mb-3 sm:hidden" />
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-start justify-between gap-2.5">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
                 <span className="text-xs font-bold font-headline text-primary">
                   {orderNum}
                 </span>
@@ -611,22 +611,22 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
               <Link
                 href={customerProfileUrl}
                 onClick={(e) => handleNavigate(customerProfileUrl, e)}
-                className="group inline-flex items-center gap-2 text-xl font-bold font-headline text-slate-900 dark:text-white hover:text-primary dark:hover:text-primary transition-colors cursor-pointer select-none active:opacity-75 p-1 -m-1 rounded-lg"
+                className="group inline-flex items-center gap-1.5 sm:gap-2 text-lg sm:text-xl font-bold font-headline text-slate-900 dark:text-white hover:text-primary dark:hover:text-primary transition-colors cursor-pointer select-none active:opacity-75 p-1 -m-1 rounded-lg max-w-full"
                 title="Kundenakte öffnen"
               >
-                <span className="hover:underline underline-offset-4 decoration-primary">{custName}</span>
-                <span className="w-7 h-7 rounded-lg bg-slate-200/80 dark:bg-slate-800 group-hover:bg-primary group-hover:text-white text-slate-600 dark:text-slate-300 inline-flex items-center justify-center transition-all shadow-2xs shrink-0">
-                  <ArrowTopRightOnSquareIcon className="w-4 h-4" />
+                <span className="hover:underline underline-offset-4 decoration-primary truncate">{custName}</span>
+                <span className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-slate-200/80 dark:bg-slate-800 group-hover:bg-primary group-hover:text-white text-slate-600 dark:text-slate-300 inline-flex items-center justify-center transition-all shadow-2xs shrink-0">
+                  <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </span>
               </Link>
             </div>
 
             <button 
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors"
+              className="p-1.5 sm:p-2 text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors shrink-0"
               title="Schließen (Esc)"
             >
-              <XMarkIcon className="w-6 h-6" />
+              <XMarkIcon className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
           </div>
 
@@ -952,9 +952,9 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                     )}
                   </div>
 
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 gap-3">
-                    <span className="text-slate-600 dark:text-slate-400 shrink-0">Besichtigungstermin</span>
-                    <div className="flex items-center gap-2">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 gap-2 sm:gap-3">
+                    <span className="text-slate-600 dark:text-slate-400 shrink-0 text-xs font-medium">Besichtigungstermin</span>
+                    <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
                       {order.orderMeta?.viewingDate ? (
                         (() => {
                           const vType = (order.orderMeta?.viewingType || order.logistics?.viewingType || '').toLowerCase();
@@ -963,34 +963,36 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
                           if (isFotos) {
                             return (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                                <PhotoIcon className="w-3.5 h-3.5 text-emerald-500" />
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                <PhotoIcon className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                                 <span>Fotos erledigt</span>
                               </span>
                             );
                           }
                           if (isOnline) {
                             return (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-                                <VideoCameraIcon className="w-3.5 h-3.5 text-purple-500" />
-                                <span>Video-Call: {formatScheduleDate(order.orderMeta?.viewingDate, order.orderMeta?.viewingTime)}</span>
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20 max-w-full">
+                                <VideoCameraIcon className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                                <span className="font-medium text-purple-600 dark:text-purple-400">Video-Call:</span>
+                                <span className="font-bold whitespace-nowrap">{formatScheduleDate(order.orderMeta?.viewingDate, order.orderMeta?.viewingTime)}</span>
                               </span>
                             );
                           }
                           return (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                              <MapPinIcon className="w-3.5 h-3.5 text-blue-500" />
-                              <span>Vor-Ort: {formatScheduleDate(order.orderMeta?.viewingDate, order.orderMeta?.viewingTime)}</span>
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 max-w-full">
+                              <MapPinIcon className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                              <span className="font-medium text-blue-600 dark:text-blue-400">Vor-Ort:</span>
+                              <span className="font-bold whitespace-nowrap">{formatScheduleDate(order.orderMeta?.viewingDate, order.orderMeta?.viewingTime)}</span>
                             </span>
                           );
                         })()
                       ) : (isContractSigned || currentOrderPhase >= 3) ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
-                          <CheckIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                          <CheckIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                           <span>Nicht erforderlich (Bestätigt)</span>
                         </span>
                       ) : (
-                        <span className="text-slate-400 italic">Noch nicht geplant</span>
+                        <span className="text-slate-400 italic text-xs">Noch nicht geplant</span>
                       )}
                       {!(isContractSigned || currentOrderPhase >= 3) && (() => {
                         const hasViewingAppointment = Boolean(order.orderMeta?.viewingDate);
@@ -998,7 +1000,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                           <button
                             type="button"
                             onClick={() => handleOpenSchedule({ id: 'viewing_requested', name: 'Besichtigung' })}
-                            className="p-1 rounded-md text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-500/10 transition-colors cursor-pointer shrink-0"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 dark:hover:text-purple-400 hover:bg-purple-500/10 transition-colors cursor-pointer shrink-0 border border-slate-200/60 dark:border-slate-700/60 bg-white dark:bg-slate-800"
                             title="Besichtigungstermin anpassen"
                           >
                             <PencilSquareIcon className="w-3.5 h-3.5" />
@@ -1007,7 +1009,7 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                           <button
                             type="button"
                             onClick={() => handleOpenSchedule({ id: 'viewing_requested', name: 'Besichtigung' })}
-                            className="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-bold hover:bg-primary hover:text-white transition-colors cursor-pointer shrink-0"
+                            className="px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-colors cursor-pointer shrink-0"
                             title="Besichtigungstermin planen"
                           >
                             + Planen
@@ -1370,46 +1372,86 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                         </div>
                       )}
 
-                      {((order.orderMeta?.viewingType || '').toLowerCase().includes('online') || (order.orderMeta?.viewingType || '').toLowerCase().includes('video')) && (
-                        <div className="text-[11px] text-purple-700 dark:text-purple-300 pt-2 border-t border-purple-200/60 dark:border-purple-900/40 flex items-center gap-1.5 font-medium">
-                          <VideoCameraIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                          <span>Online-Termin via WhatsApp Video / FaceTime</span>
-                        </div>
-                      )}
+                      {(() => {
+                        const isOnline = (order.orderMeta?.viewingType || '').toLowerCase().includes('online') || (order.orderMeta?.viewingType || '').toLowerCase().includes('video');
 
-                      <div className="pt-2 border-t border-[#6E8F64]/25 flex items-center gap-2">
-                        <Link
-                          href={`${editOrderUrl}${editOrderUrl.includes('?') ? '&' : '?'}step=4`}
-                          className="flex-1 py-2 px-3 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-sm">chair</span>
-                          <span>Inventar erfassen (m³)</span>
-                        </Link>
-                        {custPhone && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const tpl = getCommunicationTemplate(settings, 'dispo_unterwegs', 'dispo_besichtigung');
-                              const body = tpl?.body || 'Hallo {{Kunde_Name}},\n\nich bin pünktlich auf dem Weg zu Ihnen für unseren Besichtigungstermin{{Termin_Details}}.\n\nBis gleich!\nViele Grüße,\n{{Sachbearbeiter}}\nRothirsch Umzüge';
-                              const text = formatCommunicationMessage(body, {
-                                customer,
-                                order,
-                                userProfile: profile,
-                                taskType: 'unterwegs',
-                                scheduleDetails: {
-                                  time: order.orderMeta?.viewingTime || ''
-                                }
-                              });
-                              handleDirectWhatsApp(text);
-                            }}
-                            className="px-3 py-2 rounded-xl bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] hover:bg-[#6E8F64] hover:text-white border border-[#6E8F64]/35 text-xs font-bold flex items-center gap-1 transition-colors"
-                            title="Ich bin unterwegs senden (aus Vorlagen)"
-                          >
-                            <ChatBubbleLeftRightIcon className="w-4 h-4" />
-                            <span>Unterwegs</span>
-                          </button>
-                        )}
-                      </div>
+                        return (
+                          <>
+                            {isOnline && (
+                              <div className="text-[11px] text-purple-700 dark:text-purple-300 pt-2 border-t border-purple-200/60 dark:border-purple-900/40 flex items-center gap-1.5 font-medium">
+                                <VideoCameraIcon className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                                <span>Online-Termin via WhatsApp Video / FaceTime</span>
+                              </div>
+                            )}
+
+                            <div className="pt-2 border-t border-[#6E8F64]/25 flex items-center gap-2">
+                              <Link
+                                href={`${editOrderUrl}${editOrderUrl.includes('?') ? '&' : '?'}step=4`}
+                                className="flex-1 py-2 px-3 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition-colors min-w-0"
+                              >
+                                <span className="material-symbols-outlined text-sm">chair</span>
+                                <span className="truncate">Inventar erfassen (m³)</span>
+                              </Link>
+
+                              {custPhone && (
+                                isOnline ? (
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    {/* Direct WhatsApp chat for Video-Call */}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDirectWhatsApp()}
+                                      className="px-3 py-2 rounded-xl bg-purple-500/15 text-purple-700 dark:text-purple-300 hover:bg-purple-600 hover:text-white border border-purple-500/30 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                                      title="WhatsApp-Chat für Videoanruf öffnen"
+                                    >
+                                      <VideoCameraIcon className="w-4 h-4 text-purple-600 dark:text-purple-400 group-hover:text-white" />
+                                      <span>Video-Call</span>
+                                    </button>
+
+                                    {/* Announcement message for Video-Call */}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const custName = customer?.lastName || order.customerName || 'Kunde';
+                                        const timeStr = order.orderMeta?.viewingTime ? ` um ${order.orderMeta.viewingTime} Uhr` : '';
+                                        const text = `Hallo Frau/Herr ${custName},\n\nich rufe Sie wie vereinbart gleich per WhatsApp-Videoanruf für unsere gemeinsame Besichtigung${timeStr} an.\n\nBis gleich!\nViele Grüße,\n${profile?.displayName || 'Ihr Umzugsteam'}\nRothirsch Umzüge`;
+                                        handleDirectWhatsApp(text);
+                                      }}
+                                      className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                                      title="WhatsApp: Anruf gleich ankündigen"
+                                    >
+                                      <ChatBubbleLeftRightIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                                      <span className="sr-only sm:not-sr-only sm:inline text-[11px]">Ankündigen</span>
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const tpl = getCommunicationTemplate(settings, 'dispo_unterwegs', 'dispo_besichtigung');
+                                      const body = tpl?.body || 'Hallo {{Kunde_Name}},\n\nich bin pünktlich auf dem Weg zu Ihnen für unseren Besichtigungstermin{{Termin_Details}}.\n\nBis gleich!\nViele Grüße,\n{{Sachbearbeiter}}\nRothirsch Umzüge';
+                                      const text = formatCommunicationMessage(body, {
+                                        customer,
+                                        order,
+                                        userProfile: profile,
+                                        taskType: 'unterwegs',
+                                        scheduleDetails: {
+                                          time: order.orderMeta?.viewingTime || ''
+                                        }
+                                      });
+                                      handleDirectWhatsApp(text);
+                                    }}
+                                    className="px-3 py-2 rounded-xl bg-[#6E8F64]/15 text-[#435E3A] dark:text-[#B5D1AC] hover:bg-[#6E8F64] hover:text-white border border-[#6E8F64]/35 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                                    title="Ich bin unterwegs senden (aus Vorlagen)"
+                                  >
+                                    <ChatBubbleLeftRightIcon className="w-4 h-4" />
+                                    <span>Unterwegs</span>
+                                  </button>
+                                )
+                              )}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -1584,13 +1626,11 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
 
                 <div className="space-y-3">
                   {!showKartons && !showHvz && !showLift && (
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700 text-center space-y-0.5">
-                      <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    <div className="py-2 px-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/30 border border-slate-200/60 dark:border-slate-800 flex items-center gap-2">
+                      <CheckCircleIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
                         Keine Zusatz-Aufgaben im Angebot enthalten
-                      </p>
-                      <p className="text-[11px] text-slate-500">
-                        Keine Kartonlieferung, HVZ oder Möbellift gebucht. Für diesen Umzug ist lediglich die Fahrzeug- &amp; Team-Einteilung erforderlich.
-                      </p>
+                      </span>
                     </div>
                   )}
                     {/* Task: Kartons */}

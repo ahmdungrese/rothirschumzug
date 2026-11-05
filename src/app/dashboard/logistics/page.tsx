@@ -20,7 +20,8 @@ import {
   Squares2X2Icon,
   QueueListIcon,
   BanknotesIcon,
-  DocumentTextIcon
+  DocumentTextIcon,
+  VideoCameraIcon
 } from '@heroicons/react/24/outline';
 import { generateTickets, SystemTicket } from '@/lib/ticketEngine';
 import { toggleTaskCompletion } from '@/lib/taskStateController';
@@ -359,12 +360,13 @@ export default function LogisticsPage() {
     const addressB = [parentOrder?.logistics?.b_street, parentOrder?.logistics?.b_city].filter(Boolean).join(', ');
 
     if (todo.id === 'viewing_requested') {
+      const isOnline = (parentOrder?.orderMeta?.viewingType || '').toLowerCase().includes('online') || (parentOrder?.orderMeta?.viewingType || '').toLowerCase().includes('video');
       return {
         label: 'Besichtigung',
-        shortInfo: parentOrder?.orderMeta?.viewingType || 'Vor-Ort',
-        detailSubtext: addressA || 'Besichtigungsadresse im Auftrag',
-        mapAddress: addressA,
-        symbol: 'chair',
+        shortInfo: isOnline ? 'Video-Call' : (parentOrder?.orderMeta?.viewingType || 'Vor-Ort'),
+        detailSubtext: isOnline ? 'Online-Termin via WhatsApp Video / FaceTime' : (addressA || 'Besichtigungsadresse im Auftrag'),
+        mapAddress: isOnline ? undefined : addressA,
+        symbol: isOnline ? 'videocam' : 'chair',
         color: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/25',
         iconBg: 'bg-purple-500/15 text-purple-600 dark:text-purple-400'
       };
@@ -488,6 +490,13 @@ export default function LogisticsPage() {
     let taskType = 'hvz';
 
     if (isViewing) {
+      const isOnline = (parentOrder?.orderMeta?.viewingType || '').toLowerCase().includes('online') || (parentOrder?.orderMeta?.viewingType || '').toLowerCase().includes('video');
+      if (isOnline) {
+        const timeStr = scheduled?.time || parentOrder?.orderMeta?.viewingTime ? ` um ${scheduled?.time || parentOrder?.orderMeta?.viewingTime} Uhr` : '';
+        const text = `Hallo Frau/Herr ${custName},\n\nich rufe Sie wie vereinbart gleich per WhatsApp-Videoanruf für unsere gemeinsame Besichtigung${timeStr} an.\n\nBis gleich!\nViele Grüße,\n${profile?.displayName || 'Ihr Umzugsteam'}\nRothirsch Umzüge`;
+        handleDirectWhatsApp(custPhone, text, e);
+        return;
+      }
       templateId = 'dispo_unterwegs';
       fallbackId = 'dispo_besichtigung';
       taskType = 'unterwegs';
@@ -845,17 +854,43 @@ export default function LogisticsPage() {
                               </a>
                             )}
 
-                            {/* Task-specific WhatsApp message */}
-                            {custPhone && (
-                              <button
-                                type="button"
-                                onClick={(e) => triggerTaskWhatsApp(todo, parentOrder, custPhone, custName, scheduled, e)}
-                                className="w-7 h-7 flex items-center justify-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#527048] dark:text-[#B5D1AC] hover:bg-[#6E8F64] hover:text-white transition-all cursor-pointer shrink-0"
-                                title={isViewing ? 'WhatsApp: "Ich bin unterwegs" senden' : 'WhatsApp-Terminbestätigung senden'}
-                              >
-                                <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                            {/* Task-specific WhatsApp / Video-Call */}
+                            {custPhone && (() => {
+                              const isOnlineViewing = isViewing && ((parentOrder?.orderMeta?.viewingType || '').toLowerCase().includes('online') || (parentOrder?.orderMeta?.viewingType || '').toLowerCase().includes('video'));
+                              if (isOnlineViewing) {
+                                return (
+                                  <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleDirectWhatsApp(custPhone, undefined, e)}
+                                      className="h-7 px-2 flex items-center justify-center gap-1 rounded-lg bg-purple-500/15 text-purple-700 dark:text-purple-300 hover:bg-purple-600 hover:text-white border border-purple-500/30 text-xs font-bold transition-all cursor-pointer"
+                                      title="WhatsApp-Chat für Video-Call öffnen"
+                                    >
+                                      <VideoCameraIcon className="w-3.5 h-3.5" />
+                                      <span className="hidden sm:inline text-[11px]">Video-Call</span>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => triggerTaskWhatsApp(todo, parentOrder, custPhone, custName, scheduled, e)}
+                                      className="w-7 h-7 flex items-center justify-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-purple-600 dark:text-purple-400 hover:bg-purple-600 hover:text-white transition-all cursor-pointer"
+                                      title="WhatsApp: Videoanruf gleich ankündigen"
+                                    >
+                                      <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={(e) => triggerTaskWhatsApp(todo, parentOrder, custPhone, custName, scheduled, e)}
+                                  className="w-7 h-7 flex items-center justify-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[#527048] dark:text-[#B5D1AC] hover:bg-[#6E8F64] hover:text-white transition-all cursor-pointer shrink-0"
+                                  title={isViewing ? 'WhatsApp: "Ich bin unterwegs" senden' : 'WhatsApp-Terminbestätigung senden'}
+                                >
+                                  <ChatBubbleLeftRightIcon className="w-3.5 h-3.5" />
+                                </button>
+                              );
+                            })()}
 
                             {/* Expand full task info */}
                             <button

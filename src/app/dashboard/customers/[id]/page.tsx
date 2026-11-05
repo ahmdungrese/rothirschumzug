@@ -12,7 +12,8 @@ import { MessageSenderModal } from '@/components/customers/MessageSenderModal';
 import { SignatureModal } from '@/components/orders/SignatureModal';
 import { PdfModal } from '@/components/ui/PdfModal';
 import { ClaimModal } from '@/components/customers/ClaimModal';
-import { ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import { ArchiveCustomerModal } from '@/components/customers/ArchiveCustomerModal';
+import { ExclamationTriangleIcon, ArchiveBoxIcon } from '@heroicons/react/24/outline';
 import toast from 'react-hot-toast';
 import Link from 'next/link';
 import { useModalBackHandler } from '@/hooks/useModalBackHandler';
@@ -35,6 +36,7 @@ export default function CustomerProfilePage() {
   const [customer, setCustomer] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [freeInvoices, setFreeInvoices] = useState<any[]>([]);
+  const [claims, setClaims] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Modals & Action States
@@ -48,6 +50,7 @@ export default function CustomerProfilePage() {
   const [pdfModalOrder, setPdfModalOrder] = useState<any>(null);
   const [pdfType, setPdfType] = useState<any>('order');
   const [showClaimModal, setShowClaimModal] = useState(false);
+  const [showArchiveModal, setShowArchiveModal] = useState(false);
   const [claimOrder, setClaimOrder] = useState<any>(null);
   const [isSavingCustomer, setIsSavingCustomer] = useState(false);
   const [emailError, setEmailError] = useState<string>('');
@@ -127,10 +130,20 @@ export default function CustomerProfilePage() {
       });
     }
 
+    const qClaims = query(collection(db, 'claims'), where('customerId', '==', customerId));
+    const unsubClaims = onSnapshot(qClaims, (snap) => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      list.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+      setClaims(list);
+    }, (err) => {
+      console.warn('Claims snapshot error:', err?.message);
+    });
+
     return () => {
       unsubCustomer();
       unsubOrders();
       unsubInvoices();
+      unsubClaims();
     };
   }, [customerId, profile?.role, profile?.canViewPrices]);
 
@@ -246,6 +259,7 @@ export default function CustomerProfilePage() {
         customer={customer}
         orders={orders}
         invoices={freeInvoices}
+        claims={claims}
         onEditCustomer={() => setIsEditingCustomer(true)}
         onOpenMessageModal={(ord) => setMessageOrder({ data: ord || orders[0], defaultTemplate: 'Allgemein' })}
         onOpenPaymentModal={(ord) => setPaymentOrder(ord || orders[0])}
@@ -256,6 +270,7 @@ export default function CustomerProfilePage() {
           setClaimOrder(ord || orders[0] || null);
           setShowClaimModal(true);
         }}
+        onOpenArchiveModal={() => setShowArchiveModal(true)}
         onViewPdf={handleViewPdf}
         onRefresh={() => router.refresh()}
       />
@@ -434,11 +449,45 @@ export default function CustomerProfilePage() {
                 </button>
               </div>
             </form>
+
+            {/* Danger Zone: Kunde archivieren */}
+            {profile?.role !== 'teamlead' && (
+              <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold text-red-600 dark:text-red-400">Kunde archivieren</p>
+                  <p className="text-[11px] text-slate-500">Verschiebt den Kunden und alle Vorgänge eingefroren ins Archiv.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsEditingCustomer(false);
+                    setShowArchiveModal(true);
+                  }}
+                  className="px-3.5 py-2 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-600 hover:text-white transition-all cursor-pointer flex items-center gap-1.5 shrink-0"
+                  title="Kundenakte & alle Vorgänge einfrieren und archivieren"
+                >
+                  <ArchiveBoxIcon className="w-3.5 h-3.5" />
+                  <span>Kunde archivieren</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
 
       {/* Action Modals */}
+      <ArchiveCustomerModal
+        isOpen={showArchiveModal}
+        onClose={() => setShowArchiveModal(false)}
+        customer={customer}
+        orders={orders}
+        invoices={freeInvoices}
+        claims={claims}
+        onSuccess={() => {
+          setShowArchiveModal(false);
+          router.push('/dashboard/customers');
+        }}
+      />
       {paymentOrder && (
         <PaymentManager
           order={paymentOrder}

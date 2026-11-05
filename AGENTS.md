@@ -30,7 +30,32 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.28.3 (Current) – Customer Order History 3-Dots Contextual Action Hub
+### Version 2.29.0 (Current) – Intelligent Advisory Archiving Hub, Video-Call Workflows & Contract Editor Protections
+*   **Intelligent Advisory Archiving Hub & Frozen State Guarantee (`ArchiveCustomerModal.tsx`, `customers/[id]/page.tsx`, `SmartCustomerTable.tsx`, `CustomerPremiumProfile.tsx`)**:
+    *   **Real-World Operational Authority (Never Hard-Blocked)**: Business owners and dispatchers retain 100% authority to archive any customer (including fraudulent leads, vanished clients, or cancellations) at any time.
+    *   **Multi-Dimensional Intelligent Scan**: Prior to confirmation, the system scans 4 operational areas and displays an honest status summary:
+        *   `GoBD Invoices`: Identifies active invoices requiring official cancellation (`Storno ST-...`).
+        *   `Active Moves & Contracts`: Flags confirmed contracts (`status === 'confirmed'`) and scheduled move dates.
+        *   `Pending Logistics Tasks`: Summarizes open tickets (Halteverbot, cartons, inspections, lift).
+        *   `Open Damage Claims`: Highlights pending damage claims (`claims`) awaiting settlement.
+    *   **Frozen State Guarantee (`Einfrieren statt Erledigen`)**: Customer archiving never marks pending tasks or claims as completed (`done: true`). Instead, tasks, moves, and claims are paused/frozen in their authentic historical state and transferred to the Archive.
+    *   **Ergonomic Danger Zone Placement**: Integrated the archive action into a protected red danger zone inside `Kundendaten bearbeiten` on both mobile and desktop viewports, as well as the customer profile actions menu.
+    *   **Unified Multi-Entity Restoration (`ArchivePage.tsx`)**: Restoring an archived customer automatically unarchives their orders with their proper state (`confirmed` / `quote` / `draft`) and claims, returning them seamlessly to active workspaces.
+*   **Dedicated Video-Besichtigung (Online-Call) Logistics Engine (`OrderDetailsDrawer.tsx`, `dashboard/logistics/page.tsx`)**:
+    *   **Zero-Navigation for Virtual Calls**: Automatically suppresses driving directions (Google Maps) for online meetings.
+    *   **Direct WhatsApp Launch & Announcement**: Replaces the `[ 🚗 Unterwegs ]` button with `[ 📹 Video-Call ]` (opening `https://wa.me/{phone}` directly to begin the video call) and `[ 💬 Ankündigen ]` (sending a pre-call reminder message).
+*   **Contract Protection & Header Auto-Save Switch (`OrderEditor.tsx`)**:
+    *   **Native Fieldset Freezing**: Confirmed orders are locked with `<fieldset disabled={isContractLocked}>`, preventing accidental form alterations until unlocked with a 1-click `[ 🔓 Zur Bearbeitung entsperren ]` action.
+    *   **Top Header Auto-Save Switch**: Added prominent `[ 🟢 Auto-Save aktiv / ⚪ Auto-Save aus (Manuell) ]` toggle switch.
+    *   **Purged Dangerous Draft Cancellation**: Restricted `[ 🗑️ Abbrechen ]` exclusively to Step 1 of unsaved drafts, eliminating accidental deletion triggers from Steps 2–5.
+*   **Dynamic Financial & Signature Buttons (`CustomerPremiumProfile.tsx`)**:
+    *   **Dynamic `Digital signieren`**: Automatically renders muted gray with `Signiert ✓` when confirmed/signed, or active orange when unsigned.
+    *   **Dynamic `Zahlung erfassen`**: Displays muted styling with `keine Rechnung` badge when un-invoiced, while remaining clickable to present the informative GoBD guidance modal.
+    *   **Concise Invoice Modal**: Highlighted `Abnahmeprotokoll fehlt noch!` prominently for rapid comprehension.
+*   **Service Worker Cache Bump (`sw.js`)**:
+    *   Updated cache name to `rothirsch-erp-v2.29.0`.
+
+### Version 2.28.3 – Customer Order History 3-Dots Contextual Action Hub
 *   **Customer Order History 3-Dots Consolidation (`CustomerPremiumProfile.tsx`)**:
     *   **Zero-Clutter Action Hub**: Consolidated the 5 redundant buttons (`Bearbeiten`, `Prüfen`, `PDF`, `+ Protokoll`, `Rechnung erstellen`) previously displayed across each order row in `Alle Angebote & Aufträge` into a single, sleek `[ ••• ]` action trigger (`EllipsisVerticalIcon`).
     *   **Full Dynamic Contextual Support**:

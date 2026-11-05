@@ -14,7 +14,7 @@ import { evaluateOrderLogistics } from '@/lib/orderValidation';
 import { hasFixedService } from '@/lib/serviceKeys';
 import { toggleTaskCompletion, updateTaskSchedule, isTaskCompleted, autoCompletePreMoveTasks } from '@/lib/taskStateController';
 import { ensureOrderNumber } from '@/lib/orderStateMachine';
-import { updateDoc, doc, getDoc, collection, query, onSnapshot } from 'firebase/firestore';
+import { updateDoc, doc, getDoc, collection, query, onSnapshot, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
 import toast from 'react-hot-toast';
@@ -48,6 +48,7 @@ import {
   InformationCircleIcon,
   ClipboardDocumentCheckIcon,
   ClipboardDocumentIcon,
+  ArchiveBoxIcon,
   EyeIcon,
   SparklesIcon,
   MagnifyingGlassIcon,
@@ -91,6 +92,7 @@ interface CustomerPremiumProfileProps {
   customer: any;
   orders: any[];
   invoices?: any[];
+  claims?: any[];
   onEditCustomer: () => void;
   onOpenMessageModal: (order: any) => void;
   onOpenPaymentModal: (order: any) => void;
@@ -98,6 +100,7 @@ interface CustomerPremiumProfileProps {
   onOpenDispoModal: (order: any) => void;
   onOpenSignatureModal?: (order: any) => void;
   onOpenClaimModal?: (order?: any) => void;
+  onOpenArchiveModal?: () => void;
   onViewPdf: (order: any, type: string) => void;
   onRefresh?: () => void;
 }
@@ -106,6 +109,7 @@ export function CustomerPremiumProfile({
   customer,
   orders,
   invoices = [],
+  claims = [],
   onEditCustomer,
   onOpenMessageModal,
   onOpenPaymentModal,
@@ -113,6 +117,7 @@ export function CustomerPremiumProfile({
   onOpenDispoModal,
   onOpenSignatureModal,
   onOpenClaimModal,
+  onOpenArchiveModal,
   onViewPdf,
   onRefresh,
 }: CustomerPremiumProfileProps) {
@@ -132,6 +137,34 @@ export function CustomerPremiumProfile({
   const [waSearchQuery, setWaSearchQuery] = useState<string>('');
   const [waMobileTab, setWaMobileTab] = useState<'templates' | 'preview'>('templates');
   const [emailModalOrder, setEmailModalOrder] = useState<any>(null);
+
+  // Claims & Reklamation Realtime State
+  const [internalClaims, setInternalClaims] = useState<any[]>(claims || []);
+  const [showClaimDetailModal, setShowClaimDetailModal] = useState(false);
+
+  useEffect(() => {
+    if (claims && claims.length > 0) {
+      setInternalClaims(claims);
+      return;
+    }
+    if (!customer?.id) return;
+    const qClaims = query(collection(db, 'claims'), where('customerId', '==', customer.id));
+    const unsub = onSnapshot(qClaims, (snap) => {
+      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      list.sort((a: any, b: any) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
+      setInternalClaims(list);
+    }, (err) => {
+      console.warn('Claims profile fallback listener:', err);
+    });
+    return () => unsub();
+  }, [customer?.id, claims]);
+
+  const activeClaims = useMemo(() => {
+    return internalClaims.filter((c: any) => c.status !== 'Erledigt');
+  }, [internalClaims]);
+
+  const hasActiveClaim = activeClaims.length > 0;
+  const latestActiveClaim = activeClaims[0] || null;
 
   useEffect(() => {
     const loadSettings = async () => {
@@ -323,6 +356,7 @@ export function CustomerPremiumProfile({
 
   // 3-dots action dropdown state for orders in history list
   const [openOrderMenuId, setOpenOrderMenuId] = useState<string | null>(null);
+  const [orderMenuPlacement, setOrderMenuPlacement] = useState<'top' | 'bottom'>('top');
 
   const isOrderPricedAndServiced = (ord: any): boolean => {
     if (!ord) return false;
@@ -341,6 +375,24 @@ export function CustomerPremiumProfile({
       return true;
     }
     return false;
+  };
+
+  const getStatusBadge = (st: string) => {
+    switch (st) {
+      case 'draft':
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">Entwurf</span>;
+      case 'quote':
+      case 'verhandlung':
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-600 border border-blue-500/20">Angebot versendet</span>;
+      case 'confirmed':
+      case 'bestaetigt':
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">Bestätigt</span>;
+      case 'completed':
+      case 'abgeschlossen':
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-500/10 text-slate-600 border border-slate-500/20">Abgeschlossen</span>;
+      default:
+        return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{st || 'Offen'}</span>;
+    }
   };
 
   const handleOrderPdfClick = (ord: any) => {
@@ -366,6 +418,7 @@ export function CustomerPremiumProfile({
 
   // Smart Phase-Aware Actions Dropdown State
   const [actionsDropdownOpen, setActionsDropdownOpen] = useState(false);
+  const [topMenuPlacement, setTopMenuPlacement] = useState<'top' | 'bottom'>('bottom');
   const actionsDropdownRef = React.useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -1108,10 +1161,10 @@ export function CustomerPremiumProfile({
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-20 animate-in fade-in duration-300 w-full max-w-full overflow-hidden min-w-0">
+    <div className="space-y-4 sm:space-y-6 md:space-y-8 max-w-7xl mx-auto pb-24 sm:pb-20 animate-in fade-in duration-300 w-full max-w-full overflow-visible min-w-0">
       
       {/* Top Header Card with Integrated 4-Phase Pipeline */}
-      <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden min-w-0">
+      <div className={`bg-white dark:bg-slate-900 p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 sm:space-y-6 w-full max-w-full overflow-hidden min-w-0 transition-all ${hasActiveClaim ? 'border-l-4 sm:border-l-[6px] border-l-rose-500' : ''}`}>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <div className="flex items-center gap-3 mb-2 flex-wrap">
@@ -1119,6 +1172,27 @@ export function CustomerPremiumProfile({
                 <span className={`w-2 h-2 rounded-full ${currentPhaseInfo.phase === 3 ? 'bg-emerald-500 animate-pulse' : currentPhaseInfo.phase === 4 ? 'bg-purple-500' : 'bg-blue-500'}`}></span>
                 {activeOrder ? (currentPhaseInfo.phase >= 3 ? 'Bestätigter Auftrag' : 'Angebot in Bearbeitung') : 'Kundenprofil'}
               </span>
+
+              {/* Smart Claim / Reklamation Status Badge */}
+              {latestActiveClaim && (
+                <button
+                  type="button"
+                  onClick={() => setShowClaimDetailModal(true)}
+                  className="px-3 py-1 rounded-full text-[11px] font-bold font-headline uppercase tracking-wider flex items-center gap-1.5 transition-all cursor-pointer shadow-xs border bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-300 border-rose-500/30 animate-pulse"
+                  title="Aktive Reklamation ansehen & Details prüfen"
+                >
+                  <ExclamationTriangleIcon className="w-3.5 h-3.5 text-rose-500 shrink-0" />
+                  <span>
+                    {latestActiveClaim.status === 'Neu'
+                      ? `Reklamation offen (${activeClaims.length})`
+                      : latestActiveClaim.status === 'In Bearbeitung'
+                        ? `Reklamation: In Bearbeitung`
+                        : latestActiveClaim.status === 'An Versicherung gemeldet'
+                          ? `Reklamation: Versicherung`
+                          : `Reklamation: ${latestActiveClaim.status}`}
+                  </span>
+                </button>
+              )}
               <span className="text-xs font-semibold text-slate-400">
                 Kunden-ID: #{customer?.id?.slice(-5).toUpperCase() || 'KD'}
               </span>
@@ -1603,6 +1677,50 @@ export function CustomerPremiumProfile({
         );
 
         // Individual Action Renderers
+        const renderKontaktierenBtn = (inMenu = false) => (
+          <button
+            key="kontakt"
+            type="button"
+            onClick={() => {
+              if (onOpenMessageModal) {
+                onOpenMessageModal(activeOrder);
+              } else {
+                const defaultT = allWaTemplates.find((t: any) => t.id === 't3') || allWaTemplates[0];
+                if (defaultT) {
+                  setSelectedWaTemplateId(defaultT.id);
+                  setWaCustomText(formatTemplateText(defaultT.body));
+                }
+                setShowWhatsAppModal(true);
+              }
+              if (inMenu) setActionsDropdownOpen(false);
+            }}
+            className={inMenu 
+              ? "w-full text-left px-2.5 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg flex items-center gap-2 transition-colors cursor-pointer" 
+              : "flex-1 xl:flex-none justify-center px-2 sm:px-3 py-1.5 sm:py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 text-xs font-semibold border border-emerald-200 dark:border-emerald-800 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0 min-w-0"
+            }
+            title="Kunde kontaktieren (WhatsApp, E-Mail, Vorlagen)"
+          >
+            <ChatBubbleLeftRightIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span className="hidden xs:inline truncate">Kontaktieren</span>
+            <span className="xs:hidden">Kontakt</span>
+          </button>
+        );
+
+        const renderBearbeitenBtn = () => {
+          if (isTeamLead) return null;
+          return (
+            <Link
+              key="edit_active_order"
+              href={`/dashboard/customers/${customer.id}/edit-order/${activeOrder.id}`}
+              className="flex-1 xl:flex-none justify-center px-2 sm:px-3 py-1.5 sm:py-1 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-primary/50 transition-all flex items-center gap-1.5 shadow-2xs shrink-0 min-w-0"
+              title="Angebot bearbeiten"
+            >
+              <PencilSquareIcon className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="truncate">Bearbeiten</span>
+            </Link>
+          );
+        };
+
         const renderWhatsAppBtn = (inMenu = false) => (
           <button
             key="wa"
@@ -1638,8 +1756,8 @@ export function CustomerPremiumProfile({
                 if (inMenu) setActionsDropdownOpen(false);
               }}
               className={inMenu 
-                ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center justify-between gap-2.5 transition-colors cursor-pointer" 
-                : `px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
+                ? "w-full text-left px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg flex items-center justify-between gap-2 transition-colors cursor-pointer" 
+                : `flex-1 xl:flex-none justify-center px-2 sm:px-3 py-1.5 sm:py-1 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0 min-w-0 ${
                   !hasContent
                     ? 'bg-slate-100/70 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-slate-400'
                     : 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:border-primary/50'
@@ -1647,12 +1765,13 @@ export function CustomerPremiumProfile({
               }
               title={!hasContent ? "Angebot enthält noch keine Leistungen oder Preise (0,00 €)" : "Angebot als PDF anzeigen oder drucken"}
             >
-              <div className="flex items-center gap-2">
-                <DocumentTextIcon className={`w-4 h-4 shrink-0 ${!hasContent ? 'text-slate-400' : 'text-primary'}`} />
-                <span>Angebot PDF</span>
+              <div className="flex items-center gap-1.5 truncate">
+                <DocumentTextIcon className={`w-3.5 h-3.5 shrink-0 ${!hasContent ? 'text-slate-400' : 'text-primary'}`} />
+                <span className="hidden xs:inline">Angebot </span>
+                <span>PDF</span>
               </div>
               {!hasContent && (
-                <span className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.2 rounded font-normal border border-amber-500/30">
+                <span className="text-[10px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1 py-0.2 rounded font-normal border border-amber-500/30">
                   0 €
                 </span>
               )}
@@ -1662,6 +1781,45 @@ export function CustomerPremiumProfile({
 
         const renderSignierenBtn = (inMenu = false) => {
           if (!onOpenSignatureModal) return null;
+          const isSigned = Boolean(
+            activeOrder.signatureOrder ||
+            activeOrder.signature ||
+            activeOrder.orderMeta?.signedContractScan ||
+            activeOrder.isManuallySigned ||
+            activeOrder.contractSigned ||
+            activeOrder.signedAt ||
+            activeOrder.customerSignature ||
+            activeOrder.status === 'confirmed' ||
+            activeOrder.status === 'completed' ||
+            isTaskCompleted(activeOrder, 'signature')
+          );
+
+          if (isSigned) {
+            return (
+              <button
+                key="signieren"
+                type="button"
+                onClick={() => {
+                  toast.success("Angebot ist bereits verbindlich signiert und bestätigt ✓");
+                  if (inMenu) setActionsDropdownOpen(false);
+                }}
+                className={inMenu 
+                  ? "w-full text-left px-2.5 py-1.5 text-xs font-semibold text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg flex items-center justify-between transition-colors cursor-pointer" 
+                  : "px-2.5 sm:px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0"
+                }
+                title="Vertrag wurde bereits verbindlich unterzeichnet"
+              >
+                <div className="flex items-center gap-1.5">
+                  <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                  <span className="line-through opacity-75">Digital signieren</span>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                  Signiert ✓
+                </span>
+              </button>
+            );
+          }
+
           return (
             <button
               key="signieren"
@@ -1671,12 +1829,12 @@ export function CustomerPremiumProfile({
                 if (inMenu) setActionsDropdownOpen(false);
               }}
               className={inMenu 
-                ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer" 
-                : "px-3.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-xs font-bold border border-amber-500/30 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                ? "w-full text-left px-2.5 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg flex items-center gap-2 transition-colors cursor-pointer" 
+                : "px-2.5 sm:px-3 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-xs font-semibold border border-amber-500/30 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0"
               }
               title="Vertrag digital signieren"
             >
-              <CheckCircleIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <CheckCircleIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
               <span>Digital signieren</span>
             </button>
           );
@@ -1691,12 +1849,12 @@ export function CustomerPremiumProfile({
               if (inMenu) setActionsDropdownOpen(false);
             }}
             className={inMenu 
-              ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer" 
-              : "px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1.5 shadow-xs hover:border-amber-500/50 cursor-pointer"
+              ? "w-full text-left px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2 transition-colors cursor-pointer" 
+              : "px-2.5 sm:px-3 py-1 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1.5 shadow-2xs hover:border-amber-500/50 cursor-pointer shrink-0"
             }
             title="Mitarbeiter-Laufzettel ausdrucken"
           >
-            <TruckIcon className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <TruckIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
             <span>Laufzettel</span>
           </button>
         );
@@ -1712,31 +1870,36 @@ export function CustomerPremiumProfile({
                     onViewPdf(activeOrder, 'protocol');
                     setActionsDropdownOpen(false);
                   }}
-                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-[#3B5233] dark:text-[#B5D1AC] hover:bg-[#6E8F64]/10 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+                  className="w-full text-left px-2.5 py-1.5 text-xs font-semibold text-[#3B5233] dark:text-[#B5D1AC] hover:bg-[#6E8F64]/10 rounded-lg flex items-center justify-between gap-2 transition-colors cursor-pointer"
                 >
-                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#6E8F64] dark:text-[#93B489] shrink-0" />
-                  <span>Protokoll ({activeProtocols.length}) anzeigen</span>
+                  <div className="flex items-center gap-1.5">
+                    <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 text-[#6E8F64] dark:text-[#93B489] shrink-0" />
+                    <span>Übergabeprotokoll ({activeProtocols.length})</span>
+                  </div>
+                  <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    PDF
+                  </span>
                 </button>
               );
             }
             return (
-              <div key="protokoll" className="flex items-center gap-1">
+              <div key="protokoll" className="flex items-center gap-1 shrink-0">
                 <button
                   type="button"
                   onClick={() => onViewPdf(activeOrder, 'protocol')}
-                  className="px-3.5 py-1.5 rounded-xl bg-[#6E8F64]/10 hover:bg-[#6E8F64]/20 text-[#3B5233] dark:text-[#B5D1AC] text-xs font-bold border border-[#6E8F64]/30 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  className="px-2.5 sm:px-3 py-1 rounded-lg bg-[#6E8F64]/10 hover:bg-[#6E8F64]/20 text-[#3B5233] dark:text-[#B5D1AC] text-xs font-semibold border border-[#6E8F64]/30 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
                   title="Übergabeprotokoll als PDF ansehen / drucken"
                 >
-                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#6E8F64] dark:text-[#93B489]" />
+                  <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 text-[#6E8F64] dark:text-[#93B489]" />
                   <span>Protokoll ({activeProtocols.length})</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => onOpenProtocolModal(activeOrder)}
-                  className="p-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
+                  className="p-1 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-all cursor-pointer"
                   title="Weiteres Protokoll erfassen"
                 >
-                  <PlusIcon className="w-4 h-4" />
+                  <PlusIcon className="w-3.5 h-3.5" />
                 </button>
               </div>
             );
@@ -1750,12 +1913,12 @@ export function CustomerPremiumProfile({
                 if (inMenu) setActionsDropdownOpen(false);
               }}
               className={inMenu 
-                ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer" 
-                : "px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1.5 shadow-xs hover:border-[#6E8F64]/60 cursor-pointer"
+                ? "w-full text-left px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg flex items-center gap-2 transition-colors cursor-pointer" 
+                : "px-2.5 sm:px-3 py-1 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1.5 shadow-2xs hover:border-[#6E8F64]/60 cursor-pointer shrink-0"
               }
               title="Übergabeprotokoll öffnen / erfassen"
             >
-              <ClipboardDocumentCheckIcon className="w-4 h-4 text-[#6E8F64] dark:text-[#93B489] shrink-0" />
+              <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 text-[#6E8F64] dark:text-[#93B489] shrink-0" />
               <span>+ Protokoll erfassen</span>
             </button>
           );
@@ -1772,29 +1935,29 @@ export function CustomerPremiumProfile({
                     onViewPdf(linkedInvoice || activeOrder, 'invoice');
                     setActionsDropdownOpen(false);
                   }}
-                  className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+                  className="w-full text-left px-2.5 py-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
                 >
-                  <DocumentCheckIcon className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                  <DocumentCheckIcon className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
                   <span>{(linkedInvoice?.isKorrektur || activeOrder?.isKorrektur) ? 'Korrekturrechnung' : 'Rechnung'} {invoiceNumberDisplay ? `(${invoiceNumberDisplay})` : 'PDF'}</span>
                 </button>
               );
             }
             return (
-              <div key="rechnung" className="flex items-center gap-1">
+              <div key="rechnung" className="flex items-center gap-1 shrink-0">
                 <button
                   type="button"
                   onClick={() => onViewPdf(linkedInvoice || activeOrder, 'invoice')}
-                  className="px-3.5 py-1.5 rounded-xl bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-bold border border-purple-200 dark:border-purple-800 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  className="px-2.5 sm:px-3 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-semibold border border-purple-200 dark:border-purple-800 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
                   title="Rechnung als PDF ansehen"
                 >
-                  <DocumentCheckIcon className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  <DocumentCheckIcon className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
                   <span>{(linkedInvoice?.isKorrektur || activeOrder?.isKorrektur) ? 'Korrekturrechnung' : 'Rechnung'} {invoiceNumberDisplay ? `(${invoiceNumberDisplay})` : 'PDF'}</span>
                 </button>
                 {!activeOrder?.isStorno && activeOrder?.status !== 'invoice_cancelled' && activeOrder?.status !== 'canceled' && (
                   <button
                     type="button"
                     onClick={() => setStornoInvoice(linkedInvoice || activeOrder)}
-                    className="px-2.5 py-1.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 text-amber-700 dark:text-amber-400 text-xs font-bold border border-amber-200 dark:border-amber-800 transition-all cursor-pointer"
+                    className="px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 text-amber-700 dark:text-amber-400 text-xs font-semibold border border-amber-200 dark:border-amber-800 transition-all cursor-pointer"
                     title="Rechnung stornieren (GoBD Storno-Beleg)"
                   >
                     Storno
@@ -1812,8 +1975,8 @@ export function CustomerPremiumProfile({
                 if (inMenu) setActionsDropdownOpen(false);
               }}
               className={inMenu 
-                ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer" 
-                : `px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                ? "w-full text-left px-2.5 py-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/30 rounded-lg flex items-center gap-2 transition-colors cursor-pointer" 
+                : `px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0 ${
                   latestCancelledInvoiceNum
                     ? 'bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 font-bold'
                     : 'bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 border-dashed border-slate-300 dark:border-slate-700'
@@ -1821,8 +1984,8 @@ export function CustomerPremiumProfile({
               }
               title={latestCancelledInvoiceNum ? `Rechnung ${latestCancelledInvoiceNum} wurde storniert. Klicken, um eine Korrekturrechnung zu erstellen.` : "Noch keine Rechnung ausgestellt. Klicken zum Erstellen."}
             >
-              <DocumentCheckIcon className={`w-4 h-4 shrink-0 ${latestCancelledInvoiceNum ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400'}`} />
-              <span>{latestCancelledInvoiceNum ? '+ Korrekturrechnung erstellen' : '+ Rechnung erstellen'}</span>
+              <DocumentCheckIcon className={`w-3.5 h-3.5 shrink-0 ${latestCancelledInvoiceNum ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400'}`} />
+              <span>{latestCancelledInvoiceNum ? '+ Korrekturrechnung' : '+ Rechnung erstellen'}</span>
             </button>
           );
         };
@@ -1836,22 +1999,26 @@ export function CustomerPremiumProfile({
               if (inMenu) setActionsDropdownOpen(false);
             }}
             className={inMenu 
-              ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-xl flex items-center justify-between gap-2.5 transition-colors cursor-pointer" 
-              : `px-3.5 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
+              ? `w-full text-left px-2.5 py-1.5 text-xs font-semibold rounded-lg flex items-center justify-between gap-2 transition-colors cursor-pointer ${
+                hasInvoice
+                  ? 'text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                  : 'text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }` 
+              : `px-2.5 sm:px-3 py-1 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0 ${
                 hasInvoice
                   ? 'bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                  : 'bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 text-slate-500 border-slate-300 dark:border-slate-700 opacity-80'
+                  : 'bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 text-slate-400 dark:text-slate-500 border-slate-300 dark:border-slate-700'
               }`
             }
             title={hasInvoice ? "Zahlung auf Rechnung erfassen" : "Keine Rechnung vorhanden (Klicken zum Erstellen)"}
           >
-            <div className="flex items-center gap-2">
-              <CurrencyEuroIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-              <span>Zahlung erfassen</span>
+            <div className="flex items-center gap-1.5">
+              <CurrencyEuroIcon className={`w-3.5 h-3.5 shrink-0 ${hasInvoice ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-500'}`} />
+              <span className={!hasInvoice ? 'opacity-90' : ''}>Zahlung erfassen</span>
             </div>
             {!hasInvoice && (
-              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-600 dark:text-amber-400 font-normal">
-                fehlt
+              <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 font-normal">
+                keine Rechnung
               </span>
             )}
           </button>
@@ -1867,11 +2034,11 @@ export function CustomerPremiumProfile({
                 setStornoInvoice(linkedInvoice || activeOrder);
                 setActionsDropdownOpen(false);
               }}
-              className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
+              className="w-full text-left px-2.5 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
               title="Rechnung stornieren (GoBD Storno-Beleg)"
             >
               <span className="material-symbols-outlined text-base text-amber-600 dark:text-amber-400 shrink-0">cancel</span>
-              <span>Rechnung stornieren (GoBD Storno)</span>
+              <span>Rechnung stornieren (GoBD)</span>
             </button>
           );
         };
@@ -1887,13 +2054,13 @@ export function CustomerPremiumProfile({
                 if (inMenu) setActionsDropdownOpen(false);
               }}
               className={inMenu 
-                ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
-                : "px-3.5 py-1.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-700 dark:text-red-300 text-xs font-bold border border-red-500/30 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                ? "w-full text-left px-2.5 py-1.5 text-xs font-semibold text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
+                : "px-2.5 sm:px-3 py-1 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-700 dark:text-red-300 text-xs font-semibold border border-red-500/30 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0"
               }
               title="Schaden / Reklamation erfassen"
             >
-              <ExclamationTriangleIcon className="w-4 h-4 text-red-600 dark:text-red-400 shrink-0" />
-              <span>Schaden / Reklamation melden</span>
+              <ExclamationTriangleIcon className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" />
+              <span>Schaden / Reklamation</span>
             </button>
           );
         };
@@ -1916,12 +2083,12 @@ export function CustomerPremiumProfile({
                 if (inMenu) setActionsDropdownOpen(false);
               }}
               className={inMenu 
-                ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
-                : "px-3.5 py-1.5 rounded-xl bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-xs font-bold border border-blue-500/30 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                ? "w-full text-left px-2.5 py-1.5 text-xs font-semibold text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-lg flex items-center gap-2 transition-colors cursor-pointer"
+                : "px-2.5 sm:px-3 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 text-xs font-semibold border border-blue-500/30 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0"
               }
               title="Termin in Outlook / Samsung Kalender eintragen"
             >
-              <CalendarDaysIcon className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+              <CalendarDaysIcon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
               <span>In Kalender eintragen</span>
             </button>
           );
@@ -1937,12 +2104,12 @@ export function CustomerPremiumProfile({
                 setEmailModalOrder(activeOrder);
               }}
               className={inMenu 
-                ? "w-full text-left px-3.5 py-2.5 text-xs font-semibold text-primary hover:bg-primary/10 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer" 
-                : "px-3.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold border border-primary/30 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+                ? "w-full text-left px-2.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10 rounded-lg flex items-center gap-2 transition-colors cursor-pointer" 
+                : "px-2.5 sm:px-3 py-1 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold border border-primary/30 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer shrink-0"
               }
               title="Angebot / Rechnung per E-Mail direkt an den Kunden senden"
             >
-              <EnvelopeIcon className="w-4 h-4 text-primary shrink-0" />
+              <EnvelopeIcon className="w-3.5 h-3.5 text-primary shrink-0" />
               <span>E-Mail senden</span>
             </button>
           );
@@ -1968,7 +2135,7 @@ export function CustomerPremiumProfile({
           );
         };
 
-        // Smart dynamic selection based on phase & signing state
+        // Smart dynamic selection based on user role & permissions
         let primaryActions: React.ReactNode[] = [];
         let menuActions: (React.ReactNode | null)[] = [];
 
@@ -1979,278 +2146,306 @@ export function CustomerPremiumProfile({
             renderProtokollBtn(false),
             renderReklamationBtn(false),
             renderRouteMapsBtn(),
-            renderKalenderBtn(false),
           ].filter(Boolean);
-          menuActions = [];
-        } else if (currentPhaseInfo.phase <= 2 && !isSigned) {
-          // Phase 1 & 2: Negotiation / Offer
-          primaryActions = [
-            renderAngebotPdfBtn(false),
-            renderWhatsAppBtn(false),
-            renderSignierenBtn(false),
-          ];
           menuActions = [
-            renderEmailBtn(true),
             renderKalenderBtn(true),
+          ].filter(Boolean);
+        } else {
+          // Büro / Admin: Exakt 3 Hauptaktionen (Bearbeiten, Angebot PDF, Kontaktieren) + 3-Punkte-Menü für alles Weitere
+          primaryActions = [
+            renderBearbeitenBtn(),
+            renderAngebotPdfBtn(false),
+            renderKontaktierenBtn(false),
+          ].filter(Boolean);
+
+          menuActions = [
             renderLaufzettelBtn(true),
             renderProtokollBtn(true),
             renderRechnungBtn(true),
             renderZahlungBtn(true),
-            renderReklamationBtn(true),
-          ];
-        } else if (currentPhaseInfo.phase === 3 && !hasInvoice && !isMoveDone) {
-          // Phase 3: Confirmed / Move Preparation
-          primaryActions = [
-            renderAngebotPdfBtn(false),
-            renderWhatsAppBtn(false),
-            renderLaufzettelBtn(false),
-            renderProtokollBtn(false),
-          ];
-          menuActions = [
-            renderEmailBtn(true),
-            renderKalenderBtn(true),
-            renderRechnungBtn(true),
-            renderZahlungBtn(true),
             renderSignierenBtn(true),
-            renderReklamationBtn(true),
-          ];
-        } else {
-          // Phase 4: Billing / Settlement
-          primaryActions = [
-            renderAngebotPdfBtn(false),
-            renderRechnungBtn(false),
-            renderZahlungBtn(false),
-            renderProtokollBtn(false),
-            renderWhatsAppBtn(false),
-          ];
-          menuActions = [
             renderEmailBtn(true),
             renderKalenderBtn(true),
-            renderLaufzettelBtn(true),
             renderStornoBtn(),
             renderReklamationBtn(true),
-          ];
+            onOpenArchiveModal ? (
+              <button
+                key="kunde_archivieren"
+                type="button"
+                onClick={() => {
+                  setActionsDropdownOpen(false);
+                  onOpenArchiveModal();
+                }}
+                className="w-full text-left px-3.5 py-2.5 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-800/80 mt-1 pt-2"
+                title="Kundenakte & alle Vorgänge einfrieren und archivieren"
+              >
+                <ArchiveBoxIcon className="w-4 h-4 text-red-500 shrink-0" />
+                <span>Kunde archivieren</span>
+              </button>
+            ) : null,
+          ].filter(Boolean);
         }
 
         const validMenuActions = menuActions.filter(Boolean);
+        const activeOrderNumber = activeOrder.orderNumber || activeOrder.orderIdShort || (activeOrder.id ? `#${activeOrder.id.slice(-5).toUpperCase()}` : '#AUFTRAG');
+        const activeDateDisplay = activeOrder.orderMeta?.movingDateFrom || activeOrder.movingDate || activeOrder.logistics?.movingDate || activeOrder.createdAt?.toDate?.()?.toLocaleDateString('de-DE') || 'Kein Datum';
+        const activeRouteDisplay = activeOrder.logistics?.a_city && activeOrder.logistics?.b_city 
+          ? `${activeOrder.logistics.a_city} → ${activeOrder.logistics.b_city}`
+          : 'Lokaler Auftrag';
 
         return (
-          <div className="bg-white dark:bg-slate-900 p-3.5 sm:p-4 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5 shrink-0">
-              <span className="w-2.5 h-2.5 rounded-full bg-[#6E8F64] animate-pulse"></span>
-              <div>
-                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 font-headline uppercase tracking-wider block">
-                  Aktionen & Dokumente
-                </span>
-                <span className="text-[10px] text-slate-400 font-medium block">
-                  Auftrag #{activeOrder.orderNumber || activeOrder.id?.slice(-5).toUpperCase()}
-                </span>
+          <section className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm divide-y divide-slate-100 dark:divide-slate-800/80 overflow-visible relative z-30 w-full max-w-full min-w-0">
+            {/* TIER 1: Aktiver Auftrag - Header & Schnellaktionen */}
+            <div className="px-3.5 py-2 sm:px-4 sm:py-2.5 flex flex-col xl:flex-row xl:items-center justify-between gap-2.5 bg-slate-50/50 dark:bg-slate-800/20 rounded-t-2xl sm:rounded-t-3xl relative z-30">
+              <div className="flex items-center gap-2.5 shrink-0 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 border border-primary/20 shadow-2xs">
+                  <DocumentTextIcon className="w-4 h-4 text-primary" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white font-headline tracking-tight">
+                      Aktiver Auftrag {activeOrderNumber}
+                    </span>
+                    {getStatusBadge(activeOrder.status)}
+                    {!isTeamLead && (
+                      <span className="text-xs font-bold text-primary font-headline">
+                        €{orderTotals.gross.toLocaleString('de-DE')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2.5 text-[11px] text-slate-400 font-medium flex-wrap mt-0.5">
+                    <span className="flex items-center gap-1">
+                      <CalendarDaysIcon className="w-3 h-3" />
+                      <span>{activeDateDisplay}</span>
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <MapPinIcon className="w-3 h-3" />
+                      <span>{activeRouteDisplay}</span>
+                    </span>
+                    {activeOrder.logistics?.estimatedVolume && (
+                      <span>• {activeOrder.logistics.estimatedVolume} m³</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* TIER 1 ACTION BUTTONS */}
+              <div className="flex items-center gap-1.5 sm:gap-2 w-full xl:w-auto shrink-0 pt-0.5 xl:pt-0">
+                <div className="flex items-center gap-1.5 flex-1 xl:flex-none">
+                  {primaryActions}
+                </div>
+
+                {/* Dropdown for Secondary Actions */}
+                {validMenuActions.length > 0 && (
+                  <div className="relative shrink-0" ref={actionsDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const spaceBelow = window.innerHeight - rect.bottom;
+                        setTopMenuPlacement(spaceBelow < 260 ? 'top' : 'bottom');
+                        setActionsDropdownOpen(prev => !prev);
+                      }}
+                      className="w-8 h-8 p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all flex items-center justify-center shadow-2xs cursor-pointer shrink-0"
+                      title="Weitere Aktionen anzeigen"
+                    >
+                      <EllipsisHorizontalIcon className="w-4 h-4" />
+                    </button>
+
+                    {actionsDropdownOpen && (
+                      <>
+                        {/* Invisible fixed backdrop to close on outside click */}
+                        <div 
+                          className="fixed inset-0 z-40" 
+                          onClick={() => setActionsDropdownOpen(false)} 
+                        />
+                        <div className={`absolute right-0 ${
+                          topMenuPlacement === 'top' ? 'bottom-full mb-1.5 origin-bottom-right' : 'top-full mt-1.5 origin-top-right'
+                        } w-60 max-w-[calc(100vw-32px)] max-h-[min(360px,70vh)] overflow-y-auto bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-1.5 z-[100] animate-in fade-in zoom-in-95 duration-150 space-y-0.5 divide-y divide-slate-100 dark:divide-slate-800/80 overscroll-contain`}>
+                          <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            Weitere Aktionen
+                          </div>
+                          <div className="pt-1 space-y-0.5">
+                            {validMenuActions.map((actionNode, idx) => (
+                              <div key={idx}>{actionNode}</div>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              {primaryActions}
+            {/* TIER 2: Streamlined Executive Phase Bar (nur für Büro & Admin) */}
+            {!isTeamLead && (
+              <div className="px-3.5 py-2 sm:px-4 sm:py-2 flex flex-col md:flex-row md:items-center justify-between gap-2.5 bg-white dark:bg-slate-900 rounded-b-2xl sm:rounded-b-3xl relative z-10">
+                {/* Left: 4 Interactive Phase Circles & Status Label */}
+                <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
+                  {/* 4 Phase Circles with numbers, warnings and checkmarks */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    {[
+                      { num: 1, label: '1. Entwurf' },
+                      { num: 2, label: '2. Angebot' },
+                      { num: 3, label: '3. Bestätigt' },
+                      { num: 4, label: '4. Abrechnung' }
+                    ].map((st, i) => {
+                      const hasContact = Boolean(customer?.phone?.trim() || customer?.email?.trim() || activeOrder?.phone?.trim() || activeOrder?.email?.trim());
+                      const isPhase1Incomplete = st.num === 1 && !hasContact;
+                      const isDone = currentPhaseInfo.phase > st.num && !isPhase1Incomplete;
+                      const isWarning = currentPhaseInfo.phase > st.num && isPhase1Incomplete;
+                      const isCurrent = currentPhaseInfo.phase === st.num;
 
-              {/* Elegant Dropdown for Secondary / Contextual Actions */}
-              {validMenuActions.length > 0 && (
-                <div className="relative" ref={actionsDropdownRef}>
+                      return (
+                        <React.Fragment key={st.num}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDrawerInitialPhase(st.num);
+                              setDrawerOrder(activeOrder);
+                            }}
+                            title={`Phase ${st.num}: ${st.label} (${isWarning ? 'Unvollständig (Telefon oder E-Mail fehlt)' : isDone ? 'Erledigt' : isCurrent ? 'Aktiv' : 'Offen'}) • Klicken für Details`}
+                            className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all cursor-pointer ${
+                              isCurrent
+                                ? 'bg-[#6E8F64] text-white ring-2 ring-[#6E8F64]/30 shadow-xs scale-105'
+                                : isWarning
+                                  ? 'bg-amber-500 text-white shadow-xs'
+                                  : isDone
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                            }`}
+                          >
+                            {isWarning ? (
+                              <ExclamationTriangleIcon className="w-3 h-3 stroke-[2.5]" />
+                            ) : isDone ? (
+                              <CheckIcon className="w-3 h-3 stroke-[3]" />
+                            ) : (
+                              st.num
+                            )}
+                          </button>
+                          {i < 3 && (
+                            <div className={`w-2.5 h-0.5 ${currentPhaseInfo.phase > st.num ? (isWarning ? 'bg-amber-400' : 'bg-emerald-500') : 'bg-slate-200 dark:bg-slate-800'}`} />
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+
+                  {/* Current Phase Badge & Tasks Progress with Visual Percentage Bar */}
+                  <div className="min-w-0 flex flex-col justify-center">
+                    {(() => {
+                      const openItems = checklist.filter(c => !c.done);
+                      const percent = checklist.length > 0 ? Math.round((completedCount / checklist.length) * 100) : 0;
+                      const tooltipText = percent === 100 
+                        ? 'Alle Aufgaben dieser Phase erledigt (100% ✓)' 
+                        : `Noch offen für 100%:\n${openItems.map(i => `• ${i.label}`).join('\n')}`;
+
+                      return (
+                        <div
+                          className="group cursor-pointer select-none"
+                          title={tooltipText}
+                          onClick={() => {
+                            setDrawerInitialPhase(currentPhaseInfo.phase);
+                            setDrawerOrder(activeOrder);
+                          }}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate group-hover:text-[#6E8F64] transition-colors">
+                              Phase {currentPhaseInfo.phase}: {currentPhaseInfo.label}
+                            </span>
+                            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 hidden sm:inline">
+                              • {completedCount}/{checklist.length} Aufgaben
+                            </span>
+                          </div>
+
+                          {/* Visual Percentage Progress Bar */}
+                          {checklist.length > 0 && (
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <div className="w-16 sm:w-20 bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-500 ${
+                                    percent === 100
+                                      ? 'bg-emerald-500'
+                                      : percent >= 50
+                                        ? 'bg-[#6E8F64]'
+                                        : 'bg-amber-500'
+                                  }`}
+                                  style={{ width: `${percent}%` }}
+                                />
+                              </div>
+                              <span className={`text-[10px] font-extrabold ${
+                                percent === 100
+                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                  : 'text-slate-600 dark:text-slate-300'
+                              }`}>
+                                {percent}%
+                              </span>
+
+                              {/* Clean subtle hint */}
+                              {percent < 100 && openItems.length > 0 && (
+                                <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400 font-medium truncate max-w-[200px]">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                                  <span className="truncate">Offen: {openItems[0].label}</span>
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
+                {/* Right: Teamleiter-Zuweisung & Direct Cockpit Drawer Access Button */}
+                <div className="grid grid-cols-2 gap-2 w-full md:w-auto md:flex md:items-center md:gap-2 shrink-0">
+                  <div className="relative w-full md:w-auto min-w-0 shrink-0">
+                    <select
+                      value={activeOrder.disposition?.assignedTeamLeadUid || activeOrder.assignedTeamLeadUid || ''}
+                      onChange={(e) => handleAssignTeamLead(e.target.value)}
+                      disabled={isAssigningTeamLead}
+                      className={`w-full md:w-auto appearance-none pl-6 pr-6 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border truncate md:overflow-visible focus:outline-none focus:ring-2 focus:ring-[#6E8F64]/40 ${
+                        (activeOrder.disposition?.assignedTeamLeadUid || activeOrder.assignedTeamLeadUid)
+                          ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:border-emerald-400'
+                          : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+                      }`}
+                      title="Zuständigen Teamleiter für diesen Auftrag auswählen"
+                    >
+                      <option value="">+ Teamleiter</option>
+                      {teamLeads.map((lead) => (
+                        <option key={lead.uid} value={lead.uid}>
+                          Leiter: {lead.displayName}
+                        </option>
+                      ))}
+                    </select>
+                    <UserIcon className={`w-3 h-3 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none ${
+                      (activeOrder.disposition?.assignedTeamLeadUid || activeOrder.assignedTeamLeadUid)
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-slate-400'
+                    }`} />
+                    <ChevronDownIcon className="w-3 h-3 text-slate-400 absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+
                   <button
                     type="button"
-                    onClick={() => setActionsDropdownOpen(prev => !prev)}
-                    className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold border border-slate-200 dark:border-slate-700 transition-all flex items-center gap-1 shadow-xs cursor-pointer"
-                    title="Weitere Aktionen anzeigen"
-                  >
-                    <EllipsisHorizontalIcon className="w-5 h-5" />
-                  </button>
-
-                  {actionsDropdownOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-1">
-                      <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800/80">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                          Weitere Aktionen
-                        </span>
-                      </div>
-                      {validMenuActions.map((actionNode, idx) => (
-                        <div key={idx}>{actionNode}</div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Streamlined Executive Phase Bar: Ultra-Compact Single Row (nur für Büro & Admin) */}
-      {!isTeamLead && activeOrder && (
-        <div className="bg-white dark:bg-slate-900 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-          
-          {/* Left: 4 Interactive Phase Circles & Status Label */}
-          <div className="flex items-center gap-3 min-w-0">
-            {/* 4 Phase Circles with numbers, warnings and checkmarks */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              {[
-                { num: 1, label: '1. Entwurf' },
-                { num: 2, label: '2. Angebot' },
-                { num: 3, label: '3. Bestätigt' },
-                { num: 4, label: '4. Abrechnung' }
-              ].map((st, i) => {
-                const hasContact = Boolean(customer?.phone?.trim() || customer?.email?.trim() || activeOrder?.phone?.trim() || activeOrder?.email?.trim());
-                const isPhase1Incomplete = st.num === 1 && !hasContact;
-                const isDone = currentPhaseInfo.phase > st.num && !isPhase1Incomplete;
-                const isWarning = currentPhaseInfo.phase > st.num && isPhase1Incomplete;
-                const isCurrent = currentPhaseInfo.phase === st.num;
-
-                return (
-                  <React.Fragment key={st.num}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDrawerInitialPhase(st.num);
-                        setDrawerOrder(activeOrder);
-                      }}
-                      title={`Phase ${st.num}: ${st.label} (${isWarning ? 'Unvollständig (Telefon oder E-Mail fehlt)' : isDone ? 'Erledigt' : isCurrent ? 'Aktiv' : 'Offen'}) • Klicken für Details`}
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all cursor-pointer ${
-                        isCurrent
-                          ? 'bg-[#6E8F64] text-white ring-2 ring-[#6E8F64]/30 shadow-xs scale-105'
-                          : isWarning
-                            ? 'bg-amber-500 text-white shadow-xs'
-                            : isDone
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
-                      }`}
-                    >
-                      {isWarning ? (
-                        <ExclamationTriangleIcon className="w-3.5 h-3.5 stroke-[2.5]" />
-                      ) : isDone ? (
-                        <CheckIcon className="w-3.5 h-3.5 stroke-[3]" />
-                      ) : (
-                        st.num
-                      )}
-                    </button>
-                    {i < 3 && (
-                      <div className={`w-3 h-0.5 ${currentPhaseInfo.phase > st.num ? (isWarning ? 'bg-amber-400' : 'bg-emerald-500') : 'bg-slate-200 dark:bg-slate-800'}`} />
-                    )}
-                  </React.Fragment>
-                );
-              })}
-            </div>
-
-            {/* Current Phase Badge & Tasks Progress with Visual Percentage Bar */}
-            <div className="min-w-0 flex flex-col justify-center">
-              {(() => {
-                const openItems = checklist.filter(c => !c.done);
-                const percent = checklist.length > 0 ? Math.round((completedCount / checklist.length) * 100) : 0;
-                const tooltipText = percent === 100 
-                  ? 'Alle Aufgaben dieser Phase erledigt (100% ✓)' 
-                  : `Noch offen für 100%:\n${openItems.map(i => `• ${i.label}`).join('\n')}`;
-
-                return (
-                  <div
-                    className="group cursor-pointer select-none"
-                    title={tooltipText}
                     onClick={() => {
                       setDrawerInitialPhase(currentPhaseInfo.phase);
                       setDrawerOrder(activeOrder);
                     }}
+                    className="w-full md:w-auto py-1.5 px-3 rounded-lg bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-semibold transition-all flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer whitespace-nowrap shrink-0"
+                    title="Operatives Cockpit & Checkliste öffnen"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100 truncate group-hover:text-[#6E8F64] transition-colors">
-                        Phase {currentPhaseInfo.phase}: {currentPhaseInfo.label}
-                      </span>
-                      <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 hidden sm:inline">
-                        • {completedCount}/{checklist.length} Aufgaben
-                      </span>
-                    </div>
-
-                    {/* Visual Percentage Progress Bar with clear hover & subtle hint */}
-                    {checklist.length > 0 && (
-                      <div className="flex items-center gap-2 mt-1">
-                        <div className="w-20 sm:w-28 bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all duration-500 ${
-                              percent === 100
-                                ? 'bg-emerald-500'
-                                : percent >= 50
-                                  ? 'bg-[#6E8F64]'
-                                  : 'bg-amber-500'
-                            }`}
-                            style={{ width: `${percent}%` }}
-                          />
-                        </div>
-                        <span className={`text-[10px] font-extrabold ${
-                          percent === 100
-                            ? 'text-emerald-600 dark:text-emerald-400'
-                            : 'text-slate-600 dark:text-slate-300'
-                        }`}>
-                          {percent}%
-                        </span>
-
-                        {/* Clean, elegant hint: exactly what is missing for 100% */}
-                        {percent < 100 && openItems.length > 0 && (
-                          <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400 font-medium truncate max-w-[240px]">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                            <span className="truncate">Noch offen: {openItems[0].label}</span>
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-
-          {/* Right: Teamleiter-Zuweisung & Direct Cockpit Drawer Access Button */}
-          <div className="grid grid-cols-2 gap-2 w-full md:w-auto md:flex md:items-center shrink-0">
-            {!isTeamLead && (
-              <div className="relative w-full min-w-0">
-                <select
-                  value={activeOrder.disposition?.assignedTeamLeadUid || activeOrder.assignedTeamLeadUid || ''}
-                  onChange={(e) => handleAssignTeamLead(e.target.value)}
-                  disabled={isAssigningTeamLead}
-                  className={`w-full appearance-none pl-7 sm:pl-8 pr-6 sm:pr-7 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer border truncate focus:outline-none focus:ring-2 focus:ring-[#6E8F64]/40 ${
-                    (activeOrder.disposition?.assignedTeamLeadUid || activeOrder.assignedTeamLeadUid)
-                      ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 hover:border-emerald-400'
-                      : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
-                  }`}
-                  title="Zuständigen Teamleiter für diesen Auftrag auswählen"
-                >
-                  <option value="">+ Teamleiter</option>
-                  {teamLeads.map((lead) => (
-                    <option key={lead.uid} value={lead.uid}>
-                      Leiter: {lead.displayName}
-                    </option>
-                  ))}
-                </select>
-                <UserIcon className={`w-3.5 h-3.5 absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${
-                  (activeOrder.disposition?.assignedTeamLeadUid || activeOrder.assignedTeamLeadUid)
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-slate-400'
-                }`} />
-                <ChevronDownIcon className="w-3 h-3 text-slate-400 absolute right-2 sm:right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <AdjustmentsHorizontalIcon className="w-3.5 h-3.5 text-white shrink-0" />
+                    <span className="sm:hidden truncate">Cockpit</span>
+                    <span className="hidden sm:inline whitespace-nowrap">Operatives Cockpit</span>
+                    <ArrowRightIcon className="w-3 h-3 shrink-0 hidden xs:inline" />
+                  </button>
+                </div>
               </div>
             )}
-
-            <button
-              type="button"
-              onClick={() => {
-                setDrawerInitialPhase(currentPhaseInfo.phase);
-                setDrawerOrder(activeOrder);
-              }}
-              className="w-full md:w-auto py-2 px-2.5 sm:px-3.5 rounded-xl bg-[#6E8F64] hover:bg-[#5C7A53] text-white text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-1.5 shadow-xs shadow-[#6E8F64]/20 cursor-pointer min-w-0"
-              title="Operatives Cockpit & Checkliste öffnen"
-            >
-              <AdjustmentsHorizontalIcon className="w-4 h-4 text-white shrink-0" />
-              <span className="truncate sm:hidden">Cockpit</span>
-              <span className="truncate hidden sm:inline">Operatives Cockpit</span>
-              <ArrowRightIcon className="w-3.5 h-3.5 shrink-0 hidden xs:inline" />
-            </button>
-          </div>
-
-        </div>
-      )}
+          </section>
+        );
+      })()}
 
 
 
@@ -2263,7 +2458,7 @@ export function CustomerPremiumProfile({
         <div className="lg:col-span-7 space-y-6">
           
           {/* Smart Logistics & Multi-Stop Route Engine (Bochum Depot Roundtrip) */}
-          <div className="bg-white dark:bg-slate-900 p-6 md:p-7 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
+          <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 md:p-7 rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-2xl bg-[#6E8F64]/10 text-[#6E8F64] dark:text-[#93B489] flex items-center justify-center shrink-0">
@@ -2537,7 +2732,7 @@ export function CustomerPremiumProfile({
 
           {/* Dedicated Übergabeprotokolle & Haftung Card */}
           {activeOrder && (
-            <div className="bg-white dark:bg-slate-900 p-6 md:p-7 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+            <div className="bg-white dark:bg-slate-900 p-4 sm:p-6 md:p-7 rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
                 <div className="flex items-center gap-2.5">
                   <div className="w-9 h-9 rounded-xl bg-[#6E8F64]/10 text-[#6E8F64] dark:text-[#93B489] flex items-center justify-center shrink-0">
@@ -2660,30 +2855,32 @@ export function CustomerPremiumProfile({
       </div>
 
       {/* Alle Angebote & Aufträge dieses Kunden */}
-      <section className="bg-white dark:bg-slate-900 p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4 w-full max-w-full overflow-hidden min-w-0">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
-          <div>
-            <h3 className="font-headline font-bold text-base text-slate-900 dark:text-white flex items-center gap-2">
-              <DocumentTextIcon className="w-5 h-5 text-primary" />
-              Alle Angebote & Aufträge ({orders.length})
+      <section className="bg-white dark:bg-slate-900 p-3.5 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-3 w-full max-w-full overflow-visible relative z-20 min-w-0">
+        <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-800">
+          <div className="min-w-0">
+            <h3 className="font-headline font-bold text-sm sm:text-base text-slate-900 dark:text-white flex items-center gap-1.5 sm:gap-2 truncate">
+              <DocumentTextIcon className="w-4 h-4 sm:w-5 sm:h-5 text-primary shrink-0" />
+              <span>Alle Angebote & Aufträge ({orders.length})</span>
             </h3>
-            <p className="text-xs text-slate-400">
-              Übersicht aller historischen und aktuellen Vorgänge für diesen Kunden
+            <p className="text-[11px] sm:text-xs text-slate-400 truncate">
+              Übersicht aller historischen und aktuellen Vorgänge
             </p>
           </div>
 
           {!isTeamLead && (
             <Link
               href={`/dashboard/customers/${customer.id}/new-order`}
-              className="py-2 px-4 rounded-full font-bold text-xs bg-primary hover:bg-[#b51822] text-white flex items-center gap-1.5 shadow-xs transition-colors"
+              className="py-1.5 px-2.5 sm:px-3 rounded-lg font-semibold text-xs bg-primary hover:bg-[#b51822] text-white flex items-center gap-1 shadow-2xs transition-colors shrink-0 whitespace-nowrap"
             >
-              <span>+ Weiteres Angebot anlegen</span>
+              <span>+ </span>
+              <span className="hidden xs:inline">Weiteres </span>
+              <span>Angebot</span>
             </Link>
           )}
         </div>
 
         {orders.length === 0 ? (
-          <div className="text-center py-8 text-slate-400 text-xs">
+          <div className="text-center py-6 text-slate-400 text-xs">
             Keine Aufträge oder Angebote vorhanden.
           </div>
         ) : (
@@ -2721,31 +2918,13 @@ export function CustomerPremiumProfile({
               );
               const ordInvoiceNum = ordHasInvoice ? (ordLinkedInv?.invoiceNumber || ordActiveInvNum) : null;
 
-              const getStatusBadge = (st: string) => {
-                switch (st) {
-                  case 'draft':
-                    return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">Entwurf</span>;
-                  case 'quote':
-                  case 'verhandlung':
-                    return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-600 border border-blue-500/20">Angebot versendet</span>;
-                  case 'confirmed':
-                  case 'bestaetigt':
-                    return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">Bestätigt</span>;
-                  case 'completed':
-                  case 'abgeschlossen':
-                    return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-500/10 text-slate-600 border border-slate-500/20">Abgeschlossen</span>;
-                  default:
-                    return <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">{st || 'Offen'}</span>;
-                }
-              };
-
               const isThisActive = activeOrder?.id === ord.id;
 
               return (
-                <div key={ord.id} className={`py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 ${isThisActive ? 'bg-primary/5 -mx-4 px-4 rounded-2xl' : ''}`}>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <span className="font-bold text-sm text-slate-900 dark:text-white font-headline">
+                <div key={ord.id} className={`py-2.5 sm:py-3 flex items-center justify-between gap-3 relative ${isThisActive ? 'bg-primary/5 -mx-2.5 px-2.5 rounded-xl' : ''}`}>
+                  <div className="space-y-1 min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                      <span className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white font-headline">
                         {ordNumber}
                       </span>
                       {getStatusBadge(ord.status)}
@@ -2755,50 +2934,63 @@ export function CustomerPremiumProfile({
                         </span>
                       )}
                       {isThisActive ? (
-                        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 font-headline">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center gap-1 font-headline">
                           <CheckCircleIcon className="w-3 h-3 text-primary" />
-                          <span>Aktiver Auftrag</span>
+                          <span className="hidden xs:inline">Aktiver Auftrag</span>
+                          <span className="xs:hidden">Aktiv</span>
                         </span>
                       ) : (
                         <button
                           type="button"
                           onClick={() => setSelectedOrderId(ord.id)}
-                          className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-slate-100 hover:bg-primary hover:text-white dark:bg-slate-800 dark:hover:bg-primary text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1 cursor-pointer font-headline"
+                          className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 hover:bg-primary hover:text-white dark:bg-slate-800 dark:hover:bg-primary text-slate-600 dark:text-slate-300 transition-all flex items-center gap-1 cursor-pointer font-headline"
                           title="Diesen Auftrag im oberen Cockpit aktivieren"
                         >
                           <EyeIcon className="w-3 h-3" />
-                          <span>Im Cockpit öffnen</span>
+                          <span className="hidden xs:inline">Im Cockpit öffnen</span>
+                          <span className="xs:hidden">Öffnen</span>
                         </button>
                       )}
                     </div>
-                    <div className="flex items-center gap-4 text-xs text-slate-400 font-medium flex-wrap">
+                    <div className="flex items-center gap-2 sm:gap-3 text-[11px] text-slate-400 font-medium flex-wrap">
                       <span className="flex items-center gap-1">
-                        <CalendarDaysIcon className="w-3.5 h-3.5" />
+                        <CalendarDaysIcon className="w-3 h-3 shrink-0" />
                         <span>{dateDisplay}</span>
                       </span>
                       <span className="flex items-center gap-1">
-                        <MapPinIcon className="w-3.5 h-3.5" />
-                        <span>{routeDisplay}</span>
+                        <MapPinIcon className="w-3 h-3 shrink-0" />
+                        <span className="truncate max-w-[140px] sm:max-w-none">{routeDisplay}</span>
                       </span>
                       {ord.logistics?.estimatedVolume && (
-                        <span>{ord.logistics.estimatedVolume} m³</span>
+                        <span>• {ord.logistics.estimatedVolume} m³</span>
                       )}
                     </div>
                   </div>
 
                   {/* 3-DOTS ACTION TRIGGER & CONTEXTUAL DROPDOWN */}
-                  <div className="relative self-end sm:self-center shrink-0">
+                  <div className="relative shrink-0">
                     <button
                       type="button"
-                      onClick={() => setOpenOrderMenuId(openOrderMenuId === ord.id ? null : ord.id)}
-                      className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer border ${
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (openOrderMenuId === ord.id) {
+                          setOpenOrderMenuId(null);
+                        } else {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const spaceBelow = window.innerHeight - rect.bottom;
+                          // If less than 320px below button, flip upwards to prevent clipping by screen bottom or bottom nav
+                          setOrderMenuPlacement(spaceBelow < 320 ? 'top' : 'bottom');
+                          setOpenOrderMenuId(ord.id);
+                        }
+                      }}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer border ${
                         openOrderMenuId === ord.id
                           ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white border-slate-300 dark:border-slate-600 ring-2 ring-primary/30'
                           : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 shadow-2xs'
                       }`}
                       title="Optionen für diesen Auftrag anzeigen"
                     >
-                      <EllipsisVerticalIcon className="w-5 h-5" />
+                      <EllipsisVerticalIcon className="w-4 h-4" />
                     </button>
 
                     {openOrderMenuId === ord.id && (
@@ -2811,10 +3003,12 @@ export function CustomerPremiumProfile({
 
                         {/* Floating Contextual Menu */}
                         <div 
-                          className="absolute right-0 top-full mt-1.5 w-64 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-0.5 divide-y divide-slate-100 dark:divide-slate-800/80"
+                          className={`absolute right-0 ${
+                            orderMenuPlacement === 'top' ? 'bottom-full mb-1.5 origin-bottom-right' : 'top-full mt-1.5 origin-top-right'
+                          } w-60 max-w-[calc(100vw-32px)] max-h-[min(380px,70vh)] overflow-y-auto bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-1.5 z-[100] animate-in fade-in zoom-in-95 duration-150 space-y-0.5 divide-y divide-slate-100 dark:divide-slate-800/80 overscroll-contain`}
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                             Aktionen • {ordNumber}
                           </div>
 
@@ -2824,9 +3018,9 @@ export function CustomerPremiumProfile({
                               <Link
                                 href={`/dashboard/customers/${customer.id}/edit-order/${ord.id}`}
                                 onClick={() => setOpenOrderMenuId(null)}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                               >
-                                <PencilSquareIcon className="w-4 h-4 text-red-500 shrink-0" />
+                                <PencilSquareIcon className="w-3.5 h-3.5 text-red-500 shrink-0" />
                                 <span>{ord.status === 'draft' ? 'Entwurf bearbeiten' : 'Auftrag bearbeiten'}</span>
                               </Link>
                             )}
@@ -2839,9 +3033,9 @@ export function CustomerPremiumProfile({
                                   setOpenOrderMenuId(null);
                                   setDrawerOrder(ord);
                                 }}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer text-left"
+                                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer text-left"
                               >
-                                <AdjustmentsHorizontalIcon className="w-4 h-4 text-[#6E8F64] shrink-0" />
+                                <AdjustmentsHorizontalIcon className="w-3.5 h-3.5 text-[#6E8F64] shrink-0" />
                                 <span>Cockpit & Checkliste</span>
                               </button>
                             )}
@@ -2854,9 +3048,9 @@ export function CustomerPremiumProfile({
                                   setOpenOrderMenuId(null);
                                   onViewPdf(ord, 'employee');
                                 }}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer text-left"
+                                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer text-left"
                               >
-                                <TruckIcon className="w-4 h-4 text-amber-500 shrink-0" />
+                                <TruckIcon className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                                 <span>Mitarbeiter-Laufzettel</span>
                               </button>
                             ) : (() => {
@@ -2868,14 +3062,14 @@ export function CustomerPremiumProfile({
                                     setOpenOrderMenuId(null);
                                     handleOrderPdfClick(ord);
                                   }}
-                                  className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer text-left"
+                                  className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer text-left"
                                 >
-                                  <div className="flex items-center gap-2.5">
-                                    <DocumentTextIcon className={`w-4 h-4 ${!hasContent ? 'text-slate-400' : 'text-blue-500'} shrink-0`} />
+                                  <div className="flex items-center gap-2">
+                                    <DocumentTextIcon className={`w-3.5 h-3.5 ${!hasContent ? 'text-slate-400' : 'text-blue-500'} shrink-0`} />
                                     <span>Angebot PDF</span>
                                   </div>
                                   {!hasContent && (
-                                    <span className="text-[9px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold border border-amber-500/30">
+                                    <span className="text-[9px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.2 rounded font-bold border border-amber-500/30">
                                       0 €
                                     </span>
                                   )}
@@ -2891,13 +3085,13 @@ export function CustomerPremiumProfile({
                                   setOpenOrderMenuId(null);
                                   onViewPdf(ord, 'protocol');
                                 }}
-                                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer text-left"
+                                className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer text-left"
                               >
-                                <div className="flex items-center gap-2.5">
-                                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                <div className="flex items-center gap-2">
+                                  <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                                   <span>Protokoll ansehen</span>
                                 </div>
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
                                   {ord.protocols.length}
                                 </span>
                               </button>
@@ -2908,9 +3102,9 @@ export function CustomerPremiumProfile({
                                   setOpenOrderMenuId(null);
                                   onOpenProtocolModal(ord);
                                 }}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer text-left"
+                                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer text-left"
                               >
-                                <ClipboardDocumentCheckIcon className="w-4 h-4 text-slate-400 shrink-0" />
+                                <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                 <span>+ Protokoll erfassen</span>
                               </button>
                             )}
@@ -2928,10 +3122,10 @@ export function CustomerPremiumProfile({
                                       setOpenOrderMenuId(null);
                                       onViewPdf(ordLinkedInv || ord, 'invoice');
                                     }}
-                                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-xl transition-colors cursor-pointer text-left"
+                                    className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-lg transition-colors cursor-pointer text-left"
                                   >
-                                    <div className="flex items-center gap-2.5">
-                                      <DocumentCheckIcon className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                                    <div className="flex items-center gap-2">
+                                      <DocumentCheckIcon className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
                                       <span>Rechnung {ordInvoiceNum ? `(${ordInvoiceNum})` : ''}</span>
                                     </div>
                                     <span className="text-[10px] font-bold text-purple-500">PDF</span>
@@ -2945,9 +3139,9 @@ export function CustomerPremiumProfile({
                                       setSelectedOrderId(ord.id);
                                       handleRequestPayment(ord);
                                     }}
-                                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-colors cursor-pointer text-left"
+                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-lg transition-colors cursor-pointer text-left"
                                   >
-                                    <BanknotesIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                    <BanknotesIcon className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                                     <span>Zahlung erfassen</span>
                                   </button>
 
@@ -2959,9 +3153,9 @@ export function CustomerPremiumProfile({
                                         setOpenOrderMenuId(null);
                                         setStornoInvoice(ordLinkedInv || { ...ord, invoiceNumber: ordInvoiceNum, id: ordLinkedInv?.id || ord.id });
                                       }}
-                                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-xl transition-colors cursor-pointer text-left"
+                                      className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors cursor-pointer text-left"
                                     >
-                                      <XMarkIcon className="w-4 h-4 text-amber-500 shrink-0" />
+                                      <XMarkIcon className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                                       <span>Rechnung stornieren</span>
                                     </button>
                                   )}
@@ -2975,9 +3169,9 @@ export function CustomerPremiumProfile({
                                       if (onOpenSignatureModal) onOpenSignatureModal(ord);
                                       else setDrawerOrder(ord);
                                     }}
-                                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-xl transition-colors cursor-pointer text-left"
+                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg transition-colors cursor-pointer text-left"
                                   >
-                                    <PencilSquareIcon className="w-4 h-4 text-amber-500 shrink-0" />
+                                    <PencilSquareIcon className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                                     <span>Digital signieren</span>
                                   </button>
                                   <button
@@ -2986,24 +3180,43 @@ export function CustomerPremiumProfile({
                                       setOpenOrderMenuId(null);
                                       handleRequestInvoice(ord);
                                     }}
-                                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-xl transition-colors cursor-pointer text-left"
+                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-lg transition-colors cursor-pointer text-left"
                                   >
-                                    <DocumentCheckIcon className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                                    <DocumentCheckIcon className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
                                     <span>Rechnung erstellen</span>
                                   </button>
                                 </>
                               ) : ord.status !== 'draft' ? (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setOpenOrderMenuId(null);
-                                    handleRequestInvoice(ord);
-                                  }}
-                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-xl transition-colors cursor-pointer text-left"
-                                >
-                                  <DocumentCheckIcon className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
-                                  <span>{ordLatestCancelledNum ? 'Korrekturrechnung erstellen' : 'Rechnung erstellen'}</span>
-                                </button>
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenOrderMenuId(null);
+                                      setSelectedOrderId(ord.id);
+                                      handleRequestPayment(ord);
+                                    }}
+                                    className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-semibold text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer text-left"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <BanknotesIcon className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 shrink-0" />
+                                      <span>Zahlung erfassen</span>
+                                    </div>
+                                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 font-normal">
+                                      keine Rechnung
+                                    </span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenOrderMenuId(null);
+                                      handleRequestInvoice(ord);
+                                    }}
+                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-lg transition-colors cursor-pointer text-left"
+                                  >
+                                    <DocumentCheckIcon className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400 shrink-0" />
+                                    <span>{ordLatestCancelledNum ? 'Korrekturrechnung erstellen' : 'Rechnung erstellen'}</span>
+                                  </button>
+                                </>
                               ) : null}
                             </div>
                           )}
@@ -3017,9 +3230,9 @@ export function CustomerPremiumProfile({
                                   setOpenOrderMenuId(null);
                                   setSelectedOrderId(ord.id);
                                 }}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/10 rounded-xl transition-colors cursor-pointer text-left"
+                                className="w-full flex items-center gap-2 px-2.5 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer text-left"
                               >
-                                <EyeIcon className="w-4 h-4 text-primary shrink-0" />
+                                <EyeIcon className="w-3.5 h-3.5 text-primary shrink-0" />
                                 <span>Im Profil aktivieren</span>
                               </button>
                             </div>
@@ -3134,7 +3347,7 @@ export function CustomerPremiumProfile({
                     Sicherheitsprüfung
                   </span>
                   <h3 className="font-headline font-bold text-lg text-slate-900 dark:text-white mt-1">
-                    {isMoveInFuture ? 'Umzugstermin liegt noch in der Zukunft!' : 'Rechnung vorzeitig erstellen?'}
+                    {isMoveInFuture ? 'Umzugstermin liegt noch in der Zukunft!' : 'Abnahmeprotokoll fehlt noch!'}
                   </h3>
                 </div>
               </div>
@@ -3146,16 +3359,17 @@ export function CustomerPremiumProfile({
                       Achtung: Der Umzugstermin ({formattedMoveDate}) hat noch nicht stattgefunden!
                     </p>
                     <p className="text-amber-800/80 dark:text-amber-300/80 leading-relaxed">
-                      Wenn Sie jetzt eine Rechnung ausstellen, wird dieser Auftrag bzw. die Kundenakte als abgeschlossen eingestuft. Möchten Sie diesen Auftrag trotzdem jetzt abschließen?
+                      Möchten Sie diesen Auftrag trotzdem jetzt vorzeitig abrechnen?
                     </p>
                   </>
                 ) : (
                   <>
-                    <p className="font-semibold text-sm">
-                      Möchten Sie wirklich eine Rechnung erstellen, obwohl der Vertrag bzw. die vorherigen Aufgaben noch nicht vollständig abgeschlossen sind?
-                    </p>
-                    <p className="text-amber-800/80 dark:text-amber-300/80 leading-relaxed">
-                      Normalerweise wird die Rechnung erst nach unterschriebenem Auftrag, erledigten Logistik-Aufgaben und durchgeführtem Umzug (Abnahmeprotokoll) generiert.
+                    <div className="flex items-center gap-1.5 font-bold text-sm text-amber-900 dark:text-amber-200">
+                      <span className="material-symbols-outlined text-base text-amber-600 dark:text-amber-400">assignment_late</span>
+                      <span>Kein Abnahmeprotokoll generiert</span>
+                    </div>
+                    <p className="text-amber-800/80 dark:text-amber-300/80 leading-relaxed text-xs">
+                      Der Umzugstermin ist vorüber, aber es wurde noch kein <strong>Abnahmeprotokoll</strong> erfasst. Möchten Sie die Rechnung trotzdem jetzt erstellen?
                     </p>
                   </>
                 )}
@@ -3723,6 +3937,117 @@ export function CustomerPremiumProfile({
             if (updated) setDrawerOrder(updated);
           }}
         />
+      )}
+      {/* Quick Claim Detail Modal */}
+      {showClaimDetailModal && latestActiveClaim && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowClaimDetailModal(false)}
+        >
+          <div 
+            className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 border-l-4 sm:border-l-[6px] border-l-rose-500"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0">
+                  <ExclamationTriangleIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white font-headline">
+                    Aktive Reklamation & Schadensfall
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Kunde: {fullName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowClaimDetailModal(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Status:</span>
+                  <span className={`px-2.5 py-0.5 rounded-full font-bold text-[10px] uppercase tracking-wider ${
+                    latestActiveClaim.status === 'Neu' ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300/40' :
+                    latestActiveClaim.status === 'In Bearbeitung' ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-300/40' :
+                    latestActiveClaim.status === 'An Versicherung gemeldet' ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-300/40' :
+                    'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                  }`}>
+                    {latestActiveClaim.status}
+                  </span>
+                </div>
+
+                {latestActiveClaim.amount && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Geschätzter Betrag:</span>
+                    <span className="font-extrabold text-slate-900 dark:text-white text-sm">
+                      {Number(latestActiveClaim.amount).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}
+                    </span>
+                  </div>
+                )}
+
+                {latestActiveClaim.insuranceId && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Schadensnummer:</span>
+                    <span className="font-mono text-slate-700 dark:text-slate-300">
+                      {latestActiveClaim.insuranceId}
+                    </span>
+                  </div>
+                )}
+
+                {latestActiveClaim.createdAt && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Erfasst am:</span>
+                    <span className="text-slate-600 dark:text-slate-300">
+                      {formatProtocolDate(latestActiveClaim.createdAt)}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px] block mb-1">
+                  Beschreibung des Problems / Schadens:
+                </span>
+                <div className="p-3.5 rounded-2xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
+                  {latestActiveClaim.description || 'Keine Beschreibung hinterlegt.'}
+                </div>
+              </div>
+
+              {activeClaims.length > 1 && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                  Hinweis: Dieser Kunde hat insgesamt {activeClaims.length} offene Reklamationen.
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <Link
+                href={`/dashboard/claims?claimId=${latestActiveClaim.id}`}
+                onClick={() => setShowClaimDetailModal(false)}
+                className="py-2 px-3.5 rounded-xl bg-primary hover:bg-primary/90 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-colors"
+              >
+                <ArrowTopRightOnSquareIcon className="w-3.5 h-3.5" />
+                <span>In Zentrale Reklamation öffnen</span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => setShowClaimDetailModal(false)}
+                className="py-2 px-4 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs transition-colors cursor-pointer"
+              >
+                Schließen
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

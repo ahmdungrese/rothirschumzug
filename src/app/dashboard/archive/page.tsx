@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
-import { collection, query, onSnapshot, where, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, onSnapshot, where, deleteDoc, doc, updateDoc, writeBatch, serverTimestamp, getDocs, getDoc } from 'firebase/firestore';
 import { ArchiveBoxIcon, ArrowUturnLeftIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { toast } from 'react-hot-toast';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
@@ -49,9 +49,42 @@ export default function ArchivePage() {
   const handleRestore = async (collectionName: string, id: string) => {
     try {
       if (collectionName === 'customers') {
-        await updateDoc(doc(db, collectionName, id), { isArchived: false });
+        const batch = writeBatch(db);
+        // 1. Unarchive customer
+        batch.update(doc(db, 'customers', id), { isArchived: false, updatedAt: serverTimestamp() });
+
+        // 2. Unarchive customer orders
+        const qOrd = query(collection(db, 'orders'), where('customerId', '==', id), where('status', '==', 'archived'));
+        const ordSnap = await getDocs(qOrd);
+        ordSnap.docs.forEach(d => {
+          const ordData = d.data();
+          const targetStatus = ordData.confirmedSnapshot ? 'confirmed' : ordData.orderNumber ? 'quote' : 'draft';
+          batch.update(d.ref, { 
+            status: targetStatus, 
+            isArchived: false, 
+            updatedAt: serverTimestamp() 
+          });
+        });
+
+        // 3. Unarchive customer claims if any
+        const qClm = query(collection(db, 'claims'), where('customerId', '==', id), where('isArchived', '==', true));
+        const clmSnap = await getDocs(qClm);
+        clmSnap.docs.forEach(d => {
+          batch.update(d.ref, { isArchived: false, updatedAt: serverTimestamp() });
+        });
+
+        await batch.commit();
       } else {
-        await updateDoc(doc(db, collectionName, id), { status: 'draft' });
+        // Individual order restore
+        const ordRef = doc(db, 'orders', id);
+        const ordSnap = await getDoc(ordRef);
+        const ordData = ordSnap.data();
+        const targetStatus = ordData?.confirmedSnapshot ? 'confirmed' : ordData?.orderNumber ? 'quote' : 'draft';
+        await updateDoc(ordRef, { 
+          status: targetStatus, 
+          isArchived: false, 
+          updatedAt: serverTimestamp() 
+        });
       }
       toast.success("Erfolgreich wiederhergestellt!");
     } catch (error) {

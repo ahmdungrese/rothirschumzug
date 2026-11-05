@@ -148,8 +148,12 @@ function SwipeableNotificationItem({
 
   return (
     <div className="relative overflow-hidden group select-none border-b border-structure/40 last:border-b-0">
-      {/* Background Actions Revealed on Swipe */}
-      <div className="absolute inset-y-0 right-0 w-[130px] flex items-stretch z-0 bg-structure/20 border-l border-structure/40">
+      {/* Background Actions Revealed on Mobile Touch Swipe Only */}
+      <div 
+        className={`absolute inset-y-0 right-0 w-[130px] flex sm:hidden items-stretch z-0 bg-structure/20 border-l border-structure/40 transition-opacity duration-150 ${
+          translateX < 0 || isRevealed ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        }`}
+      >
         {/* Snooze (3 Tage) Button */}
         <button
           type="button"
@@ -191,7 +195,7 @@ function SwipeableNotificationItem({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onClick={handleCardClick}
-        className="relative z-10 bg-bg-panel hover:bg-structure/30 transition-colors cursor-pointer p-3.5 sm:p-4 pr-12 block"
+        className="relative z-10 bg-bg-panel hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer p-3.5 sm:p-4 pr-14 block"
       >
         <div className="flex gap-3 items-start">
           <div className={`mt-0.5 shrink-0 p-2 rounded-xl border ${cfg.colorClass}`}>
@@ -209,13 +213,13 @@ function SwipeableNotificationItem({
 
         {/* Desktop / Mouse Hover Quick Buttons */}
         <div 
-          className="absolute top-3 right-3 hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute top-3 right-3 hidden sm:flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20"
           onClick={(e) => e.stopPropagation()}
         >
           <button
             type="button"
             onClick={(e) => onSnooze(e, notif.id, 3)}
-            className="p-1 rounded-lg text-text-muted/60 hover:text-amber-500 hover:bg-amber-500/10 transition-all cursor-pointer"
+            className="p-1.5 rounded-lg text-text-muted hover:text-amber-500 hover:bg-amber-500/10 transition-all cursor-pointer"
             title="In 3 Tagen wieder erinnern"
           >
             <ClockIcon className="w-4 h-4" />
@@ -223,7 +227,7 @@ function SwipeableNotificationItem({
           <button
             type="button"
             onClick={(e) => onDismiss(e, notif.id)}
-            className="p-1 rounded-lg text-text-muted/60 hover:text-rose-500 hover:bg-rose-500/10 transition-all cursor-pointer"
+            className="p-1.5 rounded-lg text-text-muted hover:text-rose-500 hover:bg-rose-500/10 transition-all cursor-pointer"
             title="Diese Erinnerung ausblenden"
           >
             <TrashIcon className="w-4 h-4" />

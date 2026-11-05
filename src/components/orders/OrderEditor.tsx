@@ -516,7 +516,10 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
   const initialStep = (stepParam === 'inventory' || stepParam === '4' || modeParam === 'inspection') ? 4 : (stepParam ? parseInt(stepParam, 10) || 1 : 1);
   const [currentStep, setCurrentStep] = useState(initialStep);
   const [unlockedByAdmin, setUnlockedByAdmin] = useState(searchParams?.get('unlock') === 'true');
-  const isContractLocked = (orderStatus === 'confirmed' || orderStatus === 'completed') && !unlockedByAdmin;
+  const isConfirmedOrder = orderStatus === 'confirmed' || orderStatus === 'completed';
+  const isContractLocked = isConfirmedOrder && !unlockedByAdmin;
+  const canDiscardDraft = currentStep === 1 && (!orderStatus || orderStatus === 'draft') && !orderId;
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
   const [activeOrderId, setActiveOrderId] = useState<string | undefined>(orderId);
   const isAutoSavingRef = useRef(false);
 
@@ -575,6 +578,11 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       // Only delete if it is an unsaved/draft order to protect confirmed contracts and active invoices
       if (targetOrderId && (!orderStatus || orderStatus === 'draft')) {
         await deleteDoc(doc(db, 'orders', targetOrderId));
+        if (!urlCustomerId && loadedCustomerId) {
+          try {
+            await deleteDoc(doc(db, 'customers', loadedCustomerId));
+          } catch {}
+        }
         const cleanCreatorName = profile?.displayName || profile?.email?.split('@')[0] || 'Team';
         await logActivity(
           profile?.uid || 'unknown',
@@ -1156,7 +1164,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     const hasMovingDate = Boolean(orderMeta.movingDateFrom?.trim());
 
     // Both must be present to trigger silent Firestore auto-save in Step 1
-    if (!hasName || !hasMovingDate) return;
+    if (!autoSaveEnabled || isContractLocked || !hasName || !hasMovingDate) return;
 
     const signature = `${customerData.type}|${customerData.lastName?.trim()}|${customerData.firstName?.trim()}|${customerData.phone?.trim()}|${customerData.email?.trim()}|${orderMeta.movingDateFrom?.trim()}|${orderMeta.movingDateTo || ''}|${orderMeta.viewingDate || ''}|${orderMeta.viewingType || ''}`;
 
@@ -1176,7 +1184,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [customerData, orderMeta.movingDateFrom, orderMeta.movingDateTo, orderMeta.viewingDate, orderMeta.viewingType, isInvoice]);
+  }, [customerData, orderMeta.movingDateFrom, orderMeta.movingDateTo, orderMeta.viewingDate, orderMeta.viewingType, isInvoice, autoSaveEnabled, isContractLocked]);
 
   useEffect(() => {
     if (orderMeta.movingDateTo) {
@@ -2579,7 +2587,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
     goToStep(targetStep);
 
     // Rule 2: Auto-save draft to Firestore on moving forward (Weiter from Step 1 to Step 2, or any step advancement)
-    if (!isAutoSavingRef.current && !isSaving && (urlCustomerId || customerData.lastName?.trim())) {
+    if (autoSaveEnabled && !isContractLocked && !isAutoSavingRef.current && !isSaving && (urlCustomerId || customerData.lastName?.trim())) {
       isAutoSavingRef.current = true;
       setTimeout(async () => {
         try {
@@ -2694,21 +2702,41 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
               <span>Speichert...</span>
             </span>
           )}
-          {saveStatus === 'success' && activeOrderId && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Entwurf gesichert</span>
-            </span>
-          )}
+          {/* Auto-Save Interactive Toggle Switch */}
           <button
             type="button"
-            onClick={handleSafeCancel}
-            className="p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold font-headline text-text-muted hover:text-red-400 bg-white/[0.03] hover:bg-red-500/10 border border-structure hover:border-red-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
-            title="Vorgang abbrechen / Entwurf verwerfen"
+            onClick={() => {
+              const next = !autoSaveEnabled;
+              setAutoSaveEnabled(next);
+              if (next) {
+                toast.success("Auto-Save aktiviert: Änderungen werden automatisch gesichert.");
+              } else {
+                toast("Auto-Save pausiert: Änderungen werden nicht automatisch gesichert.", { icon: "⏸️" });
+              }
+            }}
+            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-all cursor-pointer select-none active:scale-95 ${
+              autoSaveEnabled
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20'
+                : 'bg-slate-200/80 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-300 dark:border-slate-700 hover:bg-slate-300/60'
+            }`}
+            title={autoSaveEnabled ? "Auto-Save aktiv (klicken zum Pausieren)" : "Auto-Save pausiert (klicken zum Aktivieren)"}
           >
-            <TrashIcon className="w-3.5 h-3.5 text-red-400" />
-            <span className="hidden sm:inline">Abbrechen</span>
+            <span className={`w-2 h-2 rounded-full ${autoSaveEnabled ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+            <span>{autoSaveEnabled ? 'Auto-Save' : 'Auto-Save aus'}</span>
           </button>
+
+          {/* Cancel / Discard Draft Button - STRICTLY ONLY for Step 1 of New Drafts! */}
+          {canDiscardDraft && (
+            <button
+              type="button"
+              onClick={handleSafeCancel}
+              className="p-2 sm:px-3 sm:py-1.5 rounded-xl text-xs font-bold font-headline text-text-muted hover:text-red-400 bg-white/[0.03] hover:bg-red-500/10 border border-structure hover:border-red-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Vorgang abbrechen / Entwurf verwerfen"
+            >
+              <TrashIcon className="w-3.5 h-3.5 text-red-400" />
+              <span className="hidden sm:inline">Abbrechen</span>
+            </button>
+          )}
         </div>
       </div>
       {/* Invoiced Warning Banner */}
@@ -2726,26 +2754,50 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         </div>
       )}
 
-      {/* Contract Locked Warning Banner */}
-      {isContractLocked && (
-        <div className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-4">
+      {/* Confirmed Contract Protection Banner */}
+      {isConfirmedOrder && (
+        <div className={`mb-6 p-4 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3.5 transition-all ${
+          isContractLocked 
+            ? 'bg-amber-500/10 border-amber-500/30 dark:bg-amber-950/25' 
+            : 'bg-emerald-500/10 border-emerald-500/30 dark:bg-emerald-950/25'
+        }`}>
           <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-amber-500 text-2xl shrink-0">lock</span>
+            <span className={`material-symbols-outlined text-2xl shrink-0 ${
+              isContractLocked ? 'text-amber-500' : 'text-emerald-500'
+            }`}>
+              {isContractLocked ? 'lock' : 'lock_open'}
+            </span>
             <div>
-              <p className="text-xs font-bold text-amber-500 uppercase tracking-wider">
-                Vertrag ist bestätigt & geschützt
+              <p className={`text-xs font-bold uppercase tracking-wider ${
+                isContractLocked ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'
+              }`}>
+                {isContractLocked ? 'Vertrag ist bestätigt & geschützt (Eingaben eingefroren)' : 'Bearbeitung freigegeben (Entsperrt)'}
               </p>
-              <p className="text-xs text-text-muted">
-                Dieser Auftrag wurde bereits verbindlich bestätigt. Änderungen wirken sich auf den bestehenden Vertrag aus.
+              <p className="text-xs text-text-muted mt-0.5">
+                {isContractLocked 
+                  ? 'Alle Felder sind eingefroren, um versehentliche Änderungen am bestätigten Vertrag zu verhindern.'
+                  : 'Sie können nun alle Felder und Leistungen frei anpassen. Änderungen werden gesichert.'}
               </p>
             </div>
           </div>
           <button
             type="button"
-            onClick={() => setUnlockedByAdmin(!unlockedByAdmin)}
-            className="px-3.5 py-1.5 rounded-xl text-xs font-bold border border-amber-500/40 text-amber-500 hover:bg-amber-500 hover:text-white transition-all shrink-0"
+            onClick={() => {
+              const next = !unlockedByAdmin;
+              setUnlockedByAdmin(next);
+              if (next) {
+                toast.success("Eingaben entsperrt: Sie können das Angebot nun bearbeiten.");
+              } else {
+                toast("Eingaben wieder eingefroren.", { icon: "🔒" });
+              }
+            }}
+            className={`px-4 py-2 rounded-xl text-xs font-bold border transition-all shrink-0 cursor-pointer active:scale-95 ${
+              isContractLocked
+                ? 'border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/15 hover:bg-amber-500 hover:text-white'
+                : 'border-slate-300 dark:border-slate-700 text-text-muted hover:bg-slate-200 dark:hover:bg-slate-800'
+            }`}
           >
-            {unlockedByAdmin ? 'Wieder sperren' : 'Zur Bearbeitung entsperren'}
+            {isContractLocked ? 'Zur Bearbeitung entsperren' : 'Wieder sperren'}
           </button>
         </div>
       )}
@@ -2835,6 +2887,8 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
       </div>
 
 
+      {/* Step Forms Container - Frozen when confirmed contract is locked */}
+      <fieldset disabled={isContractLocked} className={`border-0 p-0 m-0 min-w-0 transition-opacity duration-200 ${isContractLocked ? 'opacity-70 pointer-events-none select-none' : ''}`}>
       {currentStep === 1 && (
         <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
           {/* 1. Kundeninformationen */}
@@ -5805,6 +5859,7 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
           </div>
         </div>
       )}
+      </fieldset>
 
       {/* Docked Material Action Bar (Mobile & Desktop Ergonomic) */}
       {!isInventoryWizardOpen && !showNoServicesModal && !showCancelModal && !isKartonModalOpen && (
@@ -5824,27 +5879,16 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
             {/* LEFT: Zurück or Abbrechen */}
             <div className="flex items-center gap-2 shrink-0">
               {currentStep > 1 ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleStepBack}
-                    disabled={isSaving}
-                    className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline bg-structure/50 hover:bg-structure text-text-main transition-all flex items-center gap-1.5 border border-structure active:scale-95 cursor-pointer"
-                  >
-                    <span className="material-symbols-outlined text-sm">arrow_back</span>
-                    <span>Zurück</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSafeCancel}
-                    disabled={isSaving}
-                    className="p-2 rounded-xl text-xs font-semibold text-text-muted hover:text-red-400 hover:bg-red-500/10 transition-all flex items-center cursor-pointer"
-                    title="Vorgang abbrechen / Entwurf verwerfen"
-                  >
-                    <TrashIcon className="w-4 h-4 text-red-400" />
-                  </button>
-                </>
-              ) : (
+                <button
+                  type="button"
+                  onClick={handleStepBack}
+                  disabled={isSaving}
+                  className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline bg-structure/50 hover:bg-structure text-text-main transition-all flex items-center gap-1.5 border border-structure active:scale-95 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-sm">arrow_back</span>
+                  <span>Zurück</span>
+                </button>
+              ) : canDiscardDraft ? (
                 <button
                   type="button"
                   onClick={handleSafeCancel}
@@ -5853,6 +5897,16 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 >
                   <TrashIcon className="w-4 h-4 text-red-400" />
                   <span className="hidden xs:inline">Abbrechen</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={executeExit}
+                  disabled={isSaving}
+                  className="px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold font-headline bg-structure/50 hover:bg-structure text-text-main transition-all flex items-center gap-1.5 border border-structure active:scale-95 cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-sm">arrow_back</span>
+                  <span>Zurück</span>
                 </button>
               )}
             </div>

@@ -125,7 +125,7 @@ export function SmartCustomerCard({ customer, latestOrder }: { customer: any, la
   const intlPhone = cleanPhone.startsWith('0') ? '49' + cleanPhone.substring(1) : cleanPhone;
 
   return (
-    <div className="bg-white dark:bg-slate-900/90 p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md transition-all flex flex-col justify-between gap-3.5 w-full max-w-full overflow-hidden min-w-0">
+    <div className={`bg-white dark:bg-slate-900/90 p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md transition-all flex flex-col justify-between gap-3.5 w-full max-w-full overflow-hidden min-w-0 ${customer.activeClaim ? 'border-l-4 border-l-rose-500' : ''}`}>
       
       {/* Top Section: Direct Link to Customer Profile */}
       <Link 
@@ -166,9 +166,20 @@ export function SmartCustomerCard({ customer, latestOrder }: { customer: any, la
 
         {/* Name and Company details */}
         <div>
-          <h3 className="text-base sm:text-lg font-bold font-headline text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-1">
-            {displayName}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-base sm:text-lg font-bold font-headline text-slate-900 dark:text-white group-hover:text-primary transition-colors line-clamp-1">
+              {displayName}
+            </h3>
+            {customer.activeClaim && (
+              <span 
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25 shrink-0" 
+                title={`Aktive Reklamation: ${customer.activeClaim.status}`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+                <span>Reklamation</span>
+              </span>
+            )}
+          </div>
           {customer.type === 'firma' && customer.firstName && (
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Ansprechpartner: {customer.firstName}

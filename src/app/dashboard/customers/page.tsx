@@ -26,6 +26,7 @@ export default function CustomersPage() {
 
   const [customers, setCustomers] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
+  const [claims, setClaims] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterTab, setFilterTab] = useState<CustomerFilterTab>('all');
@@ -60,13 +61,23 @@ export default function CustomersPage() {
       setLoading(false);
     });
 
+    // 3. Fetch Claims (for active complaints/damages indicators)
+    const qClaims = query(collection(db, 'claims'));
+    const unsubClaims = onSnapshot(qClaims, (snapshot) => {
+      const fetched = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+      setClaims(fetched);
+    }, (error) => {
+      console.warn("Error fetching claims in customers page", error);
+    });
+
     return () => {
       unsubCustomers();
       unsubOrders();
+      unsubClaims();
     };
   }, []);
 
-  // Map latest order to each customer
+  // Map latest order & active claims to each customer
   const customersWithOrders = useMemo(() => {
     return customers.map(customer => {
       const customerOrders = orders.filter(o => o.customerId === customer.id);
@@ -76,9 +87,17 @@ export default function CustomersPage() {
         return timeB - timeA;
       });
       const latestOrder = customerOrders[0] || null;
-      return { ...customer, latestOrder, allOrders: customerOrders };
+      const customerClaims = claims.filter(c => c.customerId === customer.id && c.status !== 'Erledigt');
+      const activeClaim = customerClaims[0] || null;
+      return { 
+        ...customer, 
+        latestOrder, 
+        allOrders: customerOrders,
+        activeClaim,
+        activeClaimsCount: customerClaims.length
+      };
     });
-  }, [customers, orders]);
+  }, [customers, orders, claims]);
 
   // Tab counts
   const counts = useMemo(() => {
