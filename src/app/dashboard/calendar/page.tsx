@@ -166,6 +166,36 @@ export default function CalendarPage() {
           const toCity = `${o.logistics?.b_zip || ''} ${o.logistics?.b_city || ''}`.trim();
           const toFull = [toStreet, toCity].filter(Boolean).join(', ');
 
+          const isTeamDone = isTaskCompleted(o, 'team');
+          const dispo = o.disposition || {};
+          const helperCount = dispo.helpers !== undefined ? Number(dispo.helpers) : 0;
+          const kofferCount = dispo.koffer35t !== undefined ? Number(dispo.koffer35t) : 0;
+          const lkwCount = dispo.lkw7t !== undefined ? Number(dispo.lkw7t) : 0;
+          const leadName = dispo.assignedTeamLeadName || o.assignedTeamLeadName;
+          const assignedStaff = Array.isArray(o.assignedEmployees) ? o.assignedEmployees.length : (Array.isArray(o.team) ? o.team.length : 0);
+          const effectiveHelpers = helperCount > 0 ? helperCount : assignedStaff;
+          const effectiveVehicles = (dispo.vehicles ? Number(dispo.vehicles) : 0) || (dispo.trucks ? Number(dispo.trucks) : 0) || (kofferCount + lkwCount) || (effectiveHelpers > 0 ? 1 : 0);
+
+          const teamSummaryParts: string[] = [];
+          if (leadName) teamSummaryParts.push(`Leiter: ${leadName}`);
+          if (effectiveHelpers > 0) teamSummaryParts.push(`${effectiveHelpers} Helfer`);
+          if (kofferCount > 0 && lkwCount > 0) {
+            teamSummaryParts.push(`${kofferCount + lkwCount} LKW`);
+          } else if (kofferCount > 0) {
+            teamSummaryParts.push(`${kofferCount}x 3,5t`);
+          } else if (lkwCount > 0) {
+            teamSummaryParts.push(`${lkwCount}x 7,5t`);
+          } else if (effectiveVehicles > 0) {
+            teamSummaryParts.push(`${effectiveVehicles} LKW`);
+          }
+
+          let dispoLabel = 'Dispo offen';
+          if (teamSummaryParts.length > 0) {
+            dispoLabel = teamSummaryParts.join(' • ');
+          } else if (isTeamDone) {
+            dispoLabel = 'Disponiert ✓';
+          }
+
           map[movingDateStr].push({
             id: o.id + '_move',
             type: 'move',
@@ -174,15 +204,19 @@ export default function CalendarPage() {
             shortLabel: 'Umzug',
             customerName: custShortName,
             title: custShortName,
-            address: o.logistics?.b_city || o.logistics?.a_city || o.logistics?.loadingAddress?.split(',')[0] || 'Zielort',
+            address: o.logistics?.b_city || o.logistics?.a_city || o.logistics?.loadingAddress?.split(',')[0] || '',
             fromAddress: fromFull,
             toAddress: toFull,
             a_floor: o.logistics?.a_floor || '',
             a_elevator: o.logistics?.a_elevator ? 'mit Aufzug' : (o.logistics?.a_floor ? 'ohne Aufzug' : ''),
             b_floor: o.logistics?.b_floor || '',
             b_elevator: o.logistics?.b_elevator ? 'mit Aufzug' : (o.logistics?.b_floor ? 'ohne Aufzug' : ''),
-            helpers: o.disposition?.helpers || 0,
-            vehicles: o.disposition?.vehicles || o.disposition?.trucks || (o.disposition?.helpers ? 1 : 0),
+            helpers: effectiveHelpers,
+            vehicles: effectiveVehicles,
+            isTeamDone,
+            dispoLabel,
+            leadName,
+            dateStr: movingDateStr,
             timeStr: o.orderMeta?.movingTime || o.movingTime || '08:00',
             phone: cust?.phone || o.customerPhone || o.phone || '',
             rawOrder: o,
@@ -701,11 +735,15 @@ export default function CalendarPage() {
 
                                   <div className="pl-4 text-[11px] text-text-muted flex items-center justify-between mt-0.5">
                                     <span className="truncate">
-                                      {isMove ? (ev.toAddress || ev.address) : (ev.fullAddress || ev.address)}
+                                      {isMove ? (ev.toAddress || ev.fromAddress || 'Keine Adresse') : (ev.fullAddress || ev.address || 'Keine Adresse')}
                                     </span>
                                     <span className="text-text-muted text-[10px] shrink-0 font-medium ml-2 flex items-center gap-0.5">
-                                      {isMove && ev.helpers ? (
-                                        <span>{ev.helpers}H{ev.vehicles ? ` • ${ev.vehicles} LKW` : ''}</span>
+                                      {isMove ? (
+                                        <span className={ev.isTeamDone ? 'text-[#6E8F64] font-semibold' : 'text-amber-600 dark:text-amber-400 font-semibold'}>
+                                          {ev.isTeamDone 
+                                            ? (ev.helpers ? `${ev.helpers}H${ev.vehicles ? ` • ${ev.vehicles} LKW` : ''}` : 'Disponiert ✓')
+                                            : 'Dispo offen'}
+                                        </span>
                                       ) : isViewing ? (
                                         <span className="text-purple-500 font-semibold">{ev.isVideo ? 'Online' : 'Vor-Ort'}</span>
                                       ) : (
@@ -1141,7 +1179,11 @@ export default function CalendarPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-bold text-text-muted uppercase">Beladestelle (A)</p>
-                      <p className="font-semibold text-text-main">{selectedPlannerEvent.fromAddress || selectedPlannerEvent.address || 'Keine Adresse hinterlegt'}</p>
+                      {selectedPlannerEvent.fromAddress ? (
+                        <p className="font-semibold text-text-main">{selectedPlannerEvent.fromAddress}</p>
+                      ) : (
+                        <p className="font-normal text-text-muted italic">Keine Adresse hinterlegt</p>
+                      )}
                       {selectedPlannerEvent.a_floor && (
                         <p className="text-[11px] text-text-muted">{selectedPlannerEvent.a_floor} {selectedPlannerEvent.a_elevator ? `• ${selectedPlannerEvent.a_elevator}` : ''}</p>
                       )}
@@ -1156,7 +1198,11 @@ export default function CalendarPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] font-bold text-text-muted uppercase">Entladestelle (B)</p>
-                      <p className="font-semibold text-text-main">{selectedPlannerEvent.toAddress || selectedPlannerEvent.address || 'Keine Adresse hinterlegt'}</p>
+                      {selectedPlannerEvent.toAddress ? (
+                        <p className="font-semibold text-text-main">{selectedPlannerEvent.toAddress}</p>
+                      ) : (
+                        <p className="font-normal text-text-muted italic">Keine Adresse hinterlegt</p>
+                      )}
                       {selectedPlannerEvent.b_floor && (
                         <p className="text-[11px] text-text-muted">{selectedPlannerEvent.b_floor} {selectedPlannerEvent.b_elevator ? `• ${selectedPlannerEvent.b_elevator}` : ''}</p>
                       )}
@@ -1166,16 +1212,36 @@ export default function CalendarPage() {
 
                 {/* Team & Logistics Summary */}
                 <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="bg-bg-card rounded-xl p-2.5 border border-structure">
-                    <span className="text-[10px] text-text-muted block font-medium">Team & LKW</span>
-                    <span className="font-bold text-text-main text-xs">
-                      {selectedPlannerEvent.helpers ? `${selectedPlannerEvent.helpers} Helfer` : 'Dispo offen'}
-                      {selectedPlannerEvent.vehicles ? ` • ${selectedPlannerEvent.vehicles} LKW` : ''}
+                  {/* Team & LKW Card - Clickable to open DispoModal! */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedPlannerEvent.dateStr) {
+                        setSelectedDateStr(selectedPlannerEvent.dateStr);
+                        setSelectedPlannerEvent(null);
+                      }
+                    }}
+                    className="bg-bg-card hover:bg-structure/40 active:scale-[0.98] transition-all rounded-xl p-2.5 border border-structure text-left cursor-pointer group flex flex-col justify-between"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-[10px] text-text-muted block font-medium">Team & LKW</span>
+                      <span className="text-[10px] text-text-muted group-hover:text-text-main flex items-center gap-0.5">
+                        <span>Dispo</span>
+                        <ChevronRightIcon className="w-3 h-3" />
+                      </span>
+                    </div>
+                    <span className={`font-bold text-xs truncate mt-0.5 block ${
+                      selectedPlannerEvent.isTeamDone 
+                        ? 'text-[#6E8F64]' 
+                        : 'text-amber-600 dark:text-amber-400'
+                    }`}>
+                      {selectedPlannerEvent.dispoLabel || (selectedPlannerEvent.isTeamDone ? 'Disponiert ✓' : 'Dispo offen')}
                     </span>
-                  </div>
-                  <div className="bg-bg-card rounded-xl p-2.5 border border-structure">
+                  </button>
+
+                  <div className="bg-bg-card rounded-xl p-2.5 border border-structure flex flex-col justify-between">
                     <span className="text-[10px] text-text-muted block font-medium">Status</span>
-                    <span className="font-bold text-[#6E8F64] text-xs">
+                    <span className="font-bold text-[#6E8F64] text-xs mt-0.5">
                       {selectedPlannerEvent.isDone ? 'Abgeschlossen' : 'Bestätigt'}
                     </span>
                   </div>
@@ -1250,12 +1316,12 @@ export default function CalendarPage() {
 
               {/* Secondary Quick Actions: Route (Maps) & Phone */}
               <div className="grid grid-cols-2 gap-2">
-                {(selectedPlannerEvent.fromAddress || selectedPlannerEvent.toAddress || selectedPlannerEvent.fullAddress || selectedPlannerEvent.address) ? (
+                {(selectedPlannerEvent.fromAddress || selectedPlannerEvent.toAddress || selectedPlannerEvent.fullAddress) ? (
                   <a
                     href={
                       selectedPlannerEvent.fromAddress && selectedPlannerEvent.toAddress
                         ? `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(selectedPlannerEvent.fromAddress)}&destination=${encodeURIComponent(selectedPlannerEvent.toAddress)}`
-                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedPlannerEvent.fullAddress || selectedPlannerEvent.toAddress || selectedPlannerEvent.fromAddress || selectedPlannerEvent.address)}`
+                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedPlannerEvent.fullAddress || selectedPlannerEvent.toAddress || selectedPlannerEvent.fromAddress)}`
                     }
                     target="_blank"
                     rel="noopener noreferrer"
@@ -1265,7 +1331,13 @@ export default function CalendarPage() {
                     <span>Route (Maps)</span>
                   </a>
                 ) : (
-                  <div />
+                  <button
+                    disabled
+                    className="py-2.5 bg-bg-card opacity-50 text-text-muted border border-structure rounded-xl font-semibold text-xs flex items-center justify-center gap-1.5"
+                  >
+                    <MapPinIcon className="w-4 h-4" />
+                    <span>Keine Route</span>
+                  </button>
                 )}
 
                 {selectedPlannerEvent.phone ? (

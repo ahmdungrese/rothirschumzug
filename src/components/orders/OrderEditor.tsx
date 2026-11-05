@@ -2455,8 +2455,6 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
                 ? "Auftrag bestätigt & gespeichert!"
                 : "Angebot erfolgreich erstellt!"
         );
-      } else {
-        toast.success("Entwurf automatisch gesichert", { id: 'auto-save-toast', duration: 2500 });
       }
 
       if (shouldRedirect) {
@@ -2823,8 +2821,16 @@ export function OrderEditor({ orderId }: { orderId?: string }) {
         </div>
 
         {/* Mobile active step indicator */}
-        <div className="text-center text-xs font-bold uppercase tracking-wider text-text-main mt-3 sm:hidden">
-          Schritt {currentStep} von 5: {[ '1. Kunde', '2. Logistik', '3. Leistungen', '4. Inventar', '5. Abschluss' ][currentStep - 1]}
+        <div className="flex justify-center mt-3 sm:hidden">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/60 shadow-xs">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-text-muted">
+              Schritt {currentStep} von 5:
+            </span>
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-text-main">
+              {[ 'Kunde', 'Logistik', 'Leistungen', 'Inventar', 'Abschluss' ][currentStep - 1]}
+            </span>
+          </div>
         </div>
       </div>
 

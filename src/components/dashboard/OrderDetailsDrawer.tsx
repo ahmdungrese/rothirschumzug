@@ -28,7 +28,6 @@ import {
   UserGroupIcon,
   VideoCameraIcon,
   PhotoIcon,
-  ClipboardDocumentCheckIcon,
   ChevronDownIcon,
   ChevronUpIcon,
   EllipsisVerticalIcon
@@ -2179,38 +2178,6 @@ export function OrderDetailsDrawer({ order: initialOrder, customer, initialPhase
                     )}
                   </div>
                 )}
-              </div>
-
-              {/* Protocol Quick Action during Phase 3 (before & during move) */}
-              <div className="panel p-4 space-y-3 bg-gradient-to-r from-blue-50/50 via-white to-slate-50/50 dark:from-slate-800/60 dark:to-slate-800/30 border border-blue-200/60 dark:border-blue-900/40 rounded-2xl">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <ClipboardDocumentCheckIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200 font-headline">
-                      Protokoll & Haftung vor/während Umzug
-                    </span>
-                  </div>
-                  {order.protocols && order.protocols.length > 0 && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300">
-                      {order.protocols.length} hinterlegt
-                    </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Halten Sie Vereinbarungen, Haftungsausschlüsse (z.B. Montage auf Kundenrisiko, Aufzugnutzung, Treppenhaus) oder Vorschäden digital mit Unterschrift fest.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setProtocolModalOpen(true)}
-                  className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
-                >
-                  <ClipboardDocumentCheckIcon className="w-4 h-4" />
-                  <span>
-                    {order.protocols && order.protocols.length > 0
-                      ? `Weiteres Protokoll erfassen (${order.protocols.length} vorhanden)`
-                      : 'Protokoll erfassen & digital unterschreiben'}
-                  </span>
-                </button>
               </div>
 
               {/* Vorlagen Quick Actions for Phase 3 */}

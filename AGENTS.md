@@ -30,7 +30,18 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.28.1 (Current) – Mobile Stepper Label Decoupling & Phase 3 Teamleiter-Cockpit Side-by-Side Layout
+### Version 2.28.2 (Current) – Universal Top-Anchored Toast Notification Engine & Silent Auto-Save
+*   **Universal Top-Anchored Toast Alerts (`src/app/layout.tsx`)**:
+    *   **Zero-Collision Notification Relocation**: Repositioned global `Toaster` from `bottom-right` (which on mobile defaulted to `bottom-center` and obstructed bottom action docks and navigation bars) to `top-right` with `containerStyle={{ top: 72 }}`.
+    *   **Native Banner Ergonomics**: Notifications now slide down gracefully beneath the top navigation header on both mobile and desktop viewports, preserving 100% unobstructed thumb access to bottom action bars, floating toolbars, and primary buttons.
+*   **Silent Background Auto-Save Engine (`OrderEditor.tsx`)**:
+    *   **Purged Redundant Auto-Save Toast**: Removed the disruptive bottom popup toast (`toast.success("Entwurf automatisch gesichert")`) during background auto-save operations (`isSilent: true`).
+    *   **Serene Header State Indicator**: Auto-save operations quietly update the dedicated green status pill in the top header (`[ ✓ Entwurf gesichert ]`) without interrupting typing or screen navigation.
+    *   **Polished Mobile Stepper Badge**: Upgraded the mobile active step indicator into a sleek pill badge with accent dot and high-contrast typography (`Schritt X von 5: [Label]`).
+*   **Service Worker Cache Bump (`sw.js`)**:
+    *   Updated cache name to `rothirsch-erp-v2.28.2`.
+
+### Version 2.28.1 – Mobile Stepper Label Decoupling & Phase 3 Teamleiter-Cockpit Side-by-Side Layout
 *   **Mobile Stepper Decoupling & Zero-Text-Collision (`OrderEditor.tsx`)**:
     *   **Isolated Step Labels on Small Viewports**: Replaced the 5 crowded horizontal text labels under the circular progress icons (`1. KUNDE2. LOGISTIK...`) with a clean single active step badge beneath the stepper (`Schritt X von 5: [Label]`) on smartphone viewports (`hidden sm:block` for per-circle text, `sm:hidden` for unified label).
     *   **Bottom Action Dock Collision Shield**: Eliminated the redundant `Als Entwurf gesichert` status pill on mobile from the bottom dock (`hidden sm:inline-flex`), as the draft save state is already clearly presented in the screen header.

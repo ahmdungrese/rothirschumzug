@@ -121,7 +121,8 @@ export function isTaskCompleted(order: any, taskId: string): boolean {
         order.teamAssigned ||
         (Array.isArray(order.assignedEmployees) && order.assignedEmployees.length > 0) ||
         (Array.isArray(order.team) && order.team.length > 0) ||
-        (order.disposition && (Number(order.disposition.helpers) > 0 || Number(order.disposition.koffer35t) > 0 || Number(order.disposition.lkw7t) > 0))
+        (order.disposition && (Number(order.disposition.helpers) > 0 || Number(order.disposition.koffer35t) > 0 || Number(order.disposition.lkw7t) > 0)) ||
+        Boolean(order.disposition?.assignedTeamLeadUid || order.assignedTeamLeadUid || order.disposition?.assignedTeamLeadName || order.assignedTeamLeadName)
       );
 
     case 'protocol':

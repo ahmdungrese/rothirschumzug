@@ -65,13 +65,19 @@ export default function RootLayout({
         <PwaRegister />
         <Providers>{children}</Providers>
         <Toaster 
-          position="bottom-right"
+          position="top-right"
+          containerStyle={{
+            top: 72,
+          }}
           toastOptions={{
             style: {
               background: '#2A2A2A',
               color: '#fff',
               border: '1px solid #404040',
-              borderRadius: '8px',
+              borderRadius: '12px',
+              fontSize: '13px',
+              fontWeight: 600,
+              boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.3)',
             },
             success: {
               iconTheme: {
