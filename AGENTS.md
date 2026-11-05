@@ -30,7 +30,21 @@ This document provides definitive guidance for any AI coding agent working on th
 
 ## 2. Versionen-Historie & Changelog (Changelog by Versions)
 
-### Version 2.28.2 (Current) – Universal Top-Anchored Toast Notification Engine & Silent Auto-Save
+### Version 2.28.3 (Current) – Customer Order History 3-Dots Contextual Action Hub
+*   **Customer Order History 3-Dots Consolidation (`CustomerPremiumProfile.tsx`)**:
+    *   **Zero-Clutter Action Hub**: Consolidated the 5 redundant buttons (`Bearbeiten`, `Prüfen`, `PDF`, `+ Protokoll`, `Rechnung erstellen`) previously displayed across each order row in `Alle Angebote & Aufträge` into a single, sleek `[ ••• ]` action trigger (`EllipsisVerticalIcon`).
+    *   **Full Dynamic Contextual Support**:
+        *   `✏️ Angebot/Entwurf bearbeiten`: Direct link to order editor.
+        *   `🎛️ Cockpit & Checkliste`: Launches drawer inspector for order phases.
+        *   `📄 Angebot PDF / Laufzettel`: Smart PDF generator with `0 €` unpriced warning pill, or Laufzettel for team leads.
+        *   `📋 Übergabeprotokoll`: Instant view of recorded protocols or trigger for new protocol capture.
+        *   `🧾 Rechnung & Zahlung`: Dynamically displays `Rechnung ansehen`, `Zahlung erfassen` (with pre-flight guard), `Rechnung stornieren`, or `Rechnung erstellen / Korrekturrechnung`.
+        *   `⭐ Im Profil aktivieren`: Instantly activates inactive secondary orders into the top customer cockpit.
+    *   **Native Tap-Dismiss Backdrop**: Bound to an invisible full-screen backdrop for smooth outside-click closure on both mobile and desktop.
+*   **Service Worker Cache Bump (`sw.js`)**:
+    *   Updated cache name to `rothirsch-erp-v2.28.3`.
+
+### Version 2.28.2 – Universal Top-Anchored Toast Notification Engine & Silent Auto-Save
 *   **Universal Top-Anchored Toast Alerts (`src/app/layout.tsx`)**:
     *   **Zero-Collision Notification Relocation**: Repositioned global `Toaster` from `bottom-right` (which on mobile defaulted to `bottom-center` and obstructed bottom action docks and navigation bars) to `top-right` with `containerStyle={{ top: 72 }}`.
     *   **Native Banner Ergonomics**: Notifications now slide down gracefully beneath the top navigation header on both mobile and desktop viewports, preserving 100% unobstructed thumb access to bottom action bars, floating toolbars, and primary buttons.

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'rothirsch-erp-v2.28.2';
+const CACHE_NAME = 'rothirsch-erp-v2.28.3';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

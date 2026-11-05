@@ -57,6 +57,8 @@ import {
   ArrowTopRightOnSquareIcon,
   AdjustmentsHorizontalIcon,
   EllipsisHorizontalIcon,
+  EllipsisVerticalIcon,
+  BanknotesIcon,
   ChevronDownIcon,
   VideoCameraIcon,
   PhotoIcon
@@ -318,6 +320,9 @@ export function CustomerPremiumProfile({
 
   // Empty offer warning modal state (when 0 services or 0€)
   const [emptyOfferWarningModal, setEmptyOfferWarningModal] = useState<any | null>(null);
+
+  // 3-dots action dropdown state for orders in history list
+  const [openOrderMenuId, setOpenOrderMenuId] = useState<string | null>(null);
 
   const isOrderPricedAndServiced = (ord: any): boolean => {
     if (!ord) return false;
@@ -2781,146 +2786,247 @@ export function CustomerPremiumProfile({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
-                    {/* 1. Angebot / Entwurf bearbeiten Button (nur für Disponenten / Büro) */}
-                    {!isTeamLead && (
-                      <Link
-                        href={`/dashboard/customers/${customer.id}/edit-order/${ord.id}`}
-                        className="px-3.5 py-2 rounded-xl text-xs font-bold bg-[#D91E2A] text-white hover:bg-[#b51822] transition-all flex items-center gap-1.5 shadow-xs"
-                      >
-                        <PencilSquareIcon className="w-3.5 h-3.5" />
-                        <span>{ord.status === 'draft' ? 'Entwurf bearbeiten' : 'Bearbeiten'}</span>
-                      </Link>
-                    )}
+                  {/* 3-DOTS ACTION TRIGGER & CONTEXTUAL DROPDOWN */}
+                  <div className="relative self-end sm:self-center shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setOpenOrderMenuId(openOrderMenuId === ord.id ? null : ord.id)}
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all cursor-pointer border ${
+                        openOrderMenuId === ord.id
+                          ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white border-slate-300 dark:border-slate-600 ring-2 ring-primary/30'
+                          : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 shadow-2xs'
+                      }`}
+                      title="Optionen für diesen Auftrag anzeigen"
+                    >
+                      <EllipsisVerticalIcon className="w-5 h-5" />
+                    </button>
 
-                    {/* 2. Auftrags-Cockpit & Prüfung (Drawer - nur für Büro & Admin) */}
-                    {!isTeamLead && (
-                      <button
-                        type="button"
-                        onClick={() => setDrawerOrder(ord)}
-                        className="px-3 py-2 rounded-xl text-xs font-bold bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition-all flex items-center gap-1 cursor-pointer"
-                        title="Auftrags-Cockpit & Phasen-Prüfung im Drawer öffnen"
-                      >
-                        <AdjustmentsHorizontalIcon className="w-3.5 h-3.5" />
-                        <span>Prüfen</span>
-                      </button>
-                    )}
-
-                    {/* 3. Laufzettel (für Teamleiter) oder PDF Vorschau (für Büro) */}
-                    {isTeamLead ? (
-                      <button
-                        type="button"
-                        onClick={() => onViewPdf(ord, 'employee')}
-                        className="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-400 border border-amber-500/30 transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-                        title="Mitarbeiter-Laufzettel (PDF ohne Preise) ansehen"
-                      >
-                        <TruckIcon className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                        <span>Laufzettel</span>
-                      </button>
-                    ) : (() => {
-                      const hasContent = isOrderPricedAndServiced(ord);
-                      return (
-                        <button
-                          type="button"
-                          onClick={() => handleOrderPdfClick(ord)}
-                          className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                            !hasContent
-                              ? 'bg-slate-100/70 dark:bg-slate-800/50 text-slate-400 dark:text-slate-500 border-2 border-dashed border-slate-300 dark:border-slate-600 hover:border-slate-400'
-                              : 'bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shadow-2xs'
-                          }`}
-                          title={!hasContent ? "Angebot enthält noch keine Leistungen oder Preise (0,00 €)" : "PDF Vorschau"}
-                        >
-                          <DocumentTextIcon className={`w-3.5 h-3.5 ${!hasContent ? 'text-slate-400' : 'text-primary'}`} />
-                          <span>PDF</span>
-                          {!hasContent && (
-                            <span className="text-[9px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1 py-0.2 rounded font-semibold border border-amber-500/30">
-                              0 €
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })()}
-
-                    {/* 4. Protokoll ansehen oder erstellen */}
-                    {ord.protocols && ord.protocols.length > 0 ? (
-                      <button
-                        type="button"
-                        onClick={() => onViewPdf(ord, 'protocol')}
-                        className="px-3 py-2 rounded-xl text-xs font-bold bg-[#6E8F64]/10 hover:bg-[#6E8F64]/20 text-[#3B5233] dark:text-[#B5D1AC] border border-[#6E8F64]/30 transition-all flex items-center gap-1.5 cursor-pointer"
-                        title={`Übergabeprotokoll (${ord.protocols.length}) als PDF anzeigen`}
-                      >
-                        <ClipboardDocumentCheckIcon className="w-3.5 h-3.5 text-[#6E8F64] dark:text-[#93B489]" />
-                        <span>Protokoll ({ord.protocols.length})</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => onOpenProtocolModal(ord)}
-                        className="px-2.5 py-2 rounded-xl text-xs font-semibold bg-slate-50 dark:bg-slate-800/40 hover:bg-slate-100 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 border border-slate-200/60 dark:border-slate-700/60 transition-all flex items-center gap-1 cursor-pointer"
-                        title="Übergabeprotokoll für diesen Auftrag erstellen"
-                      >
-                        <ClipboardDocumentCheckIcon className="w-3.5 h-3.5" />
-                        <span>+ Protokoll</span>
-                      </button>
-                    )}
-
-                    {/* 5. Intelligente Phase-spezifische Aktion (Signatur vs Rechnung) für inaktive Aufträge (nur Büro & Admin) */}
-                    {!isTeamLead && (['quote', 'clarification', 'verhandlung'].includes(ord.status) && !(ord.signature || ord.orderMeta?.customerSignature) && !ordLatestCancelledNum ? (
-                      !isThisActive ? (
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => onOpenSignatureModal ? onOpenSignatureModal(ord) : setDrawerOrder(ord)}
-                            className="px-3 py-2 rounded-xl text-xs font-bold bg-amber-500/10 hover:bg-amber-500 text-amber-600 hover:text-white dark:text-amber-400 border border-amber-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
-                            title="Vertrag digital signieren"
-                          >
-                            <PencilSquareIcon className="w-3.5 h-3.5" />
-                            <span>Digital signieren</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRequestInvoice(ord)}
-                            className="px-2.5 py-2 rounded-xl text-xs font-bold bg-purple-50 hover:bg-purple-100 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition-all flex items-center gap-1 cursor-pointer"
-                            title="Rechnung trotz fehlender Unterschrift erstellen (Sicherheitsprüfung wird geöffnet)"
-                          >
-                            <DocumentCheckIcon className="w-3.5 h-3.5" />
-                            <span>Rechnung</span>
-                          </button>
-                        </div>
-                      ) : null
-                    ) : ordHasInvoice ? (
+                    {openOrderMenuId === ord.id && (
                       <>
-                        <button
-                          type="button"
-                          onClick={() => onViewPdf(ordLinkedInv || ord, 'invoice')}
-                          className="px-3 py-2 rounded-xl text-xs font-bold bg-purple-100 dark:bg-purple-950/60 hover:bg-purple-200 dark:hover:bg-purple-900/80 text-purple-800 dark:text-purple-200 border border-purple-300 dark:border-purple-700 transition-all flex items-center gap-1.5 cursor-pointer"
-                          title={`Rechnung ${ordInvoiceNum || ''} als PDF anzeigen`}
+                        {/* Invisible backdrop to close on outside click */}
+                        <div 
+                          className="fixed inset-0 z-40" 
+                          onClick={() => setOpenOrderMenuId(null)} 
+                        />
+
+                        {/* Floating Contextual Menu */}
+                        <div 
+                          className="absolute right-0 top-full mt-1.5 w-64 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-1.5 z-50 animate-in fade-in zoom-in-95 duration-150 space-y-0.5 divide-y divide-slate-100 dark:divide-slate-800/80"
+                          onClick={(e) => e.stopPropagation()}
                         >
-                          <DocumentCheckIcon className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                          <span>{(ordLinkedInv?.isKorrektur || ord.isKorrektur) ? 'Korrekturrechnung' : 'Rechnung'} {ordInvoiceNum ? `(${ordInvoiceNum})` : 'ansehen'}</span>
-                        </button>
-                        {!ord.isStorno && ord.status !== 'invoice_cancelled' && ord.status !== 'canceled' && (
-                          <button
-                            type="button"
-                            onClick={() => setStornoInvoice(ordLinkedInv || { ...ord, invoiceNumber: ordInvoiceNum, id: ordLinkedInv?.id || ord.id })}
-                            className="px-2.5 py-2 rounded-xl text-xs font-bold bg-amber-500/10 hover:bg-amber-500 text-amber-600 hover:text-white dark:text-amber-400 border border-amber-500/20 transition-all flex items-center gap-1 cursor-pointer"
-                            title="Rechnung stornieren (Storno-Beleg erstellen)"
-                          >
-                            <span>Stornieren</span>
-                          </button>
-                        )}
+                          <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                            Aktionen • {ordNumber}
+                          </div>
+
+                          <div className="pt-1 space-y-0.5">
+                            {/* 1. Bearbeiten (nur Büro/Admin) */}
+                            {!isTeamLead && (
+                              <Link
+                                href={`/dashboard/customers/${customer.id}/edit-order/${ord.id}`}
+                                onClick={() => setOpenOrderMenuId(null)}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors"
+                              >
+                                <PencilSquareIcon className="w-4 h-4 text-red-500 shrink-0" />
+                                <span>{ord.status === 'draft' ? 'Entwurf bearbeiten' : 'Auftrag bearbeiten'}</span>
+                              </Link>
+                            )}
+
+                            {/* 2. Cockpit & Prüfung (nur Büro/Admin) */}
+                            {!isTeamLead && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenOrderMenuId(null);
+                                  setDrawerOrder(ord);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer text-left"
+                              >
+                                <AdjustmentsHorizontalIcon className="w-4 h-4 text-[#6E8F64] shrink-0" />
+                                <span>Cockpit & Checkliste</span>
+                              </button>
+                            )}
+
+                            {/* 3. PDF Vorschau / Laufzettel */}
+                            {isTeamLead ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenOrderMenuId(null);
+                                  onViewPdf(ord, 'employee');
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer text-left"
+                              >
+                                <TruckIcon className="w-4 h-4 text-amber-500 shrink-0" />
+                                <span>Mitarbeiter-Laufzettel</span>
+                              </button>
+                            ) : (() => {
+                              const hasContent = isOrderPricedAndServiced(ord);
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenOrderMenuId(null);
+                                    handleOrderPdfClick(ord);
+                                  }}
+                                  className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer text-left"
+                                >
+                                  <div className="flex items-center gap-2.5">
+                                    <DocumentTextIcon className={`w-4 h-4 ${!hasContent ? 'text-slate-400' : 'text-blue-500'} shrink-0`} />
+                                    <span>Angebot PDF</span>
+                                  </div>
+                                  {!hasContent && (
+                                    <span className="text-[9px] bg-amber-500/15 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded font-bold border border-amber-500/30">
+                                      0 €
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })()}
+
+                            {/* 4. Protokoll */}
+                            {ord.protocols && ord.protocols.length > 0 ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenOrderMenuId(null);
+                                  onViewPdf(ord, 'protocol');
+                                }}
+                                className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer text-left"
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <ClipboardDocumentCheckIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  <span>Protokoll ansehen</span>
+                                </div>
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                  {ord.protocols.length}
+                                </span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenOrderMenuId(null);
+                                  onOpenProtocolModal(ord);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer text-left"
+                              >
+                                <ClipboardDocumentCheckIcon className="w-4 h-4 text-slate-400 shrink-0" />
+                                <span>+ Protokoll erfassen</span>
+                              </button>
+                            )}
+                          </div>
+
+                          {/* 5. FINANZEN & ZAHLUNG (NUR BÜRO/ADMIN) */}
+                          {!isTeamLead && (
+                            <div className="pt-1 space-y-0.5">
+                              {/* If invoice exists */}
+                              {ordHasInvoice ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenOrderMenuId(null);
+                                      onViewPdf(ordLinkedInv || ord, 'invoice');
+                                    }}
+                                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-xl transition-colors cursor-pointer text-left"
+                                  >
+                                    <div className="flex items-center gap-2.5">
+                                      <DocumentCheckIcon className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                                      <span>Rechnung {ordInvoiceNum ? `(${ordInvoiceNum})` : ''}</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-purple-500">PDF</span>
+                                  </button>
+
+                                  {/* Zahlung erfassen Button */}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenOrderMenuId(null);
+                                      setSelectedOrderId(ord.id);
+                                      handleRequestPayment(ord);
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 rounded-xl transition-colors cursor-pointer text-left"
+                                  >
+                                    <BanknotesIcon className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                    <span>Zahlung erfassen</span>
+                                  </button>
+
+                                  {/* Storno */}
+                                  {!ord.isStorno && ord.status !== 'invoice_cancelled' && ord.status !== 'canceled' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenOrderMenuId(null);
+                                        setStornoInvoice(ordLinkedInv || { ...ord, invoiceNumber: ordInvoiceNum, id: ordLinkedInv?.id || ord.id });
+                                      }}
+                                      className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-xl transition-colors cursor-pointer text-left"
+                                    >
+                                      <XMarkIcon className="w-4 h-4 text-amber-500 shrink-0" />
+                                      <span>Rechnung stornieren</span>
+                                    </button>
+                                  )}
+                                </>
+                              ) : ['quote', 'clarification', 'verhandlung'].includes(ord.status) && !(ord.signature || ord.orderMeta?.customerSignature) && !ordLatestCancelledNum ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenOrderMenuId(null);
+                                      if (onOpenSignatureModal) onOpenSignatureModal(ord);
+                                      else setDrawerOrder(ord);
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-xl transition-colors cursor-pointer text-left"
+                                  >
+                                    <PencilSquareIcon className="w-4 h-4 text-amber-500 shrink-0" />
+                                    <span>Digital signieren</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setOpenOrderMenuId(null);
+                                      handleRequestInvoice(ord);
+                                    }}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-xl transition-colors cursor-pointer text-left"
+                                  >
+                                    <DocumentCheckIcon className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                                    <span>Rechnung erstellen</span>
+                                  </button>
+                                </>
+                              ) : ord.status !== 'draft' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenOrderMenuId(null);
+                                    handleRequestInvoice(ord);
+                                  }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 rounded-xl transition-colors cursor-pointer text-left"
+                                >
+                                  <DocumentCheckIcon className="w-4 h-4 text-purple-600 dark:text-purple-400 shrink-0" />
+                                  <span>{ordLatestCancelledNum ? 'Korrekturrechnung erstellen' : 'Rechnung erstellen'}</span>
+                                </button>
+                              ) : null}
+                            </div>
+                          )}
+
+                          {/* 6. Switch Active Order */}
+                          {!isThisActive && (
+                            <div className="pt-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenOrderMenuId(null);
+                                  setSelectedOrderId(ord.id);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/10 rounded-xl transition-colors cursor-pointer text-left"
+                              >
+                                <EyeIcon className="w-4 h-4 text-primary shrink-0" />
+                                <span>Im Profil aktivieren</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </>
-                    ) : ord.status !== 'draft' ? (
-                      <button
-                        type="button"
-                        onClick={() => handleRequestInvoice(ord)}
-                        className="px-3 py-2 rounded-xl text-xs font-bold bg-purple-50 dark:bg-purple-950/40 hover:bg-purple-100 dark:hover:bg-purple-900/50 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 transition-all flex items-center gap-1.5 cursor-pointer"
-                        title={ordLatestCancelledNum ? `Rechnung ${ordLatestCancelledNum} wurde storniert. Klicken für Korrekturrechnung.` : "Rechnung für diesen bestätigten Auftrag erstellen"}
-                      >
-                        <DocumentCheckIcon className="w-3.5 h-3.5" />
-                        <span>{ordLatestCancelledNum ? 'Korrekturrechnung erstellen' : 'Rechnung erstellen'}</span>
-                      </button>
-                    ) : null)}
+                    )}
                   </div>
                 </div>
               );
